@@ -1,0 +1,23 @@
+# Local development only. Staging and production use Supabase.
+# Creates two databases: `pacifyco` (local dev) and `pacifyco_test` (pytest).
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pacifyco
+      POSTGRES_PASSWORD: pacifyco
+      POSTGRES_DB: pacifyco
+      TZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./api/docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pacifyco -d pacifyco"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  db-data:
