@@ -1,0 +1,14 @@
+{
+  "name": "pacifyco",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "db:start": "docker compose up -d --wait",
+    "db:stop": "docker compose stop",
+    "db:reset": "docker compose down -v && docker compose up -d --wait"
+  }
+}
