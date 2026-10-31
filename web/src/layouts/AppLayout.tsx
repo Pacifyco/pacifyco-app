@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet } from "react-router";
+import symbolUrl from "../assets/brand/symbol.svg";
 import { config } from "../config";
 import { apiFetch } from "../lib/api";
 import { ThemeToggle } from "../theme/ThemeToggle";
@@ -11,10 +12,10 @@ export function AppLayout() {
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-line bg-surface-raised">
         <div className="mx-auto flex max-w-content items-center justify-between gap-4 px-4 py-3 sm:px-5">
-          {/* TODO: logo. Replace with the supplied wordmark SVG from /web/src/assets/brand/ (design.md
-              section 6). Never retype the wordmark in Poppins. */}
-          <Link to="/" className="text-ui text-ink no-underline">
-            Pacify
+          {/* TODO: logo. The symbol stands in until the wordmark SVG arrives: design.md section 6 puts the
+              wordmark in navigation (28px tall desktop, 24px mobile) and keeps the symbol for icons. */}
+          <Link to="/" className="inline-flex shrink-0 no-underline">
+            <img src={symbolUrl} alt="Pacify home" className="h-6 w-auto sm:h-7" />
           </Link>
           <ThemeToggle />
         </div>
