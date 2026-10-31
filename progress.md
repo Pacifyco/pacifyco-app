@@ -9,7 +9,7 @@ tests.
 ## Current status
 
 - Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
-- Next item: UI components from design.md section 10 (Button, inputs, Chip, VerifiedChip, Card, IconTile)
+- Next item: CI: lint, type-check, tests on PRs
 - Blocked on: nothing yet
 
 ## Open questions (ask Reuben; don't guess)
@@ -41,7 +41,8 @@ tests.
 - [x] API skeleton: health endpoint, settings from env, Sentry, CORS, error format
 - [x] Alembic set up; first migration with core tables from CLAUDE.md section 8; RLS enabled on all tables
 - [x] Web skeleton: Vite + React + TS + Router + TanStack Query + Tailwind with design tokens, light/dark
-- [ ] UI components from design.md section 10 (Button, inputs, Chip, VerifiedChip, Card, IconTile)
+- [x] UI components from design.md section 10 (Button, inputs, Chip, VerifiedChip, Card, IconTile)
+  (Also built, display-only until their phases wire data: SitterCard, BookingCard, HourBalance, RoleChooser, EmergencyButton, EmptyState. Preview at `/dev/components`, not in production.)
 - [ ] CI: lint, type-check, tests on PRs
 - [ ] Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
   (Note: RLS has no policies, so the API's database role must own the tables or have BYPASSRLS. Decide which role runs migrations vs. serves the API.)
@@ -179,6 +180,7 @@ tests.
 
 ## Session log (one line per session, newest first)
 
+- 2026-10-31 — UI components (design.md section 10) in `web/src/components/ui`: Button/ButtonLink, TextInput/Select/Textarea, Chip, VerifiedChip (fixed labels for real checks only), Card, IconTile, SitterCard (no price prop), BookingCard, HourBalance, RoleChooser, EmergencyButton (confirm step), EmptyState; `lib/format.ts` for IST dates/times, hours and names. Lucide added. 53 web tests pass. Header now uses the wordmark (reversed in dark mode).
 - 2026-10-31 — Web skeleton: React Router 7 (v8 needs React 19; stack is React 18), TanStack Query with an `apiFetch` that reads the API error format, Tailwind 4 mapped to design.md tokens (default palette removed), Poppins/Caveat, light/dark following the OS with a manual toggle and no flash. Placeholder parent/sitter/admin pages, 404 and error pages; environment footer outside production. 23 web tests pass. GitHub now auto-deletes merged branches.
 - 2026-10-31 — Alembic + first migration: profiles, parents, children, emergency_contacts, sitters, service_area_pincodes (launch pins seeded), audit_log. RLS on every table (incl. alembic_version), no policies, anon/authenticated revoked incl. default privileges. Local DATABASE_URL falls back to Docker; `npm run dev` migrates. 45 API tests pass.
 - 2026-10-31 — API skeleton: `/health`, typed settings from root `.env` (CORS required outside local, no `*`), Sentry on only when `SENTRY_DSN` set (no PII), one error format (`app/errors.py`, documented in CLAUDE.md section 5). 20 API tests pass.

@@ -13,6 +13,7 @@ export function HomePage() {
           <Link to="/parent">Parent area</Link>
           <Link to="/sitter">Sitter area</Link>
           <Link to="/admin">Admin area</Link>
+          <Link to="/dev/components">Components</Link>
         </nav>
       )}
     </section>
