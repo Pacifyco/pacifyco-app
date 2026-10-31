@@ -392,11 +392,16 @@ interview, psychology test, and meeting before the first booking. Do not claim a
 
 ## 8. Data model (first draft — refine in phase 1, then keep this section in sync)
 
-- `profiles` (id = Supabase user id, role, full_name, phone, email, status: `pending|active|suspended|removed`, pin_code, address, lat, lng, created_at)
-- `parents` (profile_id, second_parent_name, verification_status)
-- `children` (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status)
-- `emergency_contacts` (id, child_id, name, relationship, phone)
-- `sitters` (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, hourly_rate_paise, upi_id, onboarding_status, avg_rating, review_count)
+Tables marked **(created)** exist as models (`api/app/models`) and migrations; the models are the source
+of truth for their columns. Other tables are added by the phase that needs them, in its own migration.
+Status values use text columns with CHECK constraints (not Postgres enums), so adding a value is a small
+migration. Verification statuses are `pending|approved|rejected`.
+
+- `profiles` **(created)** (id = Supabase user id, role, full_name, phone, email, status: `pending|active|suspended|removed`, pin_code, address, lat, lng, created_at)
+- `parents` **(created)** (profile_id, second_parent_name, verification_status)
+- `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status)
+- `emergency_contacts` **(created)** (id, child_id, name, relationship, phone)
+- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, hourly_rate_paise (CHECK 8000–12000), upi_id, onboarding_status: `in_progress|approved|rejected`, avg_rating, review_count)
 - `onboarding_steps` (sitter_id, step, status, notes, reviewed_by, reviewed_at)
 - `documents` (id, owner_profile_id, child_id null, type: `aadhaar_masked|birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at)
 - `document_access_log` (id, document_id, admin_id, accessed_at)
@@ -423,8 +428,8 @@ interview, psychology test, and meeting before the first booking. Do not claim a
 - `reviews` (id, booking_id, author_id, subject_id, rating, body)
 - `sitter_earnings` (id, sitter_id, booking_id null, kind: `booking|overtime|show_up_fee|under_age_fee`, amount_paise, status: `held|released|paid`, due_by, payout_id null)
 - `payouts` (id, sitter_id, amount_paise, method: `bank|upi`, transfer_reference, paid_by, paid_at)
-- `audit_log` (id, actor_id, action, entity, entity_id, before, after, created_at)
-- `service_area_pincodes` (pin_code, active)
+- `audit_log` **(created)** (id, actor_id, action, entity, entity_id, before, after, created_at)
+- `service_area_pincodes` **(created)** (pin_code, active) — seeded with the launch pin codes
 
 ---
 

@@ -10,6 +10,8 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 ROOT_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 LOCAL_WEB_ORIGIN = "http://localhost:5173"
+# The Docker Compose database (docker-compose.yml). Used only when ENVIRONMENT is local and DATABASE_URL is blank.
+LOCAL_DATABASE_URL = "postgresql+psycopg://pacifyco:pacifyco@localhost:5432/pacifyco"
 
 
 class Environment(StrEnum):
@@ -58,10 +60,21 @@ class Settings(BaseSettings):
         return [origin.rstrip("/") for origin in origins]
 
     @model_validator(mode="after")
-    def _deployed_environments_need_origins(self) -> "Settings":
-        if self.environment != Environment.local and not self.cors_origins:
-            raise ValueError(f"CORS_ORIGINS must be set when ENVIRONMENT={self.environment}")
+    def _deployed_environments_need_config(self) -> "Settings":
+        if self.environment == Environment.local:
+            return self
+        missing = [
+            name
+            for name, value in (("DATABASE_URL", self.database_url), ("CORS_ORIGINS", self.cors_origins))
+            if not value
+        ]
+        if missing:
+            raise ValueError(f"{', '.join(missing)} must be set when ENVIRONMENT={self.environment}")
         return self
+
+    @property
+    def effective_database_url(self) -> str:
+        return self.database_url or LOCAL_DATABASE_URL
 
     @property
     def allowed_origins(self) -> list[str]:

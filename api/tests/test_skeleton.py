@@ -9,6 +9,7 @@ from app.main import create_app, init_sentry
 from app.settings import Environment, Settings
 
 WEB_ORIGIN = "https://staging.pacifyco.in"
+STAGING = {"environment": "staging", "cors_origins": WEB_ORIGIN, "database_url": "postgresql+psycopg://u:p@db/x"}
 
 
 def make_settings(**overrides) -> Settings:
@@ -44,7 +45,7 @@ def make_client(settings: Settings | None = None) -> TestClient:
 
 
 def test_health_ok():
-    response = make_client(make_settings(environment="staging", cors_origins=WEB_ORIGIN)).get("/health")
+    response = make_client(make_settings(**STAGING)).get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "environment": "staging"}
 
@@ -82,9 +83,16 @@ def test_unknown_environment_rejected():
 
 
 @pytest.mark.parametrize("environment", ["staging", "production"])
-def test_deployed_environments_require_cors_origins(environment):
-    with pytest.raises(ValidationError, match="CORS_ORIGINS"):
-        make_settings(environment=environment)
+@pytest.mark.parametrize("missing", ["cors_origins", "database_url"])
+def test_deployed_environments_require_config(environment, missing):
+    values = {**STAGING, "environment": environment, missing: ""}
+    with pytest.raises(ValidationError, match=missing.upper()):
+        make_settings(**values)
+
+
+def test_local_database_falls_back_to_docker():
+    assert "localhost:5432/pacifyco" in make_settings().effective_database_url
+    assert make_settings(database_url="postgresql+psycopg://x").effective_database_url == "postgresql+psycopg://x"
 
 
 def test_wildcard_cors_origin_rejected():
@@ -102,14 +110,14 @@ def preflight(client: TestClient, origin: str):
 
 
 def test_cors_allows_listed_origin():
-    client = make_client(make_settings(environment="staging", cors_origins=WEB_ORIGIN))
+    client = make_client(make_settings(**STAGING))
     response = preflight(client, WEB_ORIGIN)
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == WEB_ORIGIN
 
 
 def test_cors_refuses_other_origins():
-    client = make_client(make_settings(environment="staging", cors_origins=WEB_ORIGIN))
+    client = make_client(make_settings(**STAGING))
     response = preflight(client, "https://evil.example")
     assert "access-control-allow-origin" not in response.headers
     simple = client.get("/health", headers={"Origin": "https://evil.example"})
