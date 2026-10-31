@@ -42,6 +42,9 @@
   --status-danger:   #FFB3A7;
 }
 
+/* `dark:` utilities follow our theme attribute (set before paint), not just the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* ---------- Tailwind theme mapped to the tokens ---------- */
 
 /* Colours: Tailwind's default palette is removed so only brand tokens exist (bg-surface-raised,

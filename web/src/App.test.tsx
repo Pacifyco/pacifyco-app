@@ -16,7 +16,7 @@ describe("routes", () => {
 
   test("the layout links home and has a main landmark", async () => {
     renderApp("/parent");
-    expect(await screen.findByRole("link", { name: "Pacify" })).toBeTruthy();
+    expect(await screen.findByRole("link", { name: "Pacify home" })).toBeTruthy();
     expect(screen.getByRole("main")).toBeTruthy();
   });
 });

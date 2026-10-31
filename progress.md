@@ -32,7 +32,7 @@ tests.
 - [ ] [Reuben] Resend account; Sentry account with web and API projects
 - [ ] [Reuben] Google Cloud project with Calendar API, service account, interview calendar
 - [ ] [Reuben] Business bank account and UPI ID for beta payments
-- [ ] [Reuben] Logo SVGs (wordmark, reversed wordmark, symbol) added to the repo. Claude Code moves them into `/web/src/assets/brand/` if they land elsewhere.
+- [x] [Reuben] Logo files added: wordmark and reversed wordmark (PNG, `assets/primary-logo*.png`), symbol (SVG). Web copies in `/web/src/assets/brand/`. SVG wordmarks still wanted from the designer (design.md section 6).
 
 ## Phase 1 — Foundation
 
