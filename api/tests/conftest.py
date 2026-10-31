@@ -11,7 +11,7 @@ DEFAULT_TEST_DATABASE_URL = "postgresql+psycopg://pacifyco:pacifyco@localhost:54
 @pytest.fixture(scope="session")
 def db_engine():
     url = os.environ.get("TEST_DATABASE_URL") or DEFAULT_TEST_DATABASE_URL
-    engine = create_engine(url)
+    engine = create_engine(url, connect_args={"connect_timeout": 5})
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))

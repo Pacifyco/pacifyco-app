@@ -147,6 +147,10 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   to its cause.
 - **Every state change on bookings, payouts, strikes and verifications writes to `audit_log`** (actor,
   action, entity, before/after).
+- **Errors** all use one shape: `{"error": {"code", "message", "details"}}` (`api/app/errors.py`). Raise
+  `AppError(status, code, message, details)` for expected failures; `code` is a stable snake_case string
+  the web app branches on, `message` is safe to show users. Unhandled errors return a generic 500 and go
+  to Sentry; responses never echo submitted values or internal details.
 - **Chat** uses polling (every 10 s while a chat is open) in v1. No websockets.
 - **Scheduled jobs** are idempotent API endpoints under `/internal/jobs/*`, protected by `JOBS_SECRET`
   and called by a GitHub Actions schedule: pack expiry and carry-forward (daily), strike expiry

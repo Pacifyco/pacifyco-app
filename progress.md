@@ -9,7 +9,7 @@ tests.
 ## Current status
 
 - Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
-- Next item: API skeleton: health endpoint, settings from env, Sentry, CORS, error format
+- Next item: Alembic set up; first migration with core tables from CLAUDE.md section 8; RLS enabled on all tables
 - Blocked on: nothing yet
 
 ## Open questions (ask Reuben; don't guess)
@@ -38,7 +38,7 @@ tests.
 
 - [x] Monorepo scaffold (`/web`, `/api`), `.env.example`, README with local setup
 - [x] Local dev: Docker Compose Postgres for API tests, one command to run web + API
-- [ ] API skeleton: health endpoint, settings from env, Sentry, CORS, error format
+- [x] API skeleton: health endpoint, settings from env, Sentry, CORS, error format
 - [ ] Alembic set up; first migration with core tables from CLAUDE.md section 8; RLS enabled on all tables
 - [ ] Web skeleton: Vite + React + TS + Router + TanStack Query + Tailwind with design tokens, light/dark
 - [ ] UI components from design.md section 10 (Button, inputs, Chip, VerifiedChip, Card, IconTile)
@@ -178,6 +178,7 @@ tests.
 
 ## Session log (one line per session, newest first)
 
+- 2026-10-31 — API skeleton: `/health`, typed settings from root `.env` (CORS required outside local, no `*`), Sentry on only when `SENTRY_DSN` set (no PII), one error format (`app/errors.py`, documented in CLAUDE.md section 5). 20 API tests pass.
 - 2026-10-28 — Repo pushed (`main`, `develop`); `main` protected (PR required, no force-push or delete). Local dev: Docker Compose Postgres 17 (`pacifyco` + `pacifyco_test`), pytest `db_engine` fixture, root `npm run dev` starts DB + API + web.
 - 2026-10-24 — Monorepo scaffold: /api (FastAPI shell, pytest) and /web (Vite + React 18 + TS, Vitest), root .env.example and README. Python moved from 3.12 to 3.14 (CLAUDE.md updated). One root .env read by both apps.
 - 2026-10-23 — Sitter Terms of Use v1.1 added (per-child pay, 12-hour payouts, check-out code, 18-month minimum age); build rules aligned; bank or UPI payouts; complaints, outings, cameras and new cancellation rows added.
