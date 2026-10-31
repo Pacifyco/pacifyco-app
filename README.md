@@ -36,11 +36,8 @@ cp .env.example .env
 
 Both apps read this one `.env`. Never commit it.
 
-For local development, point the API at the Docker database:
-
-```
-DATABASE_URL=postgresql+psycopg://pacifyco:pacifyco@localhost:5432/pacifyco
-```
+For local development you can leave `DATABASE_URL` blank: with `ENVIRONMENT` blank or `local`, the API
+uses the Docker database (`postgresql+psycopg://pacifyco:pacifyco@localhost:5432/pacifyco`).
 
 ### 2. Database
 
@@ -83,6 +80,20 @@ uvicorn app.main:app --reload
 
 The API runs at http://localhost:8000 (interactive docs at http://localhost:8000/docs).
 
+Apply database migrations (`npm run dev` does this for you):
+
+```
+alembic upgrade head
+```
+
+After changing a model in `app/models`, generate a migration, then read and fix it before committing.
+New tables must get Row Level Security; copy `lock_down_tables` from the first migration (a test fails
+if any table is missing it).
+
+```
+alembic revision --autogenerate -m "short description"
+```
+
 Run the tests (the database must be running):
 
 ```
@@ -114,7 +125,7 @@ Once steps 1–4 are done, from the repo root:
 npm run dev
 ```
 
-This starts Postgres, the API (http://localhost:8000) and the web app (http://localhost:5173), with
+This starts Postgres, applies migrations, then starts the API (http://localhost:8000) and the web app (http://localhost:5173), with
 their output in one terminal. Ctrl+C stops the API and web app; the database keeps running.
 
 ## Branches
