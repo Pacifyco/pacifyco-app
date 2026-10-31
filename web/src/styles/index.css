@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+/* ---------- Design tokens (design.md section 3). Components use these, never raw hex. ---------- */
+
+:root {
+  color-scheme: light;
+  --surface-default: #FFF1E8;   /* page ground */
+  --surface-raised:  #FFFFFF;   /* cards, nav, inputs */
+  --surface-sunken:  #FBE6D9;   /* alternating sections, quiet panels */
+  --surface-tint:    #FDC7AC;   /* icon discs, avatars; ink text only */
+  --surface-inverse: #2D221D;   /* footer, dark bands */
+  --accent-coral:    #F5695A;   /* the mark, primary button fill, underlines */
+  --text-ink:        #2D221D;   /* all headlines and body */
+  --text-muted:      #6E5A50;   /* captions, meta; not on surface-tint */
+  --text-on-coral:   #2D221D;   /* labels on coral fills; never white */
+  --text-coral-display: #F45544;/* coral headlines 24px+ only */
+  --text-coral-deep: #C2412F;   /* coral at text size: links, prices, icons on tint */
+  --border-line:     #EBD9CC;   /* decorative hairlines */
+  --border-strong:   #9C7F70;   /* input and control borders */
+  --border-focus:    #2D221D;   /* 2px focus outline, 3px offset */
+  --status-trust:    #2E6B57;   /* verified ticks and labels only, always with words */
+  --status-danger:   #9E2A2B;   /* form errors, always with icon and message */
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-default: #2D221D;
+  --surface-raised:  #3A2D27;
+  --surface-sunken:  #241B17;
+  --surface-tint:    #4A352C;
+  --surface-inverse: #FFF1E8;
+  --accent-coral:    #F5695A;
+  --text-ink:        #FFF1E8;
+  --text-muted:      #C9B4A8;
+  --text-on-coral:   #2D221D;
+  --text-coral-display: #F5695A;
+  --text-coral-deep: #FF8A7A;
+  --border-line:     #4A3A32;
+  --border-strong:   #A08779;
+  --border-focus:    #FFF1E8;
+  --status-trust:    #8CCFB6;
+  --status-danger:   #FFB3A7;
+}
+
+/* ---------- Tailwind theme mapped to the tokens ---------- */
+
+/* Colours: Tailwind's default palette is removed so only brand tokens exist (bg-surface-raised,
+   text-ink, text-coral-deep, border-strong, ...). They switch with the theme automatically. */
+@theme inline {
+  --color-*: initial;
+  --color-surface-default: var(--surface-default);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-tint: var(--surface-tint);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-coral: var(--accent-coral);
+  --color-ink: var(--text-ink);
+  --color-muted: var(--text-muted);
+  --color-on-coral: var(--text-on-coral);
+  --color-coral-display: var(--text-coral-display);
+  --color-coral-deep: var(--text-coral-deep);
+  --color-line: var(--border-line);
+  --color-strong: var(--border-strong);
+  --color-focus: var(--border-focus);
+  --color-trust: var(--status-trust);
+  --color-danger: var(--status-danger);
+}
+
+@theme {
+  /* Spacing (design.md section 5): p-1 4px, p-2 8px, p-3 12px, p-4 16px, then the brand steps. */
+  --spacing: 4px;
+  --spacing-5: 24px;
+  --spacing-6: 32px;
+  --spacing-7: 48px;
+  --spacing-8: 64px;
+  --spacing-9: 96px;
+  --spacing-10: 128px;
+  --spacing-11: 160px;
+
+  --radius-*: initial;
+  --radius-sm: 8px;      /* tags, checkboxes */
+  --radius-md: 16px;     /* inner panels, menus, textarea */
+  --radius-lg: 24px;     /* cards, photos, nav */
+  --radius-xl: 32px;     /* large panels, bands */
+  --radius-pill: 999px;  /* every button, input and chip */
+
+  --shadow-*: initial;
+  --shadow-soft: 0 8px 24px rgba(45, 34, 29, 0.08);
+  --shadow-lift: 0 18px 48px rgba(45, 34, 29, 0.14);
+
+  --font-*: initial;
+  --font-sans: "Poppins", "Helvetica Neue", Arial, sans-serif;
+  --font-script: "Caveat", "Segoe Print", cursive;
+
+  /* Type scale (design.md section 4): text-h1, text-body, text-ui, text-caption, ... */
+  --text-*: initial;
+  --text-display-xl: 72px;
+  --text-display-xl--line-height: 76px;
+  --text-display-xl--letter-spacing: -1.5px;
+  --text-display-xl--font-weight: 700;
+  --text-display: 56px;
+  --text-display--line-height: 60px;
+  --text-display--letter-spacing: -1px;
+  --text-display--font-weight: 700;
+  --text-h1: 44px;
+  --text-h1--line-height: 52px;
+  --text-h1--letter-spacing: -0.75px;
+  --text-h1--font-weight: 600;
+  --text-h2: 32px;
+  --text-h2--line-height: 40px;
+  --text-h2--letter-spacing: -0.5px;
+  --text-h2--font-weight: 600;
+  --text-h3: 24px;
+  --text-h3--line-height: 32px;
+  --text-h3--letter-spacing: -0.25px;
+  --text-h3--font-weight: 600;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 30px;
+  --text-body: 16px;
+  --text-body--line-height: 26px;
+  --text-ui: 15px;
+  --text-ui--line-height: 22px;
+  --text-ui--font-weight: 500;
+  --text-small: 14px;
+  --text-small--line-height: 22px;
+  --text-caption: 12px;
+  --text-caption--line-height: 18px;
+  --text-caption--font-weight: 300;
+  --text-eyebrow: 12px;
+  --text-eyebrow--line-height: 16px;
+  --text-eyebrow--letter-spacing: 4px;
+  --text-eyebrow--font-weight: 500;
+  --text-script: 30px;
+  --text-script--line-height: 34px;
+  --text-script--font-weight: 700;
+
+  /* Motion (design.md section 9) */
+  --ease-calm: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --container-content: 1200px;
+}
+
+/* ---------- Base ---------- */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-surface-default font-sans text-body text-ink antialiased;
+    min-height: 100dvh;
+  }
+
+  /* Headings on phones step down; app screens top out at H1. */
+  h1 {
+    @apply text-h2 sm:text-h1;
+  }
+
+  /* design.md section 5: 2px focus outline with 3px offset on every interactive element. */
+  :focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 3px;
+  }
+
+  a {
+    @apply text-coral-deep underline underline-offset-4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -50,7 +50,7 @@ and pays sitters within 12 hours of each booking.
 
 | Layer | Choice |
 | --- | --- |
-| Frontend | React 18 + TypeScript + Vite, React Router, TanStack Query, Tailwind CSS mapped to the tokens in `design.md`, Lucide icons (stroke 1.75) |
+| Frontend | React 18 + TypeScript + Vite, React Router 7 (v8 needs React 19), TanStack Query, Tailwind CSS mapped to the tokens in `design.md`, Lucide icons (stroke 1.75) |
 | Backend | Python 3.14 (same version locally, in CI and on Render), FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2, psycopg 3 |
 | Database, auth, file storage | Supabase (Postgres, Auth, private Storage buckets), Mumbai region |
 | Frontend hosting | Cloudflare Pages |
