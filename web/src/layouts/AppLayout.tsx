@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet } from "react-router";
-import symbolUrl from "../assets/brand/symbol.svg";
+import wordmarkReversedUrl from "../assets/brand/wordmark-reversed.png";
+import wordmarkUrl from "../assets/brand/wordmark.png";
 import { config } from "../config";
 import { apiFetch } from "../lib/api";
 import { ThemeToggle } from "../theme/ThemeToggle";
@@ -12,10 +13,17 @@ export function AppLayout() {
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-line bg-surface-raised">
         <div className="mx-auto flex max-w-content items-center justify-between gap-4 px-4 py-3 sm:px-5">
-          {/* TODO: logo. The symbol stands in until the wordmark SVG arrives: design.md section 6 puts the
-              wordmark in navigation (28px tall desktop, 24px mobile) and keeps the symbol for icons. */}
-          <Link to="/" className="inline-flex shrink-0 no-underline">
-            <img src={symbolUrl} alt="Pacify home" className="h-6 w-auto sm:h-7" />
+          {/* Wordmark: 24px tall on phones, 28px on desktop; reversed version in dark mode (design.md
+              section 6). PNG copies of the supplied files (sources in /assets); swap for SVGs when supplied. */}
+          <Link to="/" aria-label="Pacify home" className="inline-flex shrink-0 py-1 no-underline">
+            <img src={wordmarkUrl} alt="" width={426} height={112} className="h-6 w-auto sm:h-7 dark:hidden" />
+            <img
+              src={wordmarkReversedUrl}
+              alt=""
+              width={426}
+              height={112}
+              className="hidden h-6 w-auto sm:h-7 dark:block"
+            />
           </Link>
           <ThemeToggle />
         </div>
