@@ -88,7 +88,7 @@ export function ComponentsPage() {
           <Chip tone="sunken">Storytime</Chip>
           <VerifiedChip check="id_police" />
           <VerifiedChip check="references" />
-          <VerifiedChip check="interview" />
+          <VerifiedChip check="psychology" />
           <VerifiedChip check="first_aid" />
         </div>
       </Section>
@@ -119,7 +119,7 @@ export function ComponentsPage() {
             area="Indiranagar"
             ageGroups={["Ages 1–8"]}
             interests={["Storytime", "Art"]}
-            checks={["id_police", "references", "interview", "first_aid"]}
+            checks={["id_police", "references", "psychology", "first_aid"]}
             rating={4.8}
             reviewCount={23}
             familiesServed={14}
@@ -133,7 +133,7 @@ export function ComponentsPage() {
             area="Koramangala"
             ageGroups={["Ages 2–5"]}
             interests={["Music"]}
-            checks={["id_police", "references", "interview"]}
+            checks={["id_police", "references", "psychology"]}
             rating={null}
             reviewCount={0}
             familiesServed={0}

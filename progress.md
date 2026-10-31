@@ -161,7 +161,7 @@ tests.
 - [ ] [Reuben] Compliance done: DPDP consent text, Aadhaar handling, pre-paid hours, GST, sitter tax status, privacy policy, parent terms (lawyer and CA)
 - [x] [Reuben] Sitter Terms of Use v1.0 reviewed by lawyer
 - [ ] [Reuben] Lawyer to confirm the v1.1 edits (2.4 check-out code and pay cap, 2.6 12-hour payouts, 4.8 18 months)
-- [ ] [Reuben] Psychology test questions from a licensed psychologist
+- [ ] [Reuben] Psychology test questions from a licensed psychologist (until then, don't show the "Psychology screening passed" chip to parents)
 - [x] [Reuben] Domain bought: pacifyco.in
 - [ ] [Reuben] DNS set up (www, staging, api, api-staging); Resend domain verified
 - [ ] [Reuben] Production upgraded: Supabase Pro, Render Starter

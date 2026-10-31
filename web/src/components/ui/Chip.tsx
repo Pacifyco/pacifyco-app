@@ -21,7 +21,9 @@ export function Chip({ children, tone = "peach" }: { children: ReactNode; tone?:
 export const VERIFIED_LABELS = {
   id_police: "ID & police verified",
   references: "References checked",
-  interview: "Interviewed by Pacify",
+  // Only show once the real questions from a licensed psychologist are live (progress.md phase 15),
+  // not while the test runs on placeholder questions.
+  psychology: "Psychology screening passed",
   first_aid: "First-aid certified",
 } as const;
 
