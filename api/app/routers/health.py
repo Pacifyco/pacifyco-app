@@ -1,3 +1,4 @@
+import os
 from typing import Annotated
 
 import sentry_sdk
@@ -15,8 +16,10 @@ router = APIRouter(tags=["health"])
 @router.get("/health")
 def health(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, str]:
     """Liveness check for Render. Doesn't touch the database, so a paused staging database
-    doesn't make Render restart the service."""
-    return {"status": "ok", "environment": settings.environment}
+    doesn't make Render restart the service. `commit` shows which code is running (Render sets
+    RENDER_GIT_COMMIT on each deploy; the repository is public, so this reveals nothing new)."""
+    commit = os.environ.get("RENDER_GIT_COMMIT", "")[:7] or "local"
+    return {"status": "ok", "environment": settings.environment, "commit": commit}
 
 
 @router.get("/health/db")

@@ -229,7 +229,8 @@ postgresql://pacifyco_api.<project-ref>:<api-password>@<pooler-host>:5432/postgr
 
 ### Checking staging
 
-- `GET /health`: the API is running (Render's health check; never touches the database).
+- `GET /health`: the API is running (Render's health check; never touches the database). `commit` is the
+  first 7 characters of the deployed commit, so after a merge you can see whether Render deployed it.
 - `GET /health/db`: the API can sign in to its database. `"api_role": true` means it signed in as
   `pacifyco_api`, as it should when deployed; `false` means `DATABASE_URL` uses another role. A 503 means it
   can't connect (details go to Sentry).
