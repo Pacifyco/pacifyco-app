@@ -68,10 +68,13 @@ def outstanding(db: Session, profile_id: uuid.UUID, role: Role) -> list[LegalDoc
     return [doc for doc in required if doc.id not in accepted]
 
 
-def check_accepted(db: Session, role: Role, accepted: list[Accepted]) -> list[LegalDocument]:
-    """The documents to record, if `accepted` covers exactly what `role` must accept, at the current
-    versions. Otherwise 409 (the page showed an older version) or 422 (something's missing)."""
-    required = required_documents(db, role)
+def check_accepted(
+    db: Session, role: Role, accepted: list[Accepted], documents: list[LegalDocument] | None = None
+) -> list[LegalDocument]:
+    """The documents to record, if `accepted` covers each of `documents` (default: everything `role`
+    must accept) at its current version. Otherwise 409 (the page showed an older version) or 422
+    (something's missing)."""
+    required = required_documents(db, role) if documents is None else documents
     given = {item.kind: item.version for item in accepted}
     for doc in required:
         if doc.kind not in given:
@@ -100,8 +103,10 @@ def record_acceptances(
 
 
 def accept_outstanding(db: Session, profile: Profile, accepted: list[Accepted], request: RequestInfo) -> None:
-    """Re-acceptance after a version change (or for accounts made before click-wrap existed)."""
-    documents = check_accepted(db, profile.role, accepted)
+    """Re-acceptance after a version change (or for accounts made before click-wrap existed). Only what's
+    outstanding has to be accepted: after a new parent terms version, the privacy policy they already
+    accepted isn't asked for again."""
+    documents = check_accepted(db, profile.role, accepted, outstanding(db, profile.id, profile.role))
     record_acceptances(db, profile.id, documents, request)
     db.commit()
 
