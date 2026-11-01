@@ -163,6 +163,23 @@ def test_a_new_version_must_be_accepted_again(client, db_engine, user):  # noqa:
         assert accepted_kinds(db_engine, user["id"]) == ["parent_terms", "parent_terms", "privacy_policy"]
 
 
+def test_after_one_document_changes_only_that_one_is_needed(client, db_engine, user):  # noqa: F811
+    """What the web app sends: just the outstanding document (reported on staging)."""
+    assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    with published(db_engine, "parent_terms", "0.2-test"):
+        only_new = [{"kind": "parent_terms", "version": "0.2-test"}]
+        response = client.post("/me/terms", json={"accepted": only_new}, headers=auth_for(user))
+        assert response.status_code == 200
+        assert response.json()["terms_to_accept"] == []
+        # Still refused if it leaves out what's outstanding, or names an old version.
+        assert client.post("/me/terms", json={"accepted": []}, headers=auth_for(user)).status_code == 200
+    with published(db_engine, "privacy_policy", "0.2-test"):
+        empty = client.post("/me/terms", json={"accepted": []}, headers=auth_for(user))
+        assert empty.status_code == 422
+        old = [{"kind": "privacy_policy", "version": "0.1-draft"}]
+        assert client.post("/me/terms", json={"accepted": old}, headers=auth_for(user)).status_code == 409
+
+
 def test_a_version_announced_for_later_isnt_required_yet(client, db_engine, user):  # noqa: F811
     """Changes affecting pay or rights take effect 14 days after they're announced."""
     assert client.post("/me/profile", json={**PARENT, "role": "sitter"}, headers=auth_for(user)).status_code == 201
