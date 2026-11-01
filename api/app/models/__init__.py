@@ -2,6 +2,7 @@
 
 from app.models.audit import AuditLog
 from app.models.common import VerificationStatus
+from app.models.consents import Consent
 from app.models.parents import Child, EmergencyContact, Parent
 from app.models.profiles import Profile, ProfileStatus, Role, ServiceAreaPincode
 from app.models.sitters import OnboardingStatus, PayoutMethod, Sitter
@@ -9,6 +10,7 @@ from app.models.sitters import OnboardingStatus, PayoutMethod, Sitter
 __all__ = [
     "AuditLog",
     "Child",
+    "Consent",
     "EmergencyContact",
     "OnboardingStatus",
     "Parent",

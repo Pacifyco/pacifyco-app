@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import AuditLog, Child, Parent, Profile, ProfileStatus, Role, Sitter
+from app.models import AuditLog, Child, Consent, Parent, Profile, ProfileStatus, Role, Sitter
 from app.services.service_area import require_in_service_area
 
 # Indian mobile numbers: 10 digits starting 6–9, optionally written with +91, 91 or a leading 0.
@@ -69,12 +69,14 @@ def create_admin(db: Session, *, user_id: uuid.UUID, email: str, full_name: str)
 
 def is_empty(db: Session, profile: Profile) -> bool:
     """True while the account holds nothing but its sign-up details (CLAUDE.md 6.13): no children, no
-    sitter application details and no audit history. Add each new table that belongs to a person here
-    (documents, onboarding steps, packs, bookings...) when its phase creates it."""
+    consent records, no sitter application details and no audit history. Add each new table that
+    belongs to a person here (documents, onboarding steps, packs, bookings...) when its phase creates it."""
     if db.scalar(select(Child.id).where(Child.parent_id == profile.id).limit(1)) is not None:
         return False
     if db.scalar(select(AuditLog.id).where(AuditLog.actor_id == profile.id).limit(1)) is not None:
         return False
+    if db.scalar(select(Consent.id).where(Consent.parent_id == profile.id).limit(1)) is not None:
+        return False  # consent records are kept
     sitter = db.get(Sitter, profile.id)
     if sitter is not None:
         filled = (

@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { CONSENT_VERSION } from "../pages/ConsentPage";
 import { jsonResponse, renderApp } from "../test/renderApp";
 
 // A stand-in for Supabase Auth: tests decide what each call returns and when the session changes.
@@ -418,5 +419,72 @@ describe("role-gated areas", () => {
     renderApp("/parent");
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     expect(await screen.findByRole("link", { name: "Sign in" })).toBeTruthy();
+  });
+});
+
+describe("parental consent", () => {
+  type Call = { url: string; init?: RequestInit };
+
+  function parentWithConsent(acceptedAt: string | null, apiVersion = CONSENT_VERSION) {
+    fake.state.session = fake.session;
+    const calls: Call[] = [];
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url.endsWith("/parent/consent")) {
+        const accepted = init?.method === "POST" ? "2026-11-01T10:00:00Z" : acceptedAt;
+        return Promise.resolve(jsonResponse({ version: apiVersion, accepted_at: accepted }));
+      }
+      if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE }));
+      return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
+    }) as typeof fetch);
+    return calls;
+  }
+
+  test("a parent who hasn't consented is asked to, from their home", async () => {
+    parentWithConsent(null);
+    renderApp("/parent");
+    const link = await screen.findByRole("link", { name: /Read the consent form/ });
+    expect(link.getAttribute("href")).toBe("/parent/consent");
+  });
+
+  test("the form shows the draft text and needs the box ticked before agreeing", async () => {
+    const calls = parentWithConsent(null);
+    renderApp("/parent/consent");
+    expect(await screen.findByRole("heading", { level: 1, name: "Parental consent form" })).toBeTruthy();
+    expect(screen.getByText("DRAFT — NOT LEGALLY REVIEWED.")).toBeTruthy();
+    expect(screen.getByText(`Version ${CONSENT_VERSION}`)).toBeTruthy();
+
+    const box = (await screen.findByRole("checkbox")) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+    expect(screen.getByText("Please tick the box to give your consent.")).toBeTruthy();
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(false);
+
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+    expect(await screen.findByText("You gave your consent on 1 Nov 2026.")).toBeTruthy();
+    const post = calls.find((call) => call.init?.method === "POST")!;
+    expect(JSON.parse(post.init!.body as string)).toEqual({ version: CONSENT_VERSION });
+  });
+
+  test("a parent who has consented sees when, with no form to fill", async () => {
+    parentWithConsent("2026-10-30T08:00:00Z");
+    renderApp("/parent");
+    expect(await screen.findByText("Parental consent given on 30 Oct 2026.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Read the consent form/ })).toBeNull();
+  });
+
+  test("an old copy of the form can't be accepted", async () => {
+    parentWithConsent(null, "0.2");
+    renderApp("/parent/consent");
+    expect(await screen.findByText(/This form has been updated. Please reload/)).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  test("sitters don't have a consent form", async () => {
+    fake.state.session = fake.session;
+    vi.mocked(fetch).mockImplementation(meResponse({ ...PARENT_PROFILE, role: "sitter" }) as typeof fetch);
+    const { router } = renderApp("/parent/consent");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/sitter"));
   });
 });

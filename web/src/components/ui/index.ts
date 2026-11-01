@@ -4,7 +4,7 @@ export { Card } from "./Card";
 export { Chip, VERIFIED_LABELS, VerifiedChip, type VerifiedCheck } from "./Chip";
 export { EmergencyButton } from "./EmergencyButton";
 export { EmptyState } from "./EmptyState";
-export { Select, TextInput, Textarea } from "./Field";
+export { Checkbox, Select, TextInput, Textarea } from "./Field";
 export { HourBalance, type ChildBalance } from "./HourBalance";
 export { IconTile } from "./IconTile";
 export { RoleChooser, type ChosenRole } from "./RoleChooser";

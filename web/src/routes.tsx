@@ -4,6 +4,7 @@ import { config } from "./config";
 import { AppLayout } from "./layouts/AppLayout";
 import { AdminHomePage, ParentHomePage, SitterHomePage } from "./pages/AreaPages";
 import { ComponentsPage } from "./pages/ComponentsPage";
+import { ConsentPage } from "./pages/ConsentPage";
 import { NotFoundPage, RouteErrorPage } from "./pages/ErrorPages";
 import { HomePage } from "./pages/HomePage";
 import { JoinPage } from "./pages/JoinPage";
@@ -21,6 +22,14 @@ export const routes: RouteObject[] = [
         element: (
           <RequireRole role="parent">
             <ParentHomePage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: "parent/consent",
+        element: (
+          <RequireRole role="parent">
+            <ConsentPage />
           </RequireRole>
         ),
       },
