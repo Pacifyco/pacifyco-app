@@ -24,11 +24,14 @@ tests.
   points differ from CLAUDE.md or from what the app does. For each: change the rules (and app), or ask
   the lawyer for a new terms version?
   1. Minimum child age: terms say **2 years**; CLAUDE.md 6.4 and the Sitter Terms say **18 months**.
+     **Decided: 18 months** (the app stays at 18 months). [Reuben] Family Terms need a new version (v1.1)
+     saying 18 months, in 1.4, 3.8 and the cancellation table, before production families rely on it.
   2. Child below the minimum age at a booking: terms say the booked hours are **used up**; CLAUDE.md 6.5
      says the parent's hours are **refunded** (both say the sitter gets ₹100).
   3. Accepting the terms: terms say tick "I agree" **and confirm with an OTP sent to a verified mobile
      number**; the app has a tick only, phones aren't verified, and SMS is out of scope for v1.
-  4. Consents: terms 11.2 say **four required and one optional consent, ticked separately at sign-up**;
+  4. **Decided: follow the terms** (CLAUDE.md 7, "Consent"); built in phase 3.
+     Consents: terms 11.2 say **four required and one optional consent, ticked separately at sign-up**;
      the app has one parental consent form, accepted later before child documents.
   5. Overtime when hours run out: terms say **₹300 per hour**; CLAUDE.md 6.8 says ₹300 **per child** per hour.
   6. Sitter rates: terms 3.1 say profiles show the sitter's **rate**; CLAUDE.md and design.md say parents
@@ -39,7 +42,8 @@ tests.
      (an admin confirms the UPI payment first).
   9. Sitter leaves because unsafe or the parent broke the terms: terms say the **full booking is charged**;
      CLAUDE.md 6.5 covers only the sitter's pay.
-  10. Not in the plan yet: authorised adults for handover and two emergency contacts (2.5), medicine
+  10. **Decided for 2.5: follow the terms** (two emergency contacts per family, authorised adults;
+      phase 3). Still not in the plan: medicine
       instructions (3.7), who else and which pets are home per booking (6.2), whether cameras record
       audio (6.3), the introduction fee to hire a sitter directly (7.2), an optional marketing consent
       (11.2), closing an account in the app and refunds when Pacifyco closes it (11.5).
@@ -97,6 +101,12 @@ tests.
 
 ## Phase 3 — Verification and onboarding
 
+Waiting on: Reuben's go-ahead; the Supabase secret key and FIELD_ENCRYPTION_KEY on Render (steps given
+when starting). Sitter rate field: keep ₹80–120 until the pricing questions are answered, then revisit.
+
+- [ ] Parent consents at sign-up (Family Terms 11.2: four required, one optional) and the single-parent
+  declaration, replacing the phase 2 consent form
+- [ ] Emergency contacts per family (two) and authorised adults (Family Terms 2.5)
 - [ ] Private storage buckets, signed upload URLs, file type/size validation
 - [ ] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
 - [ ] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)

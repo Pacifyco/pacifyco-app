@@ -366,7 +366,8 @@ Emergency button instead.
 2. Government ID upload, plus college or work ID.
 3. Police clearance certificate upload.
 4. Two references (name, phone, relationship). Admin records the outcome.
-5. Psychology test, taken in the app. Questions come from a licensed psychologist and are stored as
+5. Psychology test, taken in the app: multiple-choice questions plus a few short written answers; an
+   admin reads them and records pass or fail. Questions come from a licensed psychologist and are stored as
    data (`psych_tests`, `psych_questions`); ship with clearly marked placeholder questions until then.
    Admin reviews and records pass/fail.
 6. Onboarding interview with Pacify.
@@ -388,9 +389,30 @@ can't request an introduction until approved. Decided 2026-11-02:
 **Document handling:** private bucket, admin-only access, every view logged, birth certificates deleted
 automatically once the child is verified (keep status, verifier and date).
 
-**Consent:** before uploading any child documents, the parent must accept the parental consent form
-(placeholder text in `/web/src/content/consent.md`, versioned; store which version they accepted and
-when). The privacy policy and parent terms ship as placeholders until legal review.
+**Consent (decided 2026-11-02, follow Family Terms 11.2):** at parent sign-up, separate unticked boxes,
+nothing pre-ticked, each recorded with its version and time:
+1. **Required:** use of the parent's own data for the account, verification, bookings, payments and safety.
+2. **Required:** use of each child's data, given as parent or guardian, to match and brief a sitter and
+   keep the child safe.
+3. **Required:** sharing the child's care details with the booked sitter.
+4. **Required:** emergency authorisation (if the parent and emergency contacts can't be reached, the
+   sitter may call 112 and take the child to the nearest hospital or doctor, and Pacifyco may share the
+   child's health details with treating doctors).
+5. **Optional:** offers and updates from Pacifyco; saying no changes nothing, and it can be withdrawn.
+
+The labels use the wording of Family Terms 11.2. These replace the single parental consent form built in
+phase 2 (`/parent/consent`); child documents still need every required consent at its current version.
+
+**Single parent or sole guardian:** instead of a second Aadhaar, they tick "I'm the only parent or legal
+guardian of the children I add." (wording approved for now; recorded with version and time).
+
+**Emergency contacts and authorised adults (decided 2026-11-02, follow Family Terms 2.5):** two emergency
+contacts per **family** (not per child), and any number of named **authorised adults** who may hand over or
+receive the child during a booking. The parent confirms they have each person's permission to share their
+details.
+
+**Uploads:** PDF, JPG or PNG only, at most 5 MB each, checked by the API (type from the file's contents,
+not its name).
 
 **Terms acceptance (click-wrap, both roles):**
 - Documents: Parent terms of service, **Sitter Terms of Use** and the Privacy policy, all versioned, in
@@ -437,12 +459,16 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `profiles` **(created)** (id = Supabase user id, role, full_name, phone, email, status: `pending|active|suspended|removed`, pin_code, address, lat, lng, created_at)
 - `parents` **(created)** (profile_id, second_parent_name, verification_status)
 - `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status)
-- `emergency_contacts` **(created)** (id, child_id, name, relationship, phone)
+- `emergency_contacts` **(created)** (id, child_id, name, relationship, phone) — **to change in phase 3**:
+  per family (parent_id instead of child_id), exactly two per family
+- `authorised_adults` (id, parent_id, name, relationship, phone) — phase 3
 - `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, hourly_rate_paise (CHECK 8000–12000), upi_id, onboarding_status: `in_progress|approved|rejected`, avg_rating, review_count)
 - `onboarding_steps` (sitter_id, step, status, notes, reviewed_by, reviewed_at)
 - `documents` (id, owner_profile_id, child_id null, type: `aadhaar_masked|birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at)
 - `document_access_log` (id, document_id, admin_id, accessed_at)
-- `consents` **(created)** (id, parent_id, form_version, accepted_at) — append-only, one row per parent per version; current version is `CONSENT_VERSION` in `api/app/services/consent.py`, matching the `version:` line of `web/src/content/consent.md`
+- `consents` **(created)** (id, parent_id, form_version, accepted_at) — **to change in phase 3** to one
+  row per consent kind (`own_data|child_data|share_care_details|emergency_authorisation|marketing`) and
+  version, with marketing withdrawable; plus the single-parent declaration — append-only, one row per parent per version; current version is `CONSENT_VERSION` in `api/app/services/consent.py`, matching the `version:` line of `web/src/content/consent.md`
 - `legal_documents` **(created)** (id, kind: `parent_terms|sitter_terms|privacy_policy`, version, published_at, effective_at, content_path) — read-only for the API; a new version is a migration that adds a row (plus the new text in `web/src/content/` with the same version; a test checks they match). The current version is the latest whose `effective_at` has passed, so pay or rights changes to the sitter terms get an `effective_at` 14+ days out
 - `legal_acceptances` **(created)** (id, profile_id, document_id, method: `clickwrap`, accepted_at, ip_address, user_agent) — append-only; written only by `record_acceptances` in `api/app/services/legal.py`; `require_current_terms` gates booking, buying hours and taking bookings
 - `references` (id, sitter_id, name, phone, relationship, outcome, notes)
