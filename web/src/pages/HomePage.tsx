@@ -1,10 +1,8 @@
-import { Link } from "react-router";
+import { Link, Navigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
-import { useMe } from "../auth/useMe";
+import { AREA_PATH, useMe } from "../auth/useMe";
 import { ButtonLink } from "../components/ui";
 import { config } from "../config";
-
-const AREA = { parent: "/parent", sitter: "/sitter", admin: "/admin" } as const;
 
 export function HomePage() {
   const { status } = useAuth();
@@ -44,17 +42,14 @@ function SignedIn() {
   if (me.isError) return <p className="text-muted">{me.error.message}</p>;
 
   const profile = me.data.profile;
+  // Signed in for the first time: finish joining before anything else.
+  if (!profile) return <Navigate to="/join" replace />;
   return (
     <div className="flex flex-col items-start gap-4">
       <p className="text-muted">You're signed in as {me.data.email ?? email}.</p>
-      {profile ? (
-        <ButtonLink to={AREA[profile.role]} arrow>
-          Go to your account
-        </ButtonLink>
-      ) : (
-        // Choosing a role and accepting the terms is the next phase 2 item.
-        <p className="text-muted">Next, you'll tell us whether you're a parent or a sitter. That step is on its way.</p>
-      )}
+      <ButtonLink to={AREA_PATH[profile.role]} arrow>
+        Go to your account
+      </ButtonLink>
     </div>
   );
 }

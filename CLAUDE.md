@@ -335,6 +335,13 @@ Emergency button instead.
 
 ### 6.13 Accounts
 
+- At sign-up a person chooses **parent** or **sitter** and confirms it ("You're joining as a parent.
+  Is that right?"). Sign-up asks for full name and an Indian mobile number. Admin accounts are never
+  chosen at sign-up; they are created with the CLI (`python -m app.cli create-admin`).
+- Users can't change their own role. An admin can change it only while the account is empty (no
+  children, documents, onboarding steps, packs or bookings), and the change is audit logged.
+- One email = one account = one role. Someone who is both a parent and a sitter uses two accounts with
+  different emails, each verified separately.
 - Sitters can close their account once they have no upcoming bookings; all earned amounts are paid out.
 - Data access, correction and deletion requests go through the complaint flow (type: data request);
   records the law requires are kept.
