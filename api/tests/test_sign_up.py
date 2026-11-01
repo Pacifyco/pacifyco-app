@@ -9,7 +9,7 @@ from app import cli
 from app.services.accounts import normalise_mobile
 from tests.test_auth import bearer, client, token  # noqa: F401  (client is a fixture)
 
-PARENT = {"role": "parent", "full_name": "  Meera   Rao ", "phone": "+91 98765-43210"}
+PARENT = {"role": "parent", "full_name": "  Meera   Rao ", "phone": "+91 98765-43210", "pin_code": "560034"}
 
 
 @pytest.fixture
@@ -37,8 +37,14 @@ def test_parent_sign_up_creates_profile_and_parent(client, db_engine, user):  # 
         "email": user["email"],
         "profile": {"role": "parent", "status": "pending", "full_name": "Meera Rao"},
     }
-    profile = row(db_engine, "SELECT role, phone, email, status FROM profiles WHERE id = :id", user["id"])
-    assert dict(profile) == {"role": "parent", "phone": "+919876543210", "email": user["email"], "status": "pending"}
+    profile = row(db_engine, "SELECT role, phone, email, status, pin_code FROM profiles WHERE id = :id", user["id"])
+    assert dict(profile) == {
+        "role": "parent",
+        "phone": "+919876543210",
+        "email": user["email"],
+        "status": "pending",
+        "pin_code": "560034",
+    }
     assert row(db_engine, "SELECT 1 FROM parents WHERE profile_id = :id", user["id"]) is not None
     assert row(db_engine, "SELECT 1 FROM sitters WHERE profile_id = :id", user["id"]) is None
     assert client.get("/me", headers=auth_for(user)).json()["profile"]["role"] == "parent"
@@ -93,6 +99,9 @@ def test_email_already_used_by_another_account(client, db_engine, user):  # noqa
         {"phone": "5876543210"},  # Indian mobiles start 6–9
         {"phone": "+1 415 555 0100"},
         {"role": "nanny"},
+        {"pin_code": "56003"},
+        {"pin_code": "56003A"},
+        {"pin_code": None},
     ],
 )
 def test_invalid_details_are_422_and_create_nothing(client, db_engine, user, change):  # noqa: F811

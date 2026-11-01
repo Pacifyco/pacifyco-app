@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
@@ -7,8 +7,8 @@ import { Button, RoleChooser, TextInput, type ChosenRole } from "../components/u
 import { ApiError, apiFetch } from "../lib/api";
 
 type Step = "role" | "details" | "confirm";
-type SignUp = { role: ChosenRole; full_name: string; phone: string };
-type FieldErrors = { full_name?: string; phone?: string };
+type SignUp = { role: ChosenRole; full_name: string; phone: string; pin_code: string };
+type FieldErrors = { full_name?: string; phone?: string; pin_code?: string };
 
 const NAME_ERROR = "Please tell us your full name.";
 const PHONE_ERROR = "That number doesn't look quite right — could you check it? We need a 10-digit mobile number.";
@@ -18,10 +18,21 @@ export function isIndianMobile(raw: string): boolean {
   return /^(?:\+?91|0)?[6-9]\d{9}$/.test(raw.replace(/[\s\-().]/g, ""));
 }
 
-function checkDetails(details: Omit<SignUp, "role">): FieldErrors {
+export function outsideAreaMessage(pinCode: string, pinCodes: string[] | undefined): string {
+  const list = pinCodes?.length ? ` For now we're in these Bengaluru pin codes: ${pinCodes.join(", ")}.` : "";
+  return `Pacify isn't in ${pinCode} yet.${list}`;
+}
+
+// `pinCodes` is the service area from the API; if it couldn't load, the API still checks on sign-up.
+function checkDetails(details: Omit<SignUp, "role">, pinCodes: string[] | undefined): FieldErrors {
   const errors: FieldErrors = {};
   if (!details.full_name.trim()) errors.full_name = NAME_ERROR;
   if (!isIndianMobile(details.phone)) errors.phone = PHONE_ERROR;
+  if (!/^[0-9]{6}$/.test(details.pin_code)) {
+    errors.pin_code = "Pin codes have 6 digits — could you check it?";
+  } else if (pinCodes && !pinCodes.includes(details.pin_code)) {
+    errors.pin_code = outsideAreaMessage(details.pin_code, pinCodes);
+  }
   return errors;
 }
 
@@ -35,7 +46,13 @@ export function JoinPage() {
   const [role, setRole] = useState<ChosenRole | null>(null);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [pinCode, setPinCode] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const serviceArea = useQuery({
+    queryKey: ["service-area"],
+    queryFn: () => apiFetch<{ pin_codes: string[] }>("/service-area"),
+    staleTime: 60 * 60 * 1000,
+  });
 
   const signUp = useMutation({
     mutationFn: (body: SignUp) => apiFetch<Me>("/me/profile", { method: "POST", body: JSON.stringify(body) }),
@@ -46,6 +63,10 @@ export function JoinPage() {
         void queryClient.invalidateQueries({ queryKey: ["me", userId] });
       }
       if (error instanceof ApiError && error.code === "validation_error") setStep("details");
+      if (error instanceof ApiError && error.code === "outside_service_area") {
+        setFieldErrors({ pin_code: outsideAreaMessage(pinCode, serviceArea.data?.pin_codes) });
+        setStep("details");
+      }
     },
   });
 
@@ -56,9 +77,9 @@ export function JoinPage() {
 
   function submitDetails(event: FormEvent) {
     event.preventDefault();
-    const errors = checkDetails({ full_name: fullName, phone });
+    const errors = checkDetails({ full_name: fullName, phone, pin_code: pinCode }, serviceArea.data?.pin_codes);
     setFieldErrors(errors);
-    if (!errors.full_name && !errors.phone) setStep("confirm");
+    if (Object.keys(errors).length === 0) setStep("confirm");
   }
 
   if (step === "role" || !role) {
@@ -119,6 +140,17 @@ export function JoinPage() {
             onChange={(event) => setPhone(event.target.value)}
             error={fieldErrors.phone}
           />
+          <TextInput
+            label="Home pin code"
+            name="pin_code"
+            autoComplete="postal-code"
+            inputMode="numeric"
+            maxLength={6}
+            hint="Pacify is starting in a few Bengaluru neighbourhoods."
+            value={pinCode}
+            onChange={(event) => setPinCode(event.target.value.replace(/\D/g, ""))}
+            error={fieldErrors.pin_code}
+          />
           <Button type="submit" arrow>
             Continue
           </Button>
@@ -132,7 +164,7 @@ export function JoinPage() {
     <section className="max-w-[36rem]">
       <h1>You're joining as {roleLabel}.</h1>
       <p className="mt-4 text-muted">Is that right? Once your account is set up, only the Pacify team can change this.</p>
-      {failure && failure.code !== "already_signed_up" && (
+      {failure && !["already_signed_up", "outside_service_area"].includes(failure.code) && (
         <p role="alert" className="mt-4 text-small text-danger">
           {failure.code === "email_in_use"
             ? "This email already has a Pacify account. Please sign in with a different email, or contact us."
@@ -143,7 +175,7 @@ export function JoinPage() {
         <Button
           arrow
           loading={signUp.isPending}
-          onClick={() => signUp.mutate({ role, full_name: fullName.trim(), phone: phone.trim() })}
+          onClick={() => signUp.mutate({ role, full_name: fullName.trim(), phone: phone.trim(), pin_code: pinCode })}
         >
           Yes, create my account
         </Button>
