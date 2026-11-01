@@ -9,10 +9,12 @@ import logging
 from http import HTTPStatus
 from typing import Any
 
+import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = logging.getLogger("pacifyco.api")
 
@@ -72,3 +74,33 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, _http_error)
     app.add_exception_handler(RequestValidationError, _validation_error)
     app.add_exception_handler(Exception, _unhandled_error)
+
+
+class CatchUnhandledErrors:
+    """Turns a crash into our generic 500 *inside* the CORS middleware, so the response carries CORS
+    headers. Otherwise the browser can't read it and the web app wrongly says it couldn't reach us."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def tracking_send(message: Message) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracking_send)
+        except Exception as exc:
+            if started:  # too late to send a different response
+                raise
+            sentry_sdk.capture_exception(exc)
+            logger.exception("Unhandled error", exc_info=exc)
+            response = error_response(500, "internal_error", "Something went wrong on our side. Please try again.")
+            await response(scope, receive, send)

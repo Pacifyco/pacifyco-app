@@ -229,7 +229,8 @@ postgresql://pacifyco_api.<project-ref>:<api-password>@<pooler-host>:5432/postgr
 
 ### Checking staging
 
-- `GET /health`: the API is running (Render's health check; never touches the database).
+- `GET /health`: the API is running (Render's health check; never touches the database). `commit` is the
+  first 7 characters of the deployed commit, so after a merge you can see whether Render deployed it.
 - `GET /health/db`: the API can sign in to its database. `"api_role": true` means it signed in as
   `pacifyco_api`, as it should when deployed; `false` means `DATABASE_URL` uses another role. A 503 means it
   can't connect (details go to Sentry).
@@ -284,3 +285,73 @@ digits):
 
 The `jobs-*` environments hold only the jobs secret and the API address, never database passwords, and
 allow `develop` because GitHub runs schedules from the default branch.
+
+## Sign-in
+
+People sign in with an emailed code or Google, through Supabase Auth. The web app gets a Supabase
+access token and sends it to the API, which checks it against the project's public signing keys
+(`api/app/auth.py`). Supabase holds no Pacify data: profiles and roles live in our tables.
+
+Settings per Supabase project (staging and production each have their own):
+
+| Where | Setting |
+| --- | --- |
+| Project Settings → JWT Keys | Current key is asymmetric (ECC P-256 or RSA), not the legacy shared secret |
+| Authentication → Emails → SMTP Settings | Custom SMTP: Resend (`smtp.resend.com`, port 465, user `resend`, password = that environment's Resend API key) |
+| Authentication → Emails → Templates | "Magic link" and "Confirm signup" show the code (`{{ .Token }}`), not a link |
+| Authentication → Sign In / Providers → Email | On; email OTP expiry 600 s; OTP length 6 |
+| Authentication → Sign In / Providers → Google | On, with that environment's Google OAuth client ID and secret |
+| Authentication → URL Configuration | Site URL = the web URL; Redirect URLs = `<web URL>/auth/callback` (staging also `http://localhost:5173/auth/callback`) |
+
+Environment variables (none are secret): Render `SUPABASE_URL` = `https://<ref>.supabase.co`;
+Cloudflare Pages `VITE_SUPABASE_URL` (same) and `VITE_SUPABASE_ANON_KEY` = the project's publishable
+key (Project Settings → API Keys, `sb_publishable_...`). Cloudflare needs a new deployment after a
+variable changes. Without these, the API refuses every token and the web app says sign-in isn't set up.
+
+### Creating an admin
+
+Admins never sign up through the app (CLAUDE.md 6.13). The person signs in once on that environment's
+web app (with the email code or Google), closes the "How will you use Pacify?" page without choosing,
+and then Reuben runs, from `api/` with the virtual environment active:
+
+```
+MIGRATION_DATABASE_URL='<that environment's session pooler URL, postgres user>' \
+  python -m app.cli create-admin --email someone@example.com --name "Full Name"
+```
+
+Type the URL into your own terminal (never into chat or a file in the repo). The command looks the
+person up in Supabase's sign-in accounts and gives them an active admin profile. It refuses anyone who
+already chose parent or sitter. Locally there's no Supabase, so pass `--user-id <uuid>` instead.
+
+### Removing a test account
+
+Deleting a user under Supabase **Authentication → Users** removes only their sign-in account. Their
+Pacify profile stays and keeps the email, so signing up again with that email then fails with "This
+email already has a Pacify account". Remove the profile first, the same way as creating an admin
+(owner URL in your own terminal, from `api/`):
+
+```
+python -m app.cli delete-empty-profile --email someone@example.com        # checks only
+python -m app.cli delete-empty-profile --email someone@example.com --yes  # deletes
+```
+
+It only deletes accounts that hold nothing yet (no children, no sitter application details, no audit
+history), so real records are never removed this way. Then delete the user in Supabase if you want the
+sign-in account gone too.
+
+## Legal pages
+
+`/terms/sitter`, `/terms/parent` and `/privacy` are public. The texts live in `web/src/content/`. The
+Sitter Terms of Use v1.1 is final and a test fails if its wording changes; its blanks are filled from
+these Cloudflare Pages variables (public information, set on each project, then redeploy):
+
+| Variable | Fills |
+| --- | --- |
+| `VITE_PACIFY_LLPIN` | LLPIN |
+| `VITE_PACIFY_REGISTERED_ADDRESS` | registered office (both places) |
+| `VITE_GRIEVANCE_OFFICER_NAME`, `_EMAIL`, `_PHONE` | Grievance Officer (section 6.3) |
+| `VITE_EMERGENCY_LINE` | emergency line during bookings |
+| `VITE_SITTER_TERMS_DATE` | "Last updated" date, as `yyyy-mm-dd` |
+
+Outside production a blank value shows as a TEST marker. Production shows "The Sitter Terms aren't
+available yet" until every one is set. The privacy policy link fills itself.

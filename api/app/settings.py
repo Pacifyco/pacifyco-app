@@ -29,7 +29,6 @@ class Settings(BaseSettings):
     database_url: str = ""
     supabase_url: str = ""
     supabase_jwks_url: str = ""
-    supabase_jwt_secret: str = ""
     supabase_service_role_key: str = ""
     resend_api_key: str = ""
     email_from: str = ""

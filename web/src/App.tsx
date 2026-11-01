@@ -1,6 +1,7 @@
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { RouterProvider, createBrowserRouter, type DataRouter } from "react-router";
+import { AuthProvider } from "./auth/AuthProvider";
 import { createQueryClient } from "./lib/queryClient";
 import { routes } from "./routes";
 import { ThemeProvider } from "./theme/ThemeProvider";
@@ -18,7 +19,9 @@ export default function App({ router, queryClient }: AppProps) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={client}>
-        <RouterProvider router={appRouter} />
+        <AuthProvider>
+          <RouterProvider router={appRouter} />
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

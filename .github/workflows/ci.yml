@@ -1,9 +1,15 @@
-# Lint, type-check and tests on every pull request and on every merge to develop or main (CLAUDE.md section 4).
+# Lint, type-check and tests on every pull request into develop and on every merge to develop or main
+# (CLAUDE.md section 4).
+#
+# Not on pull requests into main: those are only develop -> main releases, whose commit already passed
+# this workflow when it landed on develop (branch protection accepts those checks). Running it again would
+# add a *skipped* migrate check to that develop commit, and Render's "After CI checks pass" then never
+# deploys it, because skipped isn't success.
 name: CI
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [develop]
   push:
     branches: [develop, main]
 
@@ -84,7 +90,9 @@ jobs:
   # After a merge passes every check, bring that environment's database up to date: develop -> staging,
   # main -> production. Render waits for this check ("After CI checks pass") before it deploys the API.
   migrate:
-    name: Migrate ${{ github.ref_name == 'main' && 'production' || 'staging' }} database
+    # A fixed name: GitHub can't fill in an expression for a skipped job, so PRs showed it raw. The run
+    # page shows which environment (staging or production) each run used.
+    name: Migrate database (after merge)
     if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
     needs: [api, web]
     runs-on: ubuntu-latest

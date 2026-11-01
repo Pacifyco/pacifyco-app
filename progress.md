@@ -8,9 +8,10 @@ tests.
 
 ## Current status
 
-- Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
-- Next item: Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
-- Blocked on: Reuben adding `JOBS_SECRET` to both Render services and both `jobs-*` GitHub environments
+- Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
+- Next item: Private storage buckets, signed upload URLs, file type/size validation
+- Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
+- Blocked on: nothing
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -30,9 +31,10 @@ tests.
   (Staging ref `yzunsmdzirfgybpmoipu`, prod ref `zbffwduowfdsypcxduex`, both ap-south-1, Data API off, automatic RLS on.)
 - [x] [Reuben] Render account linked to GitHub
 - [x] [Reuben] Cloudflare account linked to GitHub (delete the stray Workers project `pacifyco-app` it created; staging uses a Pages project)
-- [ ] [Reuben] Resend account; Sentry account with web and API projects
-  (Sentry done 2026-11-01: org `pacifyco` (EU region), projects `pacifyco-api` and `pacifyco-web`, error monitoring only, 100 events/hour per key, org-wide data scrubbing and no IP storage. Resend not started.)
+- [x] [Reuben] Resend account; Sentry account with web and API projects
+  (Sentry 2026-11-01: org `pacifyco` (EU region), projects `pacifyco-api` and `pacifyco-web`, error monitoring only, 100 events/hour per key, org-wide data scrubbing and no IP storage. Resend 2026-11-01: domain pacifyco.in verified (DNS at Hostinger), Supabase SMTP uses one Resend API key per environment.)
 - [ ] [Reuben] Google Cloud project with Calendar API, service account, interview calendar
+  (Project `Pacify` created 2026-11-01 with OAuth clients for sign-in, staging and production; app in Testing mode, publish before launch. Calendar API, service account and calendar still to do, phase 5.)
 - [ ] [Reuben] Business bank account and UPI ID for beta payments
 - [x] [Reuben] Logo files added: wordmark and reversed wordmark (PNG, `assets/primary-logo*.png`), symbol (SVG). Web copies in `/web/src/assets/brand/`. SVG wordmarks still wanted from the designer (design.md section 6).
 
@@ -50,19 +52,19 @@ tests.
   (Web `https://pacifyco-web-staging.pages.dev`, API `https://pacifyco.onrender.com`. CI migrates staging as `postgres` after checks pass; Render deploys after CI; the API signs in as `pacifyco_api` (`/health/db` shows `api_role: true`). Settings in README "Staging deploy". Cloudflare preview deployments should be off.)
 - [x] Production pipeline wired (deploys on `main`), not yet released
   (Web `https://pacifyco-web.pages.dev`, API `https://pacifyco-api.onrender.com`. First release PR #13 merged; CI migrated prod; `/health/db` shows `api_role: true`. Not announced; free plans until launch.)
-- [ ] Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
-  (Code 2026-11-01: `daily` and `frequent` runs, bearer-secret check that fails closed, `jobs-staging`/`jobs-production` environments with `API_URL` set. Tick once both `JOBS_SECRET`s are set and a manual run returns 200 on both.)
+- [x] Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
+  (`daily` and `frequent` runs verified by hand on staging and production. Frequent runs target production only until launch.)
 
 ## Phase 2 — Accounts, roles, service area, consent
 
-- [ ] Supabase sign-in (email OTP + Google) in web; API JWT verification and role loading
-- [ ] Role chooser and sign-up for parents and sitters; admin accounts created by seed/CLI only
-- [ ] Service area check on pin code at sign-up
-- [ ] Role-gated routes and API dependencies; suspended/removed users blocked
-- [ ] Parental consent form (versioned placeholder) and acceptance record
-- [ ] Sitter Terms of Use v1.1 page (move `content/sitter-terms-v1.1.md` to `/web/src/content/`; wording unchanged; placeholders from config); Privacy policy and Parent terms placeholder pages (versioned)
-- [ ] Click-wrap acceptance at sign-up for both roles; re-acceptance on new versions; acceptance records
-- [ ] Tests from CLAUDE.md section 9 for this phase
+- [x] Supabase sign-in (email OTP + Google) in web; API JWT verification and role loading
+- [x] Role chooser and sign-up for parents and sitters; admin accounts created by seed/CLI only
+- [x] Service area check on pin code at sign-up
+- [x] Role-gated routes and API dependencies; suspended/removed users blocked
+- [x] Parental consent form (versioned placeholder) and acceptance record
+- [x] Sitter Terms of Use v1.1 page (move `content/sitter-terms-v1.1.md` to `/web/src/content/`; wording unchanged; placeholders from config); Privacy policy and Parent terms placeholder pages (versioned)
+- [x] Click-wrap acceptance at sign-up for both roles; re-acceptance on new versions; acceptance records
+- [x] Tests from CLAUDE.md section 9 for this phase
 
 ## Phase 3 — Verification and onboarding
 
@@ -183,6 +185,11 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — Phase 2 done. Terms pages (PR #31): Sitter Terms v1.1 unchanged (fingerprint test), placeholders from VITE_ config, hidden in production until filled; parent terms and privacy drafts. Click-wrap (PR #33): legal_documents and append-only legal_acceptances, required at sign-up and after new versions. Crashes keep CORS headers (PR #34). Section 9 tests for this phase checked; booking/buying guards tested, wired up in later phases. 203 API and 128 web tests pass.
+- 2026-11-01 — Role gates (PR #26): `require_role` routers for /parent, /sitter, /admin, blocked accounts 403, route sweep tests; web `RequireRole` and on-hold page. Pages centred (PR #27). Parental consent (PR #28, #29): append-only `consents`, `/parent/consent`, guard for phase 3 child documents. Verified on staging. 184 API and 105 web tests pass.
+- 2026-11-01 — Sign-up (PR #21, #22): `/join` role chooser, name, Indian mobile and home pin code (launch pin codes only, `GET /service-area`), confirmation step; `POST /me/profile` once only; `python -m app.cli create-admin`. Role rules in CLAUDE.md 6.13. Verified on staging. 147 API and 82 web tests pass.
+- 2026-11-01 — Sign-in (PR #18, #19): email code and Google via Supabase (PKCE), API verifies tokens against the project JWKS (ES256/RS256 only) and loads the profile, `GET /me`. Both projects on ECC signing keys; Resend SMTP; Google clients. Verified on staging. 99 API and 71 web tests pass.
+- 2026-11-01 — Phase 1 done. Release PR #16 merged; scheduled jobs verified on staging and production.
 - 2026-11-01 — Scheduled jobs skeleton: `/internal/jobs/{daily,frequent}` behind `JOBS_SECRET`, GitHub schedule (daily 2 am IST; frequent every 30 min, production only until launch). 80 API tests pass.
 - 2026-11-01 — Production wired: release PR #13 merged, prod migrated by CI, API on `pacifyco_api` (`/health/db`), web and API in production mode with CORS limited to the production web origin.
 - 2026-11-01 — Staging deploy done: `/health/db` confirms the API uses `pacifyco_api` on staging.

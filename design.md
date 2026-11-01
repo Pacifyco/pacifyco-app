@@ -209,7 +209,10 @@ ease and connection; sitters as warm professionals at the child's eye level. Chi
 with documented consent. Avoid: crying children, guilty or frazzled parents, cartoon babies, pastel
 nursery clichés, Western stock photos. Type on photos: headline only, top-left, blush text over a
 chocolate scrim, 24×2px coral underline — never body copy, prices or trust information on a photo.
-Final photography isn't commissioned yet: use neutral placeholders, not stock.
+Final photography isn't commissioned yet. Until it is, the app uses seven interim photos Reuben chose
+from `/assets` (children's faces covered), served from `web/src/assets/photos/` through the `Photo`
+component: a decorative image (empty alt text), rounded, fading in on the calm curve. Swapping in the
+commissioned photos means replacing those files.
 
 ---
 

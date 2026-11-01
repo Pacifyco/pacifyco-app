@@ -160,7 +160,12 @@ def test_api_role_bypasses_rls_but_cannot_change_the_schema(conn):
 def test_api_role_reads_and_writes_every_table(conn):
     tables = public_tables(conn) - {"alembic_version"}
     for table in tables:
-        privileges = ("SELECT", "INSERT") if table in {"audit_log"} else ("SELECT", "INSERT", "UPDATE", "DELETE")
+        if table in READ_ONLY:
+            privileges = ("SELECT",)
+        elif table in APPEND_ONLY:
+            privileges = ("SELECT", "INSERT")
+        else:
+            privileges = ("SELECT", "INSERT", "UPDATE", "DELETE")
         for privilege in privileges:
             assert has_privilege(conn, table, privilege), f"{API_ROLE} lacks {privilege} on {table}"
         assert not has_privilege(conn, table, "TRUNCATE")
@@ -170,10 +175,24 @@ def test_api_role_cannot_touch_alembic_version(conn):
     assert not has_privilege(conn, "alembic_version", "SELECT,INSERT,UPDATE,DELETE")
 
 
-def test_audit_log_is_append_only_for_the_api(conn):
-    assert has_privilege(conn, "audit_log", "INSERT")
-    assert not has_privilege(conn, "audit_log", "UPDATE")
-    assert not has_privilege(conn, "audit_log", "DELETE")
+# Records that must never be changed or removed by the API.
+APPEND_ONLY = {"audit_log", "consents", "legal_acceptances"}
+# Published by migrations only; the API reads them.
+READ_ONLY = {"legal_documents"}
+
+
+def test_read_only_tables_for_the_api(conn):
+    for table in READ_ONLY:
+        assert has_privilege(conn, table, "SELECT")
+        for privilege in ("INSERT", "UPDATE", "DELETE"):
+            assert not has_privilege(conn, table, privilege), f"{API_ROLE} can {privilege} {table}"
+
+
+@pytest.mark.parametrize("table", sorted(APPEND_ONLY))
+def test_append_only_tables_for_the_api(conn, table):
+    assert has_privilege(conn, table, "INSERT")
+    assert not has_privilege(conn, table, "UPDATE")
+    assert not has_privilege(conn, table, "DELETE")
 
 
 def test_api_role_sees_rows_despite_rls(conn):
