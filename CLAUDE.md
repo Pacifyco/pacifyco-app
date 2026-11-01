@@ -118,7 +118,7 @@ Until DNS is set up, use the default Cloudflare Pages and Render URLs.
 
 ### Environment variables (`.env.example`)
 
-API: `ENVIRONMENT`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_JWKS_URL` (or `SUPABASE_JWT_SECRET`,
+API: `ENVIRONMENT`, `DATABASE_URL`, `MIGRATION_DATABASE_URL` (CI only), `SUPABASE_URL`, `SUPABASE_JWKS_URL` (or `SUPABASE_JWT_SECRET`,
 whichever the project uses), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`,
 `ADMIN_ALERT_EMAILS`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_CALENDAR_ID`, `SENTRY_DSN`,
 `JOBS_SECRET`, `PUBLIC_WEB_URL`, `CORS_ORIGINS`, `PACIFY_UPI_ID`.
@@ -135,7 +135,11 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   user's role from the `profiles` table.
 - **Row Level Security on every table** with no policies for the `anon` and `authenticated` roles, so
   the database can't be read directly from the browser even by mistake. The API connects with its own
-  database role.
+  database role, `pacifyco_api` (BYPASSRLS; reads and writes rows, can't change tables; `audit_log` is
+  insert-only). Migrations run as the database owner. New tables get the API's grants automatically;
+  new append-only tables must revoke UPDATE and DELETE in their migration.
+- **Sentry collects errors only** (no tracing, replay or logs) and no personal data: user info, cookies,
+  headers, request bodies, query strings and local variables are all off in both SDKs.
 - **Storage buckets are private.** Uploads go through signed upload URLs issued by the API. Files are
   viewed only by admins through short-lived signed URLs, and every view writes a row to
   `document_access_log`.

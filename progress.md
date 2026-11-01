@@ -10,7 +10,7 @@ tests.
 
 - Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
 - Next item: Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
-- Blocked on: Sentry projects (web, API) for the staging deploy's DSNs
+- Blocked on: Reuben creating the Render service and Cloudflare Pages project (README: Staging deploy)
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -31,7 +31,7 @@ tests.
 - [x] [Reuben] Render account linked to GitHub
 - [x] [Reuben] Cloudflare account linked to GitHub (delete the stray Workers project `pacifyco-app` it created; staging uses a Pages project)
 - [ ] [Reuben] Resend account; Sentry account with web and API projects
-  (Sentry org `pacifyco` created and linked to GitHub, error monitoring only; projects not yet created. Resend not started.)
+  (Sentry done 2026-11-01: org `pacifyco` (EU region), projects `pacifyco-api` and `pacifyco-web`, error monitoring only, 100 events/hour per key, org-wide data scrubbing and no IP storage. Resend not started.)
 - [ ] [Reuben] Google Cloud project with Calendar API, service account, interview calendar
 - [ ] [Reuben] Business bank account and UPI ID for beta payments
 - [x] [Reuben] Logo files added: wordmark and reversed wordmark (PNG, `assets/primary-logo*.png`), symbol (SVG). Web copies in `/web/src/assets/brand/`. SVG wordmarks still wanted from the designer (design.md section 6).
@@ -47,7 +47,7 @@ tests.
   (Also built, display-only until their phases wire data: SitterCard, BookingCard, HourBalance, RoleChooser, EmergencyButton, EmptyState. Preview at `/dev/components`, not in production.)
 - [x] CI: lint, type-check, tests on PRs (`.github/workflows/ci.yml`: Ruff + pytest on Postgres 17; ESLint + tsc + Vitest + build. Both jobs are required checks on `main` and `develop`. The API has no type checker yet; none is named in CLAUDE.md.)
 - [ ] Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
-  (Note: RLS has no policies, so the API's database role must own the tables or have BYPASSRLS. Decide which role runs migrations vs. serves the API.)
+  (Code done 2026-11-01: `pacifyco_api` role migration (BYPASSRLS, DML only, audit log insert-only), CI job migrates staging after checks pass on `develop`, web Sentry, privacy-locked Sentry in both apps, README steps. Waiting on the Render and Cloudflare setup; tick once `/health` and the web app answer on staging.)
 - [ ] Production pipeline wired (deploys on `main`), not yet released
 - [ ] Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
 
@@ -181,6 +181,7 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — Staging deploy code: `pacifyco_api` DB role, staging migration job (GitHub environment `staging`, develop only), web Sentry, no personal data in Sentry from either app. Sentry projects checked and tightened. 55 API and 57 web tests pass.
 - 2026-11-01 — CI (GitHub Actions): Ruff + pytest on Postgres; ESLint + typecheck + Vitest + build. `main` and `develop` both require PRs and both checks. Supabase staging confirmed in Mumbai. Render, Cloudflare, Supabase and Sentry GitHub apps installed on the org.
 
 - 2026-10-31 — UI components (design.md section 10) in `web/src/components/ui`: Button/ButtonLink, TextInput/Select/Textarea, Chip, VerifiedChip (fixed labels for real checks only), Card, IconTile, SitterCard (no price prop), BookingCard, HourBalance, RoleChooser, EmergencyButton (confirm step), EmptyState; `lib/format.ts` for IST dates/times, hours and names. Lucide added. 53 web tests pass. Header now uses the wordmark (reversed in dark mode).
