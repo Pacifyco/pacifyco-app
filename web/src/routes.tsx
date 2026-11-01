@@ -1,6 +1,8 @@
 import type { RouteObject } from "react-router";
+import { config } from "./config";
 import { AppLayout } from "./layouts/AppLayout";
 import { AdminHomePage, ParentHomePage, SitterHomePage } from "./pages/AreaPages";
+import { ComponentsPage } from "./pages/ComponentsPage";
 import { NotFoundPage, RouteErrorPage } from "./pages/ErrorPages";
 import { HomePage } from "./pages/HomePage";
 
@@ -14,6 +16,8 @@ export const routes: RouteObject[] = [
       { path: "parent", element: <ParentHomePage /> },
       { path: "sitter", element: <SitterHomePage /> },
       { path: "admin", element: <AdminHomePage /> },
+      // Component preview for development and staging; never in production.
+      ...(config.environment !== "production" ? [{ path: "dev/components", element: <ComponentsPage /> }] : []),
       { path: "*", element: <NotFoundPage /> },
     ],
   },
