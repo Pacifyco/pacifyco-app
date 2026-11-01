@@ -1,9 +1,15 @@
-# Lint, type-check and tests on every pull request and on every merge to develop or main (CLAUDE.md section 4).
+# Lint, type-check and tests on every pull request into develop and on every merge to develop or main
+# (CLAUDE.md section 4).
+#
+# Not on pull requests into main: those are only develop -> main releases, whose commit already passed
+# this workflow when it landed on develop (branch protection accepts those checks). Running it again would
+# add a *skipped* migrate check to that develop commit, and Render's "After CI checks pass" then never
+# deploys it, because skipped isn't success.
 name: CI
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [develop]
   push:
     branches: [develop, main]
 
