@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Link, useRouteError } from "react-router";
+import { reportRouteError } from "../lib/sentry";
 
 export function NotFoundPage() {
   return (
@@ -12,10 +14,13 @@ export function NotFoundPage() {
   );
 }
 
-// Shown when a page throws while rendering. Details go to the console (and Sentry later), not the user.
+// Shown when a page throws while rendering. Details go to the console and Sentry, not the user.
 export function RouteErrorPage() {
   const error = useRouteError();
-  console.error(error);
+  useEffect(() => {
+    console.error(error);
+    reportRouteError(error);
+  }, [error]);
 
   return (
     <main id="main" className="mx-auto max-w-[62ch] px-4 py-7">

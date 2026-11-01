@@ -1,10 +1,11 @@
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import create_engine, pool
 
 import app.models  # noqa: F401  (registers every model on Base.metadata)
-from app.db import Base
+from app.db import Base, sqlalchemy_url
 from app.settings import get_settings
 
 config = context.config
@@ -16,8 +17,10 @@ target_metadata = Base.metadata
 
 
 def database_url() -> str:
-    # Tests pass their own URL; otherwise use DATABASE_URL (local falls back to the Docker database).
-    return config.get_main_option("sqlalchemy.url") or get_settings().effective_database_url
+    # Tests pass their own URL. Deployed databases use MIGRATION_DATABASE_URL: the owner role that may
+    # change tables, not the API's role (DATABASE_URL). Locally, DATABASE_URL or the Docker database.
+    url = config.get_main_option("sqlalchemy.url") or os.environ.get("MIGRATION_DATABASE_URL")
+    return sqlalchemy_url(url) if url else get_settings().effective_database_url
 
 
 def run_migrations_offline() -> None:

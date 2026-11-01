@@ -13,3 +13,11 @@ NAMING_CONVENTION = {
 
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+def sqlalchemy_url(url: str) -> str:
+    """Use psycopg 3 for plain Postgres URLs, as copied from Supabase (postgresql://... or postgres://...)."""
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url.removeprefix(prefix)
+    return url

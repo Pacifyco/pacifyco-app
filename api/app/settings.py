@@ -6,6 +6,8 @@ from typing import Annotated
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from app.db import sqlalchemy_url
+
 # One .env for the whole repo, at the root (see README). Real environment variables win over it.
 ROOT_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
@@ -74,7 +76,7 @@ class Settings(BaseSettings):
 
     @property
     def effective_database_url(self) -> str:
-        return self.database_url or LOCAL_DATABASE_URL
+        return sqlalchemy_url(self.database_url or LOCAL_DATABASE_URL)
 
     @property
     def allowed_origins(self) -> list[str]:

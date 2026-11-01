@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel, ValidationError
 
 from app.errors import AppError
-from app.main import create_app, init_sentry
+from app.main import SENTRY_DATA_COLLECTION, create_app, init_sentry
 from app.settings import Environment, Settings
 
 WEB_ORIGIN = "https://staging.pacifyco.in"
@@ -95,6 +95,15 @@ def test_local_database_falls_back_to_docker():
     assert make_settings(database_url="postgresql+psycopg://x").effective_database_url == "postgresql+psycopg://x"
 
 
+@pytest.mark.parametrize(
+    "copied",
+    ["postgresql://u:p@pooler.supabase.com:5432/postgres", "postgres://u:p@pooler.supabase.com:5432/postgres"],
+)
+def test_supabase_urls_use_psycopg_3(copied):
+    url = make_settings(database_url=copied).effective_database_url
+    assert url == "postgresql+psycopg://u:p@pooler.supabase.com:5432/postgres"
+
+
 def test_wildcard_cors_origin_rejected():
     with pytest.raises(ValidationError, match="not allowed"):
         make_settings(cors_origins="*")
@@ -179,3 +188,32 @@ def test_unhandled_error_is_generic_and_leaks_nothing():
 def test_sentry_off_without_dsn():
     assert init_sentry(make_settings()) is False
     assert not sentry_sdk.get_client().is_active()
+
+
+def test_sentry_sends_errors_only_and_no_personal_data(monkeypatch):
+    calls = []
+    monkeypatch.setattr(sentry_sdk, "init", lambda **options: calls.append(options))
+    settings = make_settings(
+        sentry_dsn="https://key@o1.ingest.de.sentry.io/1",
+        environment="staging",
+        database_url="postgresql+psycopg://x",
+        cors_origins="https://staging.example",
+    )
+    assert init_sentry(settings) is True
+    options = calls[0]
+    assert options["environment"] == "staging"
+    assert options["traces_sample_rate"] == 0.0
+    assert options["send_default_pii"] is False
+    assert options["max_request_body_size"] == "never"
+    assert options["include_local_variables"] is False
+    collection = options["data_collection"]
+    assert collection["http_bodies"] == []
+    for key in ("user_info", "cookies", "http_headers", "url_query_params", "database_query_data"):
+        assert collection[key] is False, key
+
+
+def test_sentry_accepts_our_privacy_options():
+    """The real SDK accepts every option (an unknown one would raise), without sending anything."""
+    client = sentry_sdk.Client(dsn="https://key@o1.ingest.de.sentry.io/1", data_collection=SENTRY_DATA_COLLECTION)
+    assert client.options["data_collection"]["stack_frame_variables"] is False
+    client.close()

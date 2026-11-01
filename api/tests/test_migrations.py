@@ -135,6 +135,68 @@ def test_rls_hides_rows_even_if_a_grant_slips_through(conn):
     assert conn.execute(text("SELECT count(*) FROM profiles")).scalar_one() == 0
 
 
+# ---------- the API's own database role ----------
+
+API_ROLE = "pacifyco_api"
+
+
+def has_privilege(conn, table: str, privilege: str, role: str = API_ROLE) -> bool:
+    return conn.execute(
+        text("SELECT has_table_privilege(:role, :table, :privilege)"),
+        {"role": role, "table": f'public."{table}"', "privilege": privilege},
+    ).scalar_one()
+
+
+def test_api_role_bypasses_rls_but_cannot_change_the_schema(conn):
+    role = conn.execute(
+        text("SELECT rolbypassrls, rolsuper, rolcreaterole, rolcreatedb FROM pg_roles WHERE rolname = :r"),
+        {"r": API_ROLE},
+    ).one()
+    assert role.rolbypassrls
+    assert not (role.rolsuper or role.rolcreaterole or role.rolcreatedb)
+    assert not conn.execute(text("SELECT has_schema_privilege(:r, 'public', 'CREATE')"), {"r": API_ROLE}).scalar_one()
+
+
+def test_api_role_reads_and_writes_every_table(conn):
+    tables = public_tables(conn) - {"alembic_version"}
+    for table in tables:
+        privileges = ("SELECT", "INSERT") if table in {"audit_log"} else ("SELECT", "INSERT", "UPDATE", "DELETE")
+        for privilege in privileges:
+            assert has_privilege(conn, table, privilege), f"{API_ROLE} lacks {privilege} on {table}"
+        assert not has_privilege(conn, table, "TRUNCATE")
+
+
+def test_api_role_cannot_touch_alembic_version(conn):
+    assert not has_privilege(conn, "alembic_version", "SELECT,INSERT,UPDATE,DELETE")
+
+
+def test_audit_log_is_append_only_for_the_api(conn):
+    assert has_privilege(conn, "audit_log", "INSERT")
+    assert not has_privilege(conn, "audit_log", "UPDATE")
+    assert not has_privilege(conn, "audit_log", "DELETE")
+
+
+def test_api_role_sees_rows_despite_rls(conn):
+    insert_profile(conn)
+    conn.execute(text(f"SET LOCAL ROLE {API_ROLE}"))
+    assert conn.execute(text("SELECT count(*) FROM profiles")).scalar_one() == 1
+    conn.execute(
+        text("INSERT INTO audit_log (action, entity, entity_id) VALUES ('test', 'profile', :id)"), {"id": PROFILE_ID}
+    )
+    with pytest.raises(DBAPIError, match="permission denied"):
+        with conn.begin_nested():
+            conn.execute(text("DELETE FROM audit_log"))
+    with pytest.raises(DBAPIError, match="permission denied"):
+        with conn.begin_nested():
+            conn.execute(text("CREATE TABLE sneaky (id int)"))
+
+
+def test_tables_from_later_migrations_are_granted_automatically(conn):
+    conn.execute(text("CREATE TABLE later_feature (id int)"))
+    for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+        assert has_privilege(conn, "later_feature", privilege)
+
+
 # ---------- seed data and constraints ----------
 
 

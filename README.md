@@ -140,3 +140,89 @@ their output in one terminal. Ctrl+C stops the API and web app; the database kee
 
 Work on feature branches off `develop`. `develop` deploys to staging, `main` to production. Production
 releases are a PR from `develop` to `main`.
+
+## Staging deploy
+
+Staging runs from `develop`: the API on Render (`pacifyco-api-staging`), the web app on Cloudflare Pages
+(`pacifyco-web-staging`), the database on Supabase (`pacifyco-staging`, Mumbai). Values marked
+**secret** go only into the dashboard named; never into the repo, chat or tickets.
+
+### How a merge to `develop` deploys
+
+1. CI runs lint, typecheck and tests.
+2. If they pass, the **Migrate staging database** job runs `alembic upgrade head` as the database owner.
+3. Render deploys the API once all checks pass ("After CI checks pass"). Cloudflare Pages builds the web
+   app on every push to `develop`.
+
+### Database roles
+
+| Role | Used by | Can |
+| --- | --- | --- |
+| `postgres` | Migrations only (`MIGRATION_DATABASE_URL`) | Everything, including changing tables |
+| `pacifyco_api` | The API (`DATABASE_URL`) | Read and write rows (bypasses RLS); can't change tables; audit log is insert-only |
+
+The `pacifyco_api` role is created by a migration without a password. Give it one once per database,
+in Supabase → SQL Editor (use a long random password of letters and digits only, so it needs no
+escaping in a URL):
+
+```sql
+ALTER ROLE pacifyco_api WITH LOGIN PASSWORD 'the-password';
+```
+
+Connect through Supabase's **session pooler** (Supabase → Connect → Session pooler; port 5432). Render
+can't reach the direct database address, which is IPv6-only. Add `?sslmode=require` to both URLs:
+
+```
+postgresql://postgres.<project-ref>:<postgres-password>@<pooler-host>:5432/postgres?sslmode=require
+postgresql://pacifyco_api.<project-ref>:<api-password>@<pooler-host>:5432/postgres?sslmode=require
+```
+
+### GitHub (environment `staging`, limited to `develop`)
+
+| Secret | Value |
+| --- | --- |
+| `MIGRATION_DATABASE_URL` | **secret**: the `postgres` session-pooler URL |
+
+### Render web service `pacifyco-api-staging`
+
+| Setting | Value |
+| --- | --- |
+| Repository, branch | `Pacifyco/pacifyco-app`, `develop` |
+| Region | Singapore (closest to Mumbai) |
+| Root directory | `api` |
+| Runtime | Python |
+| Build command | `pip install .` |
+| Start command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"` |
+| Health check path | `/health` |
+| Auto-deploy | After CI checks pass |
+| Instance type | Free |
+
+| Environment variable | Value |
+| --- | --- |
+| `PYTHON_VERSION` | `3.14.0` |
+| `ENVIRONMENT` | `staging` |
+| `DATABASE_URL` | **secret**: the `pacifyco_api` session-pooler URL |
+| `CORS_ORIGINS` | `https://pacifyco-web-staging.pages.dev` |
+| `PUBLIC_WEB_URL` | `https://pacifyco-web-staging.pages.dev` |
+| `SENTRY_DSN` | Sentry → `pacifyco-api` → Client Keys (DSN) |
+
+### Cloudflare Pages project `pacifyco-web-staging`
+
+| Setting | Value |
+| --- | --- |
+| Repository | `Pacifyco/pacifyco-app` |
+| Production branch | `develop` |
+| Framework preset | None |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Root directory | `web` |
+| Preview deployments | None (Settings → Build → Branch control) |
+
+| Environment variable | Value |
+| --- | --- |
+| `NODE_VERSION` | `24` |
+| `VITE_ENVIRONMENT` | `staging` |
+| `VITE_API_URL` | `https://pacifyco-api-staging.onrender.com` (the Render service URL) |
+| `VITE_SENTRY_DSN` | Sentry → `pacifyco-web` → Client Keys (DSN) |
+
+`VITE_*` values are built into the JavaScript that browsers download, so they must never be secrets.
