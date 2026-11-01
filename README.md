@@ -233,3 +233,29 @@ postgresql://pacifyco_api.<project-ref>:<api-password>@<pooler-host>:5432/postgr
 - `GET /health/db`: the API can sign in to its database. `"api_role": true` means it signed in as
   `pacifyco_api`, as it should when deployed; `false` means `DATABASE_URL` uses another role. A 503 means it
   can't connect (details go to Sentry).
+
+## Production
+
+Production runs from `main` and is set up exactly like staging, with its own database, services and
+keys. A release is a PR from `develop` to `main`; when it merges, CI tests it, the **Migrate production
+database** job migrates `pacifyco-prod`, then Render and Cloudflare deploy.
+
+Differences from the staging tables above:
+
+| Where | Setting | Production value |
+| --- | --- | --- |
+| Supabase | Project | `pacifyco-prod` (Mumbai), Data API off, automatic RLS on |
+| Supabase | `pacifyco_api` password | Its own password, different from staging's |
+| GitHub | Environment | `production` (only `main` can use it), secret `MIGRATION_DATABASE_URL` |
+| Render | Service name, branch | `pacifyco-api`, `main` |
+| Render | `ENVIRONMENT` | `production` |
+| Render | `DATABASE_URL` | **secret**: `pacifyco-prod`'s `pacifyco_api` session-pooler URL |
+| Render | `CORS_ORIGINS`, `PUBLIC_WEB_URL` | `https://pacifyco-web.pages.dev` (later `https://www.pacifyco.in`) |
+| Render | `SENTRY_DSN` | Same `pacifyco-api` DSN (Sentry tells environments apart) |
+| Cloudflare | Project name, production branch | `pacifyco-web`, `main` |
+| Cloudflare | `VITE_ENVIRONMENT` | `production` |
+| Cloudflare | `VITE_API_URL` | The production Render URL |
+| Cloudflare | `VITE_SENTRY_DSN` | Same `pacifyco-web` DSN |
+
+Never seed production with test data (CLAUDE.md section 4). Until launch, production stays on the free
+plans and isn't announced; at launch it moves to Supabase Pro and Render Starter.
