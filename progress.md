@@ -8,9 +8,9 @@ tests.
 
 ## Current status
 
-- Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
-- Next item: Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
-- Blocked on: Reuben adding `JOBS_SECRET` to both Render services and both `jobs-*` GitHub environments
+- Phase: 2 — Accounts, roles, service area, consent (Phase 0 [Reuben] items left: Resend, Google Cloud, bank/UPI)
+- Next item: Supabase sign-in (email OTP + Google) in web; API JWT verification and role loading
+- Blocked on: nothing
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -50,8 +50,8 @@ tests.
   (Web `https://pacifyco-web-staging.pages.dev`, API `https://pacifyco.onrender.com`. CI migrates staging as `postgres` after checks pass; Render deploys after CI; the API signs in as `pacifyco_api` (`/health/db` shows `api_role: true`). Settings in README "Staging deploy". Cloudflare preview deployments should be off.)
 - [x] Production pipeline wired (deploys on `main`), not yet released
   (Web `https://pacifyco-web.pages.dev`, API `https://pacifyco-api.onrender.com`. First release PR #13 merged; CI migrated prod; `/health/db` shows `api_role: true`. Not announced; free plans until launch.)
-- [ ] Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
-  (Code 2026-11-01: `daily` and `frequent` runs, bearer-secret check that fails closed, `jobs-staging`/`jobs-production` environments with `API_URL` set. Tick once both `JOBS_SECRET`s are set and a manual run returns 200 on both.)
+- [x] Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
+  (`daily` and `frequent` runs verified by hand on staging and production. Frequent runs target production only until launch.)
 
 ## Phase 2 — Accounts, roles, service area, consent
 
@@ -183,6 +183,7 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — Phase 1 done. Release PR #16 merged; scheduled jobs verified on staging and production.
 - 2026-11-01 — Scheduled jobs skeleton: `/internal/jobs/{daily,frequent}` behind `JOBS_SECRET`, GitHub schedule (daily 2 am IST; frequent every 30 min, production only until launch). 80 API tests pass.
 - 2026-11-01 — Production wired: release PR #13 merged, prod migrated by CI, API on `pacifyco_api` (`/health/db`), web and API in production mode with CORS limited to the production web origin.
 - 2026-11-01 — Staging deploy done: `/health/db` confirms the API uses `pacifyco_api` on staging.
