@@ -181,6 +181,7 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — Staging live: web `pacifyco-web-staging.pages.dev`, API `pacifyco.onrender.com` (staging mode, CORS limited to the web origin), first staging migration run by CI. Added `/health/db` to prove the API's database login.
 - 2026-11-01 — Staging deploy code: `pacifyco_api` DB role, staging migration job (GitHub environment `staging`, develop only), web Sentry, no personal data in Sentry from either app. Sentry projects checked and tightened. 55 API and 57 web tests pass.
 - 2026-11-01 — CI (GitHub Actions): Ruff + pytest on Postgres; ESLint + typecheck + Vitest + build. `main` and `develop` both require PRs and both checks. Supabase staging confirmed in Mumbai. Render, Cloudflare, Supabase and Sentry GitHub apps installed on the org.
 

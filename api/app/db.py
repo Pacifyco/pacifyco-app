@@ -1,4 +1,6 @@
-from sqlalchemy import MetaData
+from functools import lru_cache
+
+from sqlalchemy import Engine, MetaData, create_engine
 from sqlalchemy.orm import DeclarativeBase
 
 # Fixed constraint names so Alembic migrations are predictable and reversible.
@@ -21,3 +23,13 @@ def sqlalchemy_url(url: str) -> str:
         if url.startswith(prefix):
             return "postgresql+psycopg://" + url.removeprefix(prefix)
     return url
+
+
+# The database role the API runs as when deployed (created by the "api database role" migration).
+API_ROLE = "pacifyco_api"
+
+
+@lru_cache
+def engine_for(url: str) -> Engine:
+    """One connection pool per database URL, kept small for Supabase's session pooler."""
+    return create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5, connect_args={"connect_timeout": 5})
