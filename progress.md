@@ -10,7 +10,7 @@ tests.
 
 - Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
 - Next item: Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
-- Blocked on: nothing
+- Blocked on: Reuben adding `JOBS_SECRET` to both Render services and both `jobs-*` GitHub environments
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -51,6 +51,7 @@ tests.
 - [x] Production pipeline wired (deploys on `main`), not yet released
   (Web `https://pacifyco-web.pages.dev`, API `https://pacifyco-api.onrender.com`. First release PR #13 merged; CI migrated prod; `/health/db` shows `api_role: true`. Not announced; free plans until launch.)
 - [ ] Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
+  (Code 2026-11-01: `daily` and `frequent` runs, bearer-secret check that fails closed, `jobs-staging`/`jobs-production` environments with `API_URL` set. Tick once both `JOBS_SECRET`s are set and a manual run returns 200 on both.)
 
 ## Phase 2 — Accounts, roles, service area, consent
 
@@ -182,6 +183,7 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — Scheduled jobs skeleton: `/internal/jobs/{daily,frequent}` behind `JOBS_SECRET`, GitHub schedule (daily 2 am IST; frequent every 30 min, production only until launch). 80 API tests pass.
 - 2026-11-01 — Production wired: release PR #13 merged, prod migrated by CI, API on `pacifyco_api` (`/health/db`), web and API in production mode with CORS limited to the production web origin.
 - 2026-11-01 — Staging deploy done: `/health/db` confirms the API uses `pacifyco_api` on staging.
 - 2026-11-01 — Staging live: web `pacifyco-web-staging.pages.dev`, API `pacifyco.onrender.com` (staging mode, CORS limited to the web origin), first staging migration run by CI. Added `/health/db` to prove the API's database login.
