@@ -449,7 +449,7 @@ describe("parental consent", () => {
 
   test("the form shows the draft text and needs the box ticked before agreeing", async () => {
     const calls = parentWithConsent(null);
-    renderApp("/parent/consent");
+    const { router } = renderApp("/parent/consent");
     expect(await screen.findByRole("heading", { level: 1, name: "Parental consent form" })).toBeTruthy();
     expect(screen.getByText("DRAFT — NOT LEGALLY REVIEWED.")).toBeTruthy();
     expect(screen.getByText(`Version ${CONSENT_VERSION}`)).toBeTruthy();
@@ -462,7 +462,9 @@ describe("parental consent", () => {
 
     fireEvent.click(box);
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
-    expect(await screen.findByText("You gave your consent on 1 Nov 2026.")).toBeTruthy();
+    // Back to the parent home, which now shows the date.
+    expect(await screen.findByText("Parental consent given on 1 Nov 2026.")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/parent");
     const post = calls.find((call) => call.init?.method === "POST")!;
     expect(JSON.parse(post.init!.body as string)).toEqual({ version: CONSENT_VERSION });
   });
@@ -472,6 +474,14 @@ describe("parental consent", () => {
     renderApp("/parent");
     expect(await screen.findByText("Parental consent given on 30 Oct 2026.")).toBeTruthy();
     expect(screen.queryByRole("link", { name: /Read the consent form/ })).toBeNull();
+  });
+
+  test("opening the form again after consenting shows when, and the way home", async () => {
+    parentWithConsent("2026-10-30T08:00:00Z");
+    renderApp("/parent/consent");
+    expect(await screen.findByText("You gave your consent on 30 Oct 2026.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to your home" }).getAttribute("href")).toBe("/parent");
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
   test("an old copy of the form can't be accepted", async () => {
