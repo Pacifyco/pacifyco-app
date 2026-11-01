@@ -8,8 +8,9 @@ type SupabaseError = { status?: number; name?: string };
 
 const NETWORK = "We couldn't reach Pacify. Check your connection and try again.";
 
+// supabase-js names every 5xx "AuthRetryableFetchError" too, so only status 0 means no connection.
 function isNetworkError(error: SupabaseError): boolean {
-  return error.name === "AuthRetryableFetchError" || !error.status;
+  return !error.status;
 }
 
 function sendCodeMessage(error: SupabaseError): string {

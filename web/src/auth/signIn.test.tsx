@@ -120,6 +120,13 @@ describe("sign in with an email code", () => {
     await waitFor(() => expect(fake.auth.signInWithOtp).toHaveBeenCalledTimes(2));
   });
 
+  test("a server failure (e.g. email sending) isn't called a connection problem", async () => {
+    fake.auth.signInWithOtp.mockResolvedValue({ error: { status: 500, name: "AuthRetryableFetchError" } });
+    renderApp("/sign-in");
+    await enterEmail();
+    expect(await screen.findByText("We couldn't send a code just now. Please try again in a moment.")).toBeTruthy();
+  });
+
   test("no connection says so", async () => {
     fake.auth.signInWithOtp.mockResolvedValue({ error: { status: 0, name: "AuthRetryableFetchError" } });
     renderApp("/sign-in");
