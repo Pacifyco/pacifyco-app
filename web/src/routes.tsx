@@ -8,6 +8,7 @@ import { ConsentPage } from "./pages/ConsentPage";
 import { NotFoundPage, RouteErrorPage } from "./pages/ErrorPages";
 import { HomePage } from "./pages/HomePage";
 import { JoinPage } from "./pages/JoinPage";
+import { ParentTermsPage, PrivacyPolicyPage, SitterTermsPage } from "./pages/LegalPages";
 import { AuthCallbackPage, SignInPage } from "./pages/SignInPage";
 
 // One app, three role areas (CLAUDE.md section 3), each open only to its own role.
@@ -52,6 +53,9 @@ export const routes: RouteObject[] = [
       { path: "sign-in", element: <SignInPage /> },
       { path: "auth/callback", element: <AuthCallbackPage /> },
       { path: "join", element: <JoinPage /> },
+      { path: "terms/parent", element: <ParentTermsPage /> },
+      { path: "terms/sitter", element: <SitterTermsPage /> },
+      { path: "privacy", element: <PrivacyPolicyPage /> },
       // Component preview for development and staging; never in production.
       ...(config.environment !== "production" ? [{ path: "dev/components", element: <ComponentsPage /> }] : []),
       { path: "*", element: <NotFoundPage /> },
