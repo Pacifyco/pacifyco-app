@@ -284,3 +284,25 @@ digits):
 
 The `jobs-*` environments hold only the jobs secret and the API address, never database passwords, and
 allow `develop` because GitHub runs schedules from the default branch.
+
+## Sign-in
+
+People sign in with an emailed code or Google, through Supabase Auth. The web app gets a Supabase
+access token and sends it to the API, which checks it against the project's public signing keys
+(`api/app/auth.py`). Supabase holds no Pacify data: profiles and roles live in our tables.
+
+Settings per Supabase project (staging and production each have their own):
+
+| Where | Setting |
+| --- | --- |
+| Project Settings → JWT Keys | Current key is asymmetric (ECC P-256 or RSA), not the legacy shared secret |
+| Authentication → Emails → SMTP Settings | Custom SMTP: Resend (`smtp.resend.com`, port 465, user `resend`, password = that environment's Resend API key) |
+| Authentication → Emails → Templates | "Magic link" and "Confirm signup" show the code (`{{ .Token }}`), not a link |
+| Authentication → Sign In / Providers → Email | On; email OTP expiry 600 s; OTP length 6 |
+| Authentication → Sign In / Providers → Google | On, with that environment's Google OAuth client ID and secret |
+| Authentication → URL Configuration | Site URL = the web URL; Redirect URLs = `<web URL>/auth/callback` (staging also `http://localhost:5173/auth/callback`) |
+
+Environment variables (none are secret): Render `SUPABASE_URL` = `https://<ref>.supabase.co`;
+Cloudflare Pages `VITE_SUPABASE_URL` (same) and `VITE_SUPABASE_ANON_KEY` = the project's publishable
+key (Project Settings → API Keys, `sb_publishable_...`). Cloudflare needs a new deployment after a
+variable changes. Without these, the API refuses every token and the web app says sign-in isn't set up.

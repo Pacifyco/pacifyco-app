@@ -1,13 +1,29 @@
 import { Link } from "react-router";
+import { useAuth } from "../auth/AuthProvider";
+import { useMe } from "../auth/useMe";
+import { ButtonLink } from "../components/ui";
 import { config } from "../config";
 
+const AREA = { parent: "/parent", sitter: "/sitter", admin: "/admin" } as const;
+
 export function HomePage() {
+  const { status } = useAuth();
+
   return (
     <section className="max-w-[62ch]">
       <h1>A little help for you. A little more fun for them.</h1>
       <p className="mt-4 text-body-lg text-muted">Pacify is getting ready for families in Bengaluru.</p>
 
-      {/* Temporary links for development until sign-in and role routing land (phase 2). */}
+      <div className="mt-6">
+        {status === "signed_in" && <SignedIn />}
+        {status === "signed_out" && (
+          <ButtonLink to="/sign-in" arrow>
+            Sign in or join
+          </ButtonLink>
+        )}
+      </div>
+
+      {/* Temporary links for development until role routing lands (phase 2). */}
       {config.environment !== "production" && (
         <nav aria-label="Areas" className="mt-6 flex flex-wrap gap-4 text-ui">
           <Link to="/parent">Parent area</Link>
@@ -17,5 +33,28 @@ export function HomePage() {
         </nav>
       )}
     </section>
+  );
+}
+
+function SignedIn() {
+  const { email } = useAuth();
+  const me = useMe();
+
+  if (me.isPending) return <p className="text-muted">Loading your account…</p>;
+  if (me.isError) return <p className="text-muted">{me.error.message}</p>;
+
+  const profile = me.data.profile;
+  return (
+    <div className="flex flex-col items-start gap-4">
+      <p className="text-muted">You're signed in as {me.data.email ?? email}.</p>
+      {profile ? (
+        <ButtonLink to={AREA[profile.role]} arrow>
+          Go to your account
+        </ButtonLink>
+      ) : (
+        // Choosing a role and accepting the terms is the next phase 2 item.
+        <p className="text-muted">Next, you'll tell us whether you're a parent or a sitter. That step is on its way.</p>
+      )}
+    </div>
   );
 }

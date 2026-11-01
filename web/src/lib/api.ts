@@ -1,4 +1,5 @@
 import { config } from "../config";
+import { getAccessToken } from "./supabase";
 
 // Mirrors the API's error format: {"error": {"code", "message", "details"}} (api/app/errors.py).
 export class ApiError extends Error {
@@ -39,6 +40,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   if (init.body !== undefined && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  // Signed-in requests carry the Supabase access token; the API verifies it (api/app/auth.py).
+  const token = await getAccessToken();
+  if (token && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
 
   let response: Response;
   try {
