@@ -44,10 +44,16 @@ def make_client(settings: Settings | None = None) -> TestClient:
 # ---------- health ----------
 
 
-def test_health_ok():
+def test_health_ok(monkeypatch):
+    monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
     response = make_client(make_settings(**STAGING)).get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "environment": "staging"}
+    assert response.json() == {"status": "ok", "environment": "staging", "commit": "local"}
+
+
+def test_health_shows_the_deployed_commit(monkeypatch):
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "695cdd2f0123456789abcdef0123456789abcdef")
+    assert make_client(make_settings(**STAGING)).get("/health").json()["commit"] == "695cdd2"
 
 
 # ---------- settings ----------
