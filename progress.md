@@ -9,7 +9,7 @@ tests.
 ## Current status
 
 - Phase: 2 — Accounts, roles, service area, consent (Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: Role-gated routes and API dependencies; suspended/removed users blocked
+- Next item: Sitter Terms of Use v1.1 page; Privacy policy and Parent terms placeholder pages
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - Blocked on: nothing
 
@@ -60,8 +60,8 @@ tests.
 - [x] Supabase sign-in (email OTP + Google) in web; API JWT verification and role loading
 - [x] Role chooser and sign-up for parents and sitters; admin accounts created by seed/CLI only
 - [x] Service area check on pin code at sign-up
-- [ ] Role-gated routes and API dependencies; suspended/removed users blocked
-- [ ] Parental consent form (versioned placeholder) and acceptance record
+- [x] Role-gated routes and API dependencies; suspended/removed users blocked
+- [x] Parental consent form (versioned placeholder) and acceptance record
 - [ ] Sitter Terms of Use v1.1 page (move `content/sitter-terms-v1.1.md` to `/web/src/content/`; wording unchanged; placeholders from config); Privacy policy and Parent terms placeholder pages (versioned)
 - [ ] Click-wrap acceptance at sign-up for both roles; re-acceptance on new versions; acceptance records
 - [ ] Tests from CLAUDE.md section 9 for this phase
@@ -185,6 +185,7 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — Role gates (PR #26): `require_role` routers for /parent, /sitter, /admin, blocked accounts 403, route sweep tests; web `RequireRole` and on-hold page. Pages centred (PR #27). Parental consent (PR #28, #29): append-only `consents`, `/parent/consent`, guard for phase 3 child documents. Verified on staging. 184 API and 105 web tests pass.
 - 2026-11-01 — Sign-up (PR #21, #22): `/join` role chooser, name, Indian mobile and home pin code (launch pin codes only, `GET /service-area`), confirmation step; `POST /me/profile` once only; `python -m app.cli create-admin`. Role rules in CLAUDE.md 6.13. Verified on staging. 147 API and 82 web tests pass.
 - 2026-11-01 — Sign-in (PR #18, #19): email code and Google via Supabase (PKCE), API verifies tokens against the project JWKS (ES256/RS256 only) and loads the profile, `GET /me`. Both projects on ECC signing keys; Resend SMTP; Google clients. Verified on staging. 99 API and 71 web tests pass.
 - 2026-11-01 — Phase 1 done. Release PR #16 merged; scheduled jobs verified on staging and production.
