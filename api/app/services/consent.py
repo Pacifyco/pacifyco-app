@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Consent
+from app.models import Consent, Parent
 
 CONSENT_VERSION = "0.1-draft"
 
@@ -23,6 +23,8 @@ def accept(db: Session, parent_id: uuid.UUID, version: str) -> datetime:
     """Record acceptance of `version`, which must be the current one (the text the parent was shown)."""
     if version != CONSENT_VERSION:
         raise AppError(409, "consent_outdated", "The consent form has been updated. Please read the new version.")
+    if db.get(Parent, parent_id) is None:  # a parent profile without its parent record: edited outside the app
+        raise AppError(409, "account_incomplete", "Your account isn't fully set up. Please contact Pacify.")
     # Accepting again keeps the first record.
     db.execute(insert(Consent).values(parent_id=parent_id, form_version=version).on_conflict_do_nothing())
     db.commit()

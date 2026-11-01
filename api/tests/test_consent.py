@@ -100,3 +100,12 @@ def test_a_parent_with_consent_records_isnt_an_empty_account(client, db_engine, 
     url = db_engine.url.render_as_string(hide_password=False)
     assert cli.delete_empty_profile(parent["email"], True, url) == 1
     assert "has records" in capsys.readouterr().err
+
+
+def test_a_parent_profile_without_its_parent_record_is_refused_cleanly(client, make_profile):  # noqa: F811
+    """Only happens if the database was edited outside the app; it must not crash."""
+    response = client.post(
+        "/parent/consent", json={"version": consent.CONSENT_VERSION}, headers=as_user(make_profile("parent"))
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "account_incomplete"
