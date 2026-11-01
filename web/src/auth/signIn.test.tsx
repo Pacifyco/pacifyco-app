@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { CONSENT_VERSION } from "../pages/ConsentPage";
 import { jsonResponse, renderApp } from "../test/renderApp";
@@ -214,6 +214,11 @@ describe("joining after the first sign-in", () => {
     return calls;
   }
 
+  async function agreeAndCreate() {
+    fireEvent.click(await screen.findByRole("checkbox", { name: /I agree to the/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
+  }
+
   async function chooseAndFill(role: RegExp, name: string, phone: string, pinCode = "560034") {
     fireEvent.click(await screen.findByRole("button", { name: role }));
     fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
@@ -230,7 +235,7 @@ describe("joining after the first sign-in", () => {
 
     await chooseAndFill(/I'm a parent/, "Asha K", "98765 43210");
     expect(screen.getByRole("heading", { name: "You're joining as a parent." })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
+    await agreeAndCreate();
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/parent"));
     const post = calls.find((call) => call.url.endsWith("/me/profile"))!;
@@ -240,6 +245,10 @@ describe("joining after the first sign-in", () => {
       full_name: "Asha K",
       phone: "98765 43210",
       pin_code: "560034",
+      accepted: [
+        { kind: "parent_terms", version: "0.1-draft" },
+        { kind: "privacy_policy", version: "0.1-draft" },
+      ],
     });
   });
 
@@ -249,7 +258,7 @@ describe("joining after the first sign-in", () => {
     const { router } = renderApp("/join");
     await chooseAndFill(/I'm a sitter/, "Asha K", "+91 6123456789");
     expect(screen.getByRole("heading", { name: "You're joining as a sitter." })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
+    await agreeAndCreate();
     await waitFor(() => expect(router.state.location.pathname).toBe("/sitter"));
   });
 
@@ -299,7 +308,7 @@ describe("joining after the first sign-in", () => {
     joinApi(null, { status: 422, code: "outside_service_area" });
     renderApp("/join");
     await chooseAndFill(/I'm a parent/, "Asha K", "9876543210", "560034");
-    fireEvent.click(await screen.findByRole("button", { name: /Yes, create my account/ }));
+    await agreeAndCreate();
     expect(await screen.findByText(/Pacify isn't in 560034 yet/)).toBeTruthy();
     expect(screen.getByLabelText("Home pin code")).toBeTruthy();
   });
@@ -313,7 +322,7 @@ describe("joining after the first sign-in", () => {
     });
     renderApp("/join");
     await chooseAndFill(/I'm a sitter/, "Asha K", "9876543210");
-    fireEvent.click(await screen.findByRole("button", { name: /Yes, create my account/ }));
+    await agreeAndCreate();
 
     expect(await screen.findByText("Please enter your home pin code.")).toBeTruthy();
     expect(screen.queryByText("Nope")).toBeNull();
@@ -327,7 +336,7 @@ describe("joining after the first sign-in", () => {
     joinApi(null, { status: 422, code: "validation_error", details: [{ field: "body.extra", message: "x" }] });
     renderApp("/join");
     await chooseAndFill(/I'm a parent/, "Asha K", "9876543210");
-    fireEvent.click(await screen.findByRole("button", { name: /Yes, create my account/ }));
+    await agreeAndCreate();
     expect(await screen.findByText(/Please reload the page and try again/)).toBeTruthy();
   });
 
@@ -336,7 +345,7 @@ describe("joining after the first sign-in", () => {
     joinApi(null, { status: 409, code: "email_in_use" });
     renderApp("/join");
     await chooseAndFill(/I'm a parent/, "Asha K", "9876543210");
-    fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
+    await agreeAndCreate();
     expect(await screen.findByText(/This email already has a Pacify account/)).toBeTruthy();
   });
 
@@ -496,5 +505,122 @@ describe("parental consent", () => {
     vi.mocked(fetch).mockImplementation(meResponse({ ...PARENT_PROFILE, role: "sitter" }) as typeof fetch);
     const { router } = renderApp("/parent/consent");
     await waitFor(() => expect(router.state.location.pathname).toBe("/sitter"));
+  });
+});
+
+describe("terms at sign-up and after changes", () => {
+  function joinAs() {
+    fake.state.session = fake.session;
+    const calls: { url: string; init?: RequestInit }[] = [];
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url.endsWith("/me/profile")) {
+        const body = JSON.parse(init!.body as string);
+        return Promise.resolve(
+          jsonResponse({ email: "asha@example.com", profile: { ...PARENT_PROFILE, role: body.role } }, 201),
+        );
+      }
+      if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: null }));
+      if (url.endsWith("/service-area")) return Promise.resolve(jsonResponse({ pin_codes: ["560034"] }));
+      return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
+    }) as typeof fetch);
+    return calls;
+  }
+
+  async function reachConfirmation(role: RegExp) {
+    fireEvent.click(await screen.findByRole("button", { name: role }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Asha K" } });
+    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "9876543210" } });
+    fireEvent.change(screen.getByLabelText("Home pin code"), { target: { value: "560034" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await screen.findByRole("heading", { name: /You're joining as/ });
+  }
+
+  test("a sitter must tick to agree to the Sitter Terms and Privacy policy", async () => {
+    const calls = joinAs();
+    const { router } = renderApp("/join");
+    await reachConfirmation(/I'm a sitter/);
+
+    const box = screen.getByRole("checkbox");
+    expect(box.closest("label")!.textContent).toBe("I agree to the Sitter Terms of Use and Privacy policy.");
+    expect((box as HTMLInputElement).checked).toBe(false);
+    const label = within(box.closest("label")!);
+    const sitterLink = label.getByRole("link", { name: "Sitter Terms of Use" });
+    expect(sitterLink.getAttribute("href")).toBe("/terms/sitter");
+    expect(sitterLink.getAttribute("target")).toBe("_blank");
+    expect(label.getByRole("link", { name: "Privacy policy" }).getAttribute("href")).toBe("/privacy");
+
+    fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
+    expect(screen.getByText("Please tick the box to agree before you continue.")).toBeTruthy();
+    expect(calls.some((call) => call.url.endsWith("/me/profile"))).toBe(false);
+
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/sitter"));
+    const body = JSON.parse(calls.find((call) => call.url.endsWith("/me/profile"))!.init!.body as string);
+    expect(body.accepted).toEqual([
+      { kind: "sitter_terms", version: "1.1" },
+      { kind: "privacy_policy", version: "0.1-draft" },
+    ]);
+  });
+
+  test("a parent agrees to the Terms of service and Privacy policy", async () => {
+    joinAs();
+    renderApp("/join");
+    await reachConfirmation(/I'm a parent/);
+    expect(screen.getByRole("checkbox").closest("label")!.textContent).toBe(
+      "I agree to the Terms of service and Privacy policy.",
+    );
+    const label = within(screen.getByRole("checkbox").closest("label")!);
+    expect(label.getByRole("link", { name: "Terms of service" }).getAttribute("href")).toBe("/terms/parent");
+  });
+
+  function signedInNeedingTerms(role: string, toAccept: { kind: string; version: string }[]) {
+    fake.state.session = fake.session;
+    const calls: { url: string; init?: RequestInit }[] = [];
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      const profile = { ...PARENT_PROFILE, role };
+      if (url.endsWith("/me/terms")) {
+        return Promise.resolve(jsonResponse({ email: "asha@example.com", profile, terms_to_accept: [] }));
+      }
+      if (url.endsWith("/me")) {
+        return Promise.resolve(jsonResponse({ email: "asha@example.com", profile, terms_to_accept: toAccept }));
+      }
+      return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
+    }) as typeof fetch);
+    return calls;
+  }
+
+  test("an existing sitter who hasn't accepted sees the terms right after signing in", async () => {
+    const calls = signedInNeedingTerms("sitter", [
+      { kind: "sitter_terms", version: "1.1" },
+      { kind: "privacy_policy", version: "0.1-draft" },
+    ]);
+    renderApp("/sitter");
+    expect(await screen.findByRole("heading", { name: "Please read and accept our terms." })).toBeTruthy();
+    expect(screen.queryByText("Your work with Pacify.")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+    expect(screen.getByText("Please tick the box to agree before you continue.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree to the Sitter Terms of Use/ }));
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+    expect(await screen.findByRole("heading", { name: "Your work with Pacify." })).toBeTruthy();
+    const post = calls.find((call) => call.url.endsWith("/me/terms"))!;
+    expect(JSON.parse(post.init!.body as string)).toEqual({
+      accepted: [
+        { kind: "sitter_terms", version: "1.1" },
+        { kind: "privacy_policy", version: "0.1-draft" },
+      ],
+    });
+  });
+
+  test("when a new version exists that this copy of the app doesn't have, it asks for a reload", async () => {
+    signedInNeedingTerms("parent", [{ kind: "parent_terms", version: "0.2" }]);
+    renderApp("/parent");
+    expect(await screen.findByText(/Our terms have been updated. Please reload/)).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 });

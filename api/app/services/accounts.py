@@ -3,12 +3,13 @@
 import re
 import uuid
 
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import AuditLog, Child, Consent, Parent, Profile, ProfileStatus, Role, Sitter
+from app.models import AuditLog, Child, Consent, LegalAcceptance, Parent, Profile, ProfileStatus, Role, Sitter
+from app.services import legal
 from app.services.service_area import require_in_service_area
 
 # Indian mobile numbers: 10 digits starting 6–9, optionally written with +91, 91 or a leading 0.
@@ -27,12 +28,23 @@ def _already_signed_up() -> AppError:
 
 
 def sign_up(
-    db: Session, *, user_id: uuid.UUID, email: str, role: Role, full_name: str, phone: str, pin_code: str
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    email: str,
+    role: Role,
+    full_name: str,
+    phone: str,
+    pin_code: str,
+    accepted: list[legal.Accepted],
+    request: legal.RequestInfo,
 ) -> Profile:
-    """Create the profile and its parent or sitter record. Status starts as pending (verification)."""
+    """Create the profile, its parent or sitter record and the terms acceptances, all or nothing.
+    Status starts as pending (verification). Sign-up can't complete without accepting the terms."""
     if role not in SIGN_UP_ROLES:
         raise AppError(422, "role_not_allowed", "Choose parent or sitter")
     require_in_service_area(db, pin_code)
+    documents = legal.check_accepted(db, role, accepted)
     if db.get(Profile, user_id) is not None:
         raise _already_signed_up()
     if db.scalar(select(Profile.id).where(Profile.email == email)) is not None:
@@ -42,6 +54,8 @@ def sign_up(
     db.add(profile)
     db.flush()  # profile first: the parent or sitter row points at it
     db.add(Parent(profile_id=user_id) if role == Role.parent else Sitter(profile_id=user_id))
+    db.flush()
+    legal.record_acceptances(db, user_id, documents, request)
     try:
         db.commit()
     except IntegrityError as exc:  # the same person signing up twice at once
@@ -102,6 +116,9 @@ def delete_empty_profile(db: Session, email: str) -> Profile:
         raise AppError(404, "not_found", "No Pacify profile with this email")
     if not is_empty(db, profile):
         raise AppError(409, "profile_not_empty", "This account has records, so it can't be deleted this way")
+    # Terms acceptances alone don't make an account non-empty: nothing happened under those terms. The
+    # API role can't delete them; this runs from the CLI as the database owner.
+    db.execute(delete(LegalAcceptance).where(LegalAcceptance.profile_id == profile.id))
     db.delete(profile)  # its parents or sitters row goes with it (ON DELETE CASCADE)
     db.commit()
     return profile

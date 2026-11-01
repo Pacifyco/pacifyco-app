@@ -9,7 +9,19 @@ from app import cli
 from app.services.accounts import normalise_mobile
 from tests.test_auth import bearer, client, token  # noqa: F401  (client is a fixture)
 
-PARENT = {"role": "parent", "full_name": "  Meera   Rao ", "phone": "+91 98765-43210", "pin_code": "560034"}
+# Ticked at sign-up. Covers both roles (each role's required documents are checked; others are ignored).
+ACCEPTED = [
+    {"kind": "parent_terms", "version": "0.1-draft"},
+    {"kind": "sitter_terms", "version": "1.1"},
+    {"kind": "privacy_policy", "version": "0.1-draft"},
+]
+PARENT = {
+    "role": "parent",
+    "full_name": "  Meera   Rao ",
+    "phone": "+91 98765-43210",
+    "pin_code": "560034",
+    "accepted": ACCEPTED,
+}
 
 
 @pytest.fixture
@@ -17,7 +29,10 @@ def user(db_engine):
     """A fresh sign-in identity; its profile (if any) is removed afterwards."""
     user_id = uuid.uuid4()
     yield {"id": user_id, "email": f"{user_id}@example.com"}
-    with db_engine.begin() as conn:
+    with db_engine.begin() as conn:  # as the owner: these records are append-only for the API
+        for table in ("legal_acceptances", "consents"):
+            column = "parent_id" if table == "consents" else "profile_id"
+            conn.execute(text(f"DELETE FROM {table} WHERE {column} = :id"), {"id": user_id})
         conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": user_id})
 
 
@@ -36,6 +51,7 @@ def test_parent_sign_up_creates_profile_and_parent(client, db_engine, user):  # 
     assert response.json() == {
         "email": user["email"],
         "profile": {"role": "parent", "status": "pending", "full_name": "Meera Rao"},
+        "terms_to_accept": [],  # accepted at sign-up
     }
     profile = row(db_engine, "SELECT role, phone, email, status, pin_code FROM profiles WHERE id = :id", user["id"])
     assert dict(profile) == {

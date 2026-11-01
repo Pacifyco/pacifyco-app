@@ -45,8 +45,9 @@ def make_profile(db_engine):
         return user_id
 
     yield make
-    with db_engine.begin() as conn:
+    with db_engine.begin() as conn:  # as the owner: acceptances are append-only for the API
         for user_id in created:
+            conn.execute(text("DELETE FROM legal_acceptances WHERE profile_id = :id"), {"id": user_id})
             conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": user_id})
 
 

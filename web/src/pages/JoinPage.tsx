@@ -3,11 +3,24 @@ import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { AREA_PATH, useMe, type Me } from "../auth/useMe";
+import {
+  AGREE_ERROR,
+  TermsCheckbox,
+  requiredTerms,
+  shownVersions,
+  sitterTermsReady,
+} from "../auth/TermsAgreement";
 import { Button, RoleChooser, TextInput, type ChosenRole } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
 type Step = "role" | "details" | "confirm";
-type SignUp = { role: ChosenRole; full_name: string; phone: string; pin_code: string };
+type SignUp = {
+  role: ChosenRole;
+  full_name: string;
+  phone: string;
+  pin_code: string;
+  accepted: ReturnType<typeof shownVersions>;
+};
 type FieldErrors = { full_name?: string; phone?: string; pin_code?: string };
 
 const NAME_ERROR = "Please tell us your full name.";
@@ -41,7 +54,7 @@ export function fieldErrorsFrom(details: unknown): FieldErrors {
 }
 
 // `pinCodes` is the service area from the API; if it couldn't load, the API still checks on sign-up.
-function checkDetails(details: Omit<SignUp, "role">, pinCodes: string[] | undefined): FieldErrors {
+function checkDetails(details: Omit<SignUp, "role" | "accepted">, pinCodes: string[] | undefined): FieldErrors {
   const errors: FieldErrors = {};
   if (!details.full_name.trim()) errors.full_name = NAME_ERROR;
   if (!isIndianMobile(details.phone)) errors.phone = PHONE_ERROR;
@@ -67,6 +80,8 @@ export function JoinPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   // Shown on the details step when the API refuses the form for a reason we can't pin to one field.
   const [formError, setFormError] = useState<string>();
+  const [agreed, setAgreed] = useState(false);
+  const [agreeError, setAgreeError] = useState<string>();
   const serviceArea = useQuery({
     queryKey: ["service-area"],
     queryFn: () => apiFetch<{ pin_codes: string[] }>("/service-area"),
@@ -195,22 +210,68 @@ export function JoinPage() {
   }
 
   const failure = signUp.error instanceof ApiError ? signUp.error : null;
+  const kinds = requiredTerms(role);
+  // Production can't take sitters until every Sitter Terms placeholder is filled (CLAUDE.md 7).
+  const sitterClosed = role === "sitter" && !sitterTermsReady();
+
+  function createAccount() {
+    if (!role) return;
+    if (!agreed) return setAgreeError(AGREE_ERROR);
+    setAgreeError(undefined);
+    signUp.mutate({
+      role,
+      full_name: fullName.trim(),
+      phone: phone.trim(),
+      pin_code: pinCode,
+      accepted: shownVersions(kinds),
+    });
+  }
+
+  if (sitterClosed) {
+    return (
+      <section className="mx-auto max-w-[36rem] text-center">
+        <h1>Sitter sign-up opens soon.</h1>
+        <p className="mt-4 text-muted">
+          We're finishing the Sitter Terms of Use. Please check back soon, or contact us at query.pacifyco@gmail.com.
+        </p>
+        <div className="mt-6 flex justify-center">
+          <Button variant="secondary" onClick={() => setStep("role")}>
+            Go back
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="mx-auto max-w-[36rem] text-center">
       <h1>You're joining as {roleLabel}.</h1>
       <p className="mt-4 text-muted">Is that right? Once your account is set up, only the Pacify team can change this.</p>
+      <div className="mt-6 rounded-lg bg-surface-sunken p-5">
+        <TermsCheckbox
+          kinds={kinds}
+          checked={agreed}
+          onChange={(checked) => {
+            setAgreed(checked);
+            if (checked) setAgreeError(undefined);
+          }}
+          error={agreeError}
+        />
+      </div>
       {failure && !["already_signed_up", "outside_service_area"].includes(failure.code) && (
         <p role="alert" className="mt-4 text-small text-danger">
           {failure.code === "email_in_use"
             ? "This email already has a Pacify account. Please sign in with a different email, or contact us."
-            : failure.message}
+            : failure.code === "terms_outdated"
+              ? "Our terms have been updated. Please reload the page to read the new version."
+              : failure.message}
         </p>
       )}
       <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:justify-center">
         <Button
           arrow
           loading={signUp.isPending}
-          onClick={() => signUp.mutate({ role, full_name: fullName.trim(), phone: phone.trim(), pin_code: pinCode })}
+          onClick={createAccount}
         >
           Yes, create my account
         </Button>
