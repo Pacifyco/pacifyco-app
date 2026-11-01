@@ -1,0 +1,119 @@
+# Lint, type-check and tests on every pull request and on every merge to develop or main (CLAUDE.md section 4).
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+# A newer push to the same PR cancels the older run. Runs on develop and main are never cancelled, so a
+# migration is never cut off halfway.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The job names are required status checks on main and develop; renaming one means updating branch protection.
+jobs:
+  api:
+    name: API tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          # Throwaway CI database, not a secret.
+          POSTGRES_USER: pacifyco
+          POSTGRES_PASSWORD: pacifyco
+          POSTGRES_DB: pacifyco_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pacifyco -d pacifyco_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://pacifyco:pacifyco@localhost:5432/pacifyco_test
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check . && ruff format --check .
+      - name: Test
+        run: pytest
+
+  web:
+    name: Web typecheck, tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  # After a merge passes every check, bring that environment's database up to date: develop -> staging,
+  # main -> production. Render waits for this check ("After CI checks pass") before it deploys the API.
+  migrate:
+    name: Migrate ${{ github.ref_name == 'main' && 'production' || 'staging' }} database
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+    needs: [api, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Each secret lives in its GitHub environment: "staging" only develop can use, "production" only main.
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    # Never run two migrations against the same database at once.
+    concurrency:
+      group: migrate-${{ github.ref_name }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
+      - name: Install
+        run: pip install -e .
+      - name: Migrate
+        env:
+          # The database owner (postgres) through Supabase's session pooler, not the API's role.
+          MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: |
+          if [ -z "$MIGRATION_DATABASE_URL" ]; then
+            echo "::error::Add MIGRATION_DATABASE_URL to this environment's secrets (README: Staging deploy, Production)."
+            exit 1
+          fi
+          alembic upgrade head

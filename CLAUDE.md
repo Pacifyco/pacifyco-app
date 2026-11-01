@@ -50,7 +50,7 @@ and pays sitters within 12 hours of each booking.
 
 | Layer | Choice |
 | --- | --- |
-| Frontend | React 18 + TypeScript + Vite, React Router, TanStack Query, Tailwind CSS mapped to the tokens in `design.md`, Lucide icons (stroke 1.75) |
+| Frontend | React 18 + TypeScript + Vite, React Router 7 (v8 needs React 19), TanStack Query, Tailwind CSS mapped to the tokens in `design.md`, Lucide icons (stroke 1.75) |
 | Backend | Python 3.14 (same version locally, in CI and on Render), FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2, psycopg 3 |
 | Database, auth, file storage | Supabase (Postgres, Auth, private Storage buckets), Mumbai region |
 | Frontend hosting | Cloudflare Pages |
@@ -60,6 +60,7 @@ and pays sitters within 12 hours of each booking.
 | Maps and distance | OpenStreetMap: Nominatim for geocoding (cache results, max 1 request/second, set a User-Agent), Leaflet for maps |
 | Error tracking | Sentry (frontend and API) |
 | CI/CD | GitHub Actions; Cloudflare Pages and Render auto-deploy from branches |
+| Lint (dev only) | ESLint with typescript-eslint and react-hooks (web), Ruff for lint and formatting (API) |
 | Scheduled jobs | GitHub Actions `schedule` workflows calling protected API endpoints |
 | Payments (beta) | None. Parents pay by UPI to the business account; admins verify and credit hours. Sitters are paid manually by bank transfer or UPI within 12 hours of check-out. |
 | Payments (later) | Razorpay for collection and automated payouts. Design the payment code behind one small interface so it can be swapped in. |
@@ -117,7 +118,7 @@ Until DNS is set up, use the default Cloudflare Pages and Render URLs.
 
 ### Environment variables (`.env.example`)
 
-API: `ENVIRONMENT`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_JWKS_URL` (or `SUPABASE_JWT_SECRET`,
+API: `ENVIRONMENT`, `DATABASE_URL`, `MIGRATION_DATABASE_URL` (CI only), `SUPABASE_URL`, `SUPABASE_JWKS_URL` (or `SUPABASE_JWT_SECRET`,
 whichever the project uses), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`,
 `ADMIN_ALERT_EMAILS`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_CALENDAR_ID`, `SENTRY_DSN`,
 `JOBS_SECRET`, `PUBLIC_WEB_URL`, `CORS_ORIGINS`, `PACIFY_UPI_ID`.
@@ -134,7 +135,11 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   user's role from the `profiles` table.
 - **Row Level Security on every table** with no policies for the `anon` and `authenticated` roles, so
   the database can't be read directly from the browser even by mistake. The API connects with its own
-  database role.
+  database role, `pacifyco_api` (BYPASSRLS; reads and writes rows, can't change tables; `audit_log` is
+  insert-only). Migrations run as the database owner. New tables get the API's grants automatically;
+  new append-only tables must revoke UPDATE and DELETE in their migration.
+- **Sentry collects errors only** (no tracing, replay or logs) and no personal data: user info, cookies,
+  headers, request bodies, query strings and local variables are all off in both SDKs.
 - **Storage buckets are private.** Uploads go through signed upload URLs issued by the API. Files are
   viewed only by admins through short-lived signed URLs, and every view writes a row to
   `document_access_log`.
@@ -147,6 +152,10 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   to its cause.
 - **Every state change on bookings, payouts, strikes and verifications writes to `audit_log`** (actor,
   action, entity, before/after).
+- **Errors** all use one shape: `{"error": {"code", "message", "details"}}` (`api/app/errors.py`). Raise
+  `AppError(status, code, message, details)` for expected failures; `code` is a stable snake_case string
+  the web app branches on, `message` is safe to show users. Unhandled errors return a generic 500 and go
+  to Sentry; responses never echo submitted values or internal details.
 - **Chat** uses polling (every 10 s while a chat is open) in v1. No websockets.
 - **Scheduled jobs** are idempotent API endpoints under `/internal/jobs/*`, protected by `JOBS_SECRET`
   and called by a GitHub Actions schedule: pack expiry and carry-forward (daily), strike expiry
@@ -388,11 +397,16 @@ interview, psychology test, and meeting before the first booking. Do not claim a
 
 ## 8. Data model (first draft — refine in phase 1, then keep this section in sync)
 
-- `profiles` (id = Supabase user id, role, full_name, phone, email, status: `pending|active|suspended|removed`, pin_code, address, lat, lng, created_at)
-- `parents` (profile_id, second_parent_name, verification_status)
-- `children` (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status)
-- `emergency_contacts` (id, child_id, name, relationship, phone)
-- `sitters` (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, hourly_rate_paise, upi_id, onboarding_status, avg_rating, review_count)
+Tables marked **(created)** exist as models (`api/app/models`) and migrations; the models are the source
+of truth for their columns. Other tables are added by the phase that needs them, in its own migration.
+Status values use text columns with CHECK constraints (not Postgres enums), so adding a value is a small
+migration. Verification statuses are `pending|approved|rejected`.
+
+- `profiles` **(created)** (id = Supabase user id, role, full_name, phone, email, status: `pending|active|suspended|removed`, pin_code, address, lat, lng, created_at)
+- `parents` **(created)** (profile_id, second_parent_name, verification_status)
+- `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status)
+- `emergency_contacts` **(created)** (id, child_id, name, relationship, phone)
+- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, hourly_rate_paise (CHECK 8000–12000), upi_id, onboarding_status: `in_progress|approved|rejected`, avg_rating, review_count)
 - `onboarding_steps` (sitter_id, step, status, notes, reviewed_by, reviewed_at)
 - `documents` (id, owner_profile_id, child_id null, type: `aadhaar_masked|birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at)
 - `document_access_log` (id, document_id, admin_id, accessed_at)
@@ -419,8 +433,8 @@ interview, psychology test, and meeting before the first booking. Do not claim a
 - `reviews` (id, booking_id, author_id, subject_id, rating, body)
 - `sitter_earnings` (id, sitter_id, booking_id null, kind: `booking|overtime|show_up_fee|under_age_fee`, amount_paise, status: `held|released|paid`, due_by, payout_id null)
 - `payouts` (id, sitter_id, amount_paise, method: `bank|upi`, transfer_reference, paid_by, paid_at)
-- `audit_log` (id, actor_id, action, entity, entity_id, before, after, created_at)
-- `service_area_pincodes` (pin_code, active)
+- `audit_log` **(created)** (id, actor_id, action, entity, entity_id, before, after, created_at)
+- `service_area_pincodes` **(created)** (pin_code, active) — seeded with the launch pin codes
 
 ---
 

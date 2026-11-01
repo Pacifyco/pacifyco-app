@@ -1,4 +1,4 @@
-// Starts local Postgres, the API and the web app together: `npm run dev` from the repo root.
+// Starts local Postgres, applies migrations, then runs the API and the web app together: `npm run dev` from the repo root.
 // Ctrl+C stops the API and web app; the database keeps running (`npm run db:stop` stops it).
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -28,6 +28,12 @@ console.log("Starting Postgres (docker compose)...");
 const db = spawnSync("docker", ["compose", "up", "-d", "--wait"], { cwd: root, stdio: "inherit" });
 if (db.status !== 0) {
   fail("Couldn't start Postgres. Is Docker Desktop running?");
+}
+
+console.log("Applying database migrations (alembic upgrade head)...");
+const migrate = spawnSync(python, ["-m", "alembic", "upgrade", "head"], { cwd: join(root, "api"), stdio: "inherit" });
+if (migrate.status !== 0) {
+  fail("Migrations failed. Fix the error above, or reset local data with `npm run db:reset`.");
 }
 
 const colours = { api: "\x1b[36m", web: "\x1b[35m" };
