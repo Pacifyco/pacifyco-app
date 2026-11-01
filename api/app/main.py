@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.errors import register_error_handlers
-from app.routers import auth, health, jobs
+from app.routers import admin, auth, health, jobs, parents, sitters
 from app.settings import Settings, get_settings
 
 # Collect nothing about parents, children or sitters beyond the error itself: no user details, cookies,
@@ -55,6 +55,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(health.router)
     app.include_router(jobs.router)
+    # Role-gated areas: each router requires its role (app.auth.require_role).
+    for area in (parents, sitters, admin):
+        app.include_router(area.router)
     return app
 
 

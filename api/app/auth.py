@@ -15,7 +15,7 @@ from fastapi import Depends, Header
 
 from app.deps import DbSession
 from app.errors import AppError
-from app.models import Profile
+from app.models import Profile, ProfileStatus, Role
 from app.settings import Settings, get_settings
 
 logger = logging.getLogger("pacifyco.api")
@@ -114,3 +114,28 @@ def current_identity(
 def current_user(identity: Annotated[Identity, Depends(current_identity)], db: DbSession) -> CurrentUser:
     """The verified caller and their profile (None until they finish signing up)."""
     return CurrentUser(identity=identity, profile=db.get(Profile, identity.user_id))
+
+
+BLOCKED_STATUSES = (ProfileStatus.suspended, ProfileStatus.removed)
+
+
+def current_profile(user: Annotated[CurrentUser, Depends(current_user)]) -> Profile:
+    """A signed-in person who has finished sign-up and whose account isn't suspended or removed.
+    Pending accounts (not yet verified) pass; verification gates come with the features that need them."""
+    if user.profile is None:
+        raise AppError(403, "profile_required", "Please finish joining Pacify first")
+    if user.profile.status in BLOCKED_STATUSES:
+        raise AppError(403, "account_blocked", "Your account is on hold. Please contact Pacify.")
+    return user.profile
+
+
+def require_role(*roles: Role):
+    """Dependency for role-gated routers: `APIRouter(dependencies=[Depends(require_role(Role.parent))])`.
+    The wrong role gets 403 `forbidden`; blocked accounts get 403 `account_blocked` first."""
+
+    def check(profile: Annotated[Profile, Depends(current_profile)]) -> Profile:
+        if profile.role not in roles:
+            raise AppError(403, "forbidden", "This isn't available for your account")
+        return profile
+
+    return check

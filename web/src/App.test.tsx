@@ -5,9 +5,6 @@ import { jsonResponse, renderApp } from "./test/renderApp";
 describe("routes", () => {
   test.each([
     ["/", "A little help for you. A little more fun for them."],
-    ["/parent", "Time for you."],
-    ["/sitter", "Your work with Pacify."],
-    ["/admin", "Admin"],
     ["/no-such-page", "We couldn't find that page."],
     ["/sign-in", "Sign in to Pacify."],
   ])("%s shows its page", async (path, heading) => {
@@ -15,8 +12,14 @@ describe("routes", () => {
     expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeTruthy();
   });
 
+  test.each(["/parent", "/sitter", "/admin"])("%s needs sign-in", async (path) => {
+    const { router } = renderApp(path);
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in to Pacify." })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/sign-in");
+  });
+
   test("the layout links home and has a main landmark", async () => {
-    renderApp("/parent");
+    renderApp("/");
     expect(await screen.findByRole("link", { name: "Pacify home" })).toBeTruthy();
     expect(screen.getByRole("main")).toBeTruthy();
   });
