@@ -10,7 +10,7 @@ tests.
 
 - Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
 - Next item: Production pipeline wired (deploys on `main`), not yet released
-- Blocked on: Reuben creating Supabase `pacifyco-prod` (Mumbai) for the production pipeline
+- Blocked on: Reuben setting up production (README "Production"): GitHub secret, then Render and Cloudflare
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -27,7 +27,7 @@ tests.
 
 - [x] [Reuben] GitHub repo created, `main` and `develop` branches, branch protection on `main`
 - [ ] [Reuben] Supabase projects `pacifyco-staging` and `pacifyco-prod` (Mumbai region)
-  (Staging done 2026-11-01: ref `yzunsmdzirfgybpmoipu`, ap-south-1, Data API off, automatic RLS on, linked to GitHub. Prod still to create.)
+  (Prod created 2026-11-01. Staging done 2026-11-01: ref `yzunsmdzirfgybpmoipu`, ap-south-1, Data API off, automatic RLS on, linked to GitHub. Prod still to create.)
 - [x] [Reuben] Render account linked to GitHub
 - [x] [Reuben] Cloudflare account linked to GitHub (delete the stray Workers project `pacifyco-app` it created; staging uses a Pages project)
 - [ ] [Reuben] Resend account; Sentry account with web and API projects
@@ -49,6 +49,7 @@ tests.
 - [x] Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
   (Web `https://pacifyco-web-staging.pages.dev`, API `https://pacifyco.onrender.com`. CI migrates staging as `postgres` after checks pass; Render deploys after CI; the API signs in as `pacifyco_api` (`/health/db` shows `api_role: true`). Settings in README "Staging deploy". Cloudflare preview deployments should be off.)
 - [ ] Production pipeline wired (deploys on `main`), not yet released
+  (Code 2026-11-01: one CI `migrate` job, develop -> staging, main -> production; GitHub environment `production` limited to `main`; README "Production". Tick once a develop -> main PR has migrated prod and `/health/db` there shows `api_role: true`.)
 - [ ] Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
 
 ## Phase 2 — Accounts, roles, service area, consent

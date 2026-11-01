@@ -81,16 +81,20 @@ jobs:
       - name: Build
         run: npm run build
 
-  # After a merge to develop passes every check, bring the staging database up to date. Render waits for
-  # this check ("After CI checks pass") before it deploys the new API.
-  migrate-staging:
-    name: Migrate staging database
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+  # After a merge passes every check, bring that environment's database up to date: develop -> staging,
+  # main -> production. Render waits for this check ("After CI checks pass") before it deploys the API.
+  migrate:
+    name: Migrate ${{ github.ref_name == 'main' && 'production' || 'staging' }} database
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
     needs: [api, web]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # The secret lives in the "staging" GitHub environment, which only develop can use.
-    environment: staging
+    # Each secret lives in its GitHub environment: "staging" only develop can use, "production" only main.
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    # Never run two migrations against the same database at once.
+    concurrency:
+      group: migrate-${{ github.ref_name }}
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: api
@@ -109,7 +113,7 @@ jobs:
           MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
         run: |
           if [ -z "$MIGRATION_DATABASE_URL" ]; then
-            echo "::error::Add MIGRATION_DATABASE_URL to the staging environment's secrets (README: Staging deploy)."
+            echo "::error::Add MIGRATION_DATABASE_URL to this environment's secrets (README: Staging deploy, Production)."
             exit 1
           fi
           alembic upgrade head
