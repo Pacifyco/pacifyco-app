@@ -1,0 +1,74 @@
+# Scheduled jobs (CLAUDE.md section 5): calls the API's protected /internal/jobs/<run> endpoints.
+# GitHub runs schedules from the default branch (develop) in UTC. India is UTC+5:30.
+name: Scheduled jobs
+
+on:
+  schedule:
+    - cron: "30 20 * * *" # daily run, 2:00 am IST
+    - cron: "30 0 * * *" # frequent run, 6:00 am IST...
+    - cron: "*/30 1-18 * * *" # ...then every 30 minutes until midnight IST
+  workflow_dispatch:
+    inputs:
+      run:
+        description: Which run
+        type: choice
+        options: [daily, frequent]
+      target:
+        description: Where
+        type: choice
+        options: [staging, production, both]
+
+permissions:
+  contents: read
+
+jobs:
+  call:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [staging, production]
+    # Only the jobs secret and the API address live here, never database passwords. These environments
+    # allow develop because GitHub runs schedules from the default branch.
+    environment: jobs-${{ matrix.target }}
+    steps:
+      - name: Choose the run
+        id: pick
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_RUN: ${{ inputs.run }}
+          INPUT_TARGET: ${{ inputs.target }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          if [ -n "$INPUT_RUN" ]; then
+            run="$INPUT_RUN"
+            if [ "$INPUT_TARGET" != "both" ] && [ "$INPUT_TARGET" != "$TARGET" ]; then run=""; fi
+          elif [ "$SCHEDULE" = "30 20 * * *" ]; then
+            run=daily
+          else
+            # Before launch, the frequent run goes to production only: waking the free staging service
+            # every 30 minutes would use up Render's shared free hours.
+            run=frequent
+            if [ "$TARGET" = "staging" ]; then run=""; fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      - name: Call the API
+        if: steps.pick.outputs.run != ''
+        env:
+          API_URL: ${{ vars.API_URL }}
+          JOBS_SECRET: ${{ secrets.JOBS_SECRET }}
+          RUN: ${{ steps.pick.outputs.run }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$JOBS_SECRET" ]; then
+            echo "::warning::API_URL or JOBS_SECRET isn't set for jobs-${{ matrix.target }} (README: Scheduled jobs). Skipped."
+            exit 0
+          fi
+          # Free Render services sleep when idle and take up to a minute to wake, so allow time and retries.
+          curl --fail-with-body --silent --show-error --max-time 90 \
+            --retry 3 --retry-delay 15 --retry-all-errors \
+            -X POST -H "Authorization: Bearer $JOBS_SECRET" \
+            "$API_URL/internal/jobs/$RUN"
+          echo

@@ -9,8 +9,8 @@ tests.
 ## Current status
 
 - Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
-- Next item: Production pipeline wired (deploys on `main`), not yet released
-- Blocked on: Reuben setting up production (README "Production"): GitHub secret, then Render and Cloudflare
+- Next item: Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
+- Blocked on: Reuben adding `JOBS_SECRET` to both Render services and both `jobs-*` GitHub environments
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -26,8 +26,8 @@ tests.
 ## Phase 0 — Accounts and repo
 
 - [x] [Reuben] GitHub repo created, `main` and `develop` branches, branch protection on `main`
-- [ ] [Reuben] Supabase projects `pacifyco-staging` and `pacifyco-prod` (Mumbai region)
-  (Prod created 2026-11-01. Staging done 2026-11-01: ref `yzunsmdzirfgybpmoipu`, ap-south-1, Data API off, automatic RLS on, linked to GitHub. Prod still to create.)
+- [x] [Reuben] Supabase projects `pacifyco-staging` and `pacifyco-prod` (Mumbai region)
+  (Staging ref `yzunsmdzirfgybpmoipu`, prod ref `zbffwduowfdsypcxduex`, both ap-south-1, Data API off, automatic RLS on.)
 - [x] [Reuben] Render account linked to GitHub
 - [x] [Reuben] Cloudflare account linked to GitHub (delete the stray Workers project `pacifyco-app` it created; staging uses a Pages project)
 - [ ] [Reuben] Resend account; Sentry account with web and API projects
@@ -48,9 +48,10 @@ tests.
 - [x] CI: lint, type-check, tests on PRs (`.github/workflows/ci.yml`: Ruff + pytest on Postgres 17; ESLint + tsc + Vitest + build. Both jobs are required checks on `main` and `develop`. The API has no type checker yet; none is named in CLAUDE.md.)
 - [x] Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
   (Web `https://pacifyco-web-staging.pages.dev`, API `https://pacifyco.onrender.com`. CI migrates staging as `postgres` after checks pass; Render deploys after CI; the API signs in as `pacifyco_api` (`/health/db` shows `api_role: true`). Settings in README "Staging deploy". Cloudflare preview deployments should be off.)
-- [ ] Production pipeline wired (deploys on `main`), not yet released
-  (Code 2026-11-01: one CI `migrate` job, develop -> staging, main -> production; GitHub environment `production` limited to `main`; README "Production". Tick once a develop -> main PR has migrated prod and `/health/db` there shows `api_role: true`.)
+- [x] Production pipeline wired (deploys on `main`), not yet released
+  (Web `https://pacifyco-web.pages.dev`, API `https://pacifyco-api.onrender.com`. First release PR #13 merged; CI migrated prod; `/health/db` shows `api_role: true`. Not announced; free plans until launch.)
 - [ ] Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
+  (Code 2026-11-01: `daily` and `frequent` runs, bearer-secret check that fails closed, `jobs-staging`/`jobs-production` environments with `API_URL` set. Tick once both `JOBS_SECRET`s are set and a manual run returns 200 on both.)
 
 ## Phase 2 — Accounts, roles, service area, consent
 
@@ -182,6 +183,8 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — Scheduled jobs skeleton: `/internal/jobs/{daily,frequent}` behind `JOBS_SECRET`, GitHub schedule (daily 2 am IST; frequent every 30 min, production only until launch). 80 API tests pass.
+- 2026-11-01 — Production wired: release PR #13 merged, prod migrated by CI, API on `pacifyco_api` (`/health/db`), web and API in production mode with CORS limited to the production web origin.
 - 2026-11-01 — Staging deploy done: `/health/db` confirms the API uses `pacifyco_api` on staging.
 - 2026-11-01 — Staging live: web `pacifyco-web-staging.pages.dev`, API `pacifyco.onrender.com` (staging mode, CORS limited to the web origin), first staging migration run by CI. Added `/health/db` to prove the API's database login.
 - 2026-11-01 — Staging deploy code: `pacifyco_api` DB role, staging migration job (GitHub environment `staging`, develop only), web Sentry, no personal data in Sentry from either app. Sentry projects checked and tightened. 55 API and 57 web tests pass.
