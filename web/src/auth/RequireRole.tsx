@@ -11,8 +11,8 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
   const me = useMe();
 
   if (status === "signed_out") return <Navigate to="/sign-in" replace />;
-  if (status === "loading" || me.isPending) return <p className="text-muted">Loading your account…</p>;
-  if (me.isError) return <p className="text-muted">{me.error.message}</p>;
+  if (status === "loading" || me.isPending) return <p className="text-center text-muted">Loading your account…</p>;
+  if (me.isError) return <p className="text-center text-muted">{me.error.message}</p>;
 
   const profile = me.data.profile;
   if (!profile) return <Navigate to="/join" replace />;
@@ -24,7 +24,7 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
 // CLAUDE.md 6.12: appeals within 15 days of the decision; contact details from CLAUDE.md 7.
 export function AccountOnHold({ removed }: { removed: boolean }) {
   return (
-    <section className="max-w-[62ch]">
+    <section className="mx-auto max-w-[62ch] text-center">
       <h1>{removed ? "This account is closed." : "Your account is on hold."}</h1>
       <p className="mt-4 text-muted">
         {removed

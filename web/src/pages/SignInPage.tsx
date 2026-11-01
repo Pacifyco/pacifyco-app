@@ -40,7 +40,7 @@ export function SignInPage() {
 
   if (!supabase) {
     return (
-      <section className="max-w-[62ch]">
+      <section className="mx-auto max-w-[62ch] text-center">
         <h1>Sign in to Pacify.</h1>
         <p className="mt-4 text-muted">Sign-in isn't set up in this environment yet.</p>
       </section>
@@ -86,13 +86,13 @@ export function SignInPage() {
   }
 
   return (
-    <section className="max-w-[28rem]">
+    <section className="mx-auto max-w-[28rem] text-center">
       <h1>Sign in to Pacify.</h1>
 
       {step === "email" ? (
         <>
           <p className="mt-4 text-muted">New to Pacify? This creates your account too.</p>
-          <form onSubmit={sendCode} className="mt-6 flex flex-col gap-5" noValidate>
+          <form onSubmit={sendCode} className="mt-6 flex flex-col gap-5 text-left" noValidate>
             <TextInput
               label="Email"
               type="email"
@@ -104,12 +104,12 @@ export function SignInPage() {
               hint="We'll email you a code to sign in."
               error={error}
             />
-            <Button type="submit" arrow loading={busy} disabled={!email.trim()}>
+            <Button type="submit" arrow fullWidthOnPhone={false} className="w-full" loading={busy} disabled={!email.trim()}>
               Email me a code
             </Button>
           </form>
           <p className="my-5 text-small text-muted">or</p>
-          <Button variant="secondary" onClick={continueWithGoogle} disabled={busy}>
+          <Button variant="secondary" className="w-full" onClick={continueWithGoogle} disabled={busy}>
             Continue with Google
           </Button>
         </>
@@ -118,7 +118,7 @@ export function SignInPage() {
           <p className="mt-4 text-muted">
             We've sent a code to <span className="text-ink">{email.trim()}</span>. It works for 10 minutes.
           </p>
-          <form onSubmit={verifyCode} className="mt-6 flex flex-col gap-5" noValidate>
+          <form onSubmit={verifyCode} className="mt-6 flex flex-col gap-5 text-left" noValidate>
             <TextInput
               label="Code"
               name="code"
@@ -129,11 +129,11 @@ export function SignInPage() {
               onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
               error={error}
             />
-            <Button type="submit" arrow loading={busy} disabled={code.length < 6}>
+            <Button type="submit" arrow fullWidthOnPhone={false} className="w-full" loading={busy} disabled={code.length < 6}>
               Sign in
             </Button>
           </form>
-          <div className="mt-5 flex flex-wrap gap-5">
+          <div className="mt-5 flex flex-wrap justify-center gap-5">
             <Button variant="tertiary" onClick={() => sendCode()} disabled={busy}>
               Send a new code
             </Button>
@@ -163,13 +163,13 @@ export function AuthCallbackPage() {
   if (!failed && status === "signed_in") return <Navigate to="/" replace />;
   if (!failed && status === "loading") {
     return (
-      <section className="max-w-[62ch]" aria-live="polite">
+      <section className="mx-auto max-w-[62ch] text-center" aria-live="polite">
         <p className="text-muted">Signing you in…</p>
       </section>
     );
   }
   return (
-    <section className="max-w-[62ch]">
+    <section className="mx-auto max-w-[62ch] text-center">
       <h1>We couldn't sign you in.</h1>
       <p className="mt-4 text-muted">The sign-in didn't finish. It's fine to try again.</p>
       <p className="mt-5 text-ui">

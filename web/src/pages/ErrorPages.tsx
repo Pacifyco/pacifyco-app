@@ -4,7 +4,7 @@ import { reportRouteError } from "../lib/sentry";
 
 export function NotFoundPage() {
   return (
-    <section className="max-w-[62ch]">
+    <section className="mx-auto max-w-[62ch] text-center">
       <h1>We couldn't find that page.</h1>
       <p className="mt-4 text-muted">It may have moved, or the link may be incomplete.</p>
       <p className="mt-5 text-ui">
@@ -23,7 +23,7 @@ export function RouteErrorPage() {
   }, [error]);
 
   return (
-    <main id="main" className="mx-auto max-w-[62ch] px-4 py-7">
+    <main id="main" className="mx-auto max-w-[62ch] px-4 py-7 text-center">
       <h1>Something went wrong on our side.</h1>
       <p className="mt-4 text-muted">Please try again in a moment.</p>
       <p className="mt-5 text-ui">
