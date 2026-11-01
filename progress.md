@@ -9,7 +9,7 @@ tests.
 ## Current status
 
 - Phase: 2 — Accounts, roles, service area, consent (Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: Role chooser and sign-up for parents and sitters; admin accounts created by seed/CLI only
+- Next item: Role-gated routes and API dependencies; suspended/removed users blocked
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - Blocked on: nothing
 
@@ -58,8 +58,8 @@ tests.
 ## Phase 2 — Accounts, roles, service area, consent
 
 - [x] Supabase sign-in (email OTP + Google) in web; API JWT verification and role loading
-- [ ] Role chooser and sign-up for parents and sitters; admin accounts created by seed/CLI only
-- [ ] Service area check on pin code at sign-up
+- [x] Role chooser and sign-up for parents and sitters; admin accounts created by seed/CLI only
+- [x] Service area check on pin code at sign-up
 - [ ] Role-gated routes and API dependencies; suspended/removed users blocked
 - [ ] Parental consent form (versioned placeholder) and acceptance record
 - [ ] Sitter Terms of Use v1.1 page (move `content/sitter-terms-v1.1.md` to `/web/src/content/`; wording unchanged; placeholders from config); Privacy policy and Parent terms placeholder pages (versioned)
@@ -185,6 +185,7 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — Sign-up (PR #21, #22): `/join` role chooser, name, Indian mobile and home pin code (launch pin codes only, `GET /service-area`), confirmation step; `POST /me/profile` once only; `python -m app.cli create-admin`. Role rules in CLAUDE.md 6.13. Verified on staging. 147 API and 82 web tests pass.
 - 2026-11-01 — Sign-in (PR #18, #19): email code and Google via Supabase (PKCE), API verifies tokens against the project JWKS (ES256/RS256 only) and loads the profile, `GET /me`. Both projects on ECC signing keys; Resend SMTP; Google clients. Verified on staging. 99 API and 71 web tests pass.
 - 2026-11-01 — Phase 1 done. Release PR #16 merged; scheduled jobs verified on staging and production.
 - 2026-11-01 — Scheduled jobs skeleton: `/internal/jobs/{daily,frequent}` behind `JOBS_SECRET`, GitHub schedule (daily 2 am IST; frequent every 30 min, production only until launch). 80 API tests pass.
