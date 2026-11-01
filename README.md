@@ -321,3 +321,19 @@ MIGRATION_DATABASE_URL='<that environment's session pooler URL, postgres user>' 
 Type the URL into your own terminal (never into chat or a file in the repo). The command looks the
 person up in Supabase's sign-in accounts and gives them an active admin profile. It refuses anyone who
 already chose parent or sitter. Locally there's no Supabase, so pass `--user-id <uuid>` instead.
+
+### Removing a test account
+
+Deleting a user under Supabase **Authentication → Users** removes only their sign-in account. Their
+Pacify profile stays and keeps the email, so signing up again with that email then fails with "This
+email already has a Pacify account". Remove the profile first, the same way as creating an admin
+(owner URL in your own terminal, from `api/`):
+
+```
+python -m app.cli delete-empty-profile --email someone@example.com        # checks only
+python -m app.cli delete-empty-profile --email someone@example.com --yes  # deletes
+```
+
+It only deletes accounts that hold nothing yet (no children, no sitter application details, no audit
+history), so real records are never removed this way. Then delete the user in Supabase if you want the
+sign-in account gone too.
