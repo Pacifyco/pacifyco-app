@@ -204,16 +204,18 @@ describe("joining after the first sign-in", () => {
         );
       }
       if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: null }));
+      if (url.endsWith("/service-area")) return Promise.resolve(jsonResponse({ pin_codes: ["560001", "560034"] }));
       return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
     }) as typeof fetch);
     return calls;
   }
 
-  async function chooseAndFill(role: RegExp, name: string, phone: string) {
+  async function chooseAndFill(role: RegExp, name: string, phone: string, pinCode = "560034") {
     fireEvent.click(await screen.findByRole("button", { name: role }));
     fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
     fireEvent.change(screen.getByLabelText("Full name"), { target: { value: name } });
     fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: phone } });
+    fireEvent.change(screen.getByLabelText("Home pin code"), { target: { value: pinCode } });
     fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
   }
 
@@ -229,7 +231,12 @@ describe("joining after the first sign-in", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/parent"));
     const post = calls.find((call) => call.url.endsWith("/me/profile"))!;
     expect(post.init!.method).toBe("POST");
-    expect(JSON.parse(post.init!.body as string)).toEqual({ role: "parent", full_name: "Asha K", phone: "98765 43210" });
+    expect(JSON.parse(post.init!.body as string)).toEqual({
+      role: "parent",
+      full_name: "Asha K",
+      phone: "98765 43210",
+      pin_code: "560034",
+    });
   });
 
   test("a sitter is asked to confirm being a sitter", async () => {
@@ -260,6 +267,37 @@ describe("joining after the first sign-in", () => {
     expect(screen.getByText("Please tell us your full name.")).toBeTruthy();
     expect(screen.getByText(/That number doesn't look quite right/)).toBeTruthy();
     expect(screen.queryByRole("heading", { name: /You're joining as/ })).toBeNull();
+  });
+
+  test("a pin code outside the service area is caught before confirming", async () => {
+    fake.state.session = fake.session;
+    joinApi({});
+    renderApp("/join");
+    // Wait for the service area list, as a person filling the form would.
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/service-area"))).toBe(true));
+    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210", "560002");
+    expect(
+      await screen.findByText("Pacify isn't in 560002 yet. For now we're in these Bengaluru pin codes: 560001, 560034."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /You're joining as/ })).toBeNull();
+  });
+
+  test("a short pin code is a field error", async () => {
+    fake.state.session = fake.session;
+    joinApi({});
+    renderApp("/join");
+    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210", "5600");
+    expect(screen.getByText(/Pin codes have 6 digits/)).toBeTruthy();
+  });
+
+  test("if the API refuses the pin code, the form shows it on the pin code field", async () => {
+    fake.state.session = fake.session;
+    joinApi(null, { status: 422, code: "outside_service_area" });
+    renderApp("/join");
+    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210", "560034");
+    fireEvent.click(await screen.findByRole("button", { name: /Yes, create my account/ }));
+    expect(await screen.findByText(/Pacify isn't in 560034 yet/)).toBeTruthy();
+    expect(screen.getByLabelText("Home pin code")).toBeTruthy();
   });
 
   test("an email that already has an account explains what to do", async () => {

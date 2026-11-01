@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import Parent, Profile, ProfileStatus, Role, Sitter
+from app.services.service_area import require_in_service_area
 
 # Indian mobile numbers: 10 digits starting 6–9, optionally written with +91, 91 or a leading 0.
 _MOBILE = re.compile(r"^(?:\+?91|0)?([6-9]\d{9})$")
@@ -25,16 +26,19 @@ def _already_signed_up() -> AppError:
     return AppError(409, "already_signed_up", "This account is already set up")
 
 
-def sign_up(db: Session, *, user_id: uuid.UUID, email: str, role: Role, full_name: str, phone: str) -> Profile:
+def sign_up(
+    db: Session, *, user_id: uuid.UUID, email: str, role: Role, full_name: str, phone: str, pin_code: str
+) -> Profile:
     """Create the profile and its parent or sitter record. Status starts as pending (verification)."""
     if role not in SIGN_UP_ROLES:
         raise AppError(422, "role_not_allowed", "Choose parent or sitter")
+    require_in_service_area(db, pin_code)
     if db.get(Profile, user_id) is not None:
         raise _already_signed_up()
     if db.scalar(select(Profile.id).where(Profile.email == email)) is not None:
         raise AppError(409, "email_in_use", "This email already has a Pacify account")
 
-    profile = Profile(id=user_id, role=role, full_name=full_name, phone=phone, email=email)
+    profile = Profile(id=user_id, role=role, full_name=full_name, phone=phone, email=email, pin_code=pin_code)
     db.add(profile)
     db.flush()  # profile first: the parent or sitter row points at it
     db.add(Parent(profile_id=user_id) if role == Role.parent else Sitter(profile_id=user_id))

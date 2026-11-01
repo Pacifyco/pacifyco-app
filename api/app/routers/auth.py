@@ -7,7 +7,7 @@ from app.auth import CurrentUser, Identity, current_identity, current_user
 from app.deps import DbSession
 from app.errors import AppError
 from app.models import Profile, ProfileStatus, Role
-from app.services import accounts
+from app.services import accounts, service_area
 
 router = APIRouter(tags=["auth"])
 
@@ -34,11 +34,23 @@ def me(user: Annotated[CurrentUser, Depends(current_user)]) -> Me:
     return Me(email=user.identity.email, profile=MeProfile.of(user.profile) if user.profile else None)
 
 
+class ServiceArea(BaseModel):
+    pin_codes: list[str]
+
+
+@router.get("/service-area")
+def get_service_area(db: DbSession) -> ServiceArea:
+    """The pin codes Pacify works in, so the sign-up form can check before sending. Public."""
+    return ServiceArea(pin_codes=service_area.active_pin_codes(db))
+
+
 class SignUp(BaseModel):
     # Admins are never chosen at sign-up (CLAUDE.md 6.13).
     role: Literal["parent", "sitter"]
     full_name: str = Field(min_length=1, max_length=100)
     phone: str = Field(max_length=20)
+    # Home pin code; must be one of the launch pin codes (CLAUDE.md 1).
+    pin_code: str = Field(pattern=r"^[0-9]{6}$")
 
     @field_validator("full_name")
     @classmethod
@@ -69,5 +81,6 @@ def sign_up(body: SignUp, identity: Annotated[Identity, Depends(current_identity
         role=Role(body.role),
         full_name=body.full_name,
         phone=body.phone,
+        pin_code=body.pin_code,
     )
     return Me(email=identity.email, profile=MeProfile.of(profile))
