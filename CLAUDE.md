@@ -374,7 +374,16 @@ Emergency button instead.
 
 **Parent verification:** masked Aadhaar for both parents (the upload screen asks for UIDAI's masked
 Aadhaar), a birth certificate per child, then admin approval. Parents can browse after sign-up but
-can't request an introduction until approved.
+can't request an introduction until approved. Decided 2026-11-02:
+- **Single parent or sole guardian:** one masked Aadhaar plus a short declaration that they are the
+  only parent or legal guardian of the children they add (recorded like a consent: text version, time).
+- **Aadhaar only** for parents for now (no other ID types), knowing a private company generally can't
+  make Aadhaar mandatory; Reuben is checking with the lawyer.
+- **Never store an Aadhaar number** (no typing, searching or e-KYC); only the masked copy and its review
+  result. An unmasked Aadhaar is rejected and its file deleted at once.
+- **Delete each Aadhaar copy once the admin approves it**, keeping only the status, who verified it and
+  when (as with birth certificates). Rejected copies are deleted too.
+- Password-protected PDFs (as downloaded from UIDAI) are refused with a request for a screenshot or photo.
 
 **Document handling:** private bucket, admin-only access, every view logged, birth certificates deleted
 automatically once the child is verified (keep status, verifier and date).
