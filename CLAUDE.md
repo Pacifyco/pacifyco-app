@@ -429,8 +429,8 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `documents` (id, owner_profile_id, child_id null, type: `aadhaar_masked|birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at)
 - `document_access_log` (id, document_id, admin_id, accessed_at)
 - `consents` **(created)** (id, parent_id, form_version, accepted_at) — append-only, one row per parent per version; current version is `CONSENT_VERSION` in `api/app/services/consent.py`, matching the `version:` line of `web/src/content/consent.md`
-- `legal_documents` (id, kind: `parent_terms|sitter_terms|privacy_policy`, version, published_at, effective_at, content_path)
-- `legal_acceptances` (id, profile_id, document_id, method: `clickwrap`, accepted_at, ip_address, user_agent)
+- `legal_documents` **(created)** (id, kind: `parent_terms|sitter_terms|privacy_policy`, version, published_at, effective_at, content_path) — read-only for the API; a new version is a migration that adds a row (plus the new text in `web/src/content/` with the same version; a test checks they match). The current version is the latest whose `effective_at` has passed, so pay or rights changes to the sitter terms get an `effective_at` 14+ days out
+- `legal_acceptances` **(created)** (id, profile_id, document_id, method: `clickwrap`, accepted_at, ip_address, user_agent) — append-only; written only by `record_acceptances` in `api/app/services/legal.py`; `require_current_terms` gates booking, buying hours and taking bookings
 - `references` (id, sitter_id, name, phone, relationship, outcome, notes)
 - `psych_tests`, `psych_questions`, `psych_attempts`, `psych_answers`
 - `availability_slots` (id, sitter_id, starts_at, ends_at)

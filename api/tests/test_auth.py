@@ -73,7 +73,7 @@ def bearer(value: str) -> dict[str, str]:
 def test_signed_in_without_a_profile_yet(client):
     response = client.get("/me", headers=bearer(token()))
     assert response.status_code == 200
-    assert response.json() == {"email": "parent@example.com", "profile": None}
+    assert response.json() == {"email": "parent@example.com", "profile": None, "terms_to_accept": []}
 
 
 def test_loads_the_profile_and_role(client, db_engine):
