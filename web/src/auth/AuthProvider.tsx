@@ -8,6 +8,8 @@ type AuthValue = {
   status: AuthStatus;
   userId: string | null;
   email: string | null;
+  /** The name Google gave us, if they signed in with Google. Only used to prefill sign-up. */
+  name: string | null;
   /** False when this environment has no Supabase settings, so sign-in can't work. */
   available: boolean;
   signOut: () => Promise<void>;
@@ -15,13 +17,18 @@ type AuthValue = {
 
 const AuthContext = createContext<AuthValue | null>(null);
 
-type SessionState = Pick<AuthValue, "status" | "userId" | "email">;
-const SIGNED_OUT: SessionState = { status: "signed_out", userId: null, email: null };
+type SessionState = Pick<AuthValue, "status" | "userId" | "email" | "name">;
+const SIGNED_OUT: SessionState = { status: "signed_out", userId: null, email: null, name: null };
+
+function nameFrom(metadata: Record<string, unknown> | undefined): string | null {
+  const name = metadata?.full_name ?? metadata?.name;
+  return typeof name === "string" && name.trim() ? name.trim() : null;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<SessionState>(() =>
-    supabase ? { status: "loading", userId: null, email: null } : SIGNED_OUT,
+    supabase ? { ...SIGNED_OUT, status: "loading" } : SIGNED_OUT,
   );
 
   useEffect(() => {
@@ -29,7 +36,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Fires once with the stored session (INITIAL_SESSION), then on every sign-in, refresh and sign-out.
     const { data } = supabase.auth.onAuthStateChange((_event, current) => {
       setSession(
-        current ? { status: "signed_in", userId: current.user.id, email: current.user.email ?? null } : SIGNED_OUT,
+        current
+          ? {
+              status: "signed_in",
+              userId: current.user.id,
+              email: current.user.email ?? null,
+              name: nameFrom(current.user.user_metadata),
+            }
+          : SIGNED_OUT,
       );
     });
     return () => data.subscription.unsubscribe();

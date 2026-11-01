@@ -306,3 +306,18 @@ Environment variables (none are secret): Render `SUPABASE_URL` = `https://<ref>.
 Cloudflare Pages `VITE_SUPABASE_URL` (same) and `VITE_SUPABASE_ANON_KEY` = the project's publishable
 key (Project Settings → API Keys, `sb_publishable_...`). Cloudflare needs a new deployment after a
 variable changes. Without these, the API refuses every token and the web app says sign-in isn't set up.
+
+### Creating an admin
+
+Admins never sign up through the app (CLAUDE.md 6.13). The person signs in once on that environment's
+web app (with the email code or Google), closes the "How will you use Pacify?" page without choosing,
+and then Reuben runs, from `api/` with the virtual environment active:
+
+```
+MIGRATION_DATABASE_URL='<that environment's session pooler URL, postgres user>' \
+  python -m app.cli create-admin --email someone@example.com --name "Full Name"
+```
+
+Type the URL into your own terminal (never into chat or a file in the repo). The command looks the
+person up in Supabase's sign-in accounts and gives them an active admin profile. It refuses anyone who
+already chose parent or sitter. Locally there's no Supabase, so pass `--user-id <uuid>` instead.
