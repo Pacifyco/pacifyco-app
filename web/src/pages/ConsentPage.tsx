@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
-import { Button, Checkbox } from "../components/ui";
+import { Button, ButtonLink, Checkbox } from "../components/ui";
 import consentSource from "../content/consent.md?raw";
 import { apiFetch } from "../lib/api";
 import { formatDate } from "../lib/format";
@@ -25,6 +26,7 @@ export function ConsentPage() {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
   const consent = useConsent();
+  const navigate = useNavigate();
   const [ticked, setTicked] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -34,7 +36,10 @@ export function ConsentPage() {
         method: "POST",
         body: JSON.stringify({ version: CONSENT_VERSION }),
       }),
-    onSuccess: (status) => queryClient.setQueryData(["consent", userId], status),
+    onSuccess: (status) => {
+      queryClient.setQueryData(["consent", userId], status);
+      navigate("/parent"); // home now shows the date consent was given
+    },
   });
 
   // The API and this page disagree about the current version: an old copy of the app is open.
@@ -62,7 +67,12 @@ export function ConsentPage() {
             This form has been updated. Please reload the page to read the new version.
           </p>
         ) : acceptedAt ? (
-          <p className="text-ink">You gave your consent on {formatDate(new Date(acceptedAt))}.</p>
+          <div className="flex flex-col items-start gap-4">
+            <p className="text-ink">You gave your consent on {formatDate(new Date(acceptedAt))}.</p>
+            <ButtonLink to="/parent" variant="secondary">
+              Back to your home
+            </ButtonLink>
+          </div>
         ) : (
           <div className="flex flex-col gap-5">
             <Checkbox
