@@ -9,8 +9,8 @@ tests.
 ## Current status
 
 - Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
-- Next item: CI: lint, type-check, tests on PRs
-- Blocked on: nothing yet
+- Next item: Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
+- Blocked on: Sentry projects (web, API) for the staging deploy's DSNs
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -27,9 +27,11 @@ tests.
 
 - [x] [Reuben] GitHub repo created, `main` and `develop` branches, branch protection on `main`
 - [ ] [Reuben] Supabase projects `pacifyco-staging` and `pacifyco-prod` (Mumbai region)
-- [ ] [Reuben] Render account linked to GitHub
-- [ ] [Reuben] Cloudflare account linked to GitHub
+  (Staging done 2026-11-01: ref `yzunsmdzirfgybpmoipu`, ap-south-1, Data API off, automatic RLS on, linked to GitHub. Prod still to create.)
+- [x] [Reuben] Render account linked to GitHub
+- [x] [Reuben] Cloudflare account linked to GitHub (delete the stray Workers project `pacifyco-app` it created; staging uses a Pages project)
 - [ ] [Reuben] Resend account; Sentry account with web and API projects
+  (Sentry org `pacifyco` created and linked to GitHub, error monitoring only; projects not yet created. Resend not started.)
 - [ ] [Reuben] Google Cloud project with Calendar API, service account, interview calendar
 - [ ] [Reuben] Business bank account and UPI ID for beta payments
 - [x] [Reuben] Logo files added: wordmark and reversed wordmark (PNG, `assets/primary-logo*.png`), symbol (SVG). Web copies in `/web/src/assets/brand/`. SVG wordmarks still wanted from the designer (design.md section 6).
@@ -43,7 +45,7 @@ tests.
 - [x] Web skeleton: Vite + React + TS + Router + TanStack Query + Tailwind with design tokens, light/dark
 - [x] UI components from design.md section 10 (Button, inputs, Chip, VerifiedChip, Card, IconTile)
   (Also built, display-only until their phases wire data: SitterCard, BookingCard, HourBalance, RoleChooser, EmergencyButton, EmptyState. Preview at `/dev/components`, not in production.)
-- [ ] CI: lint, type-check, tests on PRs
+- [x] CI: lint, type-check, tests on PRs (`.github/workflows/ci.yml`: Ruff + pytest on Postgres 17; ESLint + tsc + Vitest + build. Both jobs are required checks on `main` and `develop`. The API has no type checker yet; none is named in CLAUDE.md.)
 - [ ] Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
   (Note: RLS has no policies, so the API's database role must own the tables or have BYPASSRLS. Decide which role runs migrations vs. serves the API.)
 - [ ] Production pipeline wired (deploys on `main`), not yet released
@@ -179,6 +181,7 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — CI (GitHub Actions): Ruff + pytest on Postgres; ESLint + typecheck + Vitest + build. `main` and `develop` both require PRs and both checks. Supabase staging confirmed in Mumbai. Render, Cloudflare, Supabase and Sentry GitHub apps installed on the org.
 
 - 2026-10-31 — UI components (design.md section 10) in `web/src/components/ui`: Button/ButtonLink, TextInput/Select/Textarea, Chip, VerifiedChip (fixed labels for real checks only), Card, IconTile, SitterCard (no price prop), BookingCard, HourBalance, RoleChooser, EmergencyButton (confirm step), EmptyState; `lib/format.ts` for IST dates/times, hours and names. Lucide added. 53 web tests pass. Header now uses the wordmark (reversed in dark mode).
 - 2026-10-31 — Web skeleton: React Router 7 (v8 needs React 19; stack is React 18), TanStack Query with an `apiFetch` that reads the API error format, Tailwind 4 mapped to design.md tokens (default palette removed), Poppins/Caveat, light/dark following the OS with a manual toggle and no flash. Placeholder parent/sitter/admin pages, 404 and error pages; environment footer outside production. 23 web tests pass. GitHub now auto-deletes merged branches.

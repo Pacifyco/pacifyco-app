@@ -1,4 +1,4 @@
-# Checks on every pull request and on every merge to develop or main (CLAUDE.md section 4).
+# Lint, type-check and tests on every pull request and on every merge to develop or main (CLAUDE.md section 4).
 name: CI
 
 on:
@@ -15,6 +15,7 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# The job names are required status checks on main and develop; renaming one means updating branch protection.
 jobs:
   api:
     name: API tests
@@ -49,6 +50,8 @@ jobs:
           cache-dependency-path: api/pyproject.toml
       - name: Install
         run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check . && ruff format --check .
       - name: Test
         run: pytest
 
@@ -68,6 +71,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install
         run: npm ci
+      - name: Lint
+        run: npm run lint
       - name: Typecheck
         run: npm run typecheck
       - name: Test

@@ -104,9 +104,7 @@ def test_wildcard_cors_origin_rejected():
 
 
 def preflight(client: TestClient, origin: str):
-    return client.options(
-        "/health", headers={"Origin": origin, "Access-Control-Request-Method": "GET"}
-    )
+    return client.options("/health", headers={"Origin": origin, "Access-Control-Request-Method": "GET"})
 
 
 def test_cors_allows_listed_origin():

@@ -60,6 +60,7 @@ and pays sitters within 12 hours of each booking.
 | Maps and distance | OpenStreetMap: Nominatim for geocoding (cache results, max 1 request/second, set a User-Agent), Leaflet for maps |
 | Error tracking | Sentry (frontend and API) |
 | CI/CD | GitHub Actions; Cloudflare Pages and Render auto-deploy from branches |
+| Lint (dev only) | ESLint with typescript-eslint and react-hooks (web), Ruff for lint and formatting (API) |
 | Scheduled jobs | GitHub Actions `schedule` workflows calling protected API endpoints |
 | Payments (beta) | None. Parents pay by UPI to the business account; admins verify and credit hours. Sitters are paid manually by bank transfer or UPI within 12 hours of check-out. |
 | Payments (later) | Razorpay for collection and automated payouts. Design the payment code behind one small interface so it can be swapped in. |

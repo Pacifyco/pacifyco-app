@@ -23,9 +23,7 @@ class Child(Base):
     __tablename__ = "children"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    parent_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("parents.profile_id", ondelete="CASCADE"), index=True
-    )
+    parent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parents.profile_id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(Text)
     # Required: bookings are only allowed for children 18 months and older on the booking date (6.4).
     date_of_birth: Mapped[date]

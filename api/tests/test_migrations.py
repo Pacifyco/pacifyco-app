@@ -154,7 +154,9 @@ def expect_rejected(conn, sql, params=None, errors=(IntegrityError, DataError)):
 def test_sitter_rate_outside_80_to_120_rupees_rejected(conn, rate):
     insert_profile(conn)
     expect_rejected(
-        conn, "INSERT INTO sitters (profile_id, hourly_rate_paise) VALUES (:id, :rate)", {"id": PROFILE_ID, "rate": rate}
+        conn,
+        "INSERT INTO sitters (profile_id, hourly_rate_paise) VALUES (:id, :rate)",
+        {"id": PROFILE_ID, "rate": rate},
     )
 
 
@@ -162,12 +164,15 @@ def test_sitter_rate_outside_80_to_120_rupees_rejected(conn, rate):
 def test_sitter_rate_boundaries_accepted(conn, rate):
     insert_profile(conn)
     conn.execute(
-        text("INSERT INTO sitters (profile_id, hourly_rate_paise) VALUES (:id, :rate)"), {"id": PROFILE_ID, "rate": rate}
+        text("INSERT INTO sitters (profile_id, hourly_rate_paise) VALUES (:id, :rate)"),
+        {"id": PROFILE_ID, "rate": rate},
     )
 
 
 def test_unknown_role_rejected(conn):
-    expect_rejected(conn, "INSERT INTO profiles (id, role, full_name, email) VALUES (gen_random_uuid(), 'nanny', 'X', 'x@x.in')")
+    expect_rejected(
+        conn, "INSERT INTO profiles (id, role, full_name, email) VALUES (gen_random_uuid(), 'nanny', 'X', 'x@x.in')"
+    )
 
 
 def test_unknown_status_rejected(conn):

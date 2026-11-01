@@ -60,7 +60,7 @@ class Settings(BaseSettings):
         return [origin.rstrip("/") for origin in origins]
 
     @model_validator(mode="after")
-    def _deployed_environments_need_config(self) -> "Settings":
+    def _deployed_environments_need_config(self) -> Settings:
         if self.environment == Environment.local:
             return self
         missing = [
