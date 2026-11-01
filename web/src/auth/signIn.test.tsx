@@ -192,14 +192,17 @@ describe("joining after the first sign-in", () => {
   type Call = { url: string; init?: RequestInit };
 
   // GET /me says "no profile yet"; POST /me/profile answers with `created` (or `failure`).
-  function joinApi(created: unknown, failure?: { status: number; code: string }) {
+  function joinApi(created: unknown, failure?: { status: number; code: string; details?: unknown }) {
     const calls: Call[] = [];
     vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
       calls.push({ url, init });
       if (url.endsWith("/me/profile")) {
         return Promise.resolve(
           failure
-            ? jsonResponse({ error: { code: failure.code, message: "Nope", details: null } }, failure.status)
+            ? jsonResponse(
+                { error: { code: failure.code, message: "Nope", details: failure.details ?? null } },
+                failure.status,
+              )
             : jsonResponse(created, 201),
         );
       }
@@ -298,6 +301,33 @@ describe("joining after the first sign-in", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Yes, create my account/ }));
     expect(await screen.findByText(/Pacify isn't in 560034 yet/)).toBeTruthy();
     expect(screen.getByLabelText("Home pin code")).toBeTruthy();
+  });
+
+  test("if the API refuses a field, the form marks that field and clears the old error", async () => {
+    fake.state.session = fake.session;
+    joinApi(null, {
+      status: 422,
+      code: "validation_error",
+      details: [{ field: "body.pin_code", message: "Field required" }],
+    });
+    renderApp("/join");
+    await chooseAndFill(/I'm a sitter/, "Asha K", "9876543210");
+    fireEvent.click(await screen.findByRole("button", { name: /Yes, create my account/ }));
+
+    expect(await screen.findByText("Please enter your home pin code.")).toBeTruthy();
+    expect(screen.queryByText("Nope")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    expect(await screen.findByRole("heading", { name: "You're joining as a sitter." })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  test("a refusal we can't pin to a field asks for a reload", async () => {
+    fake.state.session = fake.session;
+    joinApi(null, { status: 422, code: "validation_error", details: [{ field: "body.extra", message: "x" }] });
+    renderApp("/join");
+    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210");
+    fireEvent.click(await screen.findByRole("button", { name: /Yes, create my account/ }));
+    expect(await screen.findByText(/Please reload the page and try again/)).toBeTruthy();
   });
 
   test("an email that already has an account explains what to do", async () => {
