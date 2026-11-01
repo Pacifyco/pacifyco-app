@@ -23,6 +23,23 @@ export function outsideAreaMessage(pinCode: string, pinCodes: string[] | undefin
   return `Pacify isn't in ${pinCode} yet.${list}`;
 }
 
+const FIELD_MESSAGES: Record<keyof FieldErrors, string> = {
+  full_name: NAME_ERROR,
+  phone: PHONE_ERROR,
+  pin_code: "Please enter your home pin code.",
+};
+
+// The API's validation details look like [{"field": "body.phone", "message": ...}]. Use our own wording.
+export function fieldErrorsFrom(details: unknown): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!Array.isArray(details)) return errors;
+  for (const detail of details) {
+    const field = String((detail as { field?: unknown })?.field ?? "").split(".").pop() as keyof FieldErrors;
+    if (field in FIELD_MESSAGES) errors[field] = FIELD_MESSAGES[field];
+  }
+  return errors;
+}
+
 // `pinCodes` is the service area from the API; if it couldn't load, the API still checks on sign-up.
 function checkDetails(details: Omit<SignUp, "role">, pinCodes: string[] | undefined): FieldErrors {
   const errors: FieldErrors = {};
@@ -48,6 +65,8 @@ export function JoinPage() {
   const [phone, setPhone] = useState("");
   const [pinCode, setPinCode] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Shown on the details step when the API refuses the form for a reason we can't pin to one field.
+  const [formError, setFormError] = useState<string>();
   const serviceArea = useQuery({
     queryKey: ["service-area"],
     queryFn: () => apiFetch<{ pin_codes: string[] }>("/service-area"),
@@ -62,7 +81,14 @@ export function JoinPage() {
       if (error instanceof ApiError && error.code === "already_signed_up") {
         void queryClient.invalidateQueries({ queryKey: ["me", userId] });
       }
-      if (error instanceof ApiError && error.code === "validation_error") setStep("details");
+      if (error instanceof ApiError && error.code === "validation_error") {
+        const errors = fieldErrorsFrom(error.details);
+        setFieldErrors(errors);
+        setFormError(
+          Object.keys(errors).length ? undefined : "Something didn't go through. Please reload the page and try again.",
+        );
+        setStep("details");
+      }
       if (error instanceof ApiError && error.code === "outside_service_area") {
         setFieldErrors({ pin_code: outsideAreaMessage(pinCode, serviceArea.data?.pin_codes) });
         setStep("details");
@@ -79,7 +105,11 @@ export function JoinPage() {
     event.preventDefault();
     const errors = checkDetails({ full_name: fullName, phone, pin_code: pinCode }, serviceArea.data?.pin_codes);
     setFieldErrors(errors);
-    if (Object.keys(errors).length === 0) setStep("confirm");
+    setFormError(undefined);
+    if (Object.keys(errors).length === 0) {
+      signUp.reset(); // don't show an earlier attempt's error on the confirmation
+      setStep("confirm");
+    }
   }
 
   if (step === "role" || !role) {
@@ -118,6 +148,11 @@ export function JoinPage() {
             Change
           </Button>
         </p>
+        {formError && (
+          <p role="alert" className="mt-4 text-small text-danger">
+            {formError}
+          </p>
+        )}
         <form onSubmit={submitDetails} className="mt-6 flex flex-col gap-5" noValidate>
           <TextInput
             label="Full name"
