@@ -194,3 +194,66 @@ def test_cli_with_user_id_works_without_supabase(db_engine, database_url, user, 
 def test_cli_without_supabase_asks_for_user_id(database_url, capsys):
     assert cli.create_admin("someone@example.com", "N", None, database_url) == 1
     assert "Pass --user-id" in capsys.readouterr().err
+
+
+# ---------- delete-empty-profile CLI ----------
+
+
+def profile_exists(db_engine, user_id) -> bool:
+    return row(db_engine, "SELECT 1 FROM profiles WHERE id = :id", user_id) is not None
+
+
+@pytest.mark.parametrize("role", ["parent", "sitter"])
+def test_cli_deletes_an_empty_profile_only_with_yes(client, db_engine, database_url, user, role, capsys):  # noqa: F811
+    assert client.post("/me/profile", json={**PARENT, "role": role}, headers=auth_for(user)).status_code == 201
+
+    assert cli.delete_empty_profile(user["email"].upper(), False, database_url) == 0
+    assert "Run again with --yes" in capsys.readouterr().out
+    assert profile_exists(db_engine, user["id"])
+
+    assert cli.delete_empty_profile(user["email"], True, database_url) == 0
+    assert not profile_exists(db_engine, user["id"])
+    for table in ("parents", "sitters"):
+        assert row(db_engine, f"SELECT 1 FROM {table} WHERE profile_id = :id", user["id"]) is None
+    # The email is free again: signing up works.
+    assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+
+
+def test_cli_keeps_a_parent_with_children(client, db_engine, database_url, user, capsys):  # noqa: F811
+    assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    with db_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO children (parent_id, name, date_of_birth) VALUES (:id, 'Kid', '2022-01-01')"),
+            {"id": user["id"]},
+        )
+    assert cli.delete_empty_profile(user["email"], True, database_url) == 1
+    assert "has records" in capsys.readouterr().err
+    assert profile_exists(db_engine, user["id"])
+
+
+def test_cli_keeps_a_sitter_with_application_details(client, db_engine, database_url, user, capsys):  # noqa: F811
+    assert client.post("/me/profile", json={**PARENT, "role": "sitter"}, headers=auth_for(user)).status_code == 201
+    with db_engine.begin() as conn:
+        conn.execute(text("UPDATE sitters SET bio = 'Hello' WHERE profile_id = :id"), {"id": user["id"]})
+    assert cli.delete_empty_profile(user["email"], True, database_url) == 1
+    assert profile_exists(db_engine, user["id"])
+
+
+def test_cli_keeps_someone_with_audit_history(client, db_engine, database_url, user, capsys):  # noqa: F811
+    assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    with db_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO audit_log (actor_id, action, entity, entity_id) VALUES (:id, 'x', 'y', 'z')"),
+            {"id": user["id"]},
+        )
+    try:
+        assert cli.delete_empty_profile(user["email"], True, database_url) == 1
+        assert profile_exists(db_engine, user["id"])
+    finally:
+        with db_engine.begin() as conn:  # test cleanup as the owner (audit_log is append-only for the API)
+            conn.execute(text("DELETE FROM audit_log WHERE actor_id = :id"), {"id": user["id"]})
+
+
+def test_cli_delete_unknown_email(database_url, capsys):
+    assert cli.delete_empty_profile("nobody@example.com", True, database_url) == 1
+    assert "No Pacify profile" in capsys.readouterr().err

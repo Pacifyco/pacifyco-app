@@ -3,12 +3,12 @@
 import re
 import uuid
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Parent, Profile, ProfileStatus, Role, Sitter
+from app.models import AuditLog, Child, Parent, Profile, ProfileStatus, Role, Sitter
 from app.services.service_area import require_in_service_area
 
 # Indian mobile numbers: 10 digits starting 6–9, optionally written with +91, 91 or a leading 0.
@@ -63,5 +63,43 @@ def create_admin(db: Session, *, user_id: uuid.UUID, email: str, full_name: str)
         raise _already_signed_up()
     profile = Profile(id=user_id, role=Role.admin, full_name=full_name, email=email, status=ProfileStatus.active)
     db.add(profile)
+    db.commit()
+    return profile
+
+
+def is_empty(db: Session, profile: Profile) -> bool:
+    """True while the account holds nothing but its sign-up details (CLAUDE.md 6.13): no children, no
+    sitter application details and no audit history. Add each new table that belongs to a person here
+    (documents, onboarding steps, packs, bookings...) when its phase creates it."""
+    if db.scalar(select(Child.id).where(Child.parent_id == profile.id).limit(1)) is not None:
+        return False
+    if db.scalar(select(AuditLog.id).where(AuditLog.actor_id == profile.id).limit(1)) is not None:
+        return False
+    sitter = db.get(Sitter, profile.id)
+    if sitter is not None:
+        filled = (
+            sitter.date_of_birth,
+            sitter.health_disclosure_encrypted,
+            sitter.payout_method,
+            sitter.bank_details_encrypted,
+            sitter.upi_id,
+            sitter.bio,
+            sitter.years_experience,
+            sitter.hourly_rate_paise,
+        )
+        if any(value is not None for value in filled) or sitter.age_groups or sitter.languages:
+            return False
+    return True
+
+
+def delete_empty_profile(db: Session, email: str) -> Profile:
+    """Remove a Pacify profile that holds nothing yet, e.g. a test account or one left behind when its
+    Supabase sign-in account was deleted. Refuses anything with real records."""
+    profile = db.scalar(select(Profile).where(func.lower(Profile.email) == email.lower()))
+    if profile is None:
+        raise AppError(404, "not_found", "No Pacify profile with this email")
+    if not is_empty(db, profile):
+        raise AppError(409, "profile_not_empty", "This account has records, so it can't be deleted this way")
+    db.delete(profile)  # its parents or sitters row goes with it (ON DELETE CASCADE)
     db.commit()
     return profile
