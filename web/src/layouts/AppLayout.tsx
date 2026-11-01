@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet } from "react-router";
 import wordmarkReversedUrl from "../assets/brand/wordmark-reversed.png";
 import wordmarkUrl from "../assets/brand/wordmark.png";
+import { useAuth } from "../auth/AuthProvider";
 import { config } from "../config";
 import { apiFetch } from "../lib/api";
 import { ThemeToggle } from "../theme/ThemeToggle";
@@ -25,7 +26,10 @@ export function AppLayout() {
               className="hidden h-6 w-auto sm:h-7 dark:block"
             />
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-4">
+            <AccountLink />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -36,6 +40,25 @@ export function AppLayout() {
       {config.environment !== "production" && <EnvironmentFooter />}
     </div>
   );
+}
+
+function AccountLink() {
+  const { status, available, signOut } = useAuth();
+  if (status === "signed_in") {
+    return (
+      <button type="button" onClick={signOut} className="text-ui text-coral-deep underline-offset-4 hover:underline">
+        Sign out
+      </button>
+    );
+  }
+  if (status === "signed_out" && available) {
+    return (
+      <Link to="/sign-in" className="text-ui">
+        Sign in
+      </Link>
+    );
+  }
+  return null;
 }
 
 // Shown outside production only: which environment this is and whether the API answers.

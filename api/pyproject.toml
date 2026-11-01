@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings>=2.16",
     "psycopg[binary]>=3.3,<4",
     "sentry-sdk[fastapi]>=2.73,<3",
+    "pyjwt[crypto]>=2.15,<3",
 ]
 
 [project.optional-dependencies]

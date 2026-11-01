@@ -118,8 +118,8 @@ Until DNS is set up, use the default Cloudflare Pages and Render URLs.
 
 ### Environment variables (`.env.example`)
 
-API: `ENVIRONMENT`, `DATABASE_URL`, `MIGRATION_DATABASE_URL` (CI only), `SUPABASE_URL`, `SUPABASE_JWKS_URL` (or `SUPABASE_JWT_SECRET`,
-whichever the project uses), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`,
+API: `ENVIRONMENT`, `DATABASE_URL`, `MIGRATION_DATABASE_URL` (CI only), `SUPABASE_URL`, `SUPABASE_JWKS_URL` (optional; defaults
+from `SUPABASE_URL`), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`,
 `ADMIN_ALERT_EMAILS`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_CALENDAR_ID`, `SENTRY_DSN`,
 `JOBS_SECRET`, `PUBLIC_WEB_URL`, `CORS_ORIGINS`, `PACIFY_UPI_ID`.
 
@@ -132,7 +132,8 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
 
 - **All writes and business logic go through the FastAPI API.** The web app uses Supabase only for
   sign-in (email OTP and Google). The API verifies the Supabase JWT on every request and loads the
-  user's role from the `profiles` table.
+  user's role from the `profiles` table (`api/app/auth.py`). Supabase projects use asymmetric JWT
+  signing keys, checked against the project's JWKS, so the API holds no JWT secret.
 - **Row Level Security on every table** with no policies for the `anon` and `authenticated` roles, so
   the database can't be read directly from the browser even by mistake. The API connects with its own
   database role, `pacifyco_api` (BYPASSRLS; reads and writes rows, can't change tables; `audit_log` is

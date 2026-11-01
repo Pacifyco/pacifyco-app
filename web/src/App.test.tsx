@@ -9,6 +9,7 @@ describe("routes", () => {
     ["/sitter", "Your work with Pacify."],
     ["/admin", "Admin"],
     ["/no-such-page", "We couldn't find that page."],
+    ["/sign-in", "Sign in to Pacify."],
   ])("%s shows its page", async (path, heading) => {
     renderApp(path);
     expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeTruthy();
@@ -19,6 +20,12 @@ describe("routes", () => {
     expect(await screen.findByRole("link", { name: "Pacify home" })).toBeTruthy();
     expect(screen.getByRole("main")).toBeTruthy();
   });
+});
+
+test("without Supabase settings, sign-in says it isn't set up", async () => {
+  renderApp("/sign-in");
+  expect(await screen.findByText("Sign-in isn't set up in this environment yet.")).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
 });
 
 describe("environment footer", () => {

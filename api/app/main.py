@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.errors import register_error_handlers
-from app.routers import health, jobs
+from app.routers import auth, health, jobs
 from app.settings import Settings, get_settings
 
 # Collect nothing about parents, children or sitters beyond the error itself: no user details, cookies,
@@ -52,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Authorization", "Content-Type"],
     )
     register_error_handlers(app)
+    app.include_router(auth.router)
     app.include_router(health.router)
     app.include_router(jobs.router)
     return app
