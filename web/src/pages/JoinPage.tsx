@@ -97,8 +97,8 @@ export function JoinPage() {
   });
 
   if (status === "signed_out") return <Navigate to="/sign-in" replace />;
-  if (status === "loading" || me.isPending) return <p className="text-muted">Loading your account…</p>;
-  if (me.isError) return <p className="text-muted">{me.error.message}</p>;
+  if (status === "loading" || me.isPending) return <p className="text-center text-muted">Loading your account…</p>;
+  if (me.isError) return <p className="text-center text-muted">{me.error.message}</p>;
   if (me.data.profile) return <Navigate to={AREA_PATH[me.data.profile.role]} replace />;
 
   function submitDetails(event: FormEvent) {
@@ -114,13 +114,13 @@ export function JoinPage() {
 
   if (step === "role" || !role) {
     return (
-      <section className="max-w-[44rem]">
+      <section className="mx-auto max-w-[44rem] text-center">
         <h1>How will you use Pacify?</h1>
         <p className="mt-4 text-muted">Choose one. Each account is either a parent or a sitter.</p>
         <div className="mt-6">
           <RoleChooser value={role} onChange={setRole} />
         </div>
-        <div className="mt-6">
+        <div className="mt-6 flex justify-center">
           <Button
             arrow
             disabled={!role}
@@ -140,7 +140,7 @@ export function JoinPage() {
 
   if (step === "details") {
     return (
-      <section className="max-w-[28rem]">
+      <section className="mx-auto max-w-[28rem] text-center">
         <h1>A little about you.</h1>
         <p className="mt-4 text-muted">
           Joining as {roleLabel}.{" "}
@@ -153,7 +153,7 @@ export function JoinPage() {
             {formError}
           </p>
         )}
-        <form onSubmit={submitDetails} className="mt-6 flex flex-col gap-5" noValidate>
+        <form onSubmit={submitDetails} className="mt-6 flex flex-col gap-5 text-left" noValidate>
           <TextInput
             label="Full name"
             name="full_name"
@@ -186,7 +186,7 @@ export function JoinPage() {
             onChange={(event) => setPinCode(event.target.value.replace(/\D/g, ""))}
             error={fieldErrors.pin_code}
           />
-          <Button type="submit" arrow>
+          <Button type="submit" arrow fullWidthOnPhone={false} className="w-full">
             Continue
           </Button>
         </form>
@@ -196,7 +196,7 @@ export function JoinPage() {
 
   const failure = signUp.error instanceof ApiError ? signUp.error : null;
   return (
-    <section className="max-w-[36rem]">
+    <section className="mx-auto max-w-[36rem] text-center">
       <h1>You're joining as {roleLabel}.</h1>
       <p className="mt-4 text-muted">Is that right? Once your account is set up, only the Pacify team can change this.</p>
       {failure && !["already_signed_up", "outside_service_area"].includes(failure.code) && (
@@ -206,7 +206,7 @@ export function JoinPage() {
             : failure.message}
         </p>
       )}
-      <div className="mt-6 flex flex-col gap-4 sm:flex-row">
+      <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:justify-center">
         <Button
           arrow
           loading={signUp.isPending}
