@@ -21,14 +21,10 @@ export function HomePage() {
         )}
       </div>
 
-      {/* Temporary links for development until role routing lands (phase 2). */}
       {config.environment !== "production" && (
-        <nav aria-label="Areas" className="mt-6 flex flex-wrap gap-4 text-ui">
-          <Link to="/parent">Parent area</Link>
-          <Link to="/sitter">Sitter area</Link>
-          <Link to="/admin">Admin area</Link>
+        <p className="mt-6 text-ui">
           <Link to="/dev/components">Components</Link>
-        </nav>
+        </p>
       )}
     </section>
   );

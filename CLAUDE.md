@@ -134,6 +134,10 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   sign-in (email OTP and Google). The API verifies the Supabase JWT on every request and loads the
   user's role from the `profiles` table (`api/app/auth.py`). Supabase projects use asymmetric JWT
   signing keys, checked against the project's JWKS, so the API holds no JWT secret.
+- **Role gates:** role-only endpoints go in `routers/parents.py`, `sitters.py` or `admin.py`, whose
+  routers require that role (`require_role`: wrong role 403 `forbidden`; suspended or removed 403
+  `account_blocked`). Any other endpoint must be listed in `PUBLIC` in `tests/test_roles.py`, which
+  fails otherwise. The web app wraps each area in `RequireRole`; the API is what enforces it.
 - **Row Level Security on every table** with no policies for the `anon` and `authenticated` roles, so
   the database can't be read directly from the browser even by mistake. The API connects with its own
   database role, `pacifyco_api` (BYPASSRLS; reads and writes rows, can't change tables; `audit_log` is

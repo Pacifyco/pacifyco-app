@@ -1,4 +1,4 @@
-// Placeholders for each role's area. Phase 2 adds sign-in and role-gated routes.
+// Placeholders for each role's area (gated by RequireRole in routes.tsx).
 
 export function ParentHomePage() {
   return (

@@ -360,3 +360,63 @@ describe("joining after the first sign-in", () => {
     expect((screen.getByLabelText("Full name") as HTMLInputElement).value).toBe("Asha Kumar");
   });
 });
+
+describe("role-gated areas", () => {
+  function signedInAs(role: string | null, status = "pending") {
+    fake.state.session = fake.session;
+    vi.mocked(fetch).mockImplementation(
+      meResponse(role ? { role, status, full_name: "Asha K" } : null) as typeof fetch,
+    );
+  }
+
+  test.each([
+    ["parent", "/parent", "Time for you."],
+    ["sitter", "/sitter", "Your work with Pacify."],
+    ["admin", "/admin", "Admin"],
+  ])("a %s sees their own area", async (role, path, heading) => {
+    signedInAs(role);
+    renderApp(path);
+    expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeTruthy();
+  });
+
+  test.each([
+    ["parent", "/sitter", "/parent"],
+    ["parent", "/admin", "/parent"],
+    ["sitter", "/parent", "/sitter"],
+    ["sitter", "/admin", "/sitter"],
+    ["admin", "/parent", "/admin"],
+  ])("a %s opening %s is sent to %s", async (role, path, home) => {
+    signedInAs(role);
+    const { router } = renderApp(path);
+    await waitFor(() => expect(router.state.location.pathname).toBe(home));
+  });
+
+  test("someone who hasn't joined is sent to join", async () => {
+    signedInAs(null);
+    const { router } = renderApp("/parent");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/join"));
+  });
+
+  test("a suspended account sees that it's on hold, with how to appeal", async () => {
+    signedInAs("sitter", "suspended");
+    renderApp("/sitter");
+    expect(await screen.findByRole("heading", { name: "Your account is on hold." })).toBeTruthy();
+    expect(screen.getByText(/appeal within 15 days/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "query.pacifyco@gmail.com" })).toBeTruthy();
+    expect(screen.queryByText("Your work with Pacify.")).toBeNull();
+  });
+
+  test("a removed account sees that it's closed, even in another area", async () => {
+    signedInAs("parent", "removed");
+    renderApp("/admin");
+    expect(await screen.findByRole("heading", { name: "This account is closed." })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Admin" })).toBeNull();
+  });
+
+  test("a blocked person can still sign out", async () => {
+    signedInAs("parent", "suspended");
+    renderApp("/parent");
+    fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+    expect(await screen.findByRole("link", { name: "Sign in" })).toBeTruthy();
+  });
+});
