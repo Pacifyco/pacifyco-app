@@ -2,7 +2,7 @@ import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.errors import register_error_handlers
+from app.errors import CatchUnhandledErrors, register_error_handlers
 from app.routers import admin, auth, health, jobs, parents, sitters
 from app.settings import Settings, get_settings
 
@@ -44,6 +44,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Pacify API")
     app.dependency_overrides[get_settings] = lambda: settings
 
+    # Added first so it sits inside CORS: even crashes get CORS headers (app/errors.py).
+    app.add_middleware(CatchUnhandledErrors)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,

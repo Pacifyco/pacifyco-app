@@ -217,3 +217,25 @@ def test_sentry_accepts_our_privacy_options():
     client = sentry_sdk.Client(dsn="https://key@o1.ingest.de.sentry.io/1", data_collection=SENTRY_DATA_COLLECTION)
     assert client.options["data_collection"]["stack_frame_variables"] is False
     client.close()
+
+
+def test_crashes_still_carry_cors_headers_and_say_nothing():
+    """So the web app shows "something went wrong" rather than "couldn't reach Pacify"."""
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from app.settings import Settings
+
+    app = create_app(
+        Settings(_env_file=None, environment="staging", cors_origins="https://web.example", database_url="x")
+    )
+
+    @app.get("/_crash")
+    def crash() -> None:
+        raise RuntimeError("secret detail")
+
+    response = TestClient(app, raise_server_exceptions=False).get("/_crash", headers={"Origin": "https://web.example"})
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == "https://web.example"
+    assert response.json()["error"]["code"] == "internal_error"
+    assert "secret detail" not in response.text
