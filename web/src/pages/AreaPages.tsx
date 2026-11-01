@@ -1,4 +1,4 @@
-import { ButtonLink } from "../components/ui";
+import { ButtonLink, Photo } from "../components/ui";
 import { formatDate } from "../lib/format";
 import { CONSENT_VERSION, useConsent } from "./ConsentPage";
 
@@ -9,6 +9,7 @@ export function ParentHomePage() {
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Time for you.</h1>
       <p className="mt-4 text-muted">Your bookings, hours and sitters will be here.</p>
+      <Photo name="parentsDinnerFriends" priority className="mt-6" />
       <ConsentPrompt />
     </section>
   );
@@ -37,6 +38,7 @@ export function SitterHomePage() {
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Your work with Pacify.</h1>
       <p className="mt-4 text-muted">Your bookings, availability and earnings will be here.</p>
+      <Photo name="sitterSlide" priority className="mt-6" />
     </section>
   );
 }

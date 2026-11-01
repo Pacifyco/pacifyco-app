@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import { Link, useRouteError } from "react-router";
+import { Photo } from "../components/ui";
 import { reportRouteError } from "../lib/sentry";
 
 export function NotFoundPage() {
   return (
     <section className="mx-auto max-w-[62ch] text-center">
+      <Photo name="sitterBubbles" aspect="16 / 9" priority className="mb-6" />
       <h1>We couldn't find that page.</h1>
       <p className="mt-4 text-muted">It may have moved, or the link may be incomplete.</p>
       <p className="mt-5 text-ui">
