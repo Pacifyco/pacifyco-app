@@ -9,8 +9,8 @@ tests.
 ## Current status
 
 - Phase: 1 — Foundation (Phase 0 [Reuben] items still open; they block the staging deploy items)
-- Next item: Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
-- Blocked on: Reuben creating the Render service and Cloudflare Pages project (README: Staging deploy)
+- Next item: Production pipeline wired (deploys on `main`), not yet released
+- Blocked on: Reuben creating Supabase `pacifyco-prod` (Mumbai) for the production pipeline
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -46,8 +46,8 @@ tests.
 - [x] UI components from design.md section 10 (Button, inputs, Chip, VerifiedChip, Card, IconTile)
   (Also built, display-only until their phases wire data: SitterCard, BookingCard, HourBalance, RoleChooser, EmergencyButton, EmptyState. Preview at `/dev/components`, not in production.)
 - [x] CI: lint, type-check, tests on PRs (`.github/workflows/ci.yml`: Ruff + pytest on Postgres 17; ESLint + tsc + Vitest + build. Both jobs are required checks on `main` and `develop`. The API has no type checker yet; none is named in CLAUDE.md.)
-- [ ] Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
-  (Code done 2026-11-01: `pacifyco_api` role migration (BYPASSRLS, DML only, audit log insert-only), CI job migrates staging after checks pass on `develop`, web Sentry, privacy-locked Sentry in both apps, README steps. Waiting on the Render and Cloudflare setup; tick once `/health` and the web app answer on staging.)
+- [x] Staging deploy: Render staging service, Cloudflare Pages `develop`, migrations run on merge
+  (Web `https://pacifyco-web-staging.pages.dev`, API `https://pacifyco.onrender.com`. CI migrates staging as `postgres` after checks pass; Render deploys after CI; the API signs in as `pacifyco_api` (`/health/db` shows `api_role: true`). Settings in README "Staging deploy". Cloudflare preview deployments should be off.)
 - [ ] Production pipeline wired (deploys on `main`), not yet released
 - [ ] Scheduled jobs workflow skeleton calling `/internal/jobs/*` with `JOBS_SECRET`
 
@@ -181,6 +181,7 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-01 — Staging deploy done: `/health/db` confirms the API uses `pacifyco_api` on staging.
 - 2026-11-01 — Staging live: web `pacifyco-web-staging.pages.dev`, API `pacifyco.onrender.com` (staging mode, CORS limited to the web origin), first staging migration run by CI. Added `/health/db` to prove the API's database login.
 - 2026-11-01 — Staging deploy code: `pacifyco_api` DB role, staging migration job (GitHub environment `staging`, develop only), web Sentry, no personal data in Sentry from either app. Sentry projects checked and tightened. 55 API and 57 web tests pass.
 - 2026-11-01 — CI (GitHub Actions): Ruff + pytest on Postgres; ESLint + typecheck + Vitest + build. `main` and `develop` both require PRs and both checks. Supabase staging confirmed in Mumbai. Render, Cloudflare, Supabase and Sentry GitHub apps installed on the org.

@@ -143,7 +143,7 @@ releases are a PR from `develop` to `main`.
 
 ## Staging deploy
 
-Staging runs from `develop`: the API on Render (`pacifyco-api-staging`), the web app on Cloudflare Pages
+Staging runs from `develop`: the API on Render (service `pacifyco`, `https://pacifyco.onrender.com`), the web app on Cloudflare Pages
 (`pacifyco-web-staging`), the database on Supabase (`pacifyco-staging`, Mumbai). Values marked
 **secret** go only into the dashboard named; never into the repo, chat or tickets.
 
@@ -222,7 +222,7 @@ postgresql://pacifyco_api.<project-ref>:<api-password>@<pooler-host>:5432/postgr
 | --- | --- |
 | `NODE_VERSION` | `24` |
 | `VITE_ENVIRONMENT` | `staging` |
-| `VITE_API_URL` | `https://pacifyco-api-staging.onrender.com` (the Render service URL) |
+| `VITE_API_URL` | `https://pacifyco.onrender.com` (the Render service URL) |
 | `VITE_SENTRY_DSN` | Sentry → `pacifyco-web` → Client Keys (DSN) |
 
 `VITE_*` values are built into the JavaScript that browsers download, so they must never be secrets.
