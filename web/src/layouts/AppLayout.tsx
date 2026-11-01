@@ -39,7 +39,7 @@ export function AppLayout() {
 
       <footer className="border-t border-line px-4 py-4 sm:px-5">
         <nav aria-label="Legal" className="mx-auto flex max-w-content flex-wrap justify-center gap-5 text-small">
-          <Link to="/terms/parent">Terms for parents</Link>
+          <Link to="/terms/parent">Family Terms of Use</Link>
           <Link to="/terms/sitter">Sitter Terms of Use</Link>
           <Link to="/privacy">Privacy policy</Link>
         </nav>

@@ -3,7 +3,13 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { Button, Checkbox } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
-import { PARENT_TERMS, PRIVACY_POLICY, SITTER_TERMS_VERSION, fillSitterTerms } from "../lib/legal";
+import {
+  FAMILY_TERMS_VERSION,
+  PRIVACY_POLICY,
+  SITTER_TERMS_VERSION,
+  fillFamilyTerms,
+  fillSitterTerms,
+} from "../lib/legal";
 import { useAuth } from "./AuthProvider";
 import type { Me, Role, TermsKind, TermsVersion } from "./useMe";
 
@@ -11,7 +17,7 @@ import type { Me, Role, TermsKind, TermsVersion } from "./useMe";
 // of the app shows. The API checks they're the current ones and records the acceptance.
 
 const DOCS: Record<TermsKind, { label: string; path: string; version: string }> = {
-  parent_terms: { label: "Terms of service", path: "/terms/parent", version: PARENT_TERMS.meta.version ?? "" },
+  parent_terms: { label: "Family Terms of Use", path: "/terms/parent", version: FAMILY_TERMS_VERSION },
   sitter_terms: { label: "Sitter Terms of Use", path: "/terms/sitter", version: SITTER_TERMS_VERSION },
   privacy_policy: { label: "Privacy policy", path: "/privacy", version: PRIVACY_POLICY.meta.version ?? "" },
 };
@@ -25,9 +31,9 @@ export function shownVersions(kinds: TermsKind[]): TermsVersion[] {
   return kinds.map((kind) => ({ kind, version: DOCS[kind].version }));
 }
 
-/** False in production while a Sitter Terms placeholder is empty: sitters can't agree to it yet. */
-export function sitterTermsReady(): boolean {
-  return fillSitterTerms().missing.length === 0;
+/** False in production while one of the role's terms has an empty placeholder: nobody can agree to it yet. */
+export function termsReady(role: Exclude<Role, "admin">): boolean {
+  return (role === "parent" ? fillFamilyTerms() : fillSitterTerms()).missing.length === 0;
 }
 
 export const AGREE_ERROR = "Please tick the box to agree before you continue.";
@@ -84,7 +90,8 @@ export function AcceptTermsPage({ toAccept }: { toAccept: TermsVersion[] }) {
   const kinds = toAccept.map((item) => item.kind);
   // This copy of the app shows older texts than the API requires: it needs a reload.
   const outdated = toAccept.some((item) => DOCS[item.kind].version !== item.version);
-  const blockedSitter = kinds.includes("sitter_terms") && !sitterTermsReady();
+  const unavailable =
+    (kinds.includes("sitter_terms") && !termsReady("sitter")) || (kinds.includes("parent_terms") && !termsReady("parent"));
 
   const accept = useMutation({
     mutationFn: () =>
@@ -108,8 +115,8 @@ export function AcceptTermsPage({ toAccept }: { toAccept: TermsVersion[] }) {
         <p role="alert" className="mt-6 text-small text-danger">
           Our terms have been updated. Please reload the page to read the new version.
         </p>
-      ) : blockedSitter ? (
-        <p className="mt-6 text-muted">The Sitter Terms aren't available yet. Please check back soon.</p>
+      ) : unavailable ? (
+        <p className="mt-6 text-muted">Our terms aren't available yet. Please check back soon.</p>
       ) : (
         <div className="mt-6 flex flex-col gap-5 rounded-lg bg-surface-sunken p-5">
           <TermsCheckbox kinds={kinds} checked={ticked} onChange={setTicked} error={error} />

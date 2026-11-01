@@ -11,7 +11,7 @@ from tests.test_auth import bearer, client, token  # noqa: F401  (client is a fi
 
 # Ticked at sign-up. Covers both roles (each role's required documents are checked; others are ignored).
 ACCEPTED = [
-    {"kind": "parent_terms", "version": "0.1-draft"},
+    {"kind": "parent_terms", "version": "1.0"},
     {"kind": "sitter_terms", "version": "1.1"},
     {"kind": "privacy_policy", "version": "0.1-draft"},
 ]

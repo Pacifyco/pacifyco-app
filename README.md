@@ -342,16 +342,22 @@ sign-in account gone too.
 ## Legal pages
 
 `/terms/sitter`, `/terms/parent` and `/privacy` are public. The texts live in `web/src/content/`. The
-Sitter Terms of Use v1.1 is final and a test fails if its wording changes; its blanks are filled from
-these Cloudflare Pages variables (public information, set on each project, then redeploy):
+Sitter Terms of Use v1.1 and the Family Terms of Use v1.0 are final, and a test fails if their wording
+changes. Their blanks are filled from these Cloudflare Pages variables (public information, set on each
+project, then redeploy):
 
 | Variable | Fills |
 | --- | --- |
-| `VITE_PACIFY_LLPIN` | LLPIN |
-| `VITE_PACIFY_REGISTERED_ADDRESS` | registered office (both places) |
-| `VITE_GRIEVANCE_OFFICER_NAME`, `_EMAIL`, `_PHONE` | Grievance Officer (section 6.3) |
-| `VITE_EMERGENCY_LINE` | emergency line during bookings |
-| `VITE_SITTER_TERMS_DATE` | "Last updated" date, as `yyyy-mm-dd` |
+| Variable | Sitter Terms | Family Terms |
+| --- | --- | --- |
+| `VITE_PACIFY_LLPIN` | LLPIN | LLPIN |
+| `VITE_PACIFY_REGISTERED_ADDRESS` | registered office (twice) | registered office (twice) |
+| `VITE_GRIEVANCE_OFFICER_NAME`, `_EMAIL`, `_PHONE` | Grievance Officer (6.3) | Grievance Officer (9.3) |
+| `VITE_EMERGENCY_LINE` | emergency line during bookings | 24-hour safety line (9.3 and contact) |
+| `VITE_SITTER_TERMS_DATE` | "Last updated" date, `yyyy-mm-dd` | |
+| `VITE_FAMILY_TERMS_DATE` | | "Last updated" date, `yyyy-mm-dd` |
+| `VITE_FAMILY_INTRO_FEE` | | introduction fee in 7.2, e.g. `15,000` (shown as ₹15,000) |
 
-Outside production a blank value shows as a TEST marker. Production shows "The Sitter Terms aren't
-available yet" until every one is set. The privacy policy link fills itself.
+Outside production a blank value shows as a TEST marker. In production each document stays hidden, and
+that role's sign-up shows "… sign-up opens soon", until every value it uses is set. The privacy policy
+link fills itself.

@@ -20,6 +20,35 @@ tests.
 - [x] Domain: pacifyco.in
 - [x] Logo SVGs: Reuben adds them to the repo as files (see Phase 0)
 
+- [ ] **Family Terms v1.0 vs the build rules** (added 2026-11-02). The terms are final wording; these
+  points differ from CLAUDE.md or from what the app does. For each: change the rules (and app), or ask
+  the lawyer for a new terms version?
+  1. Minimum child age: terms say **2 years**; CLAUDE.md 6.4 and the Sitter Terms say **18 months**.
+  2. Child below the minimum age at a booking: terms say the booked hours are **used up**; CLAUDE.md 6.5
+     says the parent's hours are **refunded** (both say the sitter gets ₹100).
+  3. Accepting the terms: terms say tick "I agree" **and confirm with an OTP sent to a verified mobile
+     number**; the app has a tick only, phones aren't verified, and SMS is out of scope for v1.
+  4. Consents: terms 11.2 say **four required and one optional consent, ticked separately at sign-up**;
+     the app has one parental consent form, accepted later before child documents.
+  5. Overtime when hours run out: terms say **₹300 per hour**; CLAUDE.md 6.8 says ₹300 **per child** per hour.
+  6. Sitter rates: terms 3.1 say profiles show the sitter's **rate**; CLAUDE.md and design.md say parents
+     never see it.
+  7. Pricing: the table in 4.1 is the current pack pricing, which is being replaced (basic, standard,
+     premium; questions pending).
+  8. Pack expiry: terms say 30 days after **purchase**; CLAUDE.md says after hours are **credited**
+     (an admin confirms the UPI payment first).
+  9. Sitter leaves because unsafe or the parent broke the terms: terms say the **full booking is charged**;
+     CLAUDE.md 6.5 covers only the sitter's pay.
+  10. Not in the plan yet: authorised adults for handover and two emergency contacts (2.5), medicine
+      instructions (3.7), who else and which pets are home per booking (6.2), whether cameras record
+      audio (6.3), the introduction fee to hire a sitter directly (7.2), an optional marketing consent
+      (11.2), closing an account in the app and refunds when Pacifyco closes it (11.5).
+  11. The terms' "24-hour safety line": the same number as the Sitter Terms' emergency line? (Built that
+      way for now: both use `VITE_EMERGENCY_LINE`.)
+  12. "We store data in India" (2.2, 11.1): accounts and documents are in Mumbai, but sign-in emails go
+      through Resend (Tokyo) and error reports to Sentry (Germany, no personal data). Check the wording
+      with the lawyer.
+
 - [ ] Parent late and declines overtime: the sitter can't leave the child (terms 4.1) and can't check out without the parent's code. Is she paid for the extra time, and should that time be billed to the parent as overtime automatically?
 
 ---

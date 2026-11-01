@@ -126,7 +126,7 @@ from `SUPABASE_URL`), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM
 Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY_DSN`,
 `VITE_ENVIRONMENT`, and the Sitter Terms values `VITE_PACIFY_LLPIN`, `VITE_PACIFY_REGISTERED_ADDRESS`,
 `VITE_GRIEVANCE_OFFICER_NAME`, `VITE_GRIEVANCE_OFFICER_EMAIL`, `VITE_GRIEVANCE_OFFICER_PHONE`,
-`VITE_EMERGENCY_LINE`, `VITE_SITTER_TERMS_DATE`.
+`VITE_EMERGENCY_LINE`, `VITE_SITTER_TERMS_DATE`, `VITE_FAMILY_TERMS_DATE`, `VITE_FAMILY_INTRO_FEE`.
 
 ---
 
@@ -392,7 +392,12 @@ when). The privacy policy and parent terms ship as placeholders until legal revi
   variables. **Never change its wording.** Only fill its bracketed placeholders ([DATE],
   LLPIN, registered address, Grievance Officer, Privacy Policy link, emergency line) from config. Don't
   serve it in production while any placeholder is empty.
-- Parent terms and Privacy policy are still placeholders marked "DRAFT — NOT LEGALLY REVIEWED".
+- **Family Terms of Use v1.0 is final** (the parent terms): `web/src/content/family-terms-v1.0.md`,
+  converted word for word from Reuben's .docx and fingerprinted the same way. Same placeholders as the
+  sitter terms plus its own date (`VITE_FAMILY_TERMS_DATE`) and the introduction fee in 7.2
+  (`VITE_FAMILY_INTRO_FEE`). Where it differs from the rules in this file, the "Open questions" in
+  `progress.md` list each difference; don't change either side until Reuben decides.
+- The Privacy policy is still a placeholder marked "DRAFT — NOT LEGALLY REVIEWED".
 - Changes to the sitter terms that affect pay or rights must be announced in the app at least **14 days**
   before they take effect (`effective_at`); urgent safety or legal changes can take effect at once.
 - At sign-up, after choosing a role, the user sees an unticked checkbox: "I agree to the [Terms of

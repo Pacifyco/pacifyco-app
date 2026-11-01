@@ -246,7 +246,7 @@ describe("joining after the first sign-in", () => {
       phone: "98765 43210",
       pin_code: "560034",
       accepted: [
-        { kind: "parent_terms", version: "0.1-draft" },
+        { kind: "parent_terms", version: "1.0" },
         { kind: "privacy_policy", version: "0.1-draft" },
       ],
     });
@@ -565,15 +565,15 @@ describe("terms at sign-up and after changes", () => {
     ]);
   });
 
-  test("a parent agrees to the Terms of service and Privacy policy", async () => {
+  test("a parent agrees to the Family Terms of Use and Privacy policy", async () => {
     joinAs();
     renderApp("/join");
     await reachConfirmation(/I'm a parent/);
     expect(screen.getByRole("checkbox").closest("label")!.textContent).toBe(
-      "I agree to the Terms of service and Privacy policy.",
+      "I agree to the Family Terms of Use and Privacy policy.",
     );
     const label = within(screen.getByRole("checkbox").closest("label")!);
-    expect(label.getByRole("link", { name: "Terms of service" }).getAttribute("href")).toBe("/terms/parent");
+    expect(label.getByRole("link", { name: "Family Terms of Use" }).getAttribute("href")).toBe("/terms/parent");
   });
 
   function signedInNeedingTerms(role: string, toAccept: { kind: string; version: string }[]) {
