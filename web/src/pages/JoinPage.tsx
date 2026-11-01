@@ -10,7 +10,7 @@ import {
   shownVersions,
   sitterTermsReady,
 } from "../auth/TermsAgreement";
-import { Button, RoleChooser, TextInput, type ChosenRole } from "../components/ui";
+import { Button, Photo, RoleChooser, TextInput, type ChosenRole } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
 type Step = "role" | "details" | "confirm";
@@ -156,6 +156,13 @@ export function JoinPage() {
   if (step === "details") {
     return (
       <section className="mx-auto max-w-[28rem] text-center">
+        <Photo
+          name={role === "parent" ? "parentsDinnerCouple" : "sitterBubbles"}
+          aspect="16 / 10"
+          sizes="(min-width: 640px) 28rem, 100vw"
+          priority
+          className="mb-6"
+        />
         <h1>A little about you.</h1>
         <p className="mt-4 text-muted">
           Joining as {roleLabel}.{" "}

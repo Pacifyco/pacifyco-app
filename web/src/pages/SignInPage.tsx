@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
-import { Button, TextInput } from "../components/ui";
+import { Button, Photo, TextInput } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
 type SupabaseError = { status?: number; name?: string };
@@ -87,6 +87,7 @@ export function SignInPage() {
 
   return (
     <section className="mx-auto max-w-[28rem] text-center">
+      <Photo name="sitterCrafts" aspect="16 / 10" sizes="(min-width: 640px) 28rem, 100vw" priority className="mb-6" />
       <h1>Sign in to Pacify.</h1>
 
       {step === "email" ? (

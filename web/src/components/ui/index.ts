@@ -7,5 +7,6 @@ export { EmptyState } from "./EmptyState";
 export { Checkbox, Select, TextInput, Textarea } from "./Field";
 export { HourBalance, type ChildBalance } from "./HourBalance";
 export { IconTile } from "./IconTile";
+export { Photo, type PhotoName } from "./Photo";
 export { RoleChooser, type ChosenRole } from "./RoleChooser";
 export { SitterCard, type SitterCardProps } from "./SitterCard";

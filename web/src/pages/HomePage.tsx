@@ -1,7 +1,7 @@
 import { Link, Navigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { AREA_PATH, useMe } from "../auth/useMe";
-import { ButtonLink } from "../components/ui";
+import { ButtonLink, Photo } from "../components/ui";
 import { config } from "../config";
 
 export function HomePage() {
@@ -12,7 +12,18 @@ export function HomePage() {
       <h1>A little help for you. A little more fun for them.</h1>
       <p className="mt-4 text-body-lg text-muted">Pacify is getting ready for families in Bengaluru.</p>
 
-      <div className="mt-6">
+      <div className="mx-auto mt-7 grid max-w-[40rem] grid-cols-2 gap-4 sm:gap-5">
+        <Photo name="parentsDinnerCouple" aspect="4 / 5" sizes="(min-width: 640px) 20rem, 50vw" priority />
+        <Photo
+          name="sitterBlocks"
+          aspect="4 / 5"
+          sizes="(min-width: 640px) 20rem, 50vw"
+          priority
+          className="mt-7 [animation-delay:120ms]"
+        />
+      </div>
+
+      <div className="mt-7">
         {status === "signed_in" && <SignedIn />}
         {status === "signed_out" && (
           <ButtonLink to="/sign-in" arrow>
