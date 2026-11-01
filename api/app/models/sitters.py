@@ -28,9 +28,7 @@ class OnboardingStatus(StrEnum):
 class Sitter(Base):
     __tablename__ = "sitters"
     __table_args__ = (
-        CheckConstraint(
-            f"hourly_rate_paise BETWEEN {MIN_RATE_PAISE} AND {MAX_RATE_PAISE}", name="hourly_rate_range"
-        ),
+        CheckConstraint(f"hourly_rate_paise BETWEEN {MIN_RATE_PAISE} AND {MAX_RATE_PAISE}", name="hourly_rate_range"),
         CheckConstraint("years_experience >= 0", name="years_experience_not_negative"),
         CheckConstraint("avg_rating BETWEEN 1 AND 5", name="avg_rating_range"),
         CheckConstraint("review_count >= 0", name="review_count_not_negative"),

@@ -100,6 +100,13 @@ Run the tests (the database must be running):
 pytest
 ```
 
+Lint and format (CI fails if either finds anything):
+
+```
+ruff check . --fix
+ruff format .
+```
+
 ### 4. Web
 
 ```
@@ -114,6 +121,7 @@ The app runs at http://localhost:5173.
 | --- | --- |
 | `npm run dev` | Start the dev server |
 | `npm test` | Run the tests (Vitest) |
+| `npm run lint` | Lint with ESLint |
 | `npm run typecheck` | Type-check with TypeScript |
 | `npm run build` | Type-check and build to `web/dist` |
 

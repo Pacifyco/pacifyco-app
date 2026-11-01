@@ -56,8 +56,7 @@ async def _http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
 async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
     # Leave out the submitted values ("input") so they never come back in responses or logs.
     details = [
-        {"field": ".".join(str(part) for part in error["loc"]), "message": error["msg"]}
-        for error in exc.errors()
+        {"field": ".".join(str(part) for part in error["loc"]), "message": error["msg"]} for error in exc.errors()
     ]
     return error_response(422, "validation_error", "Some fields need fixing", details)
 
