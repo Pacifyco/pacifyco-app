@@ -14,7 +14,7 @@ import sys
 import uuid
 
 from sqlalchemy import create_engine, func, select
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.db import sqlalchemy_url
@@ -87,9 +87,25 @@ def main(argv: list[str] | None = None) -> int:
     delete.add_argument("--email", required=True)
     delete.add_argument("--yes", action="store_true", help="actually delete (otherwise only checks)")
     args = parser.parse_args(argv)
-    if args.command == "delete-empty-profile":
-        return delete_empty_profile(args.email.strip(), args.yes, _database_url())
-    return create_admin(args.email.strip(), " ".join(args.name.split()), args.user_id, _database_url())
+    try:
+        if args.command == "delete-empty-profile":
+            return delete_empty_profile(args.email.strip(), args.yes, _database_url())
+        return create_admin(args.email.strip(), " ".join(args.name.split()), args.user_id, _database_url())
+    except OperationalError as exc:
+        print(connection_problem(exc), file=sys.stderr)
+        return 1
+
+
+def connection_problem(exc: OperationalError) -> str:
+    """One readable line instead of a traceback. Never includes the URL (it holds the password)."""
+    text = str(exc.orig or exc).lower()
+    if "tenant/user" in text and "not found" in text:
+        hint = "the server in the URL doesn't know this project. Copy the URI from Supabase → Connect → Session pooler."
+    elif "password authentication failed" in text:
+        hint = "the password in the URL was refused."
+    else:
+        hint = "check the URL and your internet connection."
+    return f"Couldn't connect to the database: {hint}"
 
 
 if __name__ == "__main__":

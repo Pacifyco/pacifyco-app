@@ -273,3 +273,13 @@ def test_cli_keeps_someone_with_audit_history(client, db_engine, database_url, u
 def test_cli_delete_unknown_email(database_url, capsys):
     assert cli.delete_empty_profile("nobody@example.com", True, database_url) == 1
     assert "No Pacify profile" in capsys.readouterr().err
+
+
+def test_cli_explains_a_connection_problem_in_one_line(monkeypatch, capsys):
+    bad_url = "postgresql+psycopg://postgres.someproject:hunter2@127.0.0.1:1/postgres"
+    monkeypatch.setattr(cli, "_database_url", lambda: bad_url)
+    assert cli.main(["delete-empty-profile", "--email", "x@example.com"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("Couldn't connect to the database:")
+    assert len(err.splitlines()) == 1  # one line, no traceback
+    assert "hunter2" not in err and "someproject" not in err
