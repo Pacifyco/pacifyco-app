@@ -8,7 +8,7 @@ import {
   TermsCheckbox,
   requiredTerms,
   shownVersions,
-  sitterTermsReady,
+  termsReady,
 } from "../auth/TermsAgreement";
 import { Button, Photo, RoleChooser, TextInput, type ChosenRole } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
@@ -218,8 +218,8 @@ export function JoinPage() {
 
   const failure = signUp.error instanceof ApiError ? signUp.error : null;
   const kinds = requiredTerms(role);
-  // Production can't take sitters until every Sitter Terms placeholder is filled (CLAUDE.md 7).
-  const sitterClosed = role === "sitter" && !sitterTermsReady();
+  // Production can't take sign-ups until every placeholder in that role's terms is filled (CLAUDE.md 7).
+  const closed = !termsReady(role);
 
   function createAccount() {
     if (!role) return;
@@ -234,12 +234,13 @@ export function JoinPage() {
     });
   }
 
-  if (sitterClosed) {
+  if (closed) {
     return (
       <section className="mx-auto max-w-[36rem] text-center">
-        <h1>Sitter sign-up opens soon.</h1>
+        <h1>{role === "parent" ? "Family" : "Sitter"} sign-up opens soon.</h1>
         <p className="mt-4 text-muted">
-          We're finishing the Sitter Terms of Use. Please check back soon, or contact us at query.pacifyco@gmail.com.
+          We're finishing the {role === "parent" ? "Family" : "Sitter"} Terms of Use. Please check back soon, or contact
+          us at query.pacifyco@gmail.com.
         </p>
         <div className="mt-6 flex justify-center">
           <Button variant="secondary" onClick={() => setStep("role")}>

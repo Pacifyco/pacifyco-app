@@ -192,6 +192,7 @@ def test_web_texts_match_the_current_versions(db_engine):
     command.upgrade(alembic_config(db_engine), "head")
     with Session(db_engine) as db:
         current = {kind.value: doc.version for kind, doc in legal.current_documents(db).items()}
-    assert current["parent_terms"] == front_matter_version(CONTENT / "parent-terms.md")
     assert current["privacy_policy"] == front_matter_version(CONTENT / "privacy-policy.md")
+    # Final terms are one file per version, named by it.
     assert (CONTENT / f"sitter-terms-v{current['sitter_terms']}.md").exists()
+    assert (CONTENT / f"family-terms-v{current['parent_terms']}.md").exists()

@@ -1,12 +1,20 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
+import familyTermsSource from "../content/family-terms-v1.0.md?raw";
 import sitterTermsSource from "../content/sitter-terms-v1.1.md?raw";
 import { renderApp } from "../test/renderApp";
-import { fillSitterTerms } from "./legal";
+import { fillFamilyTerms, fillSitterTerms } from "./legal";
 
 // Fingerprint of the final Sitter Terms of Use v1.1 (CLAUDE.md 7: never change its wording). If this
 // fails, the file was edited: undo the edit. A new version is a new file with a new fingerprint.
 const SITTER_TERMS_SHA256 = "0b2796dde3e7de1f373cc20defa6c327dcfb68105fb5fd8024544f5c4bc67b41";
+// The same for the Family Terms of Use v1.0 (converted word for word from Reuben's final .docx).
+const FAMILY_TERMS_SHA256 = "52a18d3650b0b0a07d3ec0017c374dd46f2eed1d7fed100244d96cf994328ded";
+
+async function sha256(source: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source.replace(/\r\n/g, "\n")));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 const VALUES = {
   llpin: "AAA-1234",
@@ -16,6 +24,8 @@ const VALUES = {
   grievancePhone: "+91 90000 00001",
   emergencyLine: "+91 90000 00002",
   sitterTermsDate: "2026-11-15",
+  familyTermsDate: "2026-11-20",
+  familyIntroFee: "15,000",
 };
 const EMPTY = Object.fromEntries(Object.keys(VALUES).map((key) => [key, ""])) as typeof VALUES;
 // A placeholder as written in the terms: \[UPPER CASE\]
@@ -23,10 +33,7 @@ const PLACEHOLDER = /\\\[[A-Z ]+\\\]/;
 
 describe("Sitter Terms of Use v1.1", () => {
   test("wording is unchanged", async () => {
-    const text = sitterTermsSource.replace(/\r\n/g, "\n");
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-    const hex = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-    expect(hex).toBe(SITTER_TERMS_SHA256);
+    expect(await sha256(sitterTermsSource)).toBe(SITTER_TERMS_SHA256);
   });
 
   test("every placeholder is filled from config, and nothing else changes", () => {
@@ -73,6 +80,43 @@ describe("Sitter Terms of Use v1.1", () => {
   });
 });
 
+describe("Family Terms of Use v1.0", () => {
+  test("wording is unchanged", async () => {
+    expect(await sha256(familyTermsSource)).toBe(FAMILY_TERMS_SHA256);
+  });
+
+  test("placeholders are filled, and the introduction fee isn't mistaken for the LLPIN", () => {
+    const { body, missing } = fillFamilyTerms(VALUES, "https://pacify.example/privacy", true);
+    expect(missing).toEqual([]);
+    expect(body).not.toMatch(PLACEHOLDER);
+    for (const expected of [
+      "Last updated: 20 Nov 2026 · Version 1.0",
+      "(LLPIN AAA-1234, registered office at 12 MG Road, Bengaluru 560001)",
+      "one-time introduction fee of **₹15,000**",
+      "Priya Rao · grievance@example.com · +91 90000 00001",
+      "24-hour safety line during bookings: +91 90000 00002.",
+      "Privacy Policy at https://pacify.example/privacy.",
+      "Safety line during bookings: +91 90000 00002",
+    ]) {
+      expect(body).toContain(expected);
+    }
+    expect(body).not.toContain("₹AAA-1234");
+  });
+
+  test("production refuses while any of its 8 values is empty", () => {
+    expect(fillFamilyTerms({ ...VALUES, familyIntroFee: "" }, "x", true).missing).toEqual(["introduction fee"]);
+    expect(fillFamilyTerms({ ...VALUES, familyTermsDate: "" }, "x", true).missing).toEqual(["date"]);
+    expect(fillFamilyTerms(EMPTY, "x", true).missing).toHaveLength(8);
+  });
+
+  test("outside production, empty values show as test markers", () => {
+    const { body } = fillFamilyTerms(EMPTY, "x", false);
+    expect(body).toContain("introduction fee of **TEST INTRODUCTION FEE**");
+    expect(body).toContain("LLPIN TEST LLPIN");
+    expect(body).not.toMatch(PLACEHOLDER);
+  });
+});
+
 describe("legal pages", () => {
   test("the Sitter Terms page shows the full terms, with the summary table", async () => {
     renderApp("/terms/sitter");
@@ -85,12 +129,18 @@ describe("legal pages", () => {
     expect(article).not.toMatch(/\*\*|\\|^\s*\|/m);
   });
 
-  test.each([
-    ["/terms/parent", "Terms of service for parents"],
-    ["/privacy", "Privacy policy"],
-  ])("%s is a marked draft with a version", async (path, heading) => {
-    renderApp(path);
-    expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeTruthy();
+  test("the Family Terms page shows the full terms, tables included", async () => {
+    renderApp("/terms/parent");
+    expect(await screen.findByText("Pacifyco Family Terms of Use")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "4. Hour packs, payment and overtime" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Hours bought per child" })).toBeTruthy();
+    const article = document.querySelector("article")!.textContent!;
+    expect(article).not.toMatch(/\*\*|\\|^\s*\|/m);
+  });
+
+  test("the privacy policy is a marked draft with a version", async () => {
+    renderApp("/privacy");
+    expect(await screen.findByRole("heading", { level: 1, name: "Privacy policy" })).toBeTruthy();
     expect(screen.getByText("DRAFT — NOT LEGALLY REVIEWED.")).toBeTruthy();
     expect(screen.getByText("Version 0.1-draft")).toBeTruthy();
   });

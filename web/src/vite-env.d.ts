@@ -13,6 +13,8 @@ interface ImportMetaEnv {
   readonly VITE_GRIEVANCE_OFFICER_PHONE?: string;
   readonly VITE_EMERGENCY_LINE?: string;
   readonly VITE_SITTER_TERMS_DATE?: string;
+  readonly VITE_FAMILY_TERMS_DATE?: string;
+  readonly VITE_FAMILY_INTRO_FEE?: string;
 }
 
 interface ImportMeta {
