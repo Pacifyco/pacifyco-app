@@ -226,3 +226,10 @@ postgresql://pacifyco_api.<project-ref>:<api-password>@<pooler-host>:5432/postgr
 | `VITE_SENTRY_DSN` | Sentry → `pacifyco-web` → Client Keys (DSN) |
 
 `VITE_*` values are built into the JavaScript that browsers download, so they must never be secrets.
+
+### Checking staging
+
+- `GET /health`: the API is running (Render's health check; never touches the database).
+- `GET /health/db`: the API can sign in to its database. `"api_role": true` means it signed in as
+  `pacifyco_api`, as it should when deployed; `false` means `DATABASE_URL` uses another role. A 503 means it
+  can't connect (details go to Sentry).
