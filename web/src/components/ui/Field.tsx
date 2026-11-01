@@ -149,3 +149,36 @@ export function Select({
     </FieldShell>
   );
 }
+
+/** An unticked-by-default checkbox with its label beside it (design.md 10; radius-sm). */
+export function Checkbox({
+  label,
+  error,
+  id,
+  className,
+  ...props
+}: { label: ReactNode; error?: string } & Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const generated = useId();
+  const boxId = id ?? generated;
+  return (
+    <div className={cx("flex flex-col gap-2", className)}>
+      <label htmlFor={boxId} className="flex cursor-pointer items-start gap-3 text-body text-ink">
+        <input
+          id={boxId}
+          type="checkbox"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${boxId}-error` : undefined}
+          className="mt-1 size-5 shrink-0 cursor-pointer rounded-sm border-strong accent-[var(--accent-coral)]"
+          {...props}
+        />
+        <span>{label}</span>
+      </label>
+      {error && (
+        <p id={`${boxId}-error`} className="flex items-start gap-2 text-small text-danger">
+          <CircleAlert aria-hidden="true" size={20} strokeWidth={1.75} className="mt-px shrink-0" />
+          <span>{error}</span>
+        </p>
+      )}
+    </div>
+  );
+}

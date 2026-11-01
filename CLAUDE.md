@@ -424,7 +424,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `onboarding_steps` (sitter_id, step, status, notes, reviewed_by, reviewed_at)
 - `documents` (id, owner_profile_id, child_id null, type: `aadhaar_masked|birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at)
 - `document_access_log` (id, document_id, admin_id, accessed_at)
-- `consents` (id, parent_id, form_version, accepted_at)
+- `consents` **(created)** (id, parent_id, form_version, accepted_at) — append-only, one row per parent per version; current version is `CONSENT_VERSION` in `api/app/services/consent.py`, matching the `version:` line of `web/src/content/consent.md`
 - `legal_documents` (id, kind: `parent_terms|sitter_terms|privacy_policy`, version, published_at, effective_at, content_path)
 - `legal_acceptances` (id, profile_id, document_id, method: `clickwrap`, accepted_at, ip_address, user_agent)
 - `references` (id, sitter_id, name, phone, relationship, outcome, notes)
