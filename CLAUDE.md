@@ -161,6 +161,8 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   and called by a GitHub Actions schedule: pack expiry and carry-forward (daily), strike expiry
   (daily), overdue check-out alerts (every 30 minutes, 6 am–midnight IST — keep each run short to stay
   inside GitHub Actions free minutes) and payouts-due alerts (every 30 minutes, in the same run as overdue check-outs).
+  Two runs, `daily` and `frequent`, each a list of tasks in `api/app/services/jobs.py`. Before launch the
+  frequent run targets production only, to save Render's shared free hours (README "Scheduled jobs").
 
 ---
 

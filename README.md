@@ -259,3 +259,28 @@ Differences from the staging tables above:
 
 Never seed production with test data (CLAUDE.md section 4). Until launch, production stays on the free
 plans and isn't announced; at launch it moves to Supabase Pro and Render Starter.
+
+## Scheduled jobs
+
+`.github/workflows/jobs.yml` calls the API's `POST /internal/jobs/<run>` endpoints with
+`Authorization: Bearer <JOBS_SECRET>`. Without the right secret they answer 401, and with no
+`JOBS_SECRET` configured nobody can run them. Each run is a list of idempotent tasks in
+`api/app/services/jobs.py`.
+
+| Run | When (IST) | Targets | Tasks |
+| --- | --- | --- | --- |
+| `daily` | 2:00 am | staging and production | keep the database active (more in phases 6–7) |
+| `frequent` | every 30 minutes, 6:00 am to midnight | production only until launch | none yet (phases 8–9) |
+
+Run one by hand: GitHub → Actions → Scheduled jobs → Run workflow.
+
+Setup, once per environment (`staging`, `production`), with a new random secret each (40+ letters and
+digits):
+
+| Where | What |
+| --- | --- |
+| Render service (`pacifyco` / `pacifyco-api`) | Environment variable `JOBS_SECRET` (**secret**) |
+| GitHub environment `jobs-staging` / `jobs-production` | Secret `JOBS_SECRET`, the same value. Variable `API_URL` is already set. |
+
+The `jobs-*` environments hold only the jobs secret and the API address, never database passwords, and
+allow `develop` because GitHub runs schedules from the default branch.
