@@ -124,7 +124,9 @@ from `SUPABASE_URL`), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM
 `JOBS_SECRET`, `PUBLIC_WEB_URL`, `CORS_ORIGINS`, `PACIFY_UPI_ID`.
 
 Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY_DSN`,
-`VITE_ENVIRONMENT`.
+`VITE_ENVIRONMENT`, and the Sitter Terms values `VITE_PACIFY_LLPIN`, `VITE_PACIFY_REGISTERED_ADDRESS`,
+`VITE_GRIEVANCE_OFFICER_NAME`, `VITE_GRIEVANCE_OFFICER_EMAIL`, `VITE_GRIEVANCE_OFFICER_PHONE`,
+`VITE_EMERGENCY_LINE`, `VITE_SITTER_TERMS_DATE`.
 
 ---
 
@@ -384,8 +386,10 @@ when). The privacy policy and parent terms ship as placeholders until legal revi
 **Terms acceptance (click-wrap, both roles):**
 - Documents: Parent terms of service, **Sitter Terms of Use** and the Privacy policy, all versioned, in
   `/web/src/content/`.
-- **Sitter Terms of Use v1.1 is final:** `content/sitter-terms-v1.1.md` (move it to
-  `/web/src/content/`). **Never change its wording.** Only fill its bracketed placeholders ([DATE],
+- **Sitter Terms of Use v1.1 is final:** `web/src/content/sitter-terms-v1.1.md` (a test checks its
+  wording against a fingerprint). Placeholders are filled in `web/src/lib/legal.ts` from the
+  `VITE_PACIFY_*`, `VITE_GRIEVANCE_OFFICER_*`, `VITE_EMERGENCY_LINE` and `VITE_SITTER_TERMS_DATE`
+  variables. **Never change its wording.** Only fill its bracketed placeholders ([DATE],
   LLPIN, registered address, Grievance Officer, Privacy Policy link, emergency line) from config. Don't
   serve it in production while any placeholder is empty.
 - Parent terms and Privacy policy are still placeholders marked "DRAFT — NOT LEGALLY REVIEWED".

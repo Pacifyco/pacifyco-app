@@ -337,3 +337,20 @@ python -m app.cli delete-empty-profile --email someone@example.com --yes  # dele
 It only deletes accounts that hold nothing yet (no children, no sitter application details, no audit
 history), so real records are never removed this way. Then delete the user in Supabase if you want the
 sign-in account gone too.
+
+## Legal pages
+
+`/terms/sitter`, `/terms/parent` and `/privacy` are public. The texts live in `web/src/content/`. The
+Sitter Terms of Use v1.1 is final and a test fails if its wording changes; its blanks are filled from
+these Cloudflare Pages variables (public information, set on each project, then redeploy):
+
+| Variable | Fills |
+| --- | --- |
+| `VITE_PACIFY_LLPIN` | LLPIN |
+| `VITE_PACIFY_REGISTERED_ADDRESS` | registered office (both places) |
+| `VITE_GRIEVANCE_OFFICER_NAME`, `_EMAIL`, `_PHONE` | Grievance Officer (section 6.3) |
+| `VITE_EMERGENCY_LINE` | emergency line during bookings |
+| `VITE_SITTER_TERMS_DATE` | "Last updated" date, as `yyyy-mm-dd` |
+
+Outside production a blank value shows as a TEST marker. Production shows "The Sitter Terms aren't
+available yet" until every one is set. The privacy policy link fills itself.

@@ -27,3 +27,23 @@ describe("Markdown", () => {
     expect(screen.getByText("<b>not html</b>")).toBeTruthy();
   });
 });
+
+describe("Markdown tables, italics and escapes", () => {
+  test("renders a table with a header row", () => {
+    render(<Markdown body={"| **Topic** | **Rule** |\n|---|---|\n| Rate | ₹80–₹120 |\n| Pay | 12 hours |"} />);
+    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Topic", "Rule"]);
+    expect(screen.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Rate", "₹80–₹120", "Pay", "12 hours"]);
+  });
+
+  test("italics and backslash escapes", () => {
+    render(<Markdown body={"*Last updated: \\[DATE\\]*\n\n2\\. Grievance"} />);
+    expect(screen.getByText("Last updated: [DATE]").tagName).toBe("EM");
+    expect(screen.getByText("2. Grievance")).toBeTruthy();
+  });
+
+  test("list items separated by blank lines form one list", () => {
+    render(<Markdown body={"- one;\n\n- two; or\n\n- three."} />);
+    expect(screen.getAllByRole("list")).toHaveLength(1);
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  });
+});
