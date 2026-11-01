@@ -84,7 +84,9 @@ jobs:
   # After a merge passes every check, bring that environment's database up to date: develop -> staging,
   # main -> production. Render waits for this check ("After CI checks pass") before it deploys the API.
   migrate:
-    name: Migrate ${{ github.ref_name == 'main' && 'production' || 'staging' }} database
+    # A fixed name: GitHub can't fill in an expression for a skipped job, so PRs showed it raw. The run
+    # page shows which environment (staging or production) each run used.
+    name: Migrate database (after merge)
     if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
     needs: [api, web]
     runs-on: ubuntu-latest
