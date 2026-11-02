@@ -37,10 +37,25 @@ class Child(Base):
 
 
 class EmergencyContact(Base):
+    """Exactly two per family, not per child (Family Terms 2.5). Enforced by the API (set_emergency_contacts
+    always replaces both together), not by a database constraint."""
+
     __tablename__ = "emergency_contacts"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    child_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("children.id", ondelete="CASCADE"), index=True)
+    parent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parents.profile_id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(Text)
+    relationship: Mapped[str] = mapped_column(Text)
+    phone: Mapped[str] = mapped_column(String(20))
+
+
+class AuthorisedAdult(Base):
+    """Any number per family; may hand over or receive the child during a booking (Family Terms 2.5)."""
+
+    __tablename__ = "authorised_adults"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    parent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parents.profile_id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(Text)
     relationship: Mapped[str] = mapped_column(Text)
     phone: Mapped[str] = mapped_column(String(20))

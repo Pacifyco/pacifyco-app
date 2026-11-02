@@ -5,13 +5,14 @@ from app.models.common import VerificationStatus
 from app.models.consents import Consent, ConsentKind
 from app.models.documents import Document, DocumentAccessLog, DocumentStatus, DocumentType
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
-from app.models.parents import Child, EmergencyContact, Parent
+from app.models.parents import AuthorisedAdult, Child, EmergencyContact, Parent
 from app.models.profiles import Profile, ProfileStatus, Role, ServiceAreaPincode
 from app.models.sitters import OnboardingStatus, PayoutMethod, Sitter
 
 __all__ = [
     "AcceptanceMethod",
     "AuditLog",
+    "AuthorisedAdult",
     "Child",
     "Consent",
     "ConsentKind",
