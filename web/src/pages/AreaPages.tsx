@@ -1,15 +1,42 @@
-import { ButtonLink, Photo } from "../components/ui";
+import { BadgeCheck, Calendar, Clock, CreditCard, HeartHandshake, Siren, Wallet } from "lucide-react";
+import { useMe } from "../auth/useMe";
+import { ButtonLink, IconTile, Photo } from "../components/ui";
 import { formatDate } from "../lib/format";
 import { CONSENT_VERSION, useConsent } from "./ConsentPage";
 
-// Placeholders for each role's area (gated by RequireRole in routes.tsx).
+// Placeholders for each role's area (gated by RequireRole in routes.tsx). Headings stay exactly as
+// signIn.test.tsx expects them; everything below personalises the page and previews what's coming.
+
+function firstName(fullName: string | undefined): string | undefined {
+  return fullName?.trim().split(/\s+/)[0];
+}
+
+// Sunken-panel pattern already used by ConsentPrompt and JoinPage's confirmation step.
+function PendingNote({ children }: { children: string }) {
+  return (
+    <p className="mx-auto mt-6 max-w-[50ch] rounded-lg bg-surface-sunken p-5 text-small text-ink">{children}</p>
+  );
+}
 
 export function ParentHomePage() {
+  const me = useMe();
+  const name = firstName(me.data?.profile?.full_name);
+
   return (
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Time for you.</h1>
-      <p className="mt-4 text-muted">Your bookings, hours and sitters will be here.</p>
+      <p className="mt-4 text-muted">
+        {name ? `Hello ${name}, ` : ""}your bookings, hours and sitters will be here.
+      </p>
+      {me.data?.profile?.status === "pending" && (
+        <PendingNote>Your account is being verified. We'll be in touch once that's done.</PendingNote>
+      )}
       <Photo name="parentsDinnerFriends" priority className="mt-6" />
+      <div className="mt-7 grid gap-5 text-left sm:grid-cols-3">
+        <IconTile icon={HeartHandshake} label="Meet a sitter first" />
+        <IconTile icon={Calendar} label="Scheduled care" />
+        <IconTile icon={Wallet} label="Hour packs" />
+      </div>
       <ConsentPrompt />
     </section>
   );
@@ -34,11 +61,24 @@ function ConsentPrompt() {
 }
 
 export function SitterHomePage() {
+  const me = useMe();
+  const name = firstName(me.data?.profile?.full_name);
+
   return (
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Your work with Pacify.</h1>
-      <p className="mt-4 text-muted">Your bookings, availability and earnings will be here.</p>
+      <p className="mt-4 text-muted">
+        {name ? `Hello ${name}. ` : ""}Your bookings, availability and earnings will be here.
+      </p>
+      {me.data?.profile?.status === "pending" && (
+        <PendingNote>Your profile is being verified. We'll let you know once it's ready to go live.</PendingNote>
+      )}
       <Photo name="sitterSlide" priority className="mt-6" />
+      <div className="mt-7 grid gap-5 text-left sm:grid-cols-3">
+        <IconTile icon={Calendar} label="Booking requests" />
+        <IconTile icon={Clock} label="Your availability" />
+        <IconTile icon={Wallet} label="Your earnings" />
+      </div>
     </section>
   );
 }
@@ -48,6 +88,12 @@ export function AdminHomePage() {
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Admin</h1>
       <p className="mt-4 text-muted">Verifications, payments, payouts and incidents will be here.</p>
+      <div className="mt-7 grid gap-5 text-left sm:grid-cols-2">
+        <IconTile icon={BadgeCheck} label="Verifications" />
+        <IconTile icon={CreditCard} label="Payments" />
+        <IconTile icon={Wallet} label="Payouts" />
+        <IconTile icon={Siren} label="Incidents" />
+      </div>
     </section>
   );
 }
