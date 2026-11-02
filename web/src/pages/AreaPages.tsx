@@ -1,6 +1,6 @@
 import { BadgeCheck, Calendar, Clock, CreditCard, HeartHandshake, Siren, Wallet } from "lucide-react";
 import { useMe } from "../auth/useMe";
-import { ButtonLink, IconTile, Photo } from "../components/ui";
+import { ButtonLink, IconTile } from "../components/ui";
 import { formatDate } from "../lib/format";
 import { CONSENT_VERSION, useConsent } from "./ConsentPage";
 
@@ -31,8 +31,7 @@ export function ParentHomePage() {
       {me.data?.profile?.status === "pending" && (
         <PendingNote>Your account is being verified. We'll be in touch once that's done.</PendingNote>
       )}
-      <Photo name="parentsDinnerFriends" priority className="mt-6" />
-      <div className="mt-7 grid gap-5 text-left sm:grid-cols-3">
+      <div className="mt-7 grid gap-5 sm:grid-cols-3">
         <IconTile icon={HeartHandshake} label="Meet a sitter first" />
         <IconTile icon={Calendar} label="Scheduled care" />
         <IconTile icon={Wallet} label="Hour packs" />
@@ -73,8 +72,7 @@ export function SitterHomePage() {
       {me.data?.profile?.status === "pending" && (
         <PendingNote>Your profile is being verified. We'll let you know once it's ready to go live.</PendingNote>
       )}
-      <Photo name="sitterSlide" priority className="mt-6" />
-      <div className="mt-7 grid gap-5 text-left sm:grid-cols-3">
+      <div className="mt-7 grid gap-5 sm:grid-cols-3">
         <IconTile icon={Calendar} label="Booking requests" />
         <IconTile icon={Clock} label="Your availability" />
         <IconTile icon={Wallet} label="Your earnings" />
@@ -88,7 +86,7 @@ export function AdminHomePage() {
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Admin</h1>
       <p className="mt-4 text-muted">Verifications, payments, payouts and incidents will be here.</p>
-      <div className="mt-7 grid gap-5 text-left sm:grid-cols-2">
+      <div className="mt-7 grid gap-5 sm:grid-cols-2">
         <IconTile icon={BadgeCheck} label="Verifications" />
         <IconTile icon={CreditCard} label="Payments" />
         <IconTile icon={Wallet} label="Payouts" />
