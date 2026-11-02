@@ -82,10 +82,14 @@ def parent(client, db_engine, user):  # noqa: F811
 
 
 @pytest.fixture
-def sitter(client, db_engine, user):  # noqa: F811
-    assert client.post("/me/profile", json={**PARENT, "role": "sitter"}, headers=auth_for(user)).status_code == 201
-    yield user
-    cleanup_documents(db_engine, user["id"])
+def sitter(client, db_engine):
+    # A fresh identity, not `user`: this fixture and `parent` are sometimes both needed in one test
+    # (e.g. one account trying to touch another's document), so they must never be the same person.
+    identity = {"id": uuid.uuid4(), "email": f"sitter-{uuid.uuid4()}@example.com"}
+    body = {**PARENT, "role": "sitter"}
+    assert client.post("/me/profile", json=body, headers=auth_for(identity)).status_code == 201
+    yield identity
+    cleanup_documents(db_engine, identity["id"])
 
 
 @pytest.fixture
