@@ -39,8 +39,8 @@ tests.
   5. Overtime when hours run out: terms say **₹300 per hour**; CLAUDE.md 6.8 says ₹300 **per child** per hour.
   6. Sitter rates: terms 3.1 say profiles show the sitter's **rate**; CLAUDE.md and design.md say parents
      never see it.
-  7. Pricing: the table in 4.1 is the current pack pricing, which is being replaced (basic, standard,
-     premium; questions pending).
+  7. Pricing: the table in 4.1 is the current pack pricing. **Replaced** by the plans below
+     (answered 2026-11-03); Family Terms need a new version.
   8. Pack expiry: terms say 30 days after **purchase**; CLAUDE.md says after hours are **credited**
      (an admin confirms the UPI payment first).
   9. Sitter leaves because unsafe or the parent broke the terms: terms say the **full booking is charged**;
@@ -55,6 +55,60 @@ tests.
   12. "We store data in India" (2.2, 11.1): accounts and documents are in Mumbai, but sign-in emails go
       through Resend (Tokyo) and error reports to Sentry (Germany, no personal data). Check the wording
       with the lawyer.
+
+- [ ] **Pricing: plans instead of hour packs** (Reuben's answers, 2026-11-03). Not yet in CLAUDE.md 6:
+  section 6 is rewritten once the follow-ups below are answered. Until then nothing is built on it.
+
+  | Parent plan | Price per hour | Children | Sitter level that works it | Sitter pay per hour |
+  | --- | --- | --- | --- | --- |
+  | Pause | ₹499 | one child only | Level 1 (Pause) | ₹200 |
+  | Unwind | ₹699 | first child included, +₹150 per extra child (2 children = ₹849) | Level 2 (Unwind) | ₹300 |
+  | Recharge | ₹899 | any number, same price | Level 3 | ₹400 |
+
+  Decided:
+  1. Plans are levels of service; the parent picks one **for each booking**.
+  2. Sitter levels are set by Pacify; a sitter can be moved up once conditions are met. Sitters are told
+     "based on the experience we understand you have, you'll be paid ₹X per hour; as you put in more
+     hours we'll increase your pay". Sitters aren't told which plan they're booked for.
+  3. Level conditions: Level 1, 0–1 families, new sitters welcome, daytime until 6 pm, one child at
+     home, no bath time, no outings. Level 2, 2 families, until 10:30 pm, more than one child, bath
+     time, no outings. Level 3, 3+ families, until 12 am, more than one child, bath time, outings; her
+     reference is shared with the parent, with her consent.
+  4. **No hour packs**: parents pay by the hour at the plan rate. (Removes CLAUDE.md 6.1's packs,
+     tiers, expiry, carry-forward and the child-hours ledger.)
+  5. **Sitters no longer set a rate**: pay is fixed per plan. (Removes the ₹80–120 rate, which is built
+     in the sitter application, PRs #54/#55, and in the Sitter Terms v1.1 2.3.)
+  6. Overtime: charged at the plan's hourly price, rounded up to the next full hour.
+  7. No minimum booking length (was 2 hours); booked time rounded to the nearest half hour.
+  8. Parent not home: that hour is charged, and the sitter gets ₹100.
+  9. No under-18-months fee (no children under 18 months).
+  10. No GST for now.
+  11. Sitter cards show no price; plan prices appear when the parent picks a plan.
+  12. Every sitter on every plan has the same checks (government and college ID, psychologist
+      screening, police verification, a video call with the parent before the first booking).
+
+  Follow-ups (asked 2026-11-03):
+  a. **Payment**: with no packs, how and when does a parent pay? (Before the booking by UPI with an
+     admin confirming, or after it?) And overtime?
+  b. **Cancellations**: what does a parent pay when cancelling under 3 hours before (whole booking?),
+     and is money refunded when they cancel earlier or the sitter cancels?
+  c. **Which sitters work which plan**: only their own level, or their level and below? A Level 3
+     sitter on a Pause booking: paid ₹200 or ₹400?
+  d. **Pay shows the plan**: each booking shows the sitter her pay (₹200/300/400), which tells her the
+     plan. Is that fine, or is pay fixed by her level rather than the booking's plan?
+  e. **Children**: "prices are per family" vs Unwind's +₹150 per extra child. Is sitter pay the same
+     whatever the number of children (Unwind ₹300, Recharge ₹400)?
+  f. **Names**: Level 3 is "Escape" in one place and "Recharge" in another.
+  g. **Levels**: does "families" mean different families with completed Pacify bookings? Does an admin
+     move sitters up, or the app? Do all new sitters start at Level 1?
+  h. **Plan limits**: are the end times (6 pm, 10:30 pm, 12 am) the latest a booking can end, including
+     overtime? Earliest start? Is bath time a choice when booking (Unwind and Recharge only), and are
+     outings Recharge only (still approved by the parent during the booking)?
+  i. **Parent not home**: one hour at the plan price, not the whole booking? Still the 20-minute wait?
+  j. **Overtime pay**: is the sitter's overtime also rounded up to the full hour?
+  k. **Level 3 reference**: what's shared with the parent (name, phone, relationship)?
+  Also [Reuben]: **Sitter Terms v1.2** (2.3 rate, 2-hour minimum, per-child pay) and **Family Terms
+  v1.1** (4.1 pricing, packs, 18 months) from the lawyer before production relies on them.
 
 - [ ] Parent late and declines overtime: the sitter can't leave the child (terms 4.1) and can't check out without the parent's code. Is she paid for the extra time, and should that time be billed to the parent as overtime automatically?
 
