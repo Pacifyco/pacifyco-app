@@ -8,7 +8,19 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import AuditLog, Child, Consent, LegalAcceptance, Parent, Profile, ProfileStatus, Role, Sitter
+from app.models import (
+    AuditLog,
+    AuthorisedAdult,
+    Child,
+    Consent,
+    EmergencyContact,
+    LegalAcceptance,
+    Parent,
+    Profile,
+    ProfileStatus,
+    Role,
+    Sitter,
+)
 from app.services import legal
 from app.services.service_area import require_in_service_area
 
@@ -91,6 +103,10 @@ def is_empty(db: Session, profile: Profile) -> bool:
         return False
     if db.scalar(select(Consent.id).where(Consent.parent_id == profile.id).limit(1)) is not None:
         return False  # consent records are kept
+    if db.scalar(select(EmergencyContact.id).where(EmergencyContact.parent_id == profile.id).limit(1)) is not None:
+        return False
+    if db.scalar(select(AuthorisedAdult.id).where(AuthorisedAdult.parent_id == profile.id).limit(1)) is not None:
+        return False
     sitter = db.get(Sitter, profile.id)
     if sitter is not None:
         filled = (
