@@ -7,6 +7,7 @@ Viewing a document is admin-only, through another short-lived signed URL, logged
 import uuid
 from dataclasses import dataclass
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
@@ -92,6 +93,19 @@ def confirm_upload(
     document.status = DocumentStatus.uploaded
     db.commit()
     return document
+
+
+def list_mine(
+    db: Session, owner_profile_id: uuid.UUID, doc_type: DocumentType | None = None, child_id: uuid.UUID | None = None
+) -> list[Document]:
+    """So the web can show "uploaded" / "being checked" / "please try again" for its own uploads.
+    Deleted documents (e.g. a birth certificate removed after verification) don't show at all."""
+    query = select(Document).where(Document.owner_profile_id == owner_profile_id, Document.deleted_at.is_(None))
+    if doc_type is not None:
+        query = query.where(Document.type == doc_type)
+    if child_id is not None:
+        query = query.where(Document.child_id == child_id)
+    return list(db.scalars(query.order_by(Document.created_at)))
 
 
 def get_view_url(db: Session, storage: StorageClient, admin_id: uuid.UUID, document_id: uuid.UUID) -> str:
