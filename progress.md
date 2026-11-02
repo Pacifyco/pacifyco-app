@@ -9,7 +9,7 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: Private storage buckets, signed upload URLs, file type/size validation
+- Next item: Parent consents at sign-up (Family Terms 11.2: four required, one optional) and the single-parent declaration
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - Blocked on: nothing
 
@@ -107,7 +107,7 @@ when starting). Sitter rate field: keep ₹80–120 until the pricing questions 
 - [ ] Parent consents at sign-up (Family Terms 11.2: four required, one optional) and the single-parent
   declaration, replacing the phase 2 consent form
 - [ ] Emergency contacts per family (two) and authorised adults (Family Terms 2.5)
-- [ ] Private storage buckets, signed upload URLs, file type/size validation
+- [x] Private storage buckets, signed upload URLs, file type/size validation
 - [ ] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
 - [ ] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
 - [ ] Psychology test engine with placeholder questions
@@ -224,6 +224,7 @@ when starting). Sitter rate field: keep ₹80–120 until the pricing questions 
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-02 — Private storage buckets, signed upload URLs, file type/size validation (PR #49): `documents` and append-only `document_access_log` tables; private `documents` Supabase Storage bucket with a 5 MB / PDF-JPG-PNG limit, created by the migration (guarded for local/CI Postgres, which has no `storage` schema); `POST /documents/upload-url`, `POST /documents/{id}/confirm` (checks the real file bytes, not the filename, deletes and marks `invalid` on failure; IDOR-checked), `GET /admin/documents/{id}/view-url` (admin-only, every view logged). `app/services/storage.py` wraps Supabase Storage's REST API with the service-role key, swappable in tests. Also: design polish on the parent/sitter/admin home pages, a split-hero layout for sign-in and join, a loading buffer instead of a page flash during auth redirects (PRs #44, #45, #46, #47, #48). 230 API and 141 web tests pass.
 - 2026-11-01 — Phase 2 done. Terms pages (PR #31): Sitter Terms v1.1 unchanged (fingerprint test), placeholders from VITE_ config, hidden in production until filled; parent terms and privacy drafts. Click-wrap (PR #33): legal_documents and append-only legal_acceptances, required at sign-up and after new versions. Crashes keep CORS headers (PR #34). Section 9 tests for this phase checked; booking/buying guards tested, wired up in later phases. 203 API and 128 web tests pass.
 - 2026-11-01 — Role gates (PR #26): `require_role` routers for /parent, /sitter, /admin, blocked accounts 403, route sweep tests; web `RequireRole` and on-hold page. Pages centred (PR #27). Parental consent (PR #28, #29): append-only `consents`, `/parent/consent`, guard for phase 3 child documents. Verified on staging. 184 API and 105 web tests pass.
 - 2026-11-01 — Sign-up (PR #21, #22): `/join` role chooser, name, Indian mobile and home pin code (launch pin codes only, `GET /service-area`), confirmation step; `POST /me/profile` once only; `python -m app.cli create-admin`. Role rules in CLAUDE.md 6.13. Verified on staging. 147 API and 82 web tests pass.
