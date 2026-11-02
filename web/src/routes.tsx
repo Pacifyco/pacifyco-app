@@ -6,6 +6,7 @@ import { AdminHomePage, ParentHomePage, SitterHomePage } from "./pages/AreaPages
 import { ComponentsPage } from "./pages/ComponentsPage";
 import { ConsentPage } from "./pages/ConsentPage";
 import { NotFoundPage, RouteErrorPage } from "./pages/ErrorPages";
+import { FamilyPage } from "./pages/FamilyPage";
 import { HomePage } from "./pages/HomePage";
 import { JoinPage } from "./pages/JoinPage";
 import { ParentTermsPage, PrivacyPolicyPage, SitterTermsPage } from "./pages/LegalPages";
@@ -31,6 +32,14 @@ export const routes: RouteObject[] = [
         element: (
           <RequireRole role="parent">
             <ConsentPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: "parent/family",
+        element: (
+          <RequireRole role="parent">
+            <FamilyPage />
           </RequireRole>
         ),
       },
