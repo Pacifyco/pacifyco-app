@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router";
+import { LoadingScreen } from "../components/ui";
 import { useAuth } from "./AuthProvider";
 import { AcceptTermsPage } from "./TermsAgreement";
 import { AREA_PATH, useMe, type Role } from "./useMe";
@@ -12,7 +13,7 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
   const me = useMe();
 
   if (status === "signed_out") return <Navigate to="/sign-in" replace />;
-  if (status === "loading" || me.isPending) return <p className="text-center text-muted">Loading your account…</p>;
+  if (status === "loading" || me.isPending) return <LoadingScreen />;
   if (me.isError) return <p className="text-center text-muted">{me.error.message}</p>;
 
   const profile = me.data.profile;
