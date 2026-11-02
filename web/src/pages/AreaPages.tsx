@@ -45,8 +45,8 @@ export function ParentHomePage() {
 function ConsentPrompt() {
   const consent = useConsent();
   if (!consent.isSuccess) return null;
-  const { version, accepted_at: acceptedAt } = consent.data;
-  if (acceptedAt && version === CONSENT_VERSION) {
+  const { version, required_accepted: requiredAccepted, accepted_at: acceptedAt } = consent.data;
+  if (requiredAccepted && acceptedAt && version === CONSENT_VERSION) {
     return <p className="mt-6 text-small text-muted">Parental consent given on {formatDate(new Date(acceptedAt))}.</p>;
   }
   return (

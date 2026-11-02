@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import Child, Document, DocumentAccessLog, DocumentStatus, DocumentType
+from app.services import consent
 from app.services.storage import StorageClient
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -45,6 +46,7 @@ def request_upload(
         child = db.get(Child, child_id)
         if child is None or child.parent_id != owner_profile_id:
             raise AppError(403, "forbidden", "That child doesn't belong to you")
+        consent.require_current_consent(db, owner_profile_id)  # CLAUDE.md 9 "Consent"
 
     document_id = uuid.uuid4()
     path = f"{owner_profile_id}/{document_id}"

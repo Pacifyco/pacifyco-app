@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.auth import get_key_source
 from app.errors import AppError
 from app.main import create_app
+from app.services import consent
 from app.services.documents import MAX_FILE_BYTES, sniff_content_type
 from app.services.storage import get_storage
 from tests.test_auth import FakeKeys, make_settings
@@ -125,6 +126,12 @@ def request_upload(client, user, doc_type="government_id", child_id=None):  # no
     return client.post("/documents/upload-url", json=body, headers=auth_for(user))
 
 
+def accept_consent(client, user):  # noqa: F811
+    return client.post(
+        "/parent/consent", json={"version": consent.CONSENT_VERSION, "marketing": False}, headers=auth_for(user)
+    )
+
+
 def row(db_engine, sql: str, **params):
     with db_engine.connect() as conn:
         return conn.execute(text(sql), params).mappings().one()
@@ -174,8 +181,17 @@ def test_a_sitter_gets_a_signed_upload_url(client, sitter):  # noqa: F811
     assert request_upload(client, sitter, "police_certificate").status_code == 201
 
 
+def test_a_birth_certificate_needs_the_current_consent_first(client, db_engine, parent):  # noqa: F811
+    """CLAUDE.md 9 ("Consent"): child document upload refused without an accepted consent."""
+    child_id = add_child(db_engine, parent["id"])
+    response = request_upload(client, parent, "birth_certificate", child_id)
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "consent_required"
+
+
 def test_a_birth_certificate_can_be_attached_to_the_parents_own_child(client, db_engine, parent):  # noqa: F811
     child_id = add_child(db_engine, parent["id"])
+    assert accept_consent(client, parent).status_code == 200
     response = request_upload(client, parent, "birth_certificate", child_id)
     assert response.status_code == 201
     found = row(db_engine, "SELECT child_id FROM documents WHERE id = :id", id=response.json()["document_id"])

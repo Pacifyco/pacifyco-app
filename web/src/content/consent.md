@@ -1,31 +1,26 @@
 ---
-version: 0.1-draft
+version: 0.2-draft
 ---
 
 # Parental consent form
 
 **DRAFT — NOT LEGALLY REVIEWED.** This is placeholder text until Pacify's legal review. The final form will replace it as a new version, and you'll be asked to accept that version.
 
-## What this form is for
+## Why we ask
 
-Before you add your child's details and documents to Pacify, we need your consent, as their parent or legal guardian, to collect and use information about them.
+Family Terms of Use section 11.2 asks you to tick five things separately before you add your family's details, documents and children to Pacify. Four are required to use Pacify; the fifth is optional, and you can change your mind about it at any time.
 
-## What we collect about your child
+## What we collect and why
 
-- Their name and date of birth.
-- Their birth certificate, to check their age. Once your child is verified, we delete the file and keep only the result, who checked it and when.
-- Allergies, medical notes and routines, if you choose to share them.
-- Emergency contacts you give us.
+- Your own details: for your account, verification, bookings, payments and safety.
+- Each child's details, given by you as their parent or guardian: their name and date of birth, a birth certificate to check their age, and anything else you choose to share (allergies, medical notes, routines). Once a child is verified, we delete the birth certificate and keep only the result, who checked it and when.
+- Emergency contacts, and any authorised adults you name.
 
 ## Who sees it
 
-- The Pacify team, to verify your child and to help in an emergency. Every time the team opens a document, it's recorded.
-- Sitters never see your child's documents.
+- The Pacify team, to verify your family and to help in an emergency. Every time the team opens a document, it's recorded.
+- The sitter you book sees the care details you choose to share for that booking. Sitters never see your identity or verification documents.
 
 ## Your choices
 
-You can ask to see, correct or delete this information at any time through Help, by raising a data request. Records the law requires us to keep are kept.
-
-## Your consent
-
-By ticking the box, you confirm that you are the parent or legal guardian of each child you add, and that you consent to Pacify collecting and using their information as described above.
+You can ask to see, correct or delete this information at any time through Help, by raising a data request. Records the law requires us to keep are kept. The boxes below are ticked separately, none is ticked for you, and you can withdraw the marketing one at any time without affecting your service.
