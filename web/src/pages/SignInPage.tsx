@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
-import { Button, Photo, TextInput } from "../components/ui";
+import { AuthHero, Button, Photo, TextInput } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
 type SupabaseError = { status?: number; name?: string };
@@ -47,6 +47,20 @@ export function SignInPage() {
     );
   }
   const auth = supabase.auth;
+  const hero = (
+    <AuthHero
+      eyebrow="A little help for you · a little more fun for them"
+      heading={
+        <>
+          Meet your sitter first.
+          <br />
+          <span className="text-coral-display">Every time.</span>
+        </>
+      }
+      body="Verified sitters, a free introduction before any booking, and a team that's with you from the first hello."
+      photo="sitterHomePlay"
+    />
+  );
 
   async function sendCode(event?: FormEvent) {
     event?.preventDefault();
@@ -86,71 +100,96 @@ export function SignInPage() {
   }
 
   return (
-    <section className="mx-auto max-w-[28rem] text-center">
-      <Photo name="sitterCrafts" aspect="16 / 10" sizes="(min-width: 640px) 28rem, 100vw" priority className="mb-6" />
-      <h1>Sign in to Pacify.</h1>
+    <section className="mx-auto max-w-[72rem]">
+      <div className="grid gap-6 lg:grid-cols-[1.05fr_1fr] lg:items-stretch lg:gap-8">
+        {hero}
+        <div className="mx-auto w-full max-w-[28rem] text-center lg:mx-0 lg:max-w-none lg:self-center lg:text-left">
+          <Photo
+            name="sitterCrafts"
+            aspect="16 / 10"
+            sizes="(min-width: 640px) 28rem, 100vw"
+            priority
+            className="mb-6 lg:hidden"
+          />
+          <h1>Sign in to Pacify.</h1>
 
-      {step === "email" ? (
-        <>
-          <p className="mt-4 text-muted">New to Pacify? This creates your account too.</p>
-          <form onSubmit={sendCode} className="mt-6 flex flex-col gap-5 text-left" noValidate>
-            <TextInput
-              label="Email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              inputMode="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              hint="We'll email you a code to sign in."
-              error={error}
-            />
-            <Button type="submit" arrow fullWidthOnPhone={false} className="w-full" loading={busy} disabled={!email.trim()}>
-              Email me a code
-            </Button>
-          </form>
-          <p className="my-5 text-small text-muted">or</p>
-          <Button variant="secondary" className="w-full" onClick={continueWithGoogle} disabled={busy}>
-            Continue with Google
-          </Button>
-        </>
-      ) : (
-        <>
-          <p className="mt-4 text-muted">
-            We've sent a code to <span className="text-ink">{email.trim()}</span>. It works for 10 minutes.
-          </p>
-          <form onSubmit={verifyCode} className="mt-6 flex flex-col gap-5 text-left" noValidate>
-            <TextInput
-              label="Code"
-              name="code"
-              autoComplete="one-time-code"
-              inputMode="numeric"
-              maxLength={10}
-              value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
-              error={error}
-            />
-            <Button type="submit" arrow fullWidthOnPhone={false} className="w-full" loading={busy} disabled={code.length < 6}>
-              Sign in
-            </Button>
-          </form>
-          <div className="mt-5 flex flex-wrap justify-center gap-5">
-            <Button variant="tertiary" onClick={() => sendCode()} disabled={busy}>
-              Send a new code
-            </Button>
-            <Button
-              variant="tertiary"
-              onClick={() => {
-                setStep("email");
-                setError(undefined);
-              }}
-              disabled={busy}
-            >
-              Use a different email
-            </Button>
-          </div>
-        </>
-      )}
+          {step === "email" ? (
+            <>
+              <p className="mt-4 text-muted">New to Pacify? This creates your account too.</p>
+              <form onSubmit={sendCode} className="mt-6 flex flex-col gap-5 text-left" noValidate>
+                <TextInput
+                  label="Email"
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  hint="We'll email you a code to sign in."
+                  error={error}
+                />
+                <Button
+                  type="submit"
+                  arrow
+                  fullWidthOnPhone={false}
+                  className="w-full"
+                  loading={busy}
+                  disabled={!email.trim()}
+                >
+                  Email me a code
+                </Button>
+              </form>
+              <p className="my-5 text-small text-muted">or</p>
+              <Button variant="secondary" className="w-full" onClick={continueWithGoogle} disabled={busy}>
+                Continue with Google
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="mt-4 text-muted">
+                We've sent a code to <span className="text-ink">{email.trim()}</span>. It works for 10 minutes.
+              </p>
+              <form onSubmit={verifyCode} className="mt-6 flex flex-col gap-5 text-left" noValidate>
+                <TextInput
+                  label="Code"
+                  name="code"
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
+                  error={error}
+                />
+                <Button
+                  type="submit"
+                  arrow
+                  fullWidthOnPhone={false}
+                  className="w-full"
+                  loading={busy}
+                  disabled={code.length < 6}
+                >
+                  Sign in
+                </Button>
+              </form>
+              <div className="mt-5 flex flex-wrap justify-center gap-5 lg:justify-start">
+                <Button variant="tertiary" onClick={() => sendCode()} disabled={busy}>
+                  Send a new code
+                </Button>
+                <Button
+                  variant="tertiary"
+                  onClick={() => {
+                    setStep("email");
+                    setError(undefined);
+                  }}
+                  disabled={busy}
+                >
+                  Use a different email
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

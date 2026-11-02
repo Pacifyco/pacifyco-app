@@ -1,3 +1,4 @@
+export { AuthHero } from "./AuthHero";
 export { BookingCard } from "./BookingCard";
 export { Button, ButtonLink, buttonClasses } from "./Button";
 export { Card } from "./Card";
