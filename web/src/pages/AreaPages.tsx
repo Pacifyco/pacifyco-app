@@ -82,6 +82,11 @@ export function SitterHomePage() {
         <IconTile icon={Clock} label="Your availability" />
         <IconTile icon={Wallet} label="Your earnings" />
       </div>
+      <div className="mt-7 flex justify-center">
+        <ButtonLink to="/sitter/application" arrow>
+          Complete your application
+        </ButtonLink>
+      </div>
     </section>
   );
 }
