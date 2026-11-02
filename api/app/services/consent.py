@@ -77,7 +77,7 @@ def accept(db: Session, parent_id: uuid.UUID, version: str, marketing: bool) -> 
     for kind in REQUIRED_KINDS:
         if _latest(db, parent_id, kind) is None:
             db.add(Consent(parent_id=parent_id, kind=kind, version=version, accepted=True))
-    db.flush()
+    db.commit()  # commit the required kinds now: set_marketing only commits when the choice changes
     return set_marketing(db, parent_id, marketing)
 
 
