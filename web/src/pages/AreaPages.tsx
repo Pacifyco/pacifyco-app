@@ -36,6 +36,11 @@ export function ParentHomePage() {
         <IconTile icon={Calendar} label="Scheduled care" />
         <IconTile icon={Wallet} label="Hour packs" />
       </div>
+      <div className="mt-7 flex justify-center">
+        <ButtonLink to="/parent/family" arrow>
+          Add your family's details
+        </ButtonLink>
+      </div>
       <ConsentPrompt />
     </section>
   );
