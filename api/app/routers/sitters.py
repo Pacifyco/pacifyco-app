@@ -14,9 +14,11 @@ from app.models import PayoutMethod, Profile, Reference, Role, Sitter, Verificat
 from app.models.sitters import MAX_RATE_PAISE, MIN_RATE_PAISE
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
+from app.settings import Settings, get_settings
 
 router = APIRouter(prefix="/sitter", tags=["sitter"], dependencies=[Depends(require_role(Role.sitter))])
 SitterProfile = Annotated[Profile, Depends(require_role(Role.sitter))]
+AppSettings = Annotated[Settings, Depends(get_settings)]
 
 MIN_AGE_YEARS = 18
 
@@ -116,13 +118,17 @@ class HealthDisclosure(BaseModel):
 
 
 @router.get("/health-disclosure")
-def get_health_disclosure(sitter: SitterProfile, db: DbSession) -> HealthDisclosure:
-    return HealthDisclosure(disclosure=sitters_service.get_health_disclosure(db, sitter.id))
+def get_health_disclosure(sitter: SitterProfile, db: DbSession, settings: AppSettings) -> HealthDisclosure:
+    return HealthDisclosure(
+        disclosure=sitters_service.get_health_disclosure(db, sitter.id, settings.field_encryption_key)
+    )
 
 
 @router.put("/health-disclosure")
-def put_health_disclosure(body: HealthDisclosure, sitter: SitterProfile, db: DbSession) -> HealthDisclosure:
-    sitters_service.set_health_disclosure(db, sitter.id, body.disclosure)
+def put_health_disclosure(
+    body: HealthDisclosure, sitter: SitterProfile, db: DbSession, settings: AppSettings
+) -> HealthDisclosure:
+    sitters_service.set_health_disclosure(db, sitter.id, body.disclosure, settings.field_encryption_key)
     return body
 
 
@@ -159,10 +165,10 @@ class PayoutDetailsOut(BaseModel):
 
 
 @router.get("/payout-details")
-def get_payout_details(sitter: SitterProfile, db: DbSession) -> PayoutDetailsOut:
+def get_payout_details(sitter: SitterProfile, db: DbSession, settings: AppSettings) -> PayoutDetailsOut:
     row = sitters_service.get_profile(db, sitter.id)
     if row.payout_method == PayoutMethod.bank:
-        bank = sitters_service.get_payout_bank(db, sitter.id)
+        bank = sitters_service.get_payout_bank(db, sitter.id, settings.field_encryption_key)
         return PayoutDetailsOut(
             method=PayoutMethod.bank,
             account_holder_name=bank.account_holder_name if bank else None,
@@ -175,14 +181,16 @@ def get_payout_details(sitter: SitterProfile, db: DbSession) -> PayoutDetailsOut
 
 
 @router.put("/payout-details")
-def put_payout_details(body: PayoutDetailsIn, sitter: SitterProfile, db: DbSession) -> PayoutDetailsOut:
+def put_payout_details(
+    body: PayoutDetailsIn, sitter: SitterProfile, db: DbSession, settings: AppSettings
+) -> PayoutDetailsOut:
     if body.method == PayoutMethod.bank:
         details = sitters_service.BankDetails(
             account_holder_name=_clean_text(body.account_holder_name or ""),
             account_number=_clean_text(body.account_number or ""),
             ifsc_code=_clean_text(body.ifsc_code or ""),
         )
-        sitters_service.set_payout_bank(db, sitter.id, details)
+        sitters_service.set_payout_bank(db, sitter.id, details, settings.field_encryption_key)
         return PayoutDetailsOut(method=PayoutMethod.bank, **details.__dict__)
     sitters_service.set_payout_upi(db, sitter.id, body.upi_id or "")
     return PayoutDetailsOut(method=PayoutMethod.upi, upi_id=body.upi_id)

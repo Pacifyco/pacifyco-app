@@ -64,23 +64,25 @@ def update_profile(
     return sitter
 
 
-def set_health_disclosure(db: Session, sitter_id: uuid.UUID, disclosure: str | None) -> None:
+def set_health_disclosure(db: Session, sitter_id: uuid.UUID, disclosure: str | None, encryption_key: str) -> None:
     sitter = _get_sitter(db, sitter_id)
-    sitter.health_disclosure_encrypted = encryption.encrypt(disclosure) if disclosure is not None else None
+    sitter.health_disclosure_encrypted = (
+        encryption.encrypt(encryption_key, disclosure) if disclosure is not None else None
+    )
     db.commit()
 
 
-def get_health_disclosure(db: Session, sitter_id: uuid.UUID) -> str | None:
+def get_health_disclosure(db: Session, sitter_id: uuid.UUID, encryption_key: str) -> str | None:
     sitter = _get_sitter(db, sitter_id)
     if sitter.health_disclosure_encrypted is None:
         return None
-    return encryption.decrypt(sitter.health_disclosure_encrypted)
+    return encryption.decrypt(encryption_key, sitter.health_disclosure_encrypted)
 
 
-def set_payout_bank(db: Session, sitter_id: uuid.UUID, details: BankDetails) -> None:
+def set_payout_bank(db: Session, sitter_id: uuid.UUID, details: BankDetails, encryption_key: str) -> None:
     sitter = _get_sitter(db, sitter_id)
     sitter.payout_method = PayoutMethod.bank
-    sitter.bank_details_encrypted = encryption.encrypt(json.dumps(details.__dict__))
+    sitter.bank_details_encrypted = encryption.encrypt(encryption_key, json.dumps(details.__dict__))
     sitter.upi_id = None
     db.commit()
 
@@ -93,11 +95,11 @@ def set_payout_upi(db: Session, sitter_id: uuid.UUID, upi_id: str) -> None:
     db.commit()
 
 
-def get_payout_bank(db: Session, sitter_id: uuid.UUID) -> BankDetails | None:
+def get_payout_bank(db: Session, sitter_id: uuid.UUID, encryption_key: str) -> BankDetails | None:
     sitter = _get_sitter(db, sitter_id)
     if sitter.bank_details_encrypted is None:
         return None
-    return BankDetails(**json.loads(encryption.decrypt(sitter.bank_details_encrypted)))
+    return BankDetails(**json.loads(encryption.decrypt(encryption_key, sitter.bank_details_encrypted)))
 
 
 # ---------- references (CLAUDE.md section 7 step 4) ----------
