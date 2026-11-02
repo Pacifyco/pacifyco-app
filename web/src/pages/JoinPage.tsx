@@ -10,7 +10,7 @@ import {
   shownVersions,
   termsReady,
 } from "../auth/TermsAgreement";
-import { Button, Photo, RoleChooser, TextInput, type ChosenRole } from "../components/ui";
+import { AuthHero, Button, Photo, RoleChooser, TextInput, type ChosenRole } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
 type Step = "role" | "details" | "confirm";
@@ -129,23 +129,37 @@ export function JoinPage() {
 
   if (step === "role" || !role) {
     return (
-      <section className="mx-auto max-w-[44rem] text-center">
-        <h1>How will you use Pacify?</h1>
-        <p className="mt-4 text-muted">Choose one. Each account is either a parent or a sitter.</p>
-        <div className="mt-6">
-          <RoleChooser value={role} onChange={setRole} />
-        </div>
-        <div className="mt-6 flex justify-center">
-          <Button
-            arrow
-            disabled={!role}
-            onClick={() => {
-              if (!fullName.trim() && name) setFullName(name);
-              setStep("details");
-            }}
-          >
-            Continue
-          </Button>
+      <section className="mx-auto max-w-[72rem]">
+        <div className="grid gap-6 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:gap-8">
+          <AuthHero
+            eyebrow="Trusted by families across Bengaluru"
+            heading={
+              <>
+                Care that's <span className="text-coral-display">met</span>, checked and ready.
+              </>
+            }
+            body="Every sitter is ID and police verified, referenced and interviewed, and you always meet them first, free, before the first booking."
+            photo="parentsDinnerCouple"
+          />
+          <div className="mx-auto w-full max-w-[44rem] text-center lg:mx-0 lg:max-w-none lg:text-left">
+            <h1>How will you use Pacify?</h1>
+            <p className="mt-4 text-muted">Choose one. Each account is either a parent or a sitter.</p>
+            <div className="mt-6">
+              <RoleChooser value={role} onChange={setRole} />
+            </div>
+            <div className="mt-6 flex justify-center lg:justify-start">
+              <Button
+                arrow
+                disabled={!role}
+                onClick={() => {
+                  if (!fullName.trim() && name) setFullName(name);
+                  setStep("details");
+                }}
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
     );
