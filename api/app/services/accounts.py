@@ -18,6 +18,7 @@ from app.models import (
     Parent,
     Profile,
     ProfileStatus,
+    Reference,
     Role,
     Sitter,
 )
@@ -120,6 +121,8 @@ def is_empty(db: Session, profile: Profile) -> bool:
             sitter.hourly_rate_paise,
         )
         if any(value is not None for value in filled) or sitter.age_groups or sitter.languages:
+            return False
+        if db.scalar(select(Reference.id).where(Reference.sitter_id == profile.id).limit(1)) is not None:
             return False
     return True
 

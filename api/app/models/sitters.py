@@ -3,11 +3,11 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import ARRAY, CheckConstraint, ForeignKey, LargeBinary, Numeric, Text, false
+from sqlalchemy import ARRAY, CheckConstraint, ForeignKey, LargeBinary, Numeric, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
-from app.models.common import enum_column
+from app.models.common import VerificationStatus, enum_column, uuid_pk
 
 # Sitter rate limits in paise: ₹80–₹120 per hour, per child (CLAUDE.md 6.2).
 MIN_RATE_PAISE = 8_000
@@ -54,3 +54,20 @@ class Sitter(Base):
     )
     avg_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     review_count: Mapped[int] = mapped_column(server_default="0")
+
+
+class Reference(Base):
+    """Two references per sitter (name, phone, relationship), CLAUDE.md section 7 step 4. An admin
+    records the outcome; `pending` until then (phase 3's admin verification queue)."""
+
+    __tablename__ = "references"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    sitter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sitters.profile_id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(Text)
+    phone: Mapped[str] = mapped_column(String(20))
+    relationship: Mapped[str] = mapped_column(Text)
+    outcome: Mapped[VerificationStatus] = mapped_column(
+        enum_column(VerificationStatus, "reference_outcome"), server_default=VerificationStatus.pending.value
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
