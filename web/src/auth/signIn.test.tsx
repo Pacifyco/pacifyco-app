@@ -431,15 +431,27 @@ describe("role-gated areas", () => {
 
 describe("parental consent", () => {
   type Call = { url: string; init?: RequestInit };
+  type Status = { version: string; required_accepted: boolean; accepted_at: string | null; marketing: boolean };
 
-  function parentWithConsent(acceptedAt: string | null, apiVersion = CONSENT_VERSION) {
+  const NOT_ACCEPTED: Status = { version: CONSENT_VERSION, required_accepted: false, accepted_at: null, marketing: false };
+
+  function parentWithConsent(initial: Status, apiVersion = CONSENT_VERSION) {
     fake.state.session = fake.session;
+    let current: Status = { ...initial, version: apiVersion };
     const calls: Call[] = [];
     vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
       calls.push({ url, init });
+      if (url.endsWith("/parent/consent/marketing")) {
+        const { accepted } = JSON.parse(init!.body as string) as { accepted: boolean };
+        current = { ...current, marketing: accepted };
+        return Promise.resolve(jsonResponse(current));
+      }
       if (url.endsWith("/parent/consent")) {
-        const accepted = init?.method === "POST" ? "2026-11-01T10:00:00Z" : acceptedAt;
-        return Promise.resolve(jsonResponse({ version: apiVersion, accepted_at: accepted }));
+        if (init?.method === "POST") {
+          const body = JSON.parse(init.body as string) as { marketing: boolean };
+          current = { ...current, required_accepted: true, accepted_at: "2026-11-01T10:00:00Z", marketing: body.marketing };
+        }
+        return Promise.resolve(jsonResponse(current));
       }
       if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE }));
       return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
@@ -448,51 +460,79 @@ describe("parental consent", () => {
   }
 
   test("a parent who hasn't consented is asked to, from their home", async () => {
-    parentWithConsent(null);
+    parentWithConsent(NOT_ACCEPTED);
     renderApp("/parent");
     const link = await screen.findByRole("link", { name: /Read the consent form/ });
     expect(link.getAttribute("href")).toBe("/parent/consent");
   });
 
-  test("the form shows the draft text and needs the box ticked before agreeing", async () => {
-    const calls = parentWithConsent(null);
+  test("the form shows the draft text and needs every required box ticked before agreeing", async () => {
+    const calls = parentWithConsent(NOT_ACCEPTED);
     const { router } = renderApp("/parent/consent");
     expect(await screen.findByRole("heading", { level: 1, name: "Parental consent form" })).toBeTruthy();
     expect(screen.getByText("DRAFT — NOT LEGALLY REVIEWED.")).toBeTruthy();
     expect(screen.getByText(`Version ${CONSENT_VERSION}`)).toBeTruthy();
 
-    const box = (await screen.findByRole("checkbox")) as HTMLInputElement;
-    expect(box.checked).toBe(false);
+    const required = [
+      await screen.findByRole("checkbox", { name: /use of my own data/ }),
+      screen.getByRole("checkbox", { name: /use of each child's data/ }),
+      screen.getByRole("checkbox", { name: /sharing my child's care details/ }),
+      screen.getByRole("checkbox", { name: /emergency authorisation/ }),
+    ];
+    const marketing = screen.getByRole("checkbox", { name: /offers and updates/ });
+    for (const box of [...required, marketing]) expect((box as HTMLInputElement).checked).toBe(false);
+
+    // Ticking only some of the required boxes isn't enough.
+    fireEvent.click(required[0]);
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
-    expect(screen.getByText("Please tick the box to give your consent.")).toBeTruthy();
+    expect(screen.getByText("Please tick every required box to continue.")).toBeTruthy();
     expect(calls.some((call) => call.init?.method === "POST")).toBe(false);
 
-    fireEvent.click(box);
+    for (const box of required.slice(1)) fireEvent.click(box);
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
     // Back to the parent home, which now shows the date.
     expect(await screen.findByText("Parental consent given on 1 Nov 2026.")).toBeTruthy();
     expect(router.state.location.pathname).toBe("/parent");
     const post = calls.find((call) => call.init?.method === "POST")!;
-    expect(JSON.parse(post.init!.body as string)).toEqual({ version: CONSENT_VERSION });
+    expect(JSON.parse(post.init!.body as string)).toEqual({ version: CONSENT_VERSION, marketing: false });
+  });
+
+  test("ticking the optional marketing box is sent along with the required ones", async () => {
+    const calls = parentWithConsent(NOT_ACCEPTED);
+    renderApp("/parent/consent");
+    fireEvent.click(await screen.findByRole("checkbox", { name: /use of my own data/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /use of each child's data/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /sharing my child's care details/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /emergency authorisation/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /offers and updates/ }));
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+
+    await screen.findByText("Parental consent given on 1 Nov 2026.");
+    const post = calls.find((call) => call.init?.method === "POST")!;
+    expect(JSON.parse(post.init!.body as string)).toEqual({ version: CONSENT_VERSION, marketing: true });
   });
 
   test("a parent who has consented sees when, with no form to fill", async () => {
-    parentWithConsent("2026-10-30T08:00:00Z");
+    parentWithConsent({ version: CONSENT_VERSION, required_accepted: true, accepted_at: "2026-10-30T08:00:00Z", marketing: false });
     renderApp("/parent");
     expect(await screen.findByText("Parental consent given on 30 Oct 2026.")).toBeTruthy();
     expect(screen.queryByRole("link", { name: /Read the consent form/ })).toBeNull();
   });
 
-  test("opening the form again after consenting shows when, and the way home", async () => {
-    parentWithConsent("2026-10-30T08:00:00Z");
+  test("opening the form again after consenting shows when, the way home, and a marketing toggle", async () => {
+    parentWithConsent({ version: CONSENT_VERSION, required_accepted: true, accepted_at: "2026-10-30T08:00:00Z", marketing: false });
     renderApp("/parent/consent");
     expect(await screen.findByText("You gave your consent on 30 Oct 2026.")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to your home" }).getAttribute("href")).toBe("/parent");
-    expect(screen.queryByRole("checkbox")).toBeNull();
+
+    const marketing = screen.getByRole("checkbox", { name: /offers and updates/ }) as HTMLInputElement;
+    expect(marketing.checked).toBe(false);
+    fireEvent.click(marketing);
+    await waitFor(() => expect((marketing as HTMLInputElement).checked).toBe(true));
   });
 
   test("an old copy of the form can't be accepted", async () => {
-    parentWithConsent(null, "0.2");
+    parentWithConsent(NOT_ACCEPTED, "0.2");
     renderApp("/parent/consent");
     expect(await screen.findByText(/This form has been updated. Please reload/)).toBeTruthy();
     expect(screen.queryByRole("checkbox")).toBeNull();

@@ -17,18 +17,39 @@ Parent = Annotated[Profile, Depends(require_role(Role.parent))]
 
 class ConsentStatus(BaseModel):
     version: str  # the current version
-    accepted_at: datetime | None  # when this parent accepted it, if they have
+    required_accepted: bool  # every required consent given, at the current version
+    accepted_at: datetime | None  # when the last required one was given, if all are
+    marketing: bool  # current opt-in state
 
 
 class AcceptConsent(BaseModel):
     version: str  # the version the parent was shown
+    marketing: bool  # whether they also ticked the optional marketing box
+
+
+class SetMarketing(BaseModel):
+    accepted: bool
+
+
+def _status(summary: consent.ConsentSummary) -> ConsentStatus:
+    return ConsentStatus(
+        version=summary.version,
+        required_accepted=summary.required_accepted,
+        accepted_at=summary.accepted_at,
+        marketing=summary.marketing,
+    )
 
 
 @router.get("/consent")
 def get_consent(parent: Parent, db: DbSession) -> ConsentStatus:
-    return ConsentStatus(version=consent.CONSENT_VERSION, accepted_at=consent.accepted_at(db, parent.id))
+    return _status(consent.summary(db, parent.id))
 
 
 @router.post("/consent")
 def accept_consent(body: AcceptConsent, parent: Parent, db: DbSession) -> ConsentStatus:
-    return ConsentStatus(version=consent.CONSENT_VERSION, accepted_at=consent.accept(db, parent.id, body.version))
+    return _status(consent.accept(db, parent.id, body.version, body.marketing))
+
+
+@router.patch("/consent/marketing")
+def set_marketing_consent(body: SetMarketing, parent: Parent, db: DbSession) -> ConsentStatus:
+    return _status(consent.set_marketing(db, parent.id, body.accepted))

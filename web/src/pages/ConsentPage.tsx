@@ -11,7 +11,12 @@ import { Markdown, parseDocument } from "../lib/markdown";
 export const CONSENT = parseDocument(consentSource);
 export const CONSENT_VERSION = CONSENT.meta.version ?? "";
 
-export type ConsentStatus = { version: string; accepted_at: string | null };
+export type ConsentStatus = {
+  version: string;
+  required_accepted: boolean;
+  accepted_at: string | null;
+  marketing: boolean;
+};
 
 export function useConsent() {
   const { userId } = useAuth();
@@ -21,20 +26,31 @@ export function useConsent() {
   });
 }
 
-// CLAUDE.md 7: before any child documents, the parent accepts the current version of this form.
+// Family Terms 11.2 (CLAUDE.md 7): four required consents, ticked separately, nothing pre-ticked.
+const REQUIRED_LABELS = [
+  "I consent to Pacify's use of my own data for my account, verification, bookings, payments and safety.",
+  "I consent to Pacify's use of each child's data, given by me as their parent or guardian, to match and brief a sitter and keep my child safe.",
+  "I consent to Pacify sharing my child's care details with the booked sitter.",
+  "I give emergency authorisation: if I and my emergency contacts can't be reached, the sitter may call 112, take my child to the nearest hospital or doctor, and Pacify may share my child's health details with treating doctors.",
+];
+const MARKETING_LABEL =
+  "I'd like offers and updates from Pacify. Saying no won't affect my service, and I can change my mind at any time.";
+
+// CLAUDE.md 7: before any child documents, the parent accepts every required consent.
 export function ConsentPage() {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
   const consent = useConsent();
   const navigate = useNavigate();
-  const [ticked, setTicked] = useState(false);
+  const [ticked, setTicked] = useState<boolean[]>(() => REQUIRED_LABELS.map(() => false));
+  const [marketing, setMarketing] = useState(false);
   const [error, setError] = useState<string>();
 
   const accept = useMutation({
     mutationFn: () =>
       apiFetch<ConsentStatus>("/parent/consent", {
         method: "POST",
-        body: JSON.stringify({ version: CONSENT_VERSION }),
+        body: JSON.stringify({ version: CONSENT_VERSION, marketing }),
       }),
     onSuccess: (status) => {
       queryClient.setQueryData(["consent", userId], status);
@@ -42,12 +58,19 @@ export function ConsentPage() {
     },
   });
 
+  const setMarketingChoice = useMutation({
+    mutationFn: (accepted: boolean) =>
+      apiFetch<ConsentStatus>("/parent/consent/marketing", { method: "PATCH", body: JSON.stringify({ accepted }) }),
+    onSuccess: (status) => queryClient.setQueryData(["consent", userId], status),
+  });
+
   // The API and this page disagree about the current version: an old copy of the app is open.
   const outdated = consent.isSuccess && consent.data.version !== CONSENT_VERSION;
   const acceptedAt = consent.data && !outdated ? consent.data.accepted_at : null;
+  const marketingGiven = consent.data && !outdated ? consent.data.marketing : false;
 
   function submit() {
-    if (!ticked) return setError("Please tick the box to give your consent.");
+    if (ticked.some((value) => !value)) return setError("Please tick every required box to continue.");
     setError(undefined);
     accept.mutate();
   }
@@ -57,7 +80,7 @@ export function ConsentPage() {
       <Markdown body={CONSENT.body} />
       <p className="mt-4 text-small text-muted">Version {CONSENT_VERSION}</p>
 
-      <div className="mt-6 rounded-lg bg-surface-sunken p-5">
+      <div className="mt-6 flex flex-col gap-5 rounded-lg bg-surface-sunken p-5">
         {consent.isPending ? (
           <p className="text-muted">Checking your consent…</p>
         ) : consent.isError ? (
@@ -69,18 +92,33 @@ export function ConsentPage() {
         ) : acceptedAt ? (
           <div className="flex flex-col items-start gap-4">
             <p className="text-ink">You gave your consent on {formatDate(new Date(acceptedAt))}.</p>
+            <Checkbox
+              label={MARKETING_LABEL}
+              checked={marketingGiven}
+              onChange={(event) => setMarketingChoice.mutate(event.target.checked)}
+            />
             <ButtonLink to="/parent" variant="secondary">
               Back to your home
             </ButtonLink>
           </div>
         ) : (
-          <div className="flex flex-col gap-5">
-            <Checkbox
-              label="I'm the parent or legal guardian of the children I add, and I give my consent as described above."
-              checked={ticked}
-              onChange={(event) => setTicked(event.target.checked)}
-              error={error}
-            />
+          <>
+            {REQUIRED_LABELS.map((label, index) => (
+              <Checkbox
+                key={label}
+                label={label}
+                checked={ticked[index]}
+                onChange={(event) =>
+                  setTicked((current) => current.map((value, i) => (i === index ? event.target.checked : value)))
+                }
+              />
+            ))}
+            <Checkbox label={MARKETING_LABEL} checked={marketing} onChange={(event) => setMarketing(event.target.checked)} />
+            {error && (
+              <p role="alert" className="text-small text-danger">
+                {error}
+              </p>
+            )}
             {accept.isError && (
               <p role="alert" className="text-small text-danger">
                 {accept.error.message}
@@ -89,7 +127,7 @@ export function ConsentPage() {
             <Button loading={accept.isPending} onClick={submit}>
               I agree
             </Button>
-          </div>
+          </>
         )}
       </div>
     </article>

@@ -2,7 +2,7 @@
 
 from app.models.audit import AuditLog
 from app.models.common import VerificationStatus
-from app.models.consents import Consent
+from app.models.consents import Consent, ConsentKind
 from app.models.documents import Document, DocumentAccessLog, DocumentStatus, DocumentType
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
 from app.models.parents import Child, EmergencyContact, Parent
@@ -14,6 +14,7 @@ __all__ = [
     "AuditLog",
     "Child",
     "Consent",
+    "ConsentKind",
     "Document",
     "DocumentAccessLog",
     "DocumentStatus",
