@@ -34,14 +34,29 @@ and pays sitters within 12 hours of each booking.
    that Reuben approves.
 5. **Secrets.** Never commit secrets or paste them into code, logs, tests or chat. Read them from
    environment variables. Keep `.env.example` up to date with every variable name (no values).
-6. **Tests are part of done.** Every feature ships with the tests listed for it in section 9. Reuben
+6. **Screens first, one phase at a time (from phase 4; decided 2026-11-02).** Each phase runs in
+   four steps, each its own PR off `develop`:
+   1. **Contract:** the TypeScript types for what each screen reads and sends, written to match the
+      API schemas the phase will add (same field names, units: paise, half-hour units, UTC times).
+   2. **Screens on fake data:** pages and components built with design.md, reading typed fixtures in
+      `web/src/mocks/<phase>.ts` through the same TanStack Query hooks the real API will use. No API
+      calls and no business rules beyond what the screen shows. Mocked routes and nav items are shown
+      only outside production (`config.environment !== "production"`), and each mocked page carries a
+      visible "Preview: sample data" note. Web tests for the screens as usual.
+   3. **Review [Reuben]** on staging. Changes are made to the screens and the contract, not later.
+   4. **Backend and wiring:** models, migration, endpoints, rules and section 9 tests, built to the
+      reviewed contract; then the hooks switch from fixtures to the API, the fixtures and the
+      preview-only gate are deleted, and the phase's tests are ticked.
+   Fake data must never reach production: a release to `main` may include mocked screens only behind
+   that gate. A phase isn't done until step 4 is merged.
+7. **Tests are part of done.** Every feature ships with the tests listed for it in section 9. Reuben
    runs manual functional tests on staging; you own automated tests and security testing.
-7. **Database changes only through Alembic migrations.** Never edit the database by hand. Every
+8. **Database changes only through Alembic migrations.** Never edit the database by hand. Every
    migration must run cleanly on an empty database and be reversible where practical.
-8. **Copy follows `design.md` voice rules.** Never claim a safety check we don't do (see section 7).
-9. **Keep context small.** Update `progress.md` instead of writing summaries in chat. Don't paste large
-   files back into the conversation.
-10. **When something breaks badly,** stop, report what happened and what you'd roll back. Don't keep
+9. **Copy follows `design.md` voice rules.** Never claim a safety check we don't do (see section 7).
+10. **Keep context small.** Update `progress.md` instead of writing summaries in chat. Don't paste large
+    files back into the conversation.
+11. **When something breaks badly,** stop, report what happened and what you'd roll back. Don't keep
     stacking fixes.
 
 ---

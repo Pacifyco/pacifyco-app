@@ -10,7 +10,8 @@ tests.
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
 - Next item: items 1-5 are done and on staging (PRs #49-#55 merged) -- next is the psychology test
-  engine, then the admin verification queue. Waiting for Reuben's go-ahead before building.
+  engine, then the admin verification queue. Waiting for Reuben's go-ahead before building. Phase 3
+  finishes the current way (backend and screens together); from phase 4, screens first (CLAUDE.md 2.6).
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - Blocked on: `FIELD_ENCRYPTION_KEY` isn't on Render yet [Reuben] (staging and production, a different
   key each; README "Encryption key"). Until it is, saving a sitter's health disclosure or bank details
@@ -117,7 +118,17 @@ Waiting on: FIELD_ENCRYPTION_KEY on Render [Reuben] (see Current status). Sitter
 - [ ] Birth certificate auto-delete after child verification
 - [ ] Tests for this phase
 
+## How phases run from phase 4 on
+
+Screens first, one phase at a time (CLAUDE.md 2.6, decided 2026-11-02, starts once phase 3 is done).
+Each phase below goes through: **contract** → **screens on fake data** (staging only) → **review
+[Reuben]** → **backend, wiring and tests**. Tick a phase's feature items only after step 4.
+
 ## Phase 4 — Marketplace
+
+- [ ] Contract: types for availability, search results and the sitter profile
+- [ ] Screens on fake data (staging only)
+- [ ] Review [Reuben]
 
 - [ ] Sitter availability calendar (add/remove free times)
 - [ ] Geocoding with cache; distance from parent
@@ -226,6 +237,8 @@ Waiting on: FIELD_ENCRYPTION_KEY on Render [Reuben] (see Current status). Sitter
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-02 — Decided with Reuben: from phase 4, each phase builds its screens on fake data first
+  (staging only), Reuben reviews them, then the backend is built to match and wired in (CLAUDE.md 2.6).
 - 2026-11-02 — Checked the `format.test.ts` failure noted below: not a bug. The repo pins Node 24
   (`.nvmrc`, used by CI); on Node 20, `Intl` formats midnight differently, so one time test fails
   there. On Node 24 all 160 web tests pass. Use Node 24 on every machine. Recorded what to take from
