@@ -33,6 +33,23 @@ class DocumentStatusOut(BaseModel):
     status: DocumentStatus
 
 
+class DocumentOut(BaseModel):
+    id: uuid.UUID
+    type: DocumentType
+    child_id: uuid.UUID | None
+    status: DocumentStatus
+
+
+@router.get("/mine")
+def list_my_documents(
+    profile: CurrentProfile, db: DbSession, type: DocumentType | None = None, child_id: uuid.UUID | None = None
+) -> list[DocumentOut]:
+    """So a parent or sitter can see "uploaded" / "being checked" / "please try again" for their own
+    files -- not a signed view URL, which stays admin-only."""
+    rows = documents.list_mine(db, profile.id, type, child_id)
+    return [DocumentOut(id=row.id, type=row.type, child_id=row.child_id, status=row.status) for row in rows]
+
+
 @router.post("/upload-url", status_code=201)
 def create_upload_url(body: RequestUpload, profile: CurrentProfile, db: DbSession, storage: Storage) -> UploadTicket:
     ticket = documents.request_upload(db, storage, profile.id, body.type, body.child_id)

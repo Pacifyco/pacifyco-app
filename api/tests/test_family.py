@@ -2,6 +2,7 @@
 emergency contacts per family, any number of authorised adults, no IDOR."""
 
 import uuid
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import text
@@ -139,3 +140,101 @@ def test_an_authorised_adult_makes_the_account_not_empty(client, db_engine, pare
     client.post("/parent/authorised-adults", json=CONTACT_A, headers=auth_for(parent))
     url = db_engine.url.render_as_string(hide_password=False)
     assert cli.delete_empty_profile(parent["email"], True, url) == 1
+
+
+# ---------- children ----------
+
+CHILD = {"name": "Asha K", "date_of_birth": "2023-05-01", "allergies": "Peanuts"}
+
+
+def test_no_children_yet(client, parent):  # noqa: F811
+    assert client.get("/parent/children", headers=auth_for(parent)).json() == []
+
+
+def test_adding_a_child(client, parent):  # noqa: F811
+    response = client.post("/parent/children", json=CHILD, headers=auth_for(parent))
+    assert response.status_code == 201
+    body = response.json()
+    assert body["name"] == "Asha K"
+    assert body["date_of_birth"] == "2023-05-01"
+    assert body["allergies"] == "Peanuts"
+    assert body["medical_notes"] is None
+    assert body["verification_status"] == "pending"
+
+
+def test_a_newborn_can_be_added_no_age_check_here(client, parent):  # noqa: F811
+    """CLAUDE.md 6.4: the 18-month check happens at booking time, not when adding a child."""
+    newborn = {**CHILD, "name": "Newborn", "date_of_birth": date.today().isoformat()}
+    assert client.post("/parent/children", json=newborn, headers=auth_for(parent)).status_code == 201
+
+
+def test_a_future_date_of_birth_is_refused(client, parent):  # noqa: F811
+    bad = {**CHILD, "date_of_birth": (date.today() + timedelta(days=1)).isoformat()}
+    response = client.post("/parent/children", json=bad, headers=auth_for(parent))
+    assert response.status_code == 422
+
+
+def test_a_blank_child_name_is_refused(client, parent):  # noqa: F811
+    bad = {**CHILD, "name": "   "}
+    response = client.post("/parent/children", json=bad, headers=auth_for(parent))
+    assert response.status_code == 422
+
+
+def test_listing_shows_added_children(client, parent):  # noqa: F811
+    client.post("/parent/children", json=CHILD, headers=auth_for(parent))
+    client.post("/parent/children", json={**CHILD, "name": "Rohan K"}, headers=auth_for(parent))
+    listed = client.get("/parent/children", headers=auth_for(parent)).json()
+    assert {c["name"] for c in listed} == {"Asha K", "Rohan K"}
+
+
+def test_updating_a_child(client, parent):  # noqa: F811
+    child = client.post("/parent/children", json=CHILD, headers=auth_for(parent)).json()
+    update = {**CHILD, "name": "Asha Kumar", "medical_notes": "Mild asthma"}
+    response = client.put(f"/parent/children/{child['id']}", json=update, headers=auth_for(parent))
+    assert response.status_code == 200
+    assert response.json()["name"] == "Asha Kumar"
+    assert response.json()["medical_notes"] == "Mild asthma"
+
+
+def test_removing_a_child(client, parent):  # noqa: F811
+    child = client.post("/parent/children", json=CHILD, headers=auth_for(parent)).json()
+    assert client.delete(f"/parent/children/{child['id']}", headers=auth_for(parent)).status_code == 204
+    assert client.get("/parent/children", headers=auth_for(parent)).json() == []
+
+
+def test_a_child_that_doesnt_exist_is_404(client, parent):  # noqa: F811
+    response = client.put(f"/parent/children/{uuid.uuid4()}", json=CHILD, headers=auth_for(parent))
+    assert response.status_code == 404
+
+
+def test_cannot_touch_someone_elses_child(client, make_profile, parent):  # noqa: F811
+    """No IDOR: changing the id in the URL doesn't let you touch another family's child."""
+    child = client.post("/parent/children", json=CHILD, headers=auth_for(parent)).json()
+    other_parent_id = make_profile("parent")
+    response = client.delete(f"/parent/children/{child['id']}", headers=as_user(other_parent_id))
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "forbidden"
+    assert len(client.get("/parent/children", headers=auth_for(parent)).json()) == 1
+
+
+def test_a_child_makes_the_account_not_empty(client, db_engine, parent):  # noqa: F811
+    client.post("/parent/children", json=CHILD, headers=auth_for(parent))
+    url = db_engine.url.render_as_string(hide_password=False)
+    assert cli.delete_empty_profile(parent["email"], True, url) == 1
+
+
+# ---------- single-parent declaration ----------
+
+
+def test_single_parent_declaration_defaults_to_false(client, parent):  # noqa: F811
+    assert client.get("/parent/single-parent-declaration", headers=auth_for(parent)).json() == {"declared": False}
+
+
+def test_declaring_and_withdrawing(client, parent):  # noqa: F811
+    declare = client.patch("/parent/single-parent-declaration", json={"declared": True}, headers=auth_for(parent))
+    assert declare.status_code == 200
+    assert declare.json() == {"declared": True}
+    assert client.get("/parent/single-parent-declaration", headers=auth_for(parent)).json() == {"declared": True}
+
+    withdraw = client.patch("/parent/single-parent-declaration", json={"declared": False}, headers=auth_for(parent))
+    assert withdraw.json() == {"declared": False}

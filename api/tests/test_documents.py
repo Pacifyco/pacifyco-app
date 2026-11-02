@@ -279,6 +279,34 @@ def test_confirming_a_document_that_doesnt_exist_is_404(client, parent):  # noqa
     assert response.status_code == 404
 
 
+# ---------- listing my own documents ----------
+
+
+def test_listing_my_documents_shows_status(client, storage, parent):  # noqa: F811
+    aadhaar = request_upload(client, parent, "aadhaar_masked").json()
+    government_id = request_upload(client, parent, "government_id").json()
+    storage.put(f"{parent['id']}/{aadhaar['document_id']}", PDF)
+    confirm(client, parent, aadhaar["document_id"])
+
+    listed = client.get("/documents/mine", headers=auth_for(parent)).json()
+    by_id = {d["id"]: d for d in listed}
+    assert by_id[aadhaar["document_id"]]["status"] == "uploaded"
+    assert by_id[aadhaar["document_id"]]["type"] == "aadhaar_masked"
+    assert by_id[government_id["document_id"]]["status"] == "pending_upload"
+
+
+def test_listing_my_documents_can_be_filtered_by_type(client, parent):  # noqa: F811
+    request_upload(client, parent, "aadhaar_masked")
+    request_upload(client, parent, "government_id")
+    listed = client.get("/documents/mine?type=aadhaar_masked", headers=auth_for(parent)).json()
+    assert {d["type"] for d in listed} == {"aadhaar_masked"}
+
+
+def test_a_sitters_documents_dont_show_in_a_parents_list(client, parent, sitter):  # noqa: F811
+    request_upload(client, sitter, "government_id")
+    assert client.get("/documents/mine", headers=auth_for(parent)).json() == []
+
+
 # ---------- admin viewing ----------
 
 

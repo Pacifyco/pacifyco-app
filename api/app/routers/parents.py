@@ -1,7 +1,7 @@
 """The parent area. Every route here is for parents only (CLAUDE.md 9: wrong role gets 403)."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -9,7 +9,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.auth import require_role
 from app.deps import DbSession
-from app.models import AuthorisedAdult, EmergencyContact, Profile, Role
+from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, VerificationStatus
+from app.services import children as children_service
 from app.services import consent, family
 from app.services.accounts import normalise_mobile
 
@@ -55,6 +56,22 @@ def accept_consent(body: AcceptConsent, parent: Parent, db: DbSession) -> Consen
 @router.patch("/consent/marketing")
 def set_marketing_consent(body: SetMarketing, parent: Parent, db: DbSession) -> ConsentStatus:
     return _status(consent.set_marketing(db, parent.id, body.accepted))
+
+
+class SingleParentDeclaration(BaseModel):
+    declared: bool
+
+
+@router.get("/single-parent-declaration")
+def get_single_parent_declaration(parent: Parent, db: DbSession) -> SingleParentDeclaration:
+    return SingleParentDeclaration(declared=consent.single_parent_declared(db, parent.id))
+
+
+@router.patch("/single-parent-declaration")
+def set_single_parent_declaration(
+    body: SingleParentDeclaration, parent: Parent, db: DbSession
+) -> SingleParentDeclaration:
+    return SingleParentDeclaration(declared=consent.set_single_parent_declaration(db, parent.id, body.declared))
 
 
 # ---------- emergency contacts and authorised adults (CLAUDE.md 7, Family Terms 2.5) ----------
@@ -123,3 +140,82 @@ def post_authorised_adult(body: ContactIn, parent: Parent, db: DbSession) -> Con
 @router.delete("/authorised-adults/{adult_id}", status_code=204)
 def delete_authorised_adult(adult_id: uuid.UUID, parent: Parent, db: DbSession) -> None:
     family.remove_authorised_adult(db, parent.id, adult_id)
+
+
+# ---------- children (CLAUDE.md sections 6.4 and 8) ----------
+
+
+class ChildIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    date_of_birth: date
+    allergies: str | None = Field(default=None, max_length=1000)
+    medical_notes: str | None = Field(default=None, max_length=1000)
+    routines: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, value: str) -> str:
+        cleaned = " ".join(value.split())
+        if not cleaned:
+            raise ValueError("Please enter a name")
+        return cleaned
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def _not_in_the_future(cls, value: date) -> date:
+        if value > date.today():
+            raise ValueError("That date hasn't happened yet")
+        return value
+
+    @field_validator("allergies", "medical_notes", "routines")
+    @classmethod
+    def _blank_is_none(cls, value: str | None) -> str | None:
+        return (" ".join(value.split()) or None) if value is not None else None
+
+
+class ChildOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    date_of_birth: date
+    allergies: str | None
+    medical_notes: str | None
+    routines: str | None
+    verification_status: VerificationStatus
+
+
+def _child_out(child: Child) -> ChildOut:
+    return ChildOut(
+        id=child.id,
+        name=child.name,
+        date_of_birth=child.date_of_birth,
+        allergies=child.allergies,
+        medical_notes=child.medical_notes,
+        routines=child.routines,
+        verification_status=child.verification_status,
+    )
+
+
+@router.get("/children")
+def get_children(parent: Parent, db: DbSession) -> list[ChildOut]:
+    return [_child_out(child) for child in children_service.list_children(db, parent.id)]
+
+
+@router.post("/children", status_code=201)
+def post_child(body: ChildIn, parent: Parent, db: DbSession) -> ChildOut:
+    child = children_service.add_child(
+        db, parent.id, body.name, body.date_of_birth, body.allergies, body.medical_notes, body.routines
+    )
+    return _child_out(child)
+
+
+@router.put("/children/{child_id}")
+def put_child(child_id: uuid.UUID, body: ChildIn, parent: Parent, db: DbSession) -> ChildOut:
+    child = children_service.update_child(
+        db, parent.id, child_id, body.name, body.date_of_birth, body.allergies, body.medical_notes, body.routines
+    )
+    return _child_out(child)
+
+
+@router.delete("/children/{child_id}", status_code=204)
+def delete_child(child_id: uuid.UUID, parent: Parent, db: DbSession) -> None:
+    children_service.remove_child(db, parent.id, child_id)

@@ -40,29 +40,47 @@ def _latest(db: Session, parent_id: uuid.UUID, kind: ConsentKind, version: str =
     )
 
 
+def _given(db: Session, parent_id: uuid.UUID, kind: ConsentKind) -> bool:
+    row = _latest(db, parent_id, kind)
+    return bool(row and row.accepted)
+
+
 def summary(db: Session, parent_id: uuid.UUID) -> ConsentSummary:
     given = [_latest(db, parent_id, kind) for kind in REQUIRED_KINDS]
     required_accepted = all(row is not None for row in given)
     accepted_at = max((row.created_at for row in given if row), default=None) if required_accepted else None
-    marketing_row = _latest(db, parent_id, ConsentKind.marketing)
     return ConsentSummary(
         version=CONSENT_VERSION,
         required_accepted=required_accepted,
         accepted_at=accepted_at,
-        marketing=bool(marketing_row and marketing_row.accepted),
+        marketing=_given(db, parent_id, ConsentKind.marketing),
     )
 
 
-def set_marketing(db: Session, parent_id: uuid.UUID, accepted: bool) -> ConsentSummary:
-    """Opt in or withdraw (CLAUDE.md 7: marketing consent is withdrawable). No row yet means "not
-    opted in", so this only adds a row when the choice actually changes -- saying no when there is
-    nothing to withdraw changes nothing, same as never ticking the box at sign-up."""
-    current = _latest(db, parent_id, ConsentKind.marketing)
-    effective = current.accepted if current else False
-    if effective != accepted:
-        db.add(Consent(parent_id=parent_id, kind=ConsentKind.marketing, version=CONSENT_VERSION, accepted=accepted))
+def _set_toggle(db: Session, parent_id: uuid.UUID, kind: ConsentKind, accepted: bool) -> ConsentSummary:
+    """A toggle that's withdrawable both ways. No row yet means "not given", so this only adds a row
+    when the choice actually changes -- saying no when there's nothing to withdraw changes nothing,
+    same as never ticking the box in the first place."""
+    if _given(db, parent_id, kind) != accepted:
+        db.add(Consent(parent_id=parent_id, kind=kind, version=CONSENT_VERSION, accepted=accepted))
         db.commit()
     return summary(db, parent_id)
+
+
+def set_marketing(db: Session, parent_id: uuid.UUID, accepted: bool) -> ConsentSummary:
+    """Opt in or withdraw (CLAUDE.md 7: marketing consent is withdrawable)."""
+    return _set_toggle(db, parent_id, ConsentKind.marketing, accepted)
+
+
+def single_parent_declared(db: Session, parent_id: uuid.UUID) -> bool:
+    return _given(db, parent_id, ConsentKind.single_parent_declaration)
+
+
+def set_single_parent_declaration(db: Session, parent_id: uuid.UUID, declared: bool) -> bool:
+    """ "I'm the only parent or legal guardian of the children I add" (CLAUDE.md 7): used instead of a
+    second masked Aadhaar, on the Aadhaar upload screen."""
+    _set_toggle(db, parent_id, ConsentKind.single_parent_declaration, declared)
+    return single_parent_declared(db, parent_id)
 
 
 def accept(db: Session, parent_id: uuid.UUID, version: str, marketing: bool) -> ConsentSummary:
