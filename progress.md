@@ -9,9 +9,8 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: item 4 is done (PRs #52 and #53 merged -- tick it); item 5 backend is built (PR #54,
-  open) -- next is item 5's frontend (sitter application/profile page), then the psychology test
-  engine and the admin verification queue
+- Next item: items 4 and 5 are done (PR #55 open for item 5's frontend, backend already merged in
+  #54) -- next is the psychology test engine, then the admin verification queue
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - Blocked on: nothing
 
@@ -111,7 +110,7 @@ when starting). Sitter rate field: keep ₹80–120 until the pricing questions 
 - [x] Emergency contacts per family (two) and authorised adults (Family Terms 2.5)
 - [x] Private storage buckets, signed upload URLs, file type/size validation
 - [x] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
-- [ ] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
+- [x] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
 - [ ] Psychology test engine with placeholder questions
 - [ ] Admin verification queue: view documents (logged), approve/reject each step with notes
 - [ ] Birth certificate auto-delete after child verification
@@ -226,7 +225,16 @@ when starting). Sitter rate field: keep ₹80–120 until the pricing questions 
 ---
 
 ## Session log (one line per session, newest first)
-- 2026-11-02 — Sitter application backend (PR #54, open): profile (bio, date of birth with an 18+
+- 2026-11-02 — Sitter application frontend (PR #55, open): `/sitter/application`, same two-column
+  layout as the family page. Profile (age groups and languages as comma-separated free text -- no
+  fixed taxonomy exists anywhere for either), health disclosure and payout details (bank or UPI)
+  each wait for their own GET before mounting an editable form, applying the family-page emergency
+  contacts fix up front this time instead of re-discovering the same race. References (add up to
+  two, remove). Four document upload slots (government ID, college/work ID, police certificate,
+  first-aid certificate) against the existing generic documents API, no backend changes needed.
+  Linked from the sitter home page. 159 web tests pass (plus the pre-existing unrelated Node/Intl
+  `format.test.ts` failure). Item 5 is now fully built (backend #54 merged, frontend #55 open).
+- 2026-11-02 — Sitter application backend (PR #54, merged): profile (bio, date of birth with an 18+
   check, years of experience, age groups, languages, first aid, hourly rate re-checked at the API
   against the same ₹80-120 range as the DB constraint), health disclosure and bank payout details
   encrypted at rest (new `app/services/encryption.py`, Fernet, keyed by a new
