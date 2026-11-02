@@ -56,61 +56,27 @@ tests.
       through Resend (Tokyo) and error reports to Sentry (Germany, no personal data). Check the wording
       with the lawyer.
 
-- [ ] **Pricing: plans instead of hour packs** (Reuben's answers, 2026-11-03). Not yet in CLAUDE.md 6:
-  section 6 is rewritten once the follow-ups below are answered. Until then nothing is built on it.
-
-  | Parent plan | Price per hour | Children | Sitter level that works it | Sitter pay per hour |
-  | --- | --- | --- | --- | --- |
-  | Pause | ₹499 | one child only | Level 1 (Pause) | ₹200 |
-  | Unwind | ₹699 | first child included, +₹150 per extra child (2 children = ₹849) | Level 2 (Unwind) | ₹300 |
-  | Recharge | ₹899 | any number, same price | Level 3 | ₹400 |
-
-  Decided:
-  1. Plans are levels of service; the parent picks one **for each booking**.
-  2. Sitter levels are set by Pacify; a sitter can be moved up once conditions are met. Sitters are told
-     "based on the experience we understand you have, you'll be paid ₹X per hour; as you put in more
-     hours we'll increase your pay". Sitters aren't told which plan they're booked for.
-  3. Level conditions: Level 1, 0–1 families, new sitters welcome, daytime until 6 pm, one child at
-     home, no bath time, no outings. Level 2, 2 families, until 10:30 pm, more than one child, bath
-     time, no outings. Level 3, 3+ families, until 12 am, more than one child, bath time, outings; her
-     reference is shared with the parent, with her consent.
-  4. **No hour packs**: parents pay by the hour at the plan rate. (Removes CLAUDE.md 6.1's packs,
-     tiers, expiry, carry-forward and the child-hours ledger.)
-  5. **Sitters no longer set a rate**: pay is fixed per plan. (Removes the ₹80–120 rate, which is built
-     in the sitter application, PRs #54/#55, and in the Sitter Terms v1.1 2.3.)
-  6. Overtime: charged at the plan's hourly price, rounded up to the next full hour.
-  7. No minimum booking length (was 2 hours); booked time rounded to the nearest half hour.
-  8. Parent not home: that hour is charged, and the sitter gets ₹100.
-  9. No under-18-months fee (no children under 18 months).
-  10. No GST for now.
-  11. Sitter cards show no price; plan prices appear when the parent picks a plan.
-  12. Every sitter on every plan has the same checks (government and college ID, psychologist
-      screening, police verification, a video call with the parent before the first booking).
-
-  Follow-ups (asked 2026-11-03):
-  a. **Payment**: with no packs, how and when does a parent pay? (Before the booking by UPI with an
-     admin confirming, or after it?) And overtime?
-  b. **Cancellations**: what does a parent pay when cancelling under 3 hours before (whole booking?),
-     and is money refunded when they cancel earlier or the sitter cancels?
-  c. **Which sitters work which plan**: only their own level, or their level and below? A Level 3
-     sitter on a Pause booking: paid ₹200 or ₹400?
-  d. **Pay shows the plan**: each booking shows the sitter her pay (₹200/300/400), which tells her the
-     plan. Is that fine, or is pay fixed by her level rather than the booking's plan?
-  e. **Children**: "prices are per family" vs Unwind's +₹150 per extra child. Is sitter pay the same
-     whatever the number of children (Unwind ₹300, Recharge ₹400)?
-  f. **Names**: Level 3 is "Escape" in one place and "Recharge" in another.
-  g. **Levels**: does "families" mean different families with completed Pacify bookings? Does an admin
-     move sitters up, or the app? Do all new sitters start at Level 1?
-  h. **Plan limits**: are the end times (6 pm, 10:30 pm, 12 am) the latest a booking can end, including
-     overtime? Earliest start? Is bath time a choice when booking (Unwind and Recharge only), and are
-     outings Recharge only (still approved by the parent during the booking)?
-  i. **Parent not home**: one hour at the plan price, not the whole booking? Still the 20-minute wait?
-  j. **Overtime pay**: is the sitter's overtime also rounded up to the full hour?
-  k. **Level 3 reference**: what's shared with the parent (name, phone, relationship)?
+- [x] **Pricing: plans instead of hour packs** (Reuben, answered 2026-11-03). Now in CLAUDE.md 6.1, 6.2,
+  6.4, 6.5, 6.8 and 8: plans Pause ₹499 (one child), Unwind ₹699 (+₹150 per extra child), Recharge ₹899
+  (any number); sitter levels set by admins, each working only her own plan, paid ₹200/300/400 an hour
+  whatever the number of children; pay before the booking by UPI (admin confirms); refunds in money;
+  overtime worked out at check-out, rounded up to the full hour, paid within 2 hours; parent not home =
+  whole booking charged and ₹100 per booked hour to the sitter; no packs, no sitter rate, no minimum
+  length, no GST. The sitter's own rate is removed (PR #58).
+- [ ] **Pricing follow-ups** (asked 2026-11-03):
+  1. **Match deposit**: what is it, how much, when is it paid (at the introduction?), and is it
+     refunded if no booking follows? CLAUDE.md 6.1 subtracts it from the booking price.
+  2. **Waiting for payment**: while a booking is `pending_payment`, is the sitter's slot held? For how
+     long before it's released if nobody pays?
+  3. **Parent later than the plan's latest end** (6 pm Pause, 10:30 pm Unwind, midnight Recharge): the
+     sitter can't leave the child. Is that time still charged as overtime, and is the sitter paid?
+  4. **Show-up fee for half hours**: ₹100 per booked hour; is a 2.5-hour booking ₹250 or ₹300?
+  5. **Child under 18 months at a booking** (should never happen): refund the parent, or charge?
+  6. **Level 3 reference**: the sitter's consent to share it: a tick in her application?
   Also [Reuben]: **Sitter Terms v1.2** (2.3 rate, 2-hour minimum, per-child pay) and **Family Terms
-  v1.1** (4.1 pricing, packs, 18 months) from the lawyer before production relies on them.
+  v1.1** (4.1 pricing, packs, overtime, 18 months) from the lawyer before production relies on them.
 
-- [ ] Parent late and declines overtime: the sitter can't leave the child (terms 4.1) and can't check out without the parent's code. Is she paid for the extra time, and should that time be billed to the parent as overtime automatically?
+- [x] Parent late and declines overtime: answered 2026-11-03, overtime is worked out automatically at check-out and the sitter is paid for it (CLAUDE.md 6.8).
 
 ---
 
@@ -167,7 +133,7 @@ Waiting on: FIELD_ENCRYPTION_KEY on Render [Reuben] (see Current status). Sitter
 - [x] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
 - [x] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
 - [ ] Psychology test engine with placeholder questions
-- [ ] Admin verification queue: view documents (logged), approve/reject each step with notes
+- [ ] Admin verification queue: view documents (logged), approve/reject each step with notes, set each sitter's level (CLAUDE.md 6.2)
 - [ ] Birth certificate auto-delete after child verification
 - [ ] Tests for this phase
 
@@ -187,22 +153,23 @@ Waiting on: FIELD_ENCRYPTION_KEY on Render [Reuben] (see Current status). Sitter
 - [ ] Admin records outcome; pair unlock on pass or prior booking
 - [ ] Tests for this phase
 
-## Phase 6 — Hour packs and ledger
+## Phase 6 — Plans and payments (was hour packs and ledger; changed 2026-11-03)
 
-- [ ] Pricing service (tiers, per child)
-- [ ] Buy a pack: price shown, UPI instructions, UPI reference entry, `pending_payment`
-- [ ] Admin confirms/rejects payments; credit ledger entry
-- [ ] Ledger and balance views for parents (per child, nearest expiry, carried-forward hours)
-- [ ] Daily expiry and carry-forward job
+- [ ] Pricing service (plans, children, half hours)
+- [ ] Plan picker: prices per plan for the chosen children, what each includes, the total
+- [ ] Booking payment: UPI instructions, UPI reference entry, `pending_payment`, match deposit (once defined)
+- [ ] Admin confirms/rejects payments; refunds recorded with a reference
+- [ ] Parent payment history; outstanding amounts block new bookings
+- [ ] Remove the unused HourBalance component
 - [ ] Tests for this phase
 
 ## Phase 7 — Bookings, cancellations, strikes
 
-- [ ] Book a time: validation (children 18 months+), camera declaration, auto-confirm, hold hours, remove availability
+- [ ] Book a time: plan and level match, plan's latest end, Pause one child, bath time, children 18 months+, camera declaration, `pending_payment` → confirmed, remove availability
 - [ ] Parent and sitter booking lists and detail pages
 - [ ] Cancellations with 3-hour and 8-hour rules
-- [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 show-up fee
-- [ ] Sitter 15-minute late rule, under-18-months report (parent refunded, sitter ₹100, no strike), unsafe early exit, doctor's note strike removal
+- [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
+- [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit, doctor's note strike removal
 - [ ] Strikes: ladder, blocking, 6-month expiry job, admin add/remove
 - [ ] Tests for this phase
 
@@ -210,16 +177,16 @@ Waiting on: FIELD_ENCRYPTION_KEY on Render [Reuben] (see Current status). Sitter
 
 - [ ] Check-in and check-out codes (parent's app, booking day only, single use, hashed, lock after 5 wrong attempts) with location recorded
 - [ ] Overdue check-out alert job (end + 30 min) and admin manual close
-- [ ] Overtime request and approval; balance debit; ₹300/hr dues; dues block new bookings
+- [ ] Overtime at check-out: rounded up to the full hour at the plan price, UPI link/QR due in 2 hours, unpaid blocks new bookings
 - [ ] Emergency/Report button for parents and sitters; admin email alert; incident records
 - [ ] Chat between unlocked pairs (polling)
-- [ ] Outing permission requests during a booking
+- [ ] Outing permission requests during a booking (Recharge only)
 - [ ] Tests for this phase
 
 ## Phase 9 — After the booking
 
 - [ ] Reviews and ratings both ways; low-rating flag (last 10 < 3.5) with right to respond
-- [ ] Sitter pay: rate × hours worked × children; held → released rules
+- [ ] Sitter pay: level pay × hours worked, plus overtime; held → released rules
 - [ ] Sitter earnings dashboard (pending, paid)
 - [ ] Admin payouts-due list with 12-hour countdown, alerts at 3 hours left and overdue; mark paid with transfer reference (bank or UPI)
 - [ ] Tests for this phase
@@ -280,6 +247,7 @@ Waiting on: FIELD_ENCRYPTION_KEY on Render [Reuben] (see Current status). Sitter
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-03 — Pricing changed from hour packs to plans (Pause, Unwind, Recharge) and sitter levels: CLAUDE.md 6, 8 and 9 rewritten, phases 6-9 updated, follow-ups listed under Open questions. Sitter rate removed (PR #58). Family and Sitter Terms need new versions.
 - 2026-11-02 — Checked the `format.test.ts` failure noted below: not a bug. The repo pins Node 24
   (`.nvmrc`, used by CI); on Node 20, `Intl` formats midnight differently, so one time test fails
   there. On Node 24 all 160 web tests pass. Use Node 24 on every machine. Recorded what to take from
