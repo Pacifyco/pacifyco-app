@@ -88,14 +88,13 @@ describe("sign in with an email code", () => {
     expect((meCall[1]!.headers as Headers).get("Authorization")).toBe("Bearer test-access-token");
   });
 
-  test("someone with a profile is offered their area", async () => {
+  test("someone with a profile is sent straight to their area", async () => {
     fake.state.session = fake.session;
     vi.mocked(fetch).mockImplementation(
       meResponse({ role: "sitter", status: "pending", full_name: "Asha K" }) as typeof fetch,
     );
-    renderApp("/");
-    const link = await screen.findByRole("link", { name: /Go to your account/ });
-    expect(link.getAttribute("href")).toBe("/sitter");
+    const { router } = renderApp("/");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/sitter"));
   });
 
   test("asking for codes too often gets a calm message", async () => {
@@ -169,23 +168,22 @@ describe("sign in with Google", () => {
 });
 
 describe("signed-in state", () => {
-  test("the sign-in page sends signed-in people home", async () => {
+  test("the sign-in page sends signed-in people straight to their area", async () => {
     fake.state.session = fake.session;
     vi.mocked(fetch).mockImplementation(meResponse(PARENT_PROFILE) as typeof fetch);
     const { router } = renderApp("/sign-in");
-    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/parent"));
   });
 
   test("signing out forgets the account and offers sign-in again", async () => {
     fake.state.session = fake.session;
     vi.mocked(fetch).mockImplementation(meResponse(PARENT_PROFILE) as typeof fetch);
     renderApp("/");
-    await screen.findByText("You're signed in as asha@example.com.");
+    await screen.findByRole("heading", { level: 1, name: "Time for you." });
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(await screen.findByRole("link", { name: "Sign in" })).toBeTruthy();
     expect(fake.auth.signOut).toHaveBeenCalled();
-    expect(screen.queryByText(/You're signed in/)).toBeNull();
   });
 });
 
