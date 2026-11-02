@@ -17,6 +17,8 @@ from tests.test_migrations import alembic_config
 
 SUPABASE_URL = "https://testproject.supabase.co"
 ISSUER = f"{SUPABASE_URL}/auth/v1"
+# Test-only Fernet key for encrypted sitter fields (CLAUDE.md section 7); not a real secret.
+TEST_FIELD_ENCRYPTION_KEY = "XkEEsSjgkZsymSGMDk3Qj4eV7DJAXJmiwoCgJMSCKUQ="
 OUR_KEY = ec.generate_private_key(ec.SECP256R1())
 OTHER_KEY = ec.generate_private_key(ec.SECP256R1())
 
@@ -39,6 +41,7 @@ def make_settings(db_engine, supabase_url: str = SUPABASE_URL) -> Settings:
         cors_origins="https://staging.example",
         database_url=db_engine.url.render_as_string(hide_password=False),
         supabase_url=supabase_url,
+        field_encryption_key=TEST_FIELD_ENCRYPTION_KEY,
     )
 
 

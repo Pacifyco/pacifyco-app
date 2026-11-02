@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     public_web_url: str = ""
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
     pacify_upi_id: str = ""
+    # Encrypts sitters' health disclosure and bank payout details (CLAUDE.md section 7). A Fernet key,
+    # e.g. `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+    field_encryption_key: str = ""
 
     @field_validator("environment", mode="before")
     @classmethod

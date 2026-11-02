@@ -255,6 +255,24 @@ def test_cli_keeps_a_sitter_with_application_details(client, db_engine, database
     assert profile_exists(db_engine, user["id"])
 
 
+def test_cli_keeps_a_sitter_with_references(client, db_engine, database_url, user, capsys):  # noqa: F811
+    assert client.post("/me/profile", json={**PARENT, "role": "sitter"}, headers=auth_for(user)).status_code == 201
+    with db_engine.begin() as conn:
+        conn.execute(
+            text(
+                'INSERT INTO "references" (sitter_id, name, phone, relationship) '
+                "VALUES (:id, 'Asha', '+919876543210', 'Friend')"
+            ),
+            {"id": user["id"]},
+        )
+    try:
+        assert cli.delete_empty_profile(user["email"], True, database_url) == 1
+        assert profile_exists(db_engine, user["id"])
+    finally:
+        with db_engine.begin() as conn:
+            conn.execute(text('DELETE FROM "references" WHERE sitter_id = :id'), {"id": user["id"]})
+
+
 def test_cli_keeps_someone_with_audit_history(client, db_engine, database_url, user, capsys):  # noqa: F811
     assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
     with db_engine.begin() as conn:
