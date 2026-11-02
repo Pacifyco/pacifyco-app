@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.auth import require_role
 from app.deps import DbSession
 from app.models import PayoutMethod, Profile, Reference, Role, Sitter, VerificationStatus
-from app.models.sitters import MAX_RATE_PAISE, MIN_RATE_PAISE
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
 from app.settings import Settings, get_settings
@@ -37,7 +36,6 @@ class SitterProfileIn(BaseModel):
     age_groups: list[str] = Field(default_factory=list, max_length=10)
     languages: list[str] = Field(default_factory=list, max_length=10)
     first_aid: bool
-    hourly_rate_paise: int = Field(ge=MIN_RATE_PAISE, le=MAX_RATE_PAISE)
 
     @field_validator("date_of_birth")
     @classmethod
@@ -67,7 +65,6 @@ class SitterProfileOut(BaseModel):
     age_groups: list[str]
     languages: list[str]
     first_aid: bool
-    hourly_rate_paise: int | None
     onboarding_status: str
 
 
@@ -79,7 +76,6 @@ def _profile_out(row: Sitter) -> SitterProfileOut:
         age_groups=row.age_groups,
         languages=row.languages,
         first_aid=row.first_aid,
-        hourly_rate_paise=row.hourly_rate_paise,
         onboarding_status=row.onboarding_status,
     )
 
@@ -100,7 +96,6 @@ def put_profile(body: SitterProfileIn, sitter: SitterProfile, db: DbSession) -> 
         age_groups=body.age_groups,
         languages=body.languages,
         first_aid=body.first_aid,
-        hourly_rate_paise=body.hourly_rate_paise,
     )
     return _profile_out(row)
 

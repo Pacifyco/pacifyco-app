@@ -34,7 +34,6 @@ type SitterProfile = {
   age_groups: string[];
   languages: string[];
   first_aid: boolean;
-  hourly_rate_paise: number | null;
   onboarding_status: OnboardingStatus;
 };
 
@@ -45,11 +44,7 @@ type ProfileInput = {
   age_groups: string;
   languages: string;
   first_aid: boolean;
-  hourly_rate: string; // rupees, as typed -- the API stores paise
 };
-
-const MIN_RATE_RUPEES = 80;
-const MAX_RATE_RUPEES = 120;
 
 function profileInput(profile: SitterProfile): ProfileInput {
   return {
@@ -59,7 +54,6 @@ function profileInput(profile: SitterProfile): ProfileInput {
     age_groups: profile.age_groups.join(", "),
     languages: profile.languages.join(", "),
     first_aid: profile.first_aid,
-    hourly_rate: profile.hourly_rate_paise !== null ? String(profile.hourly_rate_paise / 100) : "",
   };
 }
 
@@ -71,7 +65,6 @@ function toProfileBody(input: ProfileInput) {
     age_groups: splitList(input.age_groups),
     languages: splitList(input.languages),
     first_aid: input.first_aid,
-    hourly_rate_paise: Math.round(Number(input.hourly_rate) * 100),
   };
 }
 
@@ -144,15 +137,6 @@ function ProfileForm({ initial, status }: { initial: ProfileInput; status: Onboa
         hint="Comma-separated, e.g. English, Kannada, Hindi."
         value={form.languages}
         onChange={(event) => setForm({ ...form, languages: event.target.value })}
-      />
-      <TextInput
-        label="Hourly rate (₹ per child)"
-        type="number"
-        min={MIN_RATE_RUPEES}
-        max={MAX_RATE_RUPEES}
-        hint={`Between ₹${MIN_RATE_RUPEES} and ₹${MAX_RATE_RUPEES}. Families never see this — they pay pack rates.`}
-        value={form.hourly_rate}
-        onChange={(event) => setForm({ ...form, hourly_rate: event.target.value })}
       />
       <Checkbox
         label="I'm first-aid certified"

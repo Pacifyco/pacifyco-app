@@ -118,7 +118,6 @@ def is_empty(db: Session, profile: Profile) -> bool:
             sitter.upi_id,
             sitter.bio,
             sitter.years_experience,
-            sitter.hourly_rate_paise,
         )
         if any(value is not None for value in filled) or sitter.age_groups or sitter.languages:
             return False
