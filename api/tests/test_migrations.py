@@ -176,7 +176,7 @@ def test_api_role_cannot_touch_alembic_version(conn):
 
 
 # Records that must never be changed or removed by the API.
-APPEND_ONLY = {"audit_log", "consents", "legal_acceptances"}
+APPEND_ONLY = {"audit_log", "consents", "legal_acceptances", "document_access_log"}
 # Published by migrations only; the API reads them.
 READ_ONLY = {"legal_documents"}
 

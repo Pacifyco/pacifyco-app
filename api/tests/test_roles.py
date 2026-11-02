@@ -27,6 +27,8 @@ PUBLIC = {
     "/me",  # signed in, no profile needed
     "/me/profile",  # signed in, no profile needed (sign-up)
     "/internal/jobs/{run}",  # JOBS_SECRET
+    "/documents/upload-url",  # any signed-up parent or sitter; checked by current_profile
+    "/documents/{document_id}/confirm",  # ownership checked inside (IDOR guard)
 }
 
 
