@@ -10,7 +10,7 @@ import {
   shownVersions,
   termsReady,
 } from "../auth/TermsAgreement";
-import { AuthHero, Button, Photo, RoleChooser, TextInput, type ChosenRole } from "../components/ui";
+import { AuthHero, Button, LoadingScreen, Photo, RoleChooser, TextInput, type ChosenRole } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
 type Step = "role" | "details" | "confirm";
@@ -112,7 +112,7 @@ export function JoinPage() {
   });
 
   if (status === "signed_out") return <Navigate to="/sign-in" replace />;
-  if (status === "loading" || me.isPending) return <p className="text-center text-muted">Loading your account…</p>;
+  if (status === "loading" || me.isPending) return <LoadingScreen />;
   if (me.isError) return <p className="text-center text-muted">{me.error.message}</p>;
   if (me.data.profile) return <Navigate to={AREA_PATH[me.data.profile.role]} replace />;
 

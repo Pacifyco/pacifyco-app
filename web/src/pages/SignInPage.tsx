@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
-import { AuthHero, Button, Photo, TextInput } from "../components/ui";
+import { AuthHero, Button, LoadingScreen, Photo, TextInput } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
 type SupabaseError = { status?: number; name?: string };
@@ -201,13 +201,7 @@ export function AuthCallbackPage() {
   const failed = /(^|[?#&])error=/.test(location.search + location.hash);
 
   if (!failed && status === "signed_in") return <Navigate to="/" replace />;
-  if (!failed && status === "loading") {
-    return (
-      <section className="mx-auto max-w-[62ch] text-center" aria-live="polite">
-        <p className="text-muted">Signing you in…</p>
-      </section>
-    );
-  }
+  if (!failed && status === "loading") return <LoadingScreen message="Signing you in…" />;
   return (
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>We couldn't sign you in.</h1>

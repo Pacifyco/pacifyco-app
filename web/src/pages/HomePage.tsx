@@ -1,11 +1,16 @@
 import { Link, Navigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { AREA_PATH, useMe } from "../auth/useMe";
-import { ButtonLink, Photo } from "../components/ui";
+import { ButtonLink, LoadingScreen, Photo } from "../components/ui";
 import { config } from "../config";
 
+// Signed-in people never see this marketing page: a loading buffer covers the moment while we
+// decide whether to send them to /join or straight to their area, so nothing flashes underneath it.
 export function HomePage() {
   const { status } = useAuth();
+
+  if (status === "loading") return <LoadingScreen />;
+  if (status === "signed_in") return <SignedIn />;
 
   return (
     <section className="mx-auto max-w-[62ch] text-center">
@@ -24,12 +29,9 @@ export function HomePage() {
       </div>
 
       <div className="mt-7">
-        {status === "signed_in" && <SignedIn />}
-        {status === "signed_out" && (
-          <ButtonLink to="/sign-in" arrow>
-            Sign in or join
-          </ButtonLink>
-        )}
+        <ButtonLink to="/sign-in" arrow>
+          Sign in or join
+        </ButtonLink>
       </div>
 
       {config.environment !== "production" && (
@@ -41,11 +43,10 @@ export function HomePage() {
   );
 }
 
-// Signed-in people never linger on the marketing page: straight to joining, or straight to their area.
 function SignedIn() {
   const me = useMe();
 
-  if (me.isPending) return <p className="text-center text-muted">Loading your account…</p>;
+  if (me.isPending) return <LoadingScreen />;
   if (me.isError) return <p className="text-center text-muted">{me.error.message}</p>;
 
   const profile = me.data.profile;
