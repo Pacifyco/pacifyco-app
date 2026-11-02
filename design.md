@@ -262,3 +262,76 @@ spring overshoot, spin, fast parallax or autoplaying video with sound. Respect
    see a sitter's rate. Show no hourly price on sitter cards.
 4. **"Join the waitlist"** belongs to the marketing site (scrollytelling, phase 13). In the app the
    primary actions are signing up, meeting a sitter and choosing a time.
+
+---
+
+## 12. Portal layout reference (the "Admin, Parent & Sitter Portals" prototype)
+
+Reuben's clickable prototype (claude.ai artifact `25mxMe9kk8qpc1o6fWp7RL`) is the reference for **how app
+screens are laid out**. It is a mock-up with made-up data and its own CSS; this file still decides
+colours, type, shape and copy, and CLAUDE.md still decides what the product does. When they disagree,
+this file and CLAUDE.md win.
+
+### Take from the prototype (layout and structure)
+
+- **Portal shell** for signed-in areas: a white left sidebar (logo, a small pill naming the area —
+  "Parent portal", "Sitter portal", "Admin console" — nav items with icon **and** label, a count badge
+  for things waiting, the person's name and a sign-out button at the bottom), and a main column with a
+  sticky top bar (small area name above the page title, page actions on the right). On phones the
+  sidebar becomes a top bar with the nav scrolling sideways.
+- **Nav per role** (only items whose features exist; add the rest with their phase):
+  parent — Home, Bookings, My family; sitter — Home, Requests, Availability, My profile; admin —
+  Overview, Sitters, Parents, plus the queues each phase adds (verification, payouts, incidents).
+- **Welcome band** on each home page: a soft peach-to-blush gradient panel with the greeting (design.md
+  10's "Time for you, [first name]." for parents), one line under it, and decorative circles that stay
+  behind the text.
+- **Note card** for status messages ("Your account is being verified."): white, a coral bar on the left,
+  the key words bold.
+- **KPI row** on admin and sitter home pages: 4 cards across (2 on tablets, 1 on phones), each with a
+  label and an icon on a disc, a large number and a one-line footnote.
+- **Two-column page grid** (wider left, narrower right; one column below 1100px) made of cards with a
+  header row (title, then a small action such as "View all" on the right).
+- **List rows** inside cards: avatar or icon, name and a caption line, then a status or action on the
+  right, separated by hairlines.
+- **Admin tables**: a toolbar with a search field and segmented filters above a card holding the table;
+  uppercase small column headings; clickable rows; a "N of M" count under the table.
+- **Side drawer** for an admin's detail view (a sitter or a family): header with avatar, name and
+  status; sections with small uppercase headings and label/value lists; the decisions (approve, reject)
+  in a footer bar. Used for the verification queue.
+- **Verification checklist**: a progress bar, then one row per step with a tick or clock disc and its
+  status in words.
+- **Status pills** with a dot and words, **avatars with initials**, **empty states** with one line, and a
+  **toast** at the bottom for "Saved".
+- **Modals** for short multi-step tasks, with a step bar at the top.
+
+### Adapt to this file (the prototype's styling loses)
+
+- Colours: use the section 3 tokens only. The prototype's `--choc`, `--coral`, `--blush` and so on map
+  to `ink`, `coral`, `surface-default`; its greys and status colours (green, amber, red) aren't ours —
+  status is `trust` and `danger` with words, and "waiting" uses muted text on a sunken surface.
+- **Never white text on coral.** The prototype's coral buttons have white labels; ours are chocolate.
+- Every button, input and chip is a pill (the prototype's inputs and segment buttons use 10px
+  corners). Inputs use `--border-strong`, not a light hairline.
+- Type: Poppins at the section 4 sizes. The prototype's 12–14px body text is too small: body is 16px,
+  captions 12px Light, and nothing a person has to read is under 12px.
+- Focus rings, 360px width, 200% zoom, dark mode and reduced motion all still apply.
+- Icons are Lucide at stroke 1.75, with visible labels (the prototype has icon-only buttons in tables;
+  ours always show a text label, except the close button, which has an aria-label).
+
+### Don't take from the prototype (not in v1, or against CLAUDE.md)
+
+- **Sitter tiers** (Basic, Standard, Premium) and their hourly rates (₹180–400+), tier boards and tier
+  badges. Sitter rates are ₹80–120 and parents never see them; tiers wait for the pricing decision.
+- **Share links** (admins sending parents a time-limited list of sitters), view counts and expiry
+  countdowns. In v1 parents search and browse sitters themselves.
+- **Pacify Plus** anywhere (section 11).
+- **Accept / decline booking requests** and "respond within 2 hours". v1 bookings confirm
+  automatically (CLAUDE.md 6.4).
+- **Prices on sitter cards or bookings** ("Est. cost"), sitter earnings shown to parents, and
+  occasions ("Date night", "Gym session") as a booking field.
+- **Skills taxonomy** and **weekday availability toggles**: v1 has free-text age groups and languages,
+  and availability as dated time slots.
+- Checks we don't do or name differently: show only CLAUDE.md 7's steps (ID, police certificate,
+  references, psychology test, interview, approval).
+- The prototype's login screen ("Choose a portal", demo account pickers, "Reset demo data") and its
+  hero copy and stats. Our sign-in and `/join` already follow section 10.

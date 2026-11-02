@@ -286,6 +286,29 @@ digits):
 The `jobs-*` environments hold only the jobs secret and the API address, never database passwords, and
 allow `develop` because GitHub runs schedules from the default branch.
 
+## Document uploads and the encryption key
+
+Two **secret** Render variables, set on each service (`pacifyco` and `pacifyco-api`) with a different
+value per environment. Saving a variable makes Render redeploy.
+
+| Variable | Used for | Where to get it |
+| --- | --- | --- |
+| `SUPABASE_SERVICE_ROLE_KEY` | Signed upload and view links for the private `documents` bucket | Supabase → the project → Project Settings → API Keys → a **secret** key (`sb_secret_…`) |
+| `FIELD_ENCRYPTION_KEY` | Encrypting sitters' health disclosures and bank details | Generate it yourself (below) |
+
+### Encryption key
+
+Generate one key for staging and a **different** one for production, in your own terminal from `api`:
+
+```powershell
+.venv\Scripts\python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Paste it straight into Render (Environment → Add environment variable → `FIELD_ENCRYPTION_KEY`), then
+save a copy in your password manager. **Never change or lose a key once data is saved with it:** data
+encrypted with it can't be read with any other key, and nobody can recover it. Don't put it in chat,
+email, the repo or `.env.example`.
+
 ## Sign-in
 
 People sign in with an emailed code or Google, through Supabase Auth. The web app gets a Supabase

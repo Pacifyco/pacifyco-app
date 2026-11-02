@@ -9,10 +9,12 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: items 4 and 5 are done (PR #55 open for item 5's frontend, backend already merged in
-  #54) -- next is the psychology test engine, then the admin verification queue
+- Next item: items 1-5 are done and on staging (PRs #49-#55 merged) -- next is the psychology test
+  engine, then the admin verification queue. Waiting for Reuben's go-ahead before building.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
-- Blocked on: nothing
+- Blocked on: `FIELD_ENCRYPTION_KEY` isn't on Render yet [Reuben] (staging and production, a different
+  key each; README "Encryption key"). Until it is, saving a sitter's health disclosure or bank details
+  fails on that environment.
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -102,8 +104,7 @@ tests.
 
 ## Phase 3 — Verification and onboarding
 
-Waiting on: Reuben's go-ahead; the Supabase secret key and FIELD_ENCRYPTION_KEY on Render (steps given
-when starting). Sitter rate field: keep ₹80–120 until the pricing questions are answered, then revisit.
+Waiting on: FIELD_ENCRYPTION_KEY on Render [Reuben] (see Current status). Sitter rate field: keep ₹80–120 until the pricing questions are answered, then revisit.
 
 - [x] Parent consents at sign-up (Family Terms 11.2: four required, one optional) and the single-parent
   declaration, replacing the phase 2 consent form
@@ -225,6 +226,10 @@ when starting). Sitter rate field: keep ₹80–120 until the pricing questions 
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-02 — Checked the `format.test.ts` failure noted below: not a bug. The repo pins Node 24
+  (`.nvmrc`, used by CI); on Node 20, `Intl` formats midnight differently, so one time test fails
+  there. On Node 24 all 160 web tests pass. Use Node 24 on every machine. Recorded what to take from
+  the portal design prototype in design.md section 12. `FIELD_ENCRYPTION_KEY` still to be set on Render.
 - 2026-11-02 — Sitter application frontend (PR #55, open): `/sitter/application`, same two-column
   layout as the family page. Profile (age groups and languages as comma-separated free text -- no
   fixed taxonomy exists anywhere for either), health disclosure and payout details (bank or UPI)
@@ -232,8 +237,8 @@ when starting). Sitter rate field: keep ₹80–120 until the pricing questions 
   contacts fix up front this time instead of re-discovering the same race. References (add up to
   two, remove). Four document upload slots (government ID, college/work ID, police certificate,
   first-aid certificate) against the existing generic documents API, no backend changes needed.
-  Linked from the sitter home page. 159 web tests pass (plus the pre-existing unrelated Node/Intl
-  `format.test.ts` failure). Item 5 is now fully built (backend #54 merged, frontend #55 open).
+  Linked from the sitter home page. 159 web tests pass (plus the `format.test.ts` failure, which
+  only happens on Node 20; see the next entry). Item 5 is now fully built (#54 and #55 merged).
 - 2026-11-02 — Sitter application backend (PR #54, merged): profile (bio, date of birth with an 18+
   check, years of experience, age groups, languages, first aid, hourly rate re-checked at the API
   against the same ₹80-120 range as the DB constraint), health disclosure and bank payout details
