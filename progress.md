@@ -9,9 +9,9 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: item 4 is built (backend PR #52 merged, frontend PR #53 open); item 5 backend is built
-  (PR #54, open) -- next is item 5's frontend (sitter application/profile page), then the psychology
-  test engine and the admin verification queue
+- Next item: item 4 is done (PRs #52 and #53 merged -- tick it); item 5 backend is built (PR #54,
+  open) -- next is item 5's frontend (sitter application/profile page), then the psychology test
+  engine and the admin verification queue
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - Blocked on: nothing
 
@@ -110,7 +110,7 @@ when starting). Sitter rate field: keep ₹80–120 until the pricing questions 
   declaration, replacing the phase 2 consent form
 - [x] Emergency contacts per family (two) and authorised adults (Family Terms 2.5)
 - [x] Private storage buckets, signed upload URLs, file type/size validation
-- [ ] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
+- [x] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
 - [ ] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
 - [ ] Psychology test engine with placeholder questions
 - [ ] Admin verification queue: view documents (logged), approve/reject each step with notes
@@ -238,6 +238,16 @@ when starting). Sitter rate field: keep ₹80–120 until the pricing questions 
   `get_settings()` directly instead of through FastAPI's dependency injection, so it silently
   ignored the test settings every test client builds and used the real (unset) env var instead --
   fixed by threading the key through like `app/services/storage.py` does. 286 API tests pass.
+- 2026-11-02 — Family page frontend (PR #53, merged, needed #52): `/parent/family` with children
+  CRUD (nested birth certificate upload per child), a two-contact emergency contacts form,
+  authorised adults, and masked Aadhaar uploads (up to 2) with the single-parent declaration --
+  two-column layout from the shared design artifact, our own components and rules. New reusable
+  `DocumentUpload`/`DocumentUploadList` against the signed-upload-URL documents API. Found and
+  fixed a real race while testing it: the emergency contacts form used to seed its fields as soon
+  as the GET first resolved, so typing before that load finished could be overwritten by the seed;
+  fixed by not rendering the editable form until the server data is in hand. 152 web tests pass
+  (plus the pre-existing unrelated Node/Intl `format.test.ts` failure). Item 4 is now done (#52 and
+  #53 both merged).
 - 2026-11-02 — Emergency contacts and authorised adults (PR #51, backend only): `emergency_contacts` moved from per-child to per-family (two contacts, enforced by always replacing both together — Postgres can't express "exactly two rows" as a simple CHECK); new `authorised_adults` table for any number of named adults. `PUT /parent/emergency-contacts`, `GET`/`POST`/`DELETE /parent/authorised-adults` (ownership checked, no IDOR). `accounts.is_empty` now also checks both tables. No web page yet — comes with the next item ("Parent: children and emergency contacts..."). 249 API tests pass.
 - 2026-11-02 — Parent consents at sign-up (PR #50): `consents` recreated as one row per (parent, kind, version) instead of one row per (parent, version) -- Family Terms 11.2's four required consents (own_data, child_data, share_care_details, emergency_authorisation) ticked separately, nothing pre-ticked, plus optional withdrawable marketing and a new `single_parent_declaration` kind ready for the masked-Aadhaar screen later (not wired to any UI yet). `documents.request_upload` now calls `require_current_consent` for any document with a `child_id`, closing a gap from the storage PR. Web `ConsentPage` shows the four checkboxes plus marketing; `AreaPages` updated. 233 API and 142 web tests pass.
 - 2026-11-02 — Private storage buckets, signed upload URLs, file type/size validation (PR #49): `documents` and append-only `document_access_log` tables; private `documents` Supabase Storage bucket with a 5 MB / PDF-JPG-PNG limit, created by the migration (guarded for local/CI Postgres, which has no `storage` schema); `POST /documents/upload-url`, `POST /documents/{id}/confirm` (checks the real file bytes, not the filename, deletes and marks `invalid` on failure; IDOR-checked), `GET /admin/documents/{id}/view-url` (admin-only, every view logged). `app/services/storage.py` wraps Supabase Storage's REST API with the service-role key, swappable in tests. Also: design polish on the parent/sitter/admin home pages, a split-hero layout for sign-in and join, a loading buffer instead of a page flash during auth redirects (PRs #44, #45, #46, #47, #48). 230 API and 141 web tests pass.
