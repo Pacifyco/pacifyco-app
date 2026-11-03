@@ -9,15 +9,12 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: items 1-5 are done and on staging (PRs #49-#55 merged). Psychology test engine is built
-  on `phase3/psych-test-engine` (not yet merged — see "Blocked on"); then the admin verification queue.
+- Next item: items 1-5 and the psychology test engine are done; psych engine is on PR #61
+  (`phase3/psych-test-engine`, CI green, ready for review, not yet merged) -- next is the admin
+  verification queue.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
-- Blocked on: this sandbox has no Docker, so the psych test engine's tests
-  (`test_psych_tests.py`, plus the migration against `test_migrations.py`) were written and pass
-  import/lint/collection, but have never actually run against Postgres. Needs a CI run or Reuben running
-  `pytest` locally before merging, per CLAUDE.md rule 6.
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -146,7 +143,7 @@ tests.
 - [x] Private storage buckets, signed upload URLs, file type/size validation
 - [x] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
 - [x] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
-- [ ] Psychology test engine with placeholder questions
+- [x] Psychology test engine with placeholder questions
 - [ ] Admin verification queue: view documents (logged), approve/reject each step with notes, set each sitter's level (CLAUDE.md 6.2)
 - [ ] Birth certificate auto-delete after child verification
 - [ ] Tests for this phase
@@ -267,8 +264,10 @@ tests.
   current attempt" with no attempt id in the API surface. Admin: `/admin/psych-attempts` list, detail
   and `/decision` (pass/fail + notes), the first thing in the repo to write to `audit_log` (new
   `app/services/audit.py` helper). Retake-after-fail policy isn't in CLAUDE.md; built permissive for
-  now and flagged above to confirm. Not run against Postgres yet — no Docker in this sandbox; needs a
-  CI run or a local `pytest` before merging.
+  now and flagged above to confirm. No Docker in this sandbox to run tests locally, so opened as PR #61
+  for CI instead -- one real bug found there (a test fixture tried to delete an admin profile still
+  referenced by its own audit_log row; audit_log is append-only, fixed the teardown to delete that row
+  first). CI now green (304 API tests, web build); PR ready for review.
 - 2026-11-03 — `FIELD_ENCRYPTION_KEY` set on Render by Reuben; no longer blocking health
   disclosure/bank detail encryption.
 - 2026-11-03 — Pricing follow-ups answered: no match deposit, no slot hold while `pending_payment`
