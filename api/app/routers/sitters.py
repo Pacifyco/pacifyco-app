@@ -2,15 +2,27 @@
 
 import re
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy.orm import Session
 
 from app.auth import require_role
 from app.deps import DbSession
-from app.models import PayoutMethod, Profile, Reference, Role, Sitter, VerificationStatus
+from app.models import (
+    PayoutMethod,
+    Profile,
+    PsychAttempt,
+    PsychAttemptStatus,
+    PsychQuestionKind,
+    Reference,
+    Role,
+    Sitter,
+    VerificationStatus,
+)
+from app.services import psych_tests as psych_tests_service
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
 from app.settings import Settings, get_settings
@@ -242,3 +254,73 @@ def post_reference(body: ReferenceIn, sitter: SitterProfile, db: DbSession) -> R
 @router.delete("/references/{reference_id}", status_code=204)
 def delete_reference(reference_id: uuid.UUID, sitter: SitterProfile, db: DbSession) -> None:
     sitters_service.remove_reference(db, sitter.id, reference_id)
+
+
+# ---------- psychology test (CLAUDE.md section 7 step 5) ----------
+
+
+class PsychQuestionOut(BaseModel):
+    id: uuid.UUID
+    order_index: int
+    kind: PsychQuestionKind
+    prompt: str
+    options: list[str] | None
+
+
+class PsychAttemptOut(BaseModel):
+    status: PsychAttemptStatus
+    submitted_at: datetime | None
+    answers: dict[uuid.UUID, str]
+
+
+class PsychTestOut(BaseModel):
+    test_id: uuid.UUID
+    is_placeholder: bool
+    questions: list[PsychQuestionOut]
+    attempt: PsychAttemptOut | None
+
+
+class PsychAnswerIn(BaseModel):
+    question_id: uuid.UUID
+    answer_text: str = Field(min_length=1, max_length=4000)
+
+
+class PsychAnswersIn(BaseModel):
+    answers: list[PsychAnswerIn] = Field(min_length=1, max_length=50)
+
+
+def _attempt_out(db: Session, row: PsychAttempt | None) -> PsychAttemptOut | None:
+    if row is None:
+        return None
+    return PsychAttemptOut(
+        status=row.status, submitted_at=row.submitted_at, answers=psych_tests_service.list_answers(db, row.id)
+    )
+
+
+@router.get("/psych-test")
+def get_psych_test(sitter: SitterProfile, db: DbSession) -> PsychTestOut:
+    test = psych_tests_service.get_active_test(db)
+    questions = psych_tests_service.list_questions(db, test.id)
+    attempt = psych_tests_service.latest_attempt(db, sitter.id)
+    return PsychTestOut(
+        test_id=test.id,
+        is_placeholder=test.is_placeholder,
+        questions=[
+            PsychQuestionOut(id=q.id, order_index=q.order_index, kind=q.kind, prompt=q.prompt, options=q.options)
+            for q in questions
+        ],
+        attempt=_attempt_out(db, attempt),
+    )
+
+
+@router.put("/psych-test/answers")
+def put_psych_test_answers(body: PsychAnswersIn, sitter: SitterProfile, db: DbSession) -> PsychAttemptOut:
+    answers = [psych_tests_service.AnswerIn(question_id=a.question_id, answer_text=a.answer_text) for a in body.answers]
+    attempt = psych_tests_service.save_my_answers(db, sitter.id, answers)
+    return _attempt_out(db, attempt)
+
+
+@router.post("/psych-test/submit")
+def post_psych_test_submit(sitter: SitterProfile, db: DbSession) -> PsychAttemptOut:
+    attempt = psych_tests_service.submit_my_attempt(db, sitter.id)
+    return _attempt_out(db, attempt)

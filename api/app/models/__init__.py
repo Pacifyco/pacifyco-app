@@ -7,6 +7,14 @@ from app.models.documents import Document, DocumentAccessLog, DocumentStatus, Do
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
 from app.models.parents import AuthorisedAdult, Child, EmergencyContact, Parent
 from app.models.profiles import Profile, ProfileStatus, Role, ServiceAreaPincode
+from app.models.psych_tests import (
+    PsychAnswer,
+    PsychAttempt,
+    PsychAttemptStatus,
+    PsychQuestion,
+    PsychQuestionKind,
+    PsychTest,
+)
 from app.models.sitters import OnboardingStatus, PayoutMethod, Reference, Sitter
 
 __all__ = [
@@ -29,6 +37,12 @@ __all__ = [
     "PayoutMethod",
     "Profile",
     "ProfileStatus",
+    "PsychAnswer",
+    "PsychAttempt",
+    "PsychAttemptStatus",
+    "PsychQuestion",
+    "PsychQuestionKind",
+    "PsychTest",
     "Reference",
     "Role",
     "ServiceAreaPincode",
