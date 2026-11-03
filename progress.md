@@ -9,9 +9,9 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: items 1-5 and the psychology test engine are done; psych engine is on PR #61
-  (`phase3/psych-test-engine`, CI green, ready for review, not yet merged) -- next is the admin
-  verification queue.
+- Next item: items 1-5 and the psychology test engine (backend + sitter-facing frontend) are done,
+  on PR #61 (`phase3/psych-test-engine`, CI green, ready for review, not yet merged) -- next is the
+  admin verification queue (which will add the admin-side review page for this too).
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -268,6 +268,12 @@ tests.
   for CI instead -- one real bug found there (a test fixture tried to delete an admin profile still
   referenced by its own audit_log row; audit_log is append-only, fixed the teardown to delete that row
   first). CI now green (304 API tests, web build); PR ready for review.
+- 2026-11-03 — Psychology screening frontend, same PR #61: `/sitter/psych-test` page (radio options
+  for multiple-choice, textarea for short-answer, prefills saved in-progress answers, client-side
+  completeness check before PUT-then-POST, submitted/passed/failed views, "Try again" after a fail);
+  linked from a new status card on the sitter application page. Admin review still has no page -- comes
+  with the admin verification queue, next. 166 of 167 web tests pass (the one failure is the
+  pre-existing Node 20 `format.test.ts` quirk, not present on Node 24), lint/typecheck/build clean.
 - 2026-11-03 — `FIELD_ENCRYPTION_KEY` set on Render by Reuben; no longer blocking health
   disclosure/bank detail encryption.
 - 2026-11-03 — Pricing follow-ups answered: no match deposit, no slot hold while `pending_payment`
