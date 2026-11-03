@@ -241,7 +241,9 @@ spring overshoot, spin, fast parallax or autoplaying video with sound. Respect
   parents don't see sitter rates.
 - **BookingCard** — "Next booking" eyebrow, date and time ("Sat, 11 Oct · 10:00 am – 1:00 pm"), "[Sitter]
   is looking after [child] at home."
-- **HourBalance** — child-hours remaining per child, nearest expiry, carried-forward hours.
+- **HourBalance** — no longer used: hour packs were dropped (CLAUDE.md 6.1, 2026-11-03). Remove it
+  when phase 6 is reworked. Instead, a **PlanPicker**: Pause, Unwind and Recharge with their price per
+  hour for the chosen children, what each includes (latest end, bath time, outings) and the total.
 - **IconTile** — 28px icon on 64px peach disc with label.
 - **RoleChooser** — "I'm a parent" / "I'm a sitter".
 - **EmergencyButton** — always visible on active bookings; chocolate surface with clear label
@@ -258,8 +260,8 @@ spring overshoot, spin, fast parallax or autoplaying video with sound. Respect
    the fifth trust pillar.
 2. **Address verification** is mentioned in the guide, but v1 checks are ID, police verification,
    references, a psychology test and interviews. Only claim those.
-3. **Sitter card price** — the guide shows "₹450/hour · 1 child"; v1 parents pay pack rates and never
-   see a sitter's rate. Show no hourly price on sitter cards.
+3. **Sitter card price** — the guide shows "₹450/hour · 1 child"; v1 sitter cards show no price.
+   Plan prices appear only when the parent picks a plan (CLAUDE.md 6.1).
 4. **"Join the waitlist"** belongs to the marketing site (scrollytelling, phase 13). In the app the
    primary actions are signing up, meeting a sitter and choosing a time.
 
@@ -320,8 +322,10 @@ this file and CLAUDE.md win.
 
 ### Don't take from the prototype (not in v1, or against CLAUDE.md)
 
-- **Sitter tiers** (Basic, Standard, Premium) and their hourly rates (₹180–400+), tier boards and tier
-  badges. Sitter rates are ₹80–120 and parents never see them; tiers wait for the pricing decision.
+- **The prototype's tiers** (Basic, Standard, Premium) with their rates (₹180–400+) and shared tier
+  boards. Our equivalent is plans and levels (CLAUDE.md 6.1–6.2): Pause, Unwind, Recharge. Their badge
+  and the admin's level board can follow the prototype's layout, with our colours and our names; sitters
+  see their pay, never a plan name, and parents never see a sitter's pay.
 - **Share links** (admins sending parents a time-limited list of sitters), view counts and expiry
   countdowns. In v1 parents search and browse sitters themselves.
 - **Pacify Plus** anywhere (section 11).
