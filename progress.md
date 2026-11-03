@@ -79,8 +79,10 @@ tests.
   6. Level 3 reference-sharing consent: yes, a tick in the sitter's application.
   Also [Reuben]: **Sitter Terms v1.2** (2.3 rate, 2-hour minimum, per-child pay) and **Family Terms
   v1.1** (4.1 pricing, packs, overtime, 18 months) from the lawyer before production relies on them.
-- [ ] **Recharge overtime past midnight** (added 2026-11-03): no higher tier exists above Recharge —
-  what's charged for overage past its midnight latest-end? Blocks finishing CLAUDE.md 6.8 precisely.
+- [x] **Recharge overtime past midnight** (added 2026-11-03; deferred by Reuben 2026-11-03: "no idea,
+  we'll see when we get there"). No higher tier exists above Recharge. Until decided, treat it like any
+  other overtime past the latest end that has no next tier: round up to the full hour at the
+  **Recharge** rate, sitter paid her level pay — revisit if/when it actually comes up.
 
 - [ ] **Psych test retake after a fail** (added 2026-11-03, `phase3/psych-test-engine`): not in
   CLAUDE.md 7 step 5. Built so a sitter can retake with no limit once an admin records `failed` (she
@@ -258,16 +260,8 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
-- 2026-11-03 — Psychology test engine (`phase3/psych-test-engine`, not merged): `psych_tests`,
-  `psych_questions`, `psych_attempts`, `psych_answers` tables, seeded with one placeholder test (3
-  multiple-choice, 2 short-answer). Sitter: GET/PUT/POST under `/sitter/psych-test`, scoped to "my
-  current attempt" with no attempt id in the API surface. Admin: `/admin/psych-attempts` list, detail
-  and `/decision` (pass/fail + notes), the first thing in the repo to write to `audit_log` (new
-  `app/services/audit.py` helper). Retake-after-fail policy isn't in CLAUDE.md; built permissive for
-  now and flagged above to confirm. No Docker in this sandbox to run tests locally, so opened as PR #61
-  for CI instead -- one real bug found there (a test fixture tried to delete an admin profile still
-  referenced by its own audit_log row; audit_log is append-only, fixed the teardown to delete that row
-  first). CI now green (304 API tests, web build); PR ready for review.
+- 2026-11-03 — Recharge overtime past midnight: Reuben deferred ("no idea, we'll see when we get
+  there"). Defaulted CLAUDE.md 6.8 to charging the Recharge rate itself for now; revisit if it comes up.
 - 2026-11-03 — `FIELD_ENCRYPTION_KEY` set on Render by Reuben; no longer blocking health
   disclosure/bank detail encryption.
 - 2026-11-03 — Pricing follow-ups answered: no match deposit, no slot hold while `pending_payment`
