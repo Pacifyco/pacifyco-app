@@ -152,7 +152,8 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   `document_access_log`.
 - **Money** is stored as integer paise. **Time** is stored in UTC (`timestamptz`) and shown in
   Asia/Kolkata.
-- **Booked time** is stored as integer half-hour units ("units"), so 2.5 hours = 5 units.
+- **Booked time** is stored as integer hours ("units"); bookings and overtime are both whole hours
+  only, no half-hours (decided 2026-11-03).
 - **Money owed and paid is append-only.** Every booking payment, overtime charge, refund and
   cancellation charge is a row linked to its booking (`payments`); never edit an amount in place.
 - **Every state change on bookings, payouts, strikes and verifications writes to `audit_log`** (actor,
@@ -165,7 +166,9 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
 - **Scheduled jobs** are idempotent API endpoints under `/internal/jobs/*`, protected by `JOBS_SECRET`
   and called by a GitHub Actions schedule: strike expiry
   (daily), overdue check-out alerts (every 30 minutes, 6 am–midnight IST — keep each run short to stay
-  inside GitHub Actions free minutes) and payouts-due alerts (every 30 minutes, in the same run as overdue check-outs).
+  inside GitHub Actions free minutes), payouts-due alerts (every 30 minutes, in the same run as overdue
+  check-outs), and auto-cancelling `pending_payment` bookings once their 3-hour payment deadline passes
+  (6.1; same frequent run).
   Two runs, `daily` and `frequent`, each a list of tasks in `api/app/services/jobs.py`. Before launch the
   frequent run targets production only, to save Render's shared free hours (README "Scheduled jobs").
 
@@ -186,13 +189,18 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
 
 - Booking price = the plan's hourly price (for that number of children) × booked hours. Example:
   Recharge, 3 hours = ₹2,697. No GST for now.
-- Booked time is counted in half hours (rounded to the nearest half hour); no minimum length; no
-  earliest start time.
-- **Paying for a booking (beta, manual UPI):** the parent picks the plan, children and hours; the
-  **match deposit** is subtracted (amount and rules to confirm: "Open questions" in `progress.md`), and
-  they pay the rest by UPI to `PACIFY_UPI_ID` and enter the UPI reference. The booking is
+- Booked time is counted in **whole hours only** (no half-hours); no minimum length; no earliest start
+  time. (Decided 2026-11-03, replaces half-hour rounding.)
+- **No match deposit.** (Decided 2026-11-03; the idea is dropped.) The parent pays the full price up
+  front. Product flow: parents are encouraged to make a short first (e.g. 1-hour) booking with a new
+  sitter to assess fit before booking longer sessions — a UX nudge, not an enforced rule.
+- **Paying for a booking (beta, manual UPI):** the parent picks the plan, children and hours, sees the
+  full price, and pays all of it by UPI to `PACIFY_UPI_ID`, entering the UPI reference. The booking is
   `pending_payment` until an admin confirms the payment, then it's `confirmed`. Admins can reject with a
   reason.
+- **Payment deadline:** if payment isn't confirmed by **3 hours before the booking's start**, the
+  `pending_payment` booking is auto-cancelled (same boundary as the parent late-cancellation rule in
+  6.5). Decided 2026-11-03 — parents should pay as soon as they book, since slots aren't held (6.4).
 - Refunds are money, paid back by UPI or bank transfer (beta: manual, recorded with a reference).
 - Plan prices appear when the parent picks a plan; sitter cards never show a price.
 
@@ -205,7 +213,7 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   | --- | --- | --- | --- |
   | Pause (Level 1) | Pause bookings | ₹200 | 0–1 families; can be new to babysitting |
   | Unwind (Level 2) | Unwind bookings | ₹300 | 2 families |
-  | Recharge (Level 3) | Recharge bookings | ₹400 | 3+ families; her reference (name, phone, relationship) is shown to parents, with her consent |
+  | Recharge (Level 3) | Recharge bookings | ₹400 | 3+ families; her reference (name, phone, relationship) is shown to parents, with her consent — a tick in her sitter application (decided 2026-11-03) |
 
 - Pay is per hour, **the same whatever the number of children**. Sitters aren't told the plan name. The
   app tells them: "Based on the experience we understand you have, you'll be paid ₹[pay] an hour. As
@@ -243,8 +251,10 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   the plan, she isn't already booked or blocked by a strike, the pair is unlocked, both users are
   verified and active, and the parent owes nothing. It's `pending_payment` until the payment is
   confirmed (6.1), then `confirmed`.
-- The sitter's availability for that slot is removed (whether it's held while payment is pending: see
-  "Open questions").
+- **No slot hold while payment is pending** (decided 2026-11-03): the sitter's availability for that
+  slot is only removed once a booking is `confirmed`. More than one parent can have a `pending_payment`
+  booking for the same slot at once — whoever's payment is confirmed first wins it; any other
+  `pending_payment` booking for an overlapping slot is then auto-cancelled (the parent is told).
 
 ### 6.5 Cancellations, no-shows and the show-up fee
 
@@ -258,7 +268,7 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
 | Sitter no-show | Parent reports it, admin confirms. Parent's money refunded. Sitter earns nothing and gets a strike. |
 | Sitter more than 15 minutes late without telling the parent and Pacify | Parent may cancel from the booking screen; it then counts as a sitter no-show. If not cancelled, the sitter is paid only from check-in. |
 | Sitter ill | Must tell Pacify and the parent at least 8 hours before (a normal cancellation). With less notice it's a late cancellation and a strike, but an admin can remove the strike if she uploads a doctor's note. |
-| Child under 18 months at the booking | Should never happen (bookings are blocked), but if it does: sitter presses Report, isn't required to care for the child and may leave once an adult is with the child. No fee for the sitter, no strike. (Whether the parent is refunded: see "Open questions".) |
+| Child under 18 months at the booking | Should never happen (bookings are blocked), but if it does: sitter presses Report, isn't required to care for the child and may leave once an adult is with the child. Parent is charged for 1 hour; the rest is refunded. Sitter is paid for that 1 hour (her level pay); no strike. (Decided 2026-11-03.) |
 | Sitter leaves because she feels unsafe | Only once the child is with a parent or a named adult; she presses Emergency. Once an admin confirms the report, she's paid for the time worked and it's not a strike. |
 
 **Parent not home:** the sitter calls the parent and presses Report; admins try to reach the parent too.
@@ -301,8 +311,12 @@ Emergency button instead.
   within **2 hours**, and enters the UPI reference; an admin confirms. Until it's paid, it's an
   outstanding amount and the parent can't make new bookings.
 - The sitter earns her level pay for the same rounded-up overtime hours.
-- Overtime can't run past the plan's latest end time (what happens if a parent is that late: see
-  "Open questions").
+- **Running past the plan's latest end time** (decided 2026-11-03): the sitter still can't leave the
+  child. Overtime hours that fall after the plan's latest end (6 pm Pause / 10:30 pm Unwind / 12 am
+  Recharge) are charged at the **next tier's** hourly rate instead of the current plan's (Pause overage
+  → Unwind rate, Unwind overage → Recharge rate); the sitter is still paid her own level pay for the
+  hours she works. Recharge has no higher tier, so what happens to overage past midnight on Recharge is
+  still open — see "Open questions" in `progress.md`.
 
 ### 6.9 Emergencies and incidents
 
@@ -486,7 +500,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `availability_slots` (id, sitter_id, starts_at, ends_at)
 - `interviews` (id, type: `onboarding|introduction`, sitter_id, parent_id null, starts_at, meet_url, calendar_event_id, outcome, recorded_by)
 - `pair_unlocks` (parent_id, sitter_id, unlocked_at, reason: `interview_passed|prior_booking`)
-- `payments` (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference, due_by, confirmed_by, confirmed_at, created_at) — append-only; replaces packs and the hour ledger. Match deposit to be added once defined
+- `payments` (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference, due_by, confirmed_by, confirmed_at, created_at) — append-only; replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
 - `bookings` (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
 - `booking_children` (booking_id, child_id)
 - `booking_home_info` (booking_id, cameras_on, camera_locations)
@@ -520,19 +534,19 @@ in the beta phase.
 | Sitter onboarding | Profile not searchable until every step passes and an admin has set her level |
 | Search and filters | Only active, verified, unblocked sitters of the chosen plan's level returned; distance sort; each filter works; parent never sees sitter pay |
 | Interviews | Slot must be inside sitter availability; Calendar call mocked and event stored; only `passed` unlocks the pair; prior completed booking unlocks |
-| Plans and pricing | Price per plan and children (Pause one child only; Unwind +₹150 per extra child; Recharge flat); half-hour rounding; booking `pending_payment` until an admin confirms; rejected payment frees the booking |
+| Plans and pricing | Price per plan and children (Pause one child only; Unwind +₹150 per extra child; Recharge flat); whole-hour bookings only (no half-hours); booking `pending_payment` until an admin confirms; rejected or unpaid-by-deadline payment frees the booking |
 | Payments | Rows are append-only; amount owed = sum of rows; refunds and cancellation charges per 6.5; parents who owe money can't book |
-| Bookings | Sitter's level must match the plan; plan's latest end time (overtime included); bath time only on Unwind/Recharge; double-booking prevented (including concurrent requests); blocked sitter can't be booked |
+| Bookings | Sitter's level must match the plan; plan's latest end time (overtime included); bath time only on Unwind/Recharge; two parents can hold `pending_payment` bookings for the same slot, only the first confirmed payment wins it and the other is auto-cancelled; blocked sitter can't be booked |
 | Cancellations | Each row of the 6.5 table, including exact 3-hour and 8-hour boundaries |
 | Strikes | Ladder 24h / 3d / 1w / 2w / removal; only last-6-month strikes count |
 | Check-in/out codes | Codes visible only to the booking's parent and only on the booking day; check-out code only after check-in; codes don't work for other bookings or twice; wrong codes rejected and locked after 5 attempts; locations stored; overdue check-out alert after end + 30 min; admin manual close audit logged; early check-out doesn't refund |
-| Overtime | Worked out at check-out; rounded up to the full hour; charged at the plan price; sitter paid her level pay for the same hours; payment due within 2 hours; unpaid overtime blocks new bookings |
+| Overtime | Worked out at check-out; rounded up to the full hour; charged at the plan price, or the next tier's price for hours past the plan's latest end; sitter paid her level pay for the same hours; payment due within 2 hours; unpaid overtime blocks new bookings |
 | Incidents | Email sent to every admin address (mocked); payout held while open |
 | Sitter pay | Level pay × hours worked, whatever the number of children; hours worked = check-in to booked end; late check-in paid from check-in; overtime hours rounded up like the parent's |
 | Payouts | Earnings released only after checkout + overtime worked out + no open incident; due within 12 hours; alerts at 3 hours left and when overdue; show-up fee ₹100 per booked hour; bank or UPI; mark-paid records reference |
 | Reviews | Only after a completed booking, once per author per booking; average updates; flag when last-10 average < 3.5 |
 | Child age and home info | Child under 18 months can't be booked; camera declaration required; outing needs parent approval |
-| New cancellation rows | 15-minute late rule; 20-minute parent-not-home wait; under-18-months: no sitter fee, no strike; unsafe early exit paid for time worked with no strike after admin confirms; doctor's note strike removal |
+| New cancellation rows | 15-minute late rule; 20-minute parent-not-home wait; under-18-months: parent charged 1 hour, rest refunded, sitter paid for that hour, no strike; unsafe early exit paid for time worked with no strike after admin confirms; doctor's note strike removal |
 | Complaints | SLA timers; escalation; original decider can't handle the appeal; late complaints flagged |
 | Sitter terms | Wording matches `sitter-terms-v1.1.md`; placeholders filled from config; production refuses to serve it with an empty placeholder |
 | Sitter onboarding extras | Under-18 rejected; health disclosure admin-only and access logged |

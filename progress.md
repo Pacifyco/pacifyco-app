@@ -12,9 +12,8 @@ tests.
 - Next item: items 1-5 are done and on staging (PRs #49-#55 merged) -- next is the psychology test
   engine, then the admin verification queue. Waiting for Reuben's go-ahead before building.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
-- Blocked on: `FIELD_ENCRYPTION_KEY` isn't on Render yet [Reuben] (staging and production, a different
-  key each; README "Encryption key"). Until it is, saving a sitter's health disclosure or bank details
-  fails on that environment.
+- `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
+  disclosure or bank details.
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -63,18 +62,24 @@ tests.
   overtime worked out at check-out, rounded up to the full hour, paid within 2 hours; parent not home =
   whole booking charged and ₹100 per booked hour to the sitter; no packs, no sitter rate, no minimum
   length, no GST. The sitter's own rate is removed (PR #58).
-- [ ] **Pricing follow-ups** (asked 2026-11-03):
-  1. **Match deposit**: what is it, how much, when is it paid (at the introduction?), and is it
-     refunded if no booking follows? CLAUDE.md 6.1 subtracts it from the booking price.
-  2. **Waiting for payment**: while a booking is `pending_payment`, is the sitter's slot held? For how
-     long before it's released if nobody pays?
-  3. **Parent later than the plan's latest end** (6 pm Pause, 10:30 pm Unwind, midnight Recharge): the
-     sitter can't leave the child. Is that time still charged as overtime, and is the sitter paid?
-  4. **Show-up fee for half hours**: ₹100 per booked hour; is a 2.5-hour booking ₹250 or ₹300?
-  5. **Child under 18 months at a booking** (should never happen): refund the parent, or charge?
-  6. **Level 3 reference**: the sitter's consent to share it: a tick in her application?
+- [x] **Pricing follow-ups** (asked 2026-11-03, answered 2026-11-03). Now in CLAUDE.md 6.1, 6.4, 6.5, 6.8:
+  1. No match deposit — dropped entirely. Parents pay the full price up front; encouraged (UX nudge, not
+     enforced) to make a short first booking with a new sitter to assess fit.
+  2. No slot hold while `pending_payment`: multiple parents can hold a pending booking for the same
+     slot; first confirmed payment wins it, the others auto-cancel. Payment itself has a deadline: if
+     not confirmed by 3 hours before the booking's start, it auto-cancels (new frequent job).
+  3. Overtime past the plan's latest end is charged at the **next tier's** hourly rate (Pause→Unwind,
+     Unwind→Recharge); sitter still paid her own level pay. **Still open:** Recharge has no higher tier
+     — what's charged for overage past midnight on Recharge?
+  4. Moot: bookings are whole hours only now (no half-hours), so the show-up fee is always a whole
+     number of ₹100.
+  5. Child under 18 months at a booking: parent charged for 1 hour, rest refunded; sitter paid for that
+     hour, no strike.
+  6. Level 3 reference-sharing consent: yes, a tick in the sitter's application.
   Also [Reuben]: **Sitter Terms v1.2** (2.3 rate, 2-hour minimum, per-child pay) and **Family Terms
   v1.1** (4.1 pricing, packs, overtime, 18 months) from the lawyer before production relies on them.
+- [ ] **Recharge overtime past midnight** (added 2026-11-03): no higher tier exists above Recharge —
+  what's charged for overage past its midnight latest-end? Blocks finishing CLAUDE.md 6.8 precisely.
 
 - [x] Parent late and declines overtime: answered 2026-11-03, overtime is worked out automatically at check-out and the sitter is paid for it (CLAUDE.md 6.8).
 
@@ -124,7 +129,7 @@ tests.
 
 ## Phase 3 — Verification and onboarding
 
-Waiting on: FIELD_ENCRYPTION_KEY on Render [Reuben] (see Current status). Sitter rate field: keep ₹80–120 until the pricing questions are answered, then revisit.
+`FIELD_ENCRYPTION_KEY` now set on Render (see Current status).
 
 - [x] Parent consents at sign-up (Family Terms 11.2: four required, one optional) and the single-parent
   declaration, replacing the phase 2 consent form
@@ -247,6 +252,15 @@ Waiting on: FIELD_ENCRYPTION_KEY on Render [Reuben] (see Current status). Sitter
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-03 — `FIELD_ENCRYPTION_KEY` set on Render by Reuben; no longer blocking health
+  disclosure/bank detail encryption.
+- 2026-11-03 — Pricing follow-ups answered: no match deposit, no slot hold while `pending_payment`
+  (first confirmed payment wins, others auto-cancel), 3-hour unpaid-booking auto-cancel deadline,
+  bookings are whole hours only (no half-hours, replacing half-hour rounding), overtime past a plan's
+  latest end is charged at the next tier's rate, under-18-months booking charges the parent 1 hour and
+  refunds the rest (sitter paid for that hour, no strike), Level 3 reference-sharing consent is a tick
+  in the application. CLAUDE.md 6.1/6.4/6.5/6.8/8 updated; no code yet. One sub-question still open:
+  what's charged for Recharge overtime past midnight (no higher tier exists).
 - 2026-11-03 — Pricing changed from hour packs to plans (Pause, Unwind, Recharge) and sitter levels: CLAUDE.md 6, 8 and 9 rewritten, phases 6-9 updated, follow-ups listed under Open questions. Sitter rate removed (PR #58). Family and Sitter Terms need new versions.
 - 2026-11-02 — Checked the `format.test.ts` failure noted below: not a bug. The repo pins Node 24
   (`.nvmrc`, used by CI); on Node 20, `Intl` formats midnight differently, so one time test fails
