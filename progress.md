@@ -9,11 +9,15 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: items 1-5 are done and on staging (PRs #49-#55 merged) -- next is the psychology test
-  engine, then the admin verification queue. Waiting for Reuben's go-ahead before building.
+- Next item: items 1-5 are done and on staging (PRs #49-#55 merged). Psychology test engine is built
+  on `phase3/psych-test-engine` (not yet merged — see "Blocked on"); then the admin verification queue.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
+- Blocked on: this sandbox has no Docker, so the psych test engine's tests
+  (`test_psych_tests.py`, plus the migration against `test_migrations.py`) were written and pass
+  import/lint/collection, but have never actually run against Postgres. Needs a CI run or Reuben running
+  `pytest` locally before merging, per CLAUDE.md rule 6.
 
 ## Open questions (ask Reuben; don't guess)
 
@@ -80,6 +84,11 @@ tests.
   v1.1** (4.1 pricing, packs, overtime, 18 months) from the lawyer before production relies on them.
 - [ ] **Recharge overtime past midnight** (added 2026-11-03): no higher tier exists above Recharge —
   what's charged for overage past its midnight latest-end? Blocks finishing CLAUDE.md 6.8 precisely.
+
+- [ ] **Psych test retake after a fail** (added 2026-11-03, `phase3/psych-test-engine`): not in
+  CLAUDE.md 7 step 5. Built so a sitter can retake with no limit once an admin records `failed` (she
+  can't start a second attempt while one is `in_progress`/`submitted`, or after `passed`). Confirm this
+  is the intended policy, or whether retakes should need an admin's say-so instead.
 
 - [x] Parent late and declines overtime: answered 2026-11-03, overtime is worked out automatically at check-out and the sitter is paid for it (CLAUDE.md 6.8).
 
@@ -252,6 +261,14 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-03 — Psychology test engine (`phase3/psych-test-engine`, not merged): `psych_tests`,
+  `psych_questions`, `psych_attempts`, `psych_answers` tables, seeded with one placeholder test (3
+  multiple-choice, 2 short-answer). Sitter: GET/PUT/POST under `/sitter/psych-test`, scoped to "my
+  current attempt" with no attempt id in the API surface. Admin: `/admin/psych-attempts` list, detail
+  and `/decision` (pass/fail + notes), the first thing in the repo to write to `audit_log` (new
+  `app/services/audit.py` helper). Retake-after-fail policy isn't in CLAUDE.md; built permissive for
+  now and flagged above to confirm. Not run against Postgres yet — no Docker in this sandbox; needs a
+  CI run or a local `pytest` before merging.
 - 2026-11-03 — `FIELD_ENCRYPTION_KEY` set on Render by Reuben; no longer blocking health
   disclosure/bank detail encryption.
 - 2026-11-03 — Pricing follow-ups answered: no match deposit, no slot hold while `pending_payment`
