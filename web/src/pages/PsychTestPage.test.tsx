@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/renderApp";
 import { PsychTestPage } from "./PsychTestPage";
@@ -78,9 +78,21 @@ describe("the psychology screening page", () => {
     expect(await screen.findByText("Please answer every question before submitting.")).toBeTruthy();
   });
 
-  test("submitting sends every answer and shows the submitted state", async () => {
+  test("submitting sends every answer, then takes her to what's next", async () => {
     const calls = mockApi(null);
-    renderPage();
+    const router = createMemoryRouter(
+      [
+        { path: "/", element: <PsychTestPage /> },
+        { path: "/sitter", element: <p>Sitter home page</p> },
+      ],
+      { initialEntries: ["/"] },
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
     await screen.findByText("Pick one");
 
     fireEvent.click(screen.getByLabelText("A"));
@@ -99,7 +111,7 @@ describe("the psychology screening page", () => {
         { question_id: "q2", answer_text: "Because I care." },
       ],
     });
-    expect(await screen.findByText(/An admin will look over your answers/)).toBeTruthy();
+    expect(await screen.findByText("Sitter home page")).toBeTruthy();
   });
 
   test("an already-submitted attempt shows the awaiting-review state, not the form", async () => {
