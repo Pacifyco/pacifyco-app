@@ -78,8 +78,10 @@ tests.
   6. Level 3 reference-sharing consent: yes, a tick in the sitter's application.
   Also [Reuben]: **Sitter Terms v1.2** (2.3 rate, 2-hour minimum, per-child pay) and **Family Terms
   v1.1** (4.1 pricing, packs, overtime, 18 months) from the lawyer before production relies on them.
-- [ ] **Recharge overtime past midnight** (added 2026-11-03): no higher tier exists above Recharge —
-  what's charged for overage past its midnight latest-end? Blocks finishing CLAUDE.md 6.8 precisely.
+- [x] **Recharge overtime past midnight** (added 2026-11-03; deferred by Reuben 2026-11-03: "no idea,
+  we'll see when we get there"). No higher tier exists above Recharge. Until decided, treat it like any
+  other overtime past the latest end that has no next tier: round up to the full hour at the
+  **Recharge** rate, sitter paid her level pay — revisit if/when it actually comes up.
 
 - [x] Parent late and declines overtime: answered 2026-11-03, overtime is worked out automatically at check-out and the sitter is paid for it (CLAUDE.md 6.8).
 
@@ -252,6 +254,8 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-03 — Recharge overtime past midnight: Reuben deferred ("no idea, we'll see when we get
+  there"). Defaulted CLAUDE.md 6.8 to charging the Recharge rate itself for now; revisit if it comes up.
 - 2026-11-03 — `FIELD_ENCRYPTION_KEY` set on Render by Reuben; no longer blocking health
   disclosure/bank detail encryption.
 - 2026-11-03 — Pricing follow-ups answered: no match deposit, no slot hold while `pending_payment`

@@ -315,8 +315,9 @@ Emergency button instead.
   child. Overtime hours that fall after the plan's latest end (6 pm Pause / 10:30 pm Unwind / 12 am
   Recharge) are charged at the **next tier's** hourly rate instead of the current plan's (Pause overage
   → Unwind rate, Unwind overage → Recharge rate); the sitter is still paid her own level pay for the
-  hours she works. Recharge has no higher tier, so what happens to overage past midnight on Recharge is
-  still open — see "Open questions" in `progress.md`.
+  hours she works. Recharge has no higher tier: for now, overage past midnight on Recharge is charged
+  at the Recharge rate itself (deferred default, decided 2026-11-03 — revisit if it comes up in
+  practice; see `progress.md`).
 
 ### 6.9 Emergencies and incidents
 
