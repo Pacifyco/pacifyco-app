@@ -1,4 +1,4 @@
-"""A sitter's own application and profile (CLAUDE.md sections 6.2, 7 and 9): 18+, rate ₹80-120,
+"""A sitter's own application and profile (CLAUDE.md sections 6.2, 7 and 9): 18+, no rate of her own,
 health disclosure and bank details encrypted at rest and never shown to parents, exactly two
 references, no IDOR."""
 
@@ -18,7 +18,6 @@ PROFILE_BODY = {
     "age_groups": ["toddler", "preschool"],
     "languages": ["English", "Kannada"],
     "first_aid": True,
-    "hourly_rate_paise": 10_000,
 }
 
 
@@ -50,7 +49,6 @@ def test_profile_starts_empty(client, sitter):  # noqa: F811
     assert response.status_code == 200
     body = response.json()
     assert body["date_of_birth"] is None
-    assert body["hourly_rate_paise"] is None
     assert body["onboarding_status"] == "in_progress"
 
 
@@ -61,10 +59,9 @@ def test_saving_a_profile(client, db_engine, sitter):  # noqa: F811
     assert body["date_of_birth"] == "1995-06-15"
     assert body["bio"] == "I love looking after kids."
     assert body["age_groups"] == ["toddler", "preschool"]
-    assert body["hourly_rate_paise"] == 10_000
 
-    stored = row(db_engine, "SELECT hourly_rate_paise FROM sitters WHERE profile_id = :id", id=sitter["id"])
-    assert stored["hourly_rate_paise"] == 10_000
+    stored = row(db_engine, "SELECT years_experience FROM sitters WHERE profile_id = :id", id=sitter["id"])
+    assert stored["years_experience"] == 5
 
 
 def test_sitter_under_18_rejected(client, sitter):  # noqa: F811
@@ -79,16 +76,12 @@ def test_birthday_in_the_future_rejected(client, sitter):  # noqa: F811
     assert response.status_code == 422
 
 
-@pytest.mark.parametrize("rate", [7_999, 12_001])
-def test_rate_outside_80_to_120_rejected(client, sitter, rate):  # noqa: F811
-    response = client.put("/sitter/profile", json={**PROFILE_BODY, "hourly_rate_paise": rate}, headers=auth_for(sitter))
-    assert response.status_code == 422
-
-
-@pytest.mark.parametrize("rate", [8_000, 12_000])
-def test_rate_boundaries_accepted(client, sitter, rate):  # noqa: F811
-    response = client.put("/sitter/profile", json={**PROFILE_BODY, "hourly_rate_paise": rate}, headers=auth_for(sitter))
+def test_sitters_set_no_rate(client, sitter):  # noqa: F811
+    # Pay is fixed by the sitter's level (CLAUDE.md 6.2): a rate sent by an old client is ignored.
+    body = {**PROFILE_BODY, "hourly_rate_paise": 10_000}
+    response = client.put("/sitter/profile", json=body, headers=auth_for(sitter))
     assert response.status_code == 200
+    assert "hourly_rate_paise" not in response.json()
 
 
 # ---------- health disclosure (encrypted, never shown to parents) ----------

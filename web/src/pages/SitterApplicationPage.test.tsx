@@ -27,7 +27,6 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       age_groups: [] as string[],
       languages: [] as string[],
       first_aid: false,
-      hourly_rate_paise: null,
       onboarding_status: "in_progress",
     },
     "health-disclosure": { disclosure: null as string | null },
@@ -118,7 +117,6 @@ describe("the sitter application page", () => {
     fireEvent.change(screen.getByLabelText(/About you/), { target: { value: "I love looking after kids." } });
     fireEvent.change(screen.getByLabelText("Age groups you care for"), { target: { value: "Toddler, Preschool" } });
     fireEvent.change(screen.getByLabelText("Languages you speak"), { target: { value: "English, Kannada" } });
-    fireEvent.change(screen.getByLabelText(/Hourly rate/), { target: { value: "100" } });
     fireEvent.click(screen.getByLabelText("I'm first-aid certified"));
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
 
@@ -133,8 +131,8 @@ describe("the sitter application page", () => {
       age_groups: ["Toddler", "Preschool"],
       languages: ["English", "Kannada"],
       first_aid: true,
-      hourly_rate_paise: 10_000,
     });
+    expect(screen.queryByLabelText(/Hourly rate/)).toBeNull();
   });
 
   test("saving the health disclosure", async () => {
