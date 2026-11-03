@@ -188,5 +188,4 @@ def test_every_consent_kind_is_a_real_enum_member():
         "share_care_details",
         "emergency_authorisation",
         "marketing",
-        "single_parent_declaration",
     }

@@ -398,18 +398,11 @@ Emergency button instead.
 6. Onboarding interview with Pacify.
 7. Admin approval.
 
-**Parent verification:** masked Aadhaar for both parents (the upload screen asks for UIDAI's masked
-Aadhaar), a birth certificate per child, then admin approval. Parents can browse after sign-up but
-can't request an introduction until approved. Decided 2026-11-02:
-- **Single parent or sole guardian:** one masked Aadhaar plus a short declaration that they are the
-  only parent or legal guardian of the children they add (recorded like a consent: text version, time).
-- **Aadhaar only** for parents for now (no other ID types), knowing a private company generally can't
-  make Aadhaar mandatory; Reuben is checking with the lawyer.
-- **Never store an Aadhaar number** (no typing, searching or e-KYC); only the masked copy and its review
-  result. An unmasked Aadhaar is rejected and its file deleted at once.
-- **Delete each Aadhaar copy once the admin approves it**, keeping only the status, who verified it and
-  when (as with birth certificates). Rejected copies are deleted too.
-- Password-protected PDFs (as downloaded from UIDAI) are refused with a request for a screenshot or photo.
+**Parent verification:** a birth certificate per child, then admin approval. Parents can browse after
+sign-up but can't request an introduction until approved. **No ID document is collected from parents**
+(decided 2026-11-03, Reuben: "we will not be taking aadhaar details anymore" — drops the masked-Aadhaar
+upload entirely, and with it the single-parent declaration that existed only to stand in for a second
+Aadhaar). What, if anything, replaces a parent-identity check is an open question in `progress.md`.
 
 **Document handling:** private bucket, admin-only access, every view logged, birth certificates deleted
 automatically once the child is verified (keep status, verifier and date).
@@ -427,9 +420,6 @@ nothing pre-ticked, each recorded with its version and time:
 
 The labels use the wording of Family Terms 11.2. These replace the single parental consent form built in
 phase 2 (`/parent/consent`); child documents still need every required consent at its current version.
-
-**Single parent or sole guardian:** instead of a second Aadhaar, they tick "I'm the only parent or legal
-guardian of the children I add." (wording approved for now; recorded with version and time).
 
 **Emergency contacts and authorised adults (decided 2026-11-02, follow Family Terms 2.5):** two emergency
 contacts per **family** (not per child), and any number of named **authorised adults** who may hand over or
@@ -489,11 +479,10 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `authorised_adults` (id, parent_id, name, relationship, phone) — phase 3
 - `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, avg_rating, review_count; to add: level `pause|unwind|recharge` null until an admin sets it, reference_shared_consent) — no rate column (dropped 2026-11-03)
 - `onboarding_steps` (sitter_id, step, status, notes, reviewed_by, reviewed_at)
-- `documents` (id, owner_profile_id, child_id null, type: `aadhaar_masked|birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at)
+- `documents` (id, owner_profile_id, child_id null, type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)
 - `document_access_log` (id, document_id, admin_id, accessed_at)
-- `consents` **(created)** (id, parent_id, form_version, accepted_at) — **to change in phase 3** to one
-  row per consent kind (`own_data|child_data|share_care_details|emergency_authorisation|marketing`) and
-  version, with marketing withdrawable; plus the single-parent declaration — append-only, one row per parent per version; current version is `CONSENT_VERSION` in `api/app/services/consent.py`, matching the `version:` line of `web/src/content/consent.md`
+- `consents` **(created)** one row per consent kind (`own_data|child_data|share_care_details|emergency_authorisation|marketing`)
+  and version, with marketing withdrawable — append-only, one row per parent per version; current version is `CONSENT_VERSION` in `api/app/services/consent.py`, matching the `version:` line of `web/src/content/consent.md`. No `single_parent_declaration` kind (dropped 2026-11-03 with Aadhaar)
 - `legal_documents` **(created)** (id, kind: `parent_terms|sitter_terms|privacy_policy`, version, published_at, effective_at, content_path) — read-only for the API; a new version is a migration that adds a row (plus the new text in `web/src/content/` with the same version; a test checks they match). The current version is the latest whose `effective_at` has passed, so pay or rights changes to the sitter terms get an `effective_at` 14+ days out
 - `legal_acceptances` **(created)** (id, profile_id, document_id, method: `clickwrap`, accepted_at, ip_address, user_agent) — append-only; written only by `record_acceptances` in `api/app/services/legal.py`; `require_current_terms` gates booking, buying hours and taking bookings
 - `references` (id, sitter_id, name, phone, relationship, outcome, notes)

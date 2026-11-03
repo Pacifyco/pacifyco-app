@@ -11,15 +11,13 @@ from app.models.common import created_at, enum_column, uuid_pk
 
 class ConsentKind(StrEnum):
     """Family Terms 11.2 (CLAUDE.md section 7). The first four are required at sign-up; marketing is
-    optional and withdrawable; the declaration is asked for later, when a parent uploads only one
-    masked Aadhaar instead of two."""
+    optional and withdrawable."""
 
     own_data = "own_data"
     child_data = "child_data"
     share_care_details = "share_care_details"
     emergency_authorisation = "emergency_authorisation"
     marketing = "marketing"
-    single_parent_declaration = "single_parent_declaration"
 
 
 class Consent(Base):

@@ -221,20 +221,3 @@ def test_a_child_makes_the_account_not_empty(client, db_engine, parent):  # noqa
     client.post("/parent/children", json=CHILD, headers=auth_for(parent))
     url = db_engine.url.render_as_string(hide_password=False)
     assert cli.delete_empty_profile(parent["email"], True, url) == 1
-
-
-# ---------- single-parent declaration ----------
-
-
-def test_single_parent_declaration_defaults_to_false(client, parent):  # noqa: F811
-    assert client.get("/parent/single-parent-declaration", headers=auth_for(parent)).json() == {"declared": False}
-
-
-def test_declaring_and_withdrawing(client, parent):  # noqa: F811
-    declare = client.patch("/parent/single-parent-declaration", json={"declared": True}, headers=auth_for(parent))
-    assert declare.status_code == 200
-    assert declare.json() == {"declared": True}
-    assert client.get("/parent/single-parent-declaration", headers=auth_for(parent)).json() == {"declared": True}
-
-    withdraw = client.patch("/parent/single-parent-declaration", json={"declared": False}, headers=auth_for(parent))
-    assert withdraw.json() == {"declared": False}

@@ -58,22 +58,6 @@ def set_marketing_consent(body: SetMarketing, parent: Parent, db: DbSession) -> 
     return _status(consent.set_marketing(db, parent.id, body.accepted))
 
 
-class SingleParentDeclaration(BaseModel):
-    declared: bool
-
-
-@router.get("/single-parent-declaration")
-def get_single_parent_declaration(parent: Parent, db: DbSession) -> SingleParentDeclaration:
-    return SingleParentDeclaration(declared=consent.single_parent_declared(db, parent.id))
-
-
-@router.patch("/single-parent-declaration")
-def set_single_parent_declaration(
-    body: SingleParentDeclaration, parent: Parent, db: DbSession
-) -> SingleParentDeclaration:
-    return SingleParentDeclaration(declared=consent.set_single_parent_declaration(db, parent.id, body.declared))
-
-
 # ---------- emergency contacts and authorised adults (CLAUDE.md 7, Family Terms 2.5) ----------
 
 

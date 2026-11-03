@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../../test/renderApp";
-import { DocumentUpload, DocumentUploadList } from "./DocumentUpload";
+import { DocumentUpload } from "./DocumentUpload";
 
 function renderUpload(props: Partial<React.ComponentProps<typeof DocumentUpload>> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -90,25 +90,5 @@ describe("DocumentUpload", () => {
     fireEvent.change(input, { target: { files: [file("id.pdf", "application/pdf")] } });
 
     expect(await screen.findByText(/isn't a PDF, JPG or PNG, or it's larger than 5 MB/)).toBeTruthy();
-  });
-});
-
-describe("DocumentUploadList", () => {
-  test("shows one slot to start, and an Add another button up to the max", async () => {
-    vi.mocked(fetch).mockImplementation((() => Promise.resolve(jsonResponse([]))) as typeof fetch);
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <DocumentUploadList type="aadhaar_masked" label="Masked Aadhaar" max={2} />
-      </QueryClientProvider>,
-    );
-
-    expect(await screen.findByText("Masked Aadhaar")).toBeTruthy();
-    expect(screen.queryByText("Masked Aadhaar 1")).toBeNull(); // only one slot: no number shown
-
-    fireEvent.click(screen.getByRole("button", { name: "Add another" }));
-    expect(await screen.findByText("Masked Aadhaar 1")).toBeTruthy();
-    expect(screen.getByText("Masked Aadhaar 2")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Add another" })).toBeNull(); // already at max
   });
 });
