@@ -9,8 +9,9 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: items 1-5 are done and on staging (PRs #49-#55 merged) -- next is the psychology test
-  engine, then the admin verification queue. Waiting for Reuben's go-ahead before building.
+- Next item: items 1-5 and the psychology test engine are done; psych engine is on PR #61
+  (`phase3/psych-test-engine`, CI green, ready for review, not yet merged) -- next is the admin
+  verification queue.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -83,6 +84,11 @@ tests.
   other overtime past the latest end that has no next tier: round up to the full hour at the
   **Recharge** rate, sitter paid her level pay — revisit if/when it actually comes up.
 
+- [ ] **Psych test retake after a fail** (added 2026-11-03, `phase3/psych-test-engine`): not in
+  CLAUDE.md 7 step 5. Built so a sitter can retake with no limit once an admin records `failed` (she
+  can't start a second attempt while one is `in_progress`/`submitted`, or after `passed`). Confirm this
+  is the intended policy, or whether retakes should need an admin's say-so instead.
+
 - [x] Parent late and declines overtime: answered 2026-11-03, overtime is worked out automatically at check-out and the sitter is paid for it (CLAUDE.md 6.8).
 
 ---
@@ -139,7 +145,7 @@ tests.
 - [x] Private storage buckets, signed upload URLs, file type/size validation
 - [x] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
 - [x] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
-- [ ] Psychology test engine with placeholder questions
+- [x] Psychology test engine with placeholder questions
 - [ ] Admin verification queue: view documents (logged), approve/reject each step with notes, set each sitter's level (CLAUDE.md 6.2)
 - [ ] Birth certificate auto-delete after child verification
 - [ ] Tests for this phase
