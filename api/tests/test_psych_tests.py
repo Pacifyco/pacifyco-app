@@ -40,7 +40,8 @@ def admin(client, db_engine):  # noqa: F811
             {"id": admin_id, "e": admin_user["email"]},
         )
     yield admin_user
-    with db_engine.begin() as conn:
+    with db_engine.begin() as conn:  # as the owner: audit_log is append-only for the API
+        conn.execute(text("DELETE FROM audit_log WHERE actor_id = :id"), {"id": admin_id})
         conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": admin_id})
 
 
