@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { Button, ButtonLink, Card, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { formatDate } from "../lib/format";
@@ -76,7 +77,7 @@ function QuestionField({
 }
 
 function PsychTestForm({ questions, initial }: { questions: Question[]; initial: Record<string, string> }) {
-  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [answers, setAnswers] = useState<Record<string, string>>(initial);
   const [error, setError] = useState<string>();
 
@@ -90,10 +91,8 @@ function PsychTestForm({ questions, initial }: { questions: Question[]; initial:
       });
       return apiFetch<Attempt>("/sitter/psych-test/submit", { method: "POST" });
     },
-    onSuccess: (attempt) => {
-      setError(undefined);
-      queryClient.setQueryData<PsychTest>(["psych-test"], (current) => (current ? { ...current, attempt } : current));
-    },
+    // Once she's submitted, there's nothing left to do on this page -- take her to what's next.
+    onSuccess: () => navigate("/sitter"),
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
   });
 

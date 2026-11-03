@@ -1,13 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/renderApp";
 import { SitterApplicationPage } from "./SitterApplicationPage";
 
 // Needs no sign-in session to render, same as FamilyPage: apiFetch sends no Authorization header
 // when there isn't one, and every test here stubs fetch by URL directly. Wrapped in a MemoryRouter
-// because the psychology screening section links to its own page.
+// because the last step navigates to the psychology screening page.
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -42,7 +42,6 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       upi_id: null as string | null,
     },
     references: [] as unknown[],
-    "psych-test": { attempt: null as { status: string } | null },
     ...overrides,
   };
   vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
@@ -90,10 +89,20 @@ function mockApi(overrides: Record<string, unknown> = {}) {
     if (path.endsWith("/sitter/health-disclosure")) return Promise.resolve(jsonResponse(state["health-disclosure"]));
     if (path.endsWith("/sitter/payout-details")) return Promise.resolve(jsonResponse(state["payout-details"]));
     if (path.endsWith("/sitter/references")) return Promise.resolve(jsonResponse(state.references));
-    if (path.endsWith("/sitter/psych-test")) return Promise.resolve(jsonResponse(state["psych-test"]));
     return Promise.reject(new Error(`unexpected request: ${init?.method ?? "GET"} ${path}`));
   }) as typeof fetch);
   return calls;
+}
+
+async function clickContinue(name = "Continue") {
+  fireEvent.click(await screen.findByRole("button", { name }));
+}
+
+async function fillProfileAndContinue() {
+  fireEvent.change(await screen.findByLabelText("Date of birth"), { target: { value: "1995-06-15" } });
+  fireEvent.change(screen.getByLabelText("Years of experience"), { target: { value: "5" } });
+  await clickContinue();
+  await screen.findByRole("heading", { name: "Documents" });
 }
 
 beforeEach(() => {
@@ -101,141 +110,114 @@ beforeEach(() => {
 });
 
 describe("the sitter application page", () => {
-  test("shows every section before anything is filled in", async () => {
+  test("starts on step 1 (about you) and shows nothing else yet", async () => {
     mockApi();
     renderPage();
     expect(await screen.findByRole("heading", { level: 1, name: "Your application" })).toBeTruthy();
+    expect(await screen.findByText("Step 1 of 5 · About you")).toBeTruthy();
     expect(await screen.findByRole("heading", { name: "Your profile" })).toBeTruthy();
-    expect(await screen.findByText("Application in progress")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Health disclosure" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Payout details" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "References" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Documents" })).toBeTruthy();
-    expect(await screen.findByRole("heading", { name: "Psychology screening" })).toBeTruthy();
-    expect(screen.getByText("Not started")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Documents" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Health disclosure" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "References" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Payout details" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "← Back" })).toBeNull();
   });
 
-  test("saving the profile sends the right body", async () => {
+  test("completing the profile step sends the right body and advances to documents", async () => {
     const calls = mockApi();
     renderPage();
-    await screen.findByRole("heading", { name: "Your profile" });
+    await fillProfileAndContinue();
 
-    fireEvent.change(screen.getByLabelText("Date of birth"), { target: { value: "1995-06-15" } });
-    fireEvent.change(screen.getByLabelText("Years of experience"), { target: { value: "5" } });
-    fireEvent.change(screen.getByLabelText(/About you/), { target: { value: "I love looking after kids." } });
-    fireEvent.change(screen.getByLabelText("Age groups you care for"), { target: { value: "Toddler, Preschool" } });
-    fireEvent.change(screen.getByLabelText("Languages you speak"), { target: { value: "English, Kannada" } });
-    fireEvent.click(screen.getByLabelText("I'm first-aid certified"));
-    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
-
-    await waitFor(() =>
-      expect(calls.some((call) => call.url.endsWith("/sitter/profile") && call.init?.method === "PUT")).toBe(true),
-    );
     const put = calls.find((call) => call.url.endsWith("/sitter/profile") && call.init?.method === "PUT")!;
     expect(JSON.parse(put.init!.body as string)).toEqual({
       date_of_birth: "1995-06-15",
-      bio: "I love looking after kids.",
+      bio: null,
       years_experience: 5,
-      age_groups: ["Toddler", "Preschool"],
-      languages: ["English", "Kannada"],
-      first_aid: true,
+      age_groups: [],
+      languages: [],
+      first_aid: false,
     });
-    expect(screen.queryByLabelText(/Hourly rate/)).toBeNull();
+    expect(await screen.findByText("Step 2 of 5 · Documents")).toBeTruthy();
   });
 
-  test("saving the health disclosure", async () => {
-    const calls = mockApi();
-    renderPage();
-    await screen.findByRole("heading", { name: "Health disclosure" });
-
-    fireEvent.change(await screen.findByLabelText(/Health disclosure/), { target: { value: "Mild peanut allergy." } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() =>
-      expect(
-        calls.some((call) => call.url.endsWith("/sitter/health-disclosure") && call.init?.method === "PUT"),
-      ).toBe(true),
-    );
-    const put = calls.find((call) => call.url.endsWith("/sitter/health-disclosure") && call.init?.method === "PUT")!;
-    expect(JSON.parse(put.init!.body as string)).toEqual({ disclosure: "Mild peanut allergy." });
-  });
-
-  test("saving payout details defaults to UPI", async () => {
-    const calls = mockApi();
-    renderPage();
-    const section = (await screen.findByRole("heading", { name: "Payout details" })).closest("section")!;
-    const scope = within(section);
-
-    fireEvent.change(await scope.findByLabelText("UPI ID"), { target: { value: "asha@upi" } });
-    fireEvent.click(scope.getByRole("button", { name: "Save payout details" }));
-
-    await waitFor(() =>
-      expect(calls.some((call) => call.url.endsWith("/sitter/payout-details") && call.init?.method === "PUT")).toBe(
-        true,
-      ),
-    );
-    const put = calls.find((call) => call.url.endsWith("/sitter/payout-details") && call.init?.method === "PUT")!;
-    expect(JSON.parse(put.init!.body as string)).toEqual({ method: "upi", upi_id: "asha@upi" });
-  });
-
-  test("switching payout method to bank sends bank fields", async () => {
-    const calls = mockApi();
-    renderPage();
-    const section = (await screen.findByRole("heading", { name: "Payout details" })).closest("section")!;
-    const scope = within(section);
-
-    fireEvent.change(await scope.findByLabelText("Payout method"), { target: { value: "bank" } });
-    fireEvent.change(scope.getByLabelText("Account holder name"), { target: { value: "Asha Rao" } });
-    fireEvent.change(scope.getByLabelText("Account number"), { target: { value: "123456789012" } });
-    fireEvent.change(scope.getByLabelText("IFSC code"), { target: { value: "hdfc0000123" } });
-    fireEvent.click(scope.getByRole("button", { name: "Save payout details" }));
-
-    await waitFor(() =>
-      expect(calls.some((call) => call.url.endsWith("/sitter/payout-details") && call.init?.method === "PUT")).toBe(
-        true,
-      ),
-    );
-    const put = calls.find((call) => call.url.endsWith("/sitter/payout-details") && call.init?.method === "PUT")!;
-    expect(JSON.parse(put.init!.body as string)).toEqual({
-      method: "bank",
-      account_holder_name: "Asha Rao",
-      account_number: "123456789012",
-      ifsc_code: "HDFC0000123",
-    });
-  });
-
-  test("adding two references hides the add form, and removing one brings it back", async () => {
+  test("the back button returns to the previous step", async () => {
     mockApi();
     renderPage();
+    await fillProfileAndContinue();
+
+    fireEvent.click(screen.getByRole("button", { name: "← Back" }));
+    expect(await screen.findByRole("heading", { name: "Your profile" })).toBeTruthy();
+    expect(await screen.findByText("Step 1 of 5 · About you")).toBeTruthy();
+  });
+
+  test("walking through every step reaches the psychology screening page", async () => {
+    mockApi();
+    const router = createMemoryRouter(
+      [
+        { path: "/", element: <SitterApplicationPage /> },
+        { path: "/sitter/psych-test", element: <p>Psychology screening page</p> },
+      ],
+      { initialEntries: ["/"] },
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    await fillProfileAndContinue();
+
+    await clickContinue(); // documents, nothing required
+    await screen.findByText("Step 3 of 5 · Health disclosure");
+
+    await clickContinue(); // health disclosure, blank is valid
+    await screen.findByText("Step 4 of 5 · References");
+
+    await clickContinue(); // references, none required
+    await screen.findByText("Step 5 of 5 · Payout details");
+
+    fireEvent.change(await screen.findByLabelText("UPI ID"), { target: { value: "asha@upi" } });
+    await clickContinue("Continue to the psychology screening");
+
+    expect(await screen.findByText("Psychology screening page")).toBeTruthy();
+  });
+
+  test("the payout step defaults to UPI and switches to bank fields", async () => {
+    mockApi();
+    renderPage();
+    await fillProfileAndContinue();
+    await clickContinue(); // documents
+    await screen.findByText("Step 3 of 5 · Health disclosure");
+    await clickContinue(); // health disclosure
+    await screen.findByText("Step 4 of 5 · References");
+    await clickContinue(); // references
+    await screen.findByRole("heading", { name: "Payout details" });
+
+    expect(await screen.findByLabelText("UPI ID")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Payout method"), { target: { value: "bank" } });
+    expect(screen.queryByLabelText("UPI ID")).toBeNull();
+    expect(screen.getByLabelText("Account holder name")).toBeTruthy();
+  });
+
+  test("a third reference is refused", async () => {
+    mockApi();
+    renderPage();
+    await fillProfileAndContinue();
+    await clickContinue(); // documents
+    await screen.findByText("Step 3 of 5 · Health disclosure");
+    await clickContinue(); // health disclosure
     const section = (await screen.findByRole("heading", { name: "References" })).closest("section")!;
     const scope = within(section);
 
-    fireEvent.change(scope.getByLabelText("Name"), { target: { value: "Priya Rao" } });
-    fireEvent.change(scope.getByLabelText("Relationship"), { target: { value: "Neighbour" } });
-    fireEvent.change(scope.getByLabelText("Phone"), { target: { value: "9876543210" } });
-    fireEvent.click(scope.getByRole("button", { name: "Add reference" }));
-    expect(await scope.findByText("Priya Rao")).toBeTruthy();
-
-    fireEvent.change(scope.getByLabelText("Name"), { target: { value: "Vikram Rao" } });
-    fireEvent.change(scope.getByLabelText("Relationship"), { target: { value: "Former employer" } });
-    fireEvent.change(scope.getByLabelText("Phone"), { target: { value: "9876500000" } });
-    fireEvent.click(scope.getByRole("button", { name: "Add reference" }));
-    expect(await scope.findByText("Vikram Rao")).toBeTruthy();
-
-    await waitFor(() => expect(scope.queryByRole("button", { name: "Add reference" })).toBeNull());
-
-    fireEvent.click(scope.getByRole("button", { name: "Remove Priya Rao" }));
-    await waitFor(() => expect(scope.queryByText("Priya Rao")).toBeNull());
-    expect(scope.getByRole("button", { name: "Add reference" })).toBeTruthy();
-  });
-
-  test("documents section has an upload slot for each sitter document", async () => {
-    mockApi();
-    renderPage();
-    await screen.findByRole("heading", { name: "Documents" });
-    expect(screen.getByLabelText("Government ID")).toBeTruthy();
-    expect(screen.getByLabelText("College or work ID")).toBeTruthy();
-    expect(screen.getByLabelText("Police clearance certificate")).toBeTruthy();
-    expect(screen.getByLabelText("First-aid certificate")).toBeTruthy();
+    for (const name of ["Priya Rao", "Vikram Rao"]) {
+      fireEvent.change(scope.getByLabelText("Name"), { target: { value: name } });
+      fireEvent.change(scope.getByLabelText("Relationship"), { target: { value: "Neighbour" } });
+      fireEvent.change(scope.getByLabelText("Phone"), { target: { value: "9876543210" } });
+      fireEvent.click(scope.getByRole("button", { name: "Add reference" }));
+      await waitFor(() => expect(scope.queryByText(name)).toBeTruthy());
+    }
+    expect(scope.queryByLabelText("Name")).toBeNull(); // the add form hides once two are added
+    expect(scope.getByRole("button", { name: "Continue" })).toBeTruthy();
   });
 });

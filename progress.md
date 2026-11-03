@@ -9,10 +9,10 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: items 1-5 and the psychology test engine backend are merged (PR #61). Its sitter-facing
-  frontend is on a separate branch, `phase3/psych-test-frontend` (PR #61's original branch got merged
-  mid-session before the frontend commits landed on it, so they're resubmitted here instead) -- once
-  that's in, next is the admin verification queue (including its review page for this).
+- Next item: items 1-5 and the psychology test engine (backend PR #61, frontend PR #62) are merged.
+  Reuben asked to restructure the sitter application page into a one-step-at-a-time wizard ending by
+  handing off to the psychology screening page; that's on `sitter/application-wizard`, not yet merged.
+  Next after that: the admin verification queue (including its review page for the psych test).
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -146,8 +146,7 @@ tests.
 - [x] Private storage buckets, signed upload URLs, file type/size validation
 - [x] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
 - [x] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
-- [ ] Psychology test engine with placeholder questions (backend merged, PR #61; frontend on
-  `phase3/psych-test-frontend`, not yet merged)
+- [x] Psychology test engine with placeholder questions (backend PR #61, frontend PR #62)
 - [ ] Admin verification queue: view documents (logged), approve/reject each step with notes, set each sitter's level (CLAUDE.md 6.2)
 - [ ] Birth certificate auto-delete after child verification
 - [ ] Tests for this phase
@@ -262,6 +261,14 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-03 — Sitter application page restructured into a wizard (`sitter/application-wizard`,
+  Reuben's request): "Your application" and its intro centered; one step shown at a time (About you,
+  Documents, Health disclosure, References, Payout details) with Back/Continue navigation instead of
+  a two-column page of every section at once. Finishing payout details now navigates straight to
+  `/sitter/psych-test` (dropped the separate status card, since the wizard is the path there now);
+  finishing the psych test now navigates to `/sitter` instead of showing an inline "submitted" message
+  on that page (the message still shows if she revisits that URL directly while pending/passed/failed).
+  166/167 web tests pass (pre-existing Node 20 quirk), lint/typecheck/build clean.
 - 2026-11-03 — Psychology screening frontend (`phase3/psych-test-frontend`, resubmitted): `/sitter/psych-test`
   page (radio options for multiple-choice, textarea for short-answer, prefills saved in-progress
   answers, checks every question is answered before PUT-then-POST submit, submitted/passed/failed

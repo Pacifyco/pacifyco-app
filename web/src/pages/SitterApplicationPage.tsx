@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { DocumentUpload } from "../components/documents/DocumentUpload";
-import { Button, ButtonLink, Card, Checkbox, Select, TextInput, Textarea } from "../components/ui";
+import { Button, Card, Checkbox, Select, TextInput, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
 // ---------- shared bits ----------
@@ -82,7 +83,15 @@ function useSitterProfile() {
   return useQuery({ queryKey: ["sitter-profile"], queryFn: () => apiFetch<SitterProfile>("/sitter/profile") });
 }
 
-function ProfileForm({ initial, status }: { initial: ProfileInput; status: OnboardingStatus }) {
+function ProfileForm({
+  initial,
+  status,
+  onContinue,
+}: {
+  initial: ProfileInput;
+  status: OnboardingStatus;
+  onContinue: () => void;
+}) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string>();
@@ -93,6 +102,7 @@ function ProfileForm({ initial, status }: { initial: ProfileInput; status: Onboa
     onSuccess: () => {
       setError(undefined);
       queryClient.invalidateQueries({ queryKey: ["sitter-profile"] });
+      onContinue();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
   });
@@ -145,18 +155,24 @@ function ProfileForm({ initial, status }: { initial: ProfileInput; status: Onboa
       />
       <ErrorLine message={error} />
       <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
-        Save profile
+        Continue
       </Button>
     </>
   );
 }
 
-function ProfileSection() {
+function ProfileSection({ onContinue }: { onContinue: () => void }) {
   const profile = useSitterProfile();
   return (
     <Card as="section" padding="roomy" className="flex flex-col gap-5">
       {profile.isPending && <p className="text-muted">Loading…</p>}
-      {profile.data && <ProfileForm initial={profileInput(profile.data)} status={profile.data.onboarding_status} />}
+      {profile.data && (
+        <ProfileForm
+          initial={profileInput(profile.data)}
+          status={profile.data.onboarding_status}
+          onContinue={onContinue}
+        />
+      )}
     </Card>
   );
 }
@@ -170,7 +186,7 @@ function useHealthDisclosure() {
   });
 }
 
-function HealthDisclosureForm({ initial }: { initial: string }) {
+function HealthDisclosureForm({ initial, onContinue }: { initial: string; onContinue: () => void }) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState(initial);
   const [error, setError] = useState<string>();
@@ -184,6 +200,7 @@ function HealthDisclosureForm({ initial }: { initial: string }) {
     onSuccess: () => {
       setError(undefined);
       queryClient.invalidateQueries({ queryKey: ["health-disclosure"] });
+      onContinue();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
   });
@@ -199,19 +216,19 @@ function HealthDisclosureForm({ initial }: { initial: string }) {
       />
       <ErrorLine message={error} />
       <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
-        Save
+        Continue
       </Button>
     </>
   );
 }
 
-function HealthDisclosureSection() {
+function HealthDisclosureSection({ onContinue }: { onContinue: () => void }) {
   const disclosure = useHealthDisclosure();
   return (
     <Card as="section" className="flex flex-col gap-5">
       <h2 className="text-h3">Health disclosure</h2>
       {disclosure.isPending && <p className="text-small text-muted">Loading…</p>}
-      {disclosure.data && <HealthDisclosureForm initial={disclosure.data.disclosure ?? ""} />}
+      {disclosure.data && <HealthDisclosureForm initial={disclosure.data.disclosure ?? ""} onContinue={onContinue} />}
     </Card>
   );
 }
@@ -253,7 +270,7 @@ function usePayoutDetails() {
   });
 }
 
-function PayoutDetailsForm({ initial }: { initial: PayoutInput }) {
+function PayoutDetailsForm({ initial, onContinue }: { initial: PayoutInput; onContinue: () => void }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string>();
@@ -274,6 +291,7 @@ function PayoutDetailsForm({ initial }: { initial: PayoutInput }) {
     onSuccess: () => {
       setError(undefined);
       queryClient.invalidateQueries({ queryKey: ["payout-details"] });
+      onContinue();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
   });
@@ -317,13 +335,13 @@ function PayoutDetailsForm({ initial }: { initial: PayoutInput }) {
       )}
       <ErrorLine message={error} />
       <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
-        Save payout details
+        Continue to the psychology screening
       </Button>
     </>
   );
 }
 
-function PayoutDetailsSection() {
+function PayoutDetailsSection({ onContinue }: { onContinue: () => void }) {
   const details = usePayoutDetails();
   return (
     <Card as="section" className="flex flex-col gap-5">
@@ -332,7 +350,7 @@ function PayoutDetailsSection() {
         <p className="mt-1 text-small text-muted">How Pacify pays you, within 12 hours of each booking.</p>
       </div>
       {details.isPending && <p className="text-small text-muted">Loading…</p>}
-      {details.data && <PayoutDetailsForm initial={payoutInput(details.data)} />}
+      {details.data && <PayoutDetailsForm initial={payoutInput(details.data)} onContinue={onContinue} />}
     </Card>
   );
 }
@@ -345,7 +363,7 @@ type ReferenceInput = { name: string; relationship: string; phone: string };
 const EMPTY_REFERENCE: ReferenceInput = { name: "", relationship: "", phone: "" };
 const MAX_REFERENCES = 2;
 
-function ReferencesSection() {
+function ReferencesSection({ onContinue }: { onContinue: () => void }) {
   const queryClient = useQueryClient();
   const references = useQuery({ queryKey: ["references"], queryFn: () => apiFetch<Reference[]>("/sitter/references") });
   const [form, setForm] = useState<ReferenceInput>(EMPTY_REFERENCE);
@@ -429,53 +447,16 @@ function ReferencesSection() {
           </Button>
         </div>
       )}
-    </Card>
-  );
-}
-
-// ---------- psychology screening (CLAUDE.md section 7 step 5; the quiz itself has its own page) ----------
-
-type PsychAttemptStatus = "in_progress" | "submitted" | "passed" | "failed";
-type PsychTestSummary = { attempt: { status: PsychAttemptStatus } | null };
-
-const PSYCH_STATUS_LABEL: Record<PsychAttemptStatus | "not_started", string> = {
-  not_started: "Not started",
-  in_progress: "In progress",
-  submitted: "Submitted — awaiting review",
-  passed: "Passed",
-  failed: "Not passed — you can try again",
-};
-
-function PsychTestSection() {
-  const test = useQuery({
-    queryKey: ["psych-test"],
-    queryFn: () => apiFetch<PsychTestSummary>("/sitter/psych-test"),
-  });
-  const status = test.data?.attempt?.status ?? "not_started";
-
-  return (
-    <Card as="section" className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-h3">Psychology screening</h2>
-        {test.isSuccess && (
-          <span className="inline-flex items-center rounded-pill bg-surface-sunken px-3 py-1 text-small text-ink">
-            {PSYCH_STATUS_LABEL[status]}
-          </span>
-        )}
-      </div>
-      <p className="text-small text-muted">
-        A few questions so we can get to know how you think about caring for children.
-      </p>
-      <ButtonLink to="/sitter/psych-test" variant="secondary" fullWidthOnPhone={false}>
-        {status === "not_started" ? "Start" : status === "in_progress" ? "Continue" : "View"}
-      </ButtonLink>
+      <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+        Continue
+      </Button>
     </Card>
   );
 }
 
 // ---------- documents (CLAUDE.md section 7 steps 2-3; generic documents API, no new backend needed) ----------
 
-function DocumentsSection() {
+function DocumentsSection({ onContinue }: { onContinue: () => void }) {
   return (
     <Card as="section" className="flex flex-col gap-5">
       <div>
@@ -486,33 +467,70 @@ function DocumentsSection() {
       <DocumentUpload type="college_or_work_id" label="College or work ID" />
       <DocumentUpload type="police_certificate" label="Police clearance certificate" />
       <DocumentUpload type="first_aid_certificate" label="First-aid certificate" />
+      <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+        Continue
+      </Button>
     </Card>
   );
 }
 
-// ---------- the page ----------
+// ---------- the page: one step at a time (About you, Documents, Health disclosure, References, ----------
+// ---------- Payout details), ending at the psychology screening page ----------
+
+const STEPS = ["profile", "documents", "health", "references", "payout"] as const;
+type Step = (typeof STEPS)[number];
+const STEP_LABEL: Record<Step, string> = {
+  profile: "About you",
+  documents: "Documents",
+  health: "Health disclosure",
+  references: "References",
+  payout: "Payout details",
+};
 
 export function SitterApplicationPage() {
-  return (
-    <section className="mx-auto max-w-[72rem]">
-      <h1>Your application</h1>
-      <p className="mt-2 text-muted">
-        Tell us about yourself, add your documents and references, and set how you'd like to be paid. Your profile
-        goes live once every step passes.
-      </p>
+  const navigate = useNavigate();
+  const [stepIndex, setStepIndex] = useState(0);
+  const step = STEPS[stepIndex];
 
-      <div className="mt-7 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-        <div className="flex flex-col gap-6">
-          <ProfileSection />
-          <DocumentsSection />
-        </div>
-        <div className="flex flex-col gap-6">
-          <HealthDisclosureSection />
-          <PayoutDetailsSection />
-          <ReferencesSection />
-          <PsychTestSection />
+  function goNext() {
+    if (stepIndex === STEPS.length - 1) {
+      navigate("/sitter/psych-test"); // the next onboarding step, on its own page
+      return;
+    }
+    setStepIndex((index) => index + 1);
+  }
+
+  function goBack() {
+    setStepIndex((index) => Math.max(0, index - 1));
+  }
+
+  return (
+    <article className="mx-auto max-w-[72rem]">
+      <div className="mx-auto max-w-[62ch] text-center">
+        <h1>Your application</h1>
+        <p className="mt-2 text-muted">
+          Tell us about yourself, add your documents and references, and set how you'd like to be paid. Your profile
+          goes live once every step passes.
+        </p>
+      </div>
+
+      <div className="mx-auto mt-7 max-w-[40rem]">
+        <p className="text-center text-small text-muted">
+          Step {stepIndex + 1} of {STEPS.length} · {STEP_LABEL[step]}
+        </p>
+        <div className="mt-4 flex flex-col gap-4">
+          {step === "profile" && <ProfileSection onContinue={goNext} />}
+          {step === "documents" && <DocumentsSection onContinue={goNext} />}
+          {step === "health" && <HealthDisclosureSection onContinue={goNext} />}
+          {step === "references" && <ReferencesSection onContinue={goNext} />}
+          {step === "payout" && <PayoutDetailsSection onContinue={goNext} />}
+          {stepIndex > 0 && (
+            <Button type="button" variant="tertiary" className="self-start" onClick={goBack}>
+              ← Back
+            </Button>
+          )}
         </div>
       </div>
-    </section>
+    </article>
   );
 }
