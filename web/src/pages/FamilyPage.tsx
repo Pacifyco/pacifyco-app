@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
-import { DocumentUpload, DocumentUploadList } from "../components/documents/DocumentUpload";
-import { Button, Card, Checkbox, TextInput, Textarea } from "../components/ui";
+import { useNavigate } from "react-router";
+import { DocumentUpload } from "../components/documents/DocumentUpload";
+import { Button, Card, TextInput, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { formatDate } from "../lib/format";
 
@@ -203,7 +204,7 @@ function ChildCard({ child }: { child: Child }) {
   );
 }
 
-function ChildrenSection() {
+function ChildrenSection({ onContinue }: { onContinue: () => void }) {
   const children = useChildren();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
@@ -238,6 +239,9 @@ function ChildrenSection() {
           Add a child
         </Button>
       )}
+      <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+        Continue
+      </Button>
     </Card>
   );
 }
@@ -252,7 +256,7 @@ function contactInput(contact: Contact | undefined): ContactInput {
   return contact ? { name: contact.name, relationship: contact.relationship, phone: contact.phone } : EMPTY_CONTACT;
 }
 
-function EmergencyContactsSection() {
+function EmergencyContactsSection({ onContinue }: { onContinue: () => void }) {
   const contacts = useQuery({
     queryKey: ["emergency-contacts"],
     queryFn: () => apiFetch<Contact[]>("/parent/emergency-contacts"),
@@ -272,13 +276,22 @@ function EmergencyContactsSection() {
       load and get overwritten. */}
       {contacts.isPending && <p className="text-small text-muted">Loading…</p>}
       {contacts.data && (
-        <EmergencyContactsForm initial={[contactInput(contacts.data[0]), contactInput(contacts.data[1])]} />
+        <EmergencyContactsForm
+          initial={[contactInput(contacts.data[0]), contactInput(contacts.data[1])]}
+          onContinue={onContinue}
+        />
       )}
     </Card>
   );
 }
 
-function EmergencyContactsForm({ initial }: { initial: [ContactInput, ContactInput] }) {
+function EmergencyContactsForm({
+  initial,
+  onContinue,
+}: {
+  initial: [ContactInput, ContactInput];
+  onContinue: () => void;
+}) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<[ContactInput, ContactInput]>(initial);
   const [error, setError] = useState<string>();
@@ -289,6 +302,7 @@ function EmergencyContactsForm({ initial }: { initial: [ContactInput, ContactInp
     onSuccess: () => {
       setError(undefined);
       queryClient.invalidateQueries({ queryKey: ["emergency-contacts"] });
+      onContinue();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
   });
@@ -326,7 +340,7 @@ function EmergencyContactsForm({ initial }: { initial: [ContactInput, ContactInp
       ))}
       <ErrorLine message={error} />
       <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate(form)}>
-        Save contacts
+        Continue
       </Button>
     </>
   );
@@ -334,7 +348,7 @@ function EmergencyContactsForm({ initial }: { initial: [ContactInput, ContactInp
 
 // ---------- authorised adults ----------
 
-function AuthorisedAdultsSection() {
+function AuthorisedAdultsSection({ onContinue }: { onContinue: () => void }) {
   const queryClient = useQueryClient();
   const adults = useQuery({
     queryKey: ["authorised-adults"],
@@ -408,68 +422,64 @@ function AuthorisedAdultsSection() {
           Add
         </Button>
       </div>
+      <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+        Continue
+      </Button>
     </Card>
   );
 }
 
-// ---------- masked Aadhaar and single-parent declaration ----------
+// ---------- the page: one step at a time (Your children, Emergency contacts, Authorised adults) ----------
 
-function AadhaarSection() {
-  const queryClient = useQueryClient();
-  const declaration = useQuery({
-    queryKey: ["single-parent-declaration"],
-    queryFn: () => apiFetch<{ declared: boolean }>("/parent/single-parent-declaration"),
-  });
-
-  const setDeclared = useMutation({
-    mutationFn: (declared: boolean) =>
-      apiFetch<{ declared: boolean }>("/parent/single-parent-declaration", {
-        method: "PATCH",
-        body: JSON.stringify({ declared }),
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["single-parent-declaration"] }),
-  });
-
-  return (
-    <Card as="section" className="flex flex-col gap-5">
-      <div>
-        <h2 className="text-h3">Masked Aadhaar</h2>
-        <p className="mt-1 text-small text-muted">
-          Both parents' masked Aadhaar (the copy with most digits hidden, as UIDAI issues it). Only Pacify admins
-          view it, and we delete each copy once it's approved.
-        </p>
-      </div>
-      <DocumentUploadList type="aadhaar_masked" label="Masked Aadhaar" max={2} />
-      <div className="border-t border-line pt-4">
-        <Checkbox
-          label="I'm the only parent or legal guardian of the children I add."
-          checked={declaration.data?.declared ?? false}
-          onChange={(event) => setDeclared.mutate(event.target.checked)}
-        />
-      </div>
-    </Card>
-  );
-}
-
-// ---------- the page ----------
+const STEPS = ["children", "emergency", "authorised"] as const;
+type Step = (typeof STEPS)[number];
+const STEP_LABEL: Record<Step, string> = {
+  children: "Your children",
+  emergency: "Emergency contacts",
+  authorised: "Authorised adults",
+};
 
 export function FamilyPage() {
-  return (
-    <section className="mx-auto max-w-[72rem]">
-      <h1>My family</h1>
-      <p className="mt-2 text-muted">
-        Add your children, two emergency contacts and anyone else authorised to hand over or receive them, and the
-        masked Aadhaar for both parents (or a declaration if you're their only parent or guardian).
-      </p>
+  const navigate = useNavigate();
+  const [stepIndex, setStepIndex] = useState(0);
+  const step = STEPS[stepIndex];
 
-      <div className="mt-7 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-        <ChildrenSection />
-        <div className="flex flex-col gap-6">
-          <EmergencyContactsSection />
-          <AuthorisedAdultsSection />
-          <AadhaarSection />
+  function goNext() {
+    if (stepIndex === STEPS.length - 1) {
+      navigate("/parent"); // nothing further to hand off to -- back to her status page
+      return;
+    }
+    setStepIndex((index) => index + 1);
+  }
+
+  function goBack() {
+    setStepIndex((index) => Math.max(0, index - 1));
+  }
+
+  return (
+    <article className="mx-auto max-w-[72rem]">
+      <div className="mx-auto max-w-[62ch] text-center">
+        <h1>My family</h1>
+        <p className="mt-2 text-muted">
+          Add your children, two emergency contacts and anyone else authorised to hand over or receive them.
+        </p>
+      </div>
+
+      <div className="mx-auto mt-7 max-w-[40rem]">
+        <p className="text-center text-small text-muted">
+          Step {stepIndex + 1} of {STEPS.length} · {STEP_LABEL[step]}
+        </p>
+        <div className="mt-4 flex flex-col gap-4">
+          {step === "children" && <ChildrenSection onContinue={goNext} />}
+          {step === "emergency" && <EmergencyContactsSection onContinue={goNext} />}
+          {step === "authorised" && <AuthorisedAdultsSection onContinue={goNext} />}
+          {stepIndex > 0 && (
+            <Button type="button" variant="tertiary" className="self-start" onClick={goBack}>
+              ← Back
+            </Button>
+          )}
         </div>
       </div>
-    </section>
+    </article>
   );
 }

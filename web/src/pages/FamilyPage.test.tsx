@@ -1,16 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/renderApp";
 import { FamilyPage } from "./FamilyPage";
 
 // FamilyPage needs no sign-in session to render: apiFetch just sends no Authorization header when
-// there isn't one (lib/supabase.ts), and every test here stubs fetch by URL directly.
+// there isn't one (lib/supabase.ts), and every test here stubs fetch by URL directly. Wrapped in a
+// MemoryRouter because the last step navigates to the parent home page.
 function renderFamilyPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <FamilyPage />
+      <MemoryRouter>
+        <FamilyPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -23,7 +27,6 @@ function mockApi(overrides: Record<string, unknown> = {}) {
     children: [] as unknown[],
     "emergency-contacts": [] as unknown[],
     "authorised-adults": [] as unknown[],
-    "single-parent-declaration": { declared: false },
     ...overrides,
   };
   vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
@@ -56,22 +59,19 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       state["authorised-adults"] = state["authorised-adults"].filter((a) => (a as { id: string }).id !== id);
       return Promise.resolve(new Response(null, { status: 204 }));
     }
-    if (path.startsWith("/parent/single-parent-declaration") && init?.method === "PATCH") {
-      state["single-parent-declaration"] = JSON.parse(init.body as string);
-      return Promise.resolve(jsonResponse(state["single-parent-declaration"]));
-    }
     if (path === "/documents/mine" || path.startsWith("/documents/mine?")) {
       return Promise.resolve(jsonResponse([]));
     }
     if (path.endsWith("/parent/children")) return Promise.resolve(jsonResponse(state.children));
     if (path.endsWith("/parent/emergency-contacts")) return Promise.resolve(jsonResponse(state["emergency-contacts"]));
     if (path.endsWith("/parent/authorised-adults")) return Promise.resolve(jsonResponse(state["authorised-adults"]));
-    if (path.endsWith("/parent/single-parent-declaration")) {
-      return Promise.resolve(jsonResponse(state["single-parent-declaration"]));
-    }
     return Promise.reject(new Error(`unexpected request: ${init?.method ?? "GET"} ${path}`));
   }) as typeof fetch);
   return calls;
+}
+
+async function clickContinue() {
+  fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
 }
 
 beforeEach(() => {
@@ -79,14 +79,15 @@ beforeEach(() => {
 });
 
 describe("the family page", () => {
-  test("shows every section, empty, before anything is added", async () => {
+  test("starts on step 1 (your children) and shows nothing else yet", async () => {
     mockApi();
     renderFamilyPage();
     expect(await screen.findByRole("heading", { level: 1, name: "My family" })).toBeTruthy();
+    expect(await screen.findByText("Step 1 of 3 · Your children")).toBeTruthy();
     expect(await screen.findByText("You haven't added a child yet.")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Emergency contacts" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Authorised adults" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Masked Aadhaar" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Emergency contacts" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Authorised adults" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "← Back" })).toBeNull();
   });
 
   test("adding a child shows it in the list and sends the right body", async () => {
@@ -121,9 +122,30 @@ describe("the family page", () => {
     );
   });
 
-  test("saving emergency contacts sends exactly two", async () => {
+  test("continuing from step 1 advances to emergency contacts", async () => {
+    mockApi();
+    renderFamilyPage();
+    await screen.findByText("Step 1 of 3 · Your children");
+    await clickContinue();
+    expect(await screen.findByText("Step 2 of 3 · Emergency contacts")).toBeTruthy();
+  });
+
+  test("the back button returns to the previous step", async () => {
+    mockApi();
+    renderFamilyPage();
+    await screen.findByText("Step 1 of 3 · Your children");
+    await clickContinue();
+    await screen.findByText("Step 2 of 3 · Emergency contacts");
+
+    fireEvent.click(screen.getByRole("button", { name: "← Back" }));
+    expect(await screen.findByText("Step 1 of 3 · Your children")).toBeTruthy();
+  });
+
+  test("saving emergency contacts sends exactly two and advances", async () => {
     const calls = mockApi();
     renderFamilyPage();
+    await clickContinue(); // children
+
     const section = (await screen.findByRole("heading", { name: "Emergency contacts" })).closest("section")!;
     const scope = within(section);
     await scope.findAllByLabelText("Name"); // wait for the contacts to load before the form is seeded
@@ -138,7 +160,7 @@ describe("the family page", () => {
     fireEvent.change(secondRel, { target: { value: "Father" } });
     fireEvent.change(secondPhone, { target: { value: "9876500000" } });
 
-    fireEvent.click(scope.getByRole("button", { name: "Save contacts" }));
+    fireEvent.click(scope.getByRole("button", { name: "Continue" }));
 
     await waitFor(() =>
       expect(calls.some((call) => call.url.endsWith("/parent/emergency-contacts") && call.init?.method === "PUT")).toBe(
@@ -150,13 +172,18 @@ describe("the family page", () => {
     expect(body.contacts).toHaveLength(2);
     expect(body.contacts[0].name).toBe("Priya Rao");
     expect(body.contacts[1].name).toBe("Vikram Rao");
+
+    expect(await screen.findByText("Step 3 of 3 · Authorised adults")).toBeTruthy();
   });
 
   test("adding and removing an authorised adult", async () => {
     mockApi();
     renderFamilyPage();
-    await screen.findByRole("heading", { name: "Authorised adults" });
-    const section = screen.getByRole("heading", { name: "Authorised adults" }).closest("section")!;
+    await clickContinue(); // children
+    await clickContinue(); // emergency contacts
+
+    const heading = await screen.findByRole("heading", { name: "Authorised adults" });
+    const section = heading.closest("section")!;
 
     fireEvent.change(within(section).getByLabelText("Name"), { target: { value: "Ravi K" } });
     fireEvent.change(within(section).getByLabelText("Relationship"), { target: { value: "Uncle" } });
@@ -169,21 +196,27 @@ describe("the family page", () => {
     await waitFor(() => expect(within(section).queryByText("Ravi K")).toBeNull());
   });
 
-  test("ticking the single-parent declaration saves it", async () => {
-    const calls = mockApi();
-    renderFamilyPage();
-    const checkbox = await screen.findByRole("checkbox", {
-      name: "I'm the only parent or legal guardian of the children I add.",
-    });
-    expect((checkbox as HTMLInputElement).checked).toBe(false);
-    fireEvent.click(checkbox);
-
-    await waitFor(() =>
-      expect(
-        calls.some(
-          (call) => call.url.endsWith("/parent/single-parent-declaration") && call.init?.method === "PATCH",
-        ),
-      ).toBe(true),
+  test("finishing the last step navigates to the parent home page", async () => {
+    mockApi();
+    const router = createMemoryRouter(
+      [
+        { path: "/", element: <FamilyPage /> },
+        { path: "/parent", element: <p>Parent home page</p> },
+      ],
+      { initialEntries: ["/"] },
     );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    await clickContinue(); // children
+    await clickContinue(); // emergency contacts
+    await screen.findByText("Step 3 of 3 · Authorised adults");
+    await clickContinue(); // authorised adults, none required
+
+    expect(await screen.findByText("Parent home page")).toBeTruthy();
   });
 });
