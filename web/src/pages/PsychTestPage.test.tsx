@@ -1,0 +1,136 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { jsonResponse } from "../test/renderApp";
+import { PsychTestPage } from "./PsychTestPage";
+
+// Wrapped in a MemoryRouter because the page links back to the application page.
+function renderPage() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <PsychTestPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+const QUESTIONS = [
+  { id: "q1", order_index: 1, kind: "multiple_choice", prompt: "Pick one", options: ["A", "B"] },
+  { id: "q2", order_index: 2, kind: "short_answer", prompt: "Explain yourself", options: null },
+];
+
+type Call = { url: string; init?: RequestInit };
+
+function mockApi(attempt: { status: string; submitted_at: string | null; answers: Record<string, string> } | null) {
+  const calls: Call[] = [];
+  let currentAttempt = attempt;
+  vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+    calls.push({ url, init });
+    const path = url.replace(/^https?:\/\/[^/]+/, "");
+    if (path === "/sitter/psych-test" && (!init || !init.method)) {
+      return Promise.resolve(
+        jsonResponse({ test_id: "test-1", is_placeholder: true, questions: QUESTIONS, attempt: currentAttempt }),
+      );
+    }
+    if (path === "/sitter/psych-test/answers" && init?.method === "PUT") {
+      const body = JSON.parse(init.body as string) as { answers: { question_id: string; answer_text: string }[] };
+      currentAttempt = {
+        status: "in_progress",
+        submitted_at: null,
+        answers: Object.fromEntries(body.answers.map((a) => [a.question_id, a.answer_text])),
+      };
+      return Promise.resolve(jsonResponse(currentAttempt));
+    }
+    if (path === "/sitter/psych-test/submit" && init?.method === "POST") {
+      currentAttempt = { ...currentAttempt!, status: "submitted", submitted_at: "2026-11-04T10:00:00Z" };
+      return Promise.resolve(jsonResponse(currentAttempt));
+    }
+    return Promise.reject(new Error(`unexpected request: ${init?.method ?? "GET"} ${path}`));
+  }) as typeof fetch);
+  return calls;
+}
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn());
+});
+
+describe("the psychology screening page", () => {
+  test("shows every question before anything is answered", async () => {
+    mockApi(null);
+    renderPage();
+    expect(await screen.findByText("Pick one")).toBeTruthy();
+    expect(screen.getByLabelText("A")).toBeTruthy();
+    expect(screen.getByLabelText("B")).toBeTruthy();
+    expect(screen.getByLabelText("Explain yourself")).toBeTruthy();
+  });
+
+  test("refuses to submit until every question is answered", async () => {
+    mockApi(null);
+    renderPage();
+    await screen.findByText("Pick one");
+
+    fireEvent.click(screen.getByLabelText("A"));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(await screen.findByText("Please answer every question before submitting.")).toBeTruthy();
+  });
+
+  test("submitting sends every answer and shows the submitted state", async () => {
+    const calls = mockApi(null);
+    renderPage();
+    await screen.findByText("Pick one");
+
+    fireEvent.click(screen.getByLabelText("A"));
+    fireEvent.change(screen.getByLabelText("Explain yourself"), { target: { value: "Because I care." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() =>
+      expect(calls.some((call) => call.url.endsWith("/sitter/psych-test/submit") && call.init?.method === "POST")).toBe(
+        true,
+      ),
+    );
+    const put = calls.find((call) => call.url.endsWith("/sitter/psych-test/answers"))!;
+    expect(JSON.parse(put.init!.body as string)).toEqual({
+      answers: [
+        { question_id: "q1", answer_text: "A" },
+        { question_id: "q2", answer_text: "Because I care." },
+      ],
+    });
+    expect(await screen.findByText(/An admin will look over your answers/)).toBeTruthy();
+  });
+
+  test("an already-submitted attempt shows the awaiting-review state, not the form", async () => {
+    mockApi({ status: "submitted", submitted_at: "2026-11-04T10:00:00Z", answers: { q1: "A", q2: "Because." } });
+    renderPage();
+    expect(await screen.findByText(/An admin will look over your answers/)).toBeTruthy();
+    expect(screen.queryByText("Pick one")).toBeNull();
+  });
+
+  test("a passed attempt shows the passed state", async () => {
+    mockApi({ status: "passed", submitted_at: "2026-11-04T10:00:00Z", answers: { q1: "A", q2: "Because." } });
+    renderPage();
+    expect(await screen.findByText("You've passed the psychology screening.")).toBeTruthy();
+  });
+
+  test("a failed attempt offers to try again, which reveals a fresh form", async () => {
+    mockApi({ status: "failed", submitted_at: "2026-11-04T10:00:00Z", answers: { q1: "A", q2: "Because." } });
+    renderPage();
+    expect(await screen.findByText("You didn't pass this time. You're welcome to try again.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Pick one")).toBeTruthy();
+    expect((screen.getByLabelText("A") as HTMLInputElement).checked).toBe(false);
+  });
+
+  test("an in-progress attempt prefills its saved answers", async () => {
+    mockApi({ status: "in_progress", submitted_at: null, answers: { q1: "B", q2: "Half-finished." } });
+    renderPage();
+    await screen.findByText("Pick one");
+    expect((screen.getByLabelText("B") as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText("Explain yourself") as HTMLTextAreaElement).value).toBe("Half-finished.");
+  });
+});

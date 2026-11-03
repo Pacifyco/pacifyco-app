@@ -1,16 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/renderApp";
 import { SitterApplicationPage } from "./SitterApplicationPage";
 
 // Needs no sign-in session to render, same as FamilyPage: apiFetch sends no Authorization header
-// when there isn't one, and every test here stubs fetch by URL directly.
+// when there isn't one, and every test here stubs fetch by URL directly. Wrapped in a MemoryRouter
+// because the psychology screening section links to its own page.
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <SitterApplicationPage />
+      <MemoryRouter>
+        <SitterApplicationPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -38,6 +42,7 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       upi_id: null as string | null,
     },
     references: [] as unknown[],
+    "psych-test": { attempt: null as { status: string } | null },
     ...overrides,
   };
   vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
@@ -85,6 +90,7 @@ function mockApi(overrides: Record<string, unknown> = {}) {
     if (path.endsWith("/sitter/health-disclosure")) return Promise.resolve(jsonResponse(state["health-disclosure"]));
     if (path.endsWith("/sitter/payout-details")) return Promise.resolve(jsonResponse(state["payout-details"]));
     if (path.endsWith("/sitter/references")) return Promise.resolve(jsonResponse(state.references));
+    if (path.endsWith("/sitter/psych-test")) return Promise.resolve(jsonResponse(state["psych-test"]));
     return Promise.reject(new Error(`unexpected request: ${init?.method ?? "GET"} ${path}`));
   }) as typeof fetch);
   return calls;
@@ -105,6 +111,8 @@ describe("the sitter application page", () => {
     expect(screen.getByRole("heading", { name: "Payout details" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "References" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Documents" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Psychology screening" })).toBeTruthy();
+    expect(screen.getByText("Not started")).toBeTruthy();
   });
 
   test("saving the profile sends the right body", async () => {

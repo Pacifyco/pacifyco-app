@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { DocumentUpload } from "../components/documents/DocumentUpload";
-import { Button, Card, Checkbox, Select, TextInput, Textarea } from "../components/ui";
+import { Button, ButtonLink, Card, Checkbox, Select, TextInput, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
 // ---------- shared bits ----------
@@ -433,6 +433,46 @@ function ReferencesSection() {
   );
 }
 
+// ---------- psychology screening (CLAUDE.md section 7 step 5; the quiz itself has its own page) ----------
+
+type PsychAttemptStatus = "in_progress" | "submitted" | "passed" | "failed";
+type PsychTestSummary = { attempt: { status: PsychAttemptStatus } | null };
+
+const PSYCH_STATUS_LABEL: Record<PsychAttemptStatus | "not_started", string> = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  submitted: "Submitted — awaiting review",
+  passed: "Passed",
+  failed: "Not passed — you can try again",
+};
+
+function PsychTestSection() {
+  const test = useQuery({
+    queryKey: ["psych-test"],
+    queryFn: () => apiFetch<PsychTestSummary>("/sitter/psych-test"),
+  });
+  const status = test.data?.attempt?.status ?? "not_started";
+
+  return (
+    <Card as="section" className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-h3">Psychology screening</h2>
+        {test.isSuccess && (
+          <span className="inline-flex items-center rounded-pill bg-surface-sunken px-3 py-1 text-small text-ink">
+            {PSYCH_STATUS_LABEL[status]}
+          </span>
+        )}
+      </div>
+      <p className="text-small text-muted">
+        A few questions so we can get to know how you think about caring for children.
+      </p>
+      <ButtonLink to="/sitter/psych-test" variant="secondary" fullWidthOnPhone={false}>
+        {status === "not_started" ? "Start" : status === "in_progress" ? "Continue" : "View"}
+      </ButtonLink>
+    </Card>
+  );
+}
+
 // ---------- documents (CLAUDE.md section 7 steps 2-3; generic documents API, no new backend needed) ----------
 
 function DocumentsSection() {
@@ -470,6 +510,7 @@ export function SitterApplicationPage() {
           <HealthDisclosureSection />
           <PayoutDetailsSection />
           <ReferencesSection />
+          <PsychTestSection />
         </div>
       </div>
     </section>

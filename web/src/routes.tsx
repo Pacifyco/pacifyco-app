@@ -10,6 +10,7 @@ import { FamilyPage } from "./pages/FamilyPage";
 import { HomePage } from "./pages/HomePage";
 import { JoinPage } from "./pages/JoinPage";
 import { ParentTermsPage, PrivacyPolicyPage, SitterTermsPage } from "./pages/LegalPages";
+import { PsychTestPage } from "./pages/PsychTestPage";
 import { AuthCallbackPage, SignInPage } from "./pages/SignInPage";
 import { SitterApplicationPage } from "./pages/SitterApplicationPage";
 
@@ -57,6 +58,14 @@ export const routes: RouteObject[] = [
         element: (
           <RequireRole role="sitter">
             <SitterApplicationPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: "sitter/psych-test",
+        element: (
+          <RequireRole role="sitter">
+            <PsychTestPage />
           </RequireRole>
         ),
       },
