@@ -6,7 +6,6 @@ import { Button } from "../ui";
 
 // Mirrors api/app/models/documents.py. CLAUDE.md section 7: PDF, JPG or PNG only, at most 5 MB.
 export type DocumentType =
-  | "aadhaar_masked"
   | "birth_certificate"
   | "government_id"
   | "college_or_work_id"
@@ -179,35 +178,5 @@ export function DocumentUpload({
       current={documents.data?.[0]}
       onUploaded={() => queryClient.invalidateQueries({ queryKey: documentsKey(type, childId) })}
     />
-  );
-}
-
-/** Up to `max` upload slots of the same type (e.g. two masked Aadhaars). Fetches the list once and
-hands each slot its own document (if any), so slots never show each other's status. */
-export function DocumentUploadList({ type, label, max }: { type: DocumentType; label: string; max: number }) {
-  const queryClient = useQueryClient();
-  const documents = useMyDocuments(type);
-  const existing = documents.data ?? [];
-  const [extraSlots, setExtraSlots] = useState(0);
-  const baseline = existing.length > 0 ? existing.length : 1; // always at least one slot to start
-  const shown = Math.min(max, baseline + extraSlots);
-
-  return (
-    <div className="flex flex-col gap-4">
-      {Array.from({ length: shown }, (_, index) => (
-        <UploadSlot
-          key={existing[index]?.id ?? `empty-${index}`}
-          type={type}
-          label={shown > 1 ? `${label} ${index + 1}` : label}
-          current={existing[index]}
-          onUploaded={() => queryClient.invalidateQueries({ queryKey: documentsKey(type) })}
-        />
-      ))}
-      {shown < max && (
-        <Button type="button" variant="tertiary" onClick={() => setExtraSlots((count) => count + 1)}>
-          Add another
-        </Button>
-      )}
-    </div>
   );
 }

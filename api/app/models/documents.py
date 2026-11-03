@@ -12,7 +12,6 @@ from app.models.common import created_at, enum_column, uuid_pk
 class DocumentType(StrEnum):
     """CLAUDE.md section 8. Which role/form uploads which type is enforced by that form, not here."""
 
-    aadhaar_masked = "aadhaar_masked"
     birth_certificate = "birth_certificate"
     government_id = "government_id"
     college_or_work_id = "college_or_work_id"

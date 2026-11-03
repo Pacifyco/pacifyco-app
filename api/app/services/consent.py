@@ -1,6 +1,5 @@
 """Parental consent (CLAUDE.md section 7, following Family Terms 11.2): four things ticked
-separately at sign-up, plus an optional, withdrawable marketing consent, plus a single-parent
-declaration used later on the masked-Aadhaar upload screen. The text lives in
+separately at sign-up, plus an optional, withdrawable marketing consent. The text lives in
 web/src/content/consent.md; its `version:` line must equal CONSENT_VERSION (a test checks)."""
 
 import uuid
@@ -70,17 +69,6 @@ def _set_toggle(db: Session, parent_id: uuid.UUID, kind: ConsentKind, accepted: 
 def set_marketing(db: Session, parent_id: uuid.UUID, accepted: bool) -> ConsentSummary:
     """Opt in or withdraw (CLAUDE.md 7: marketing consent is withdrawable)."""
     return _set_toggle(db, parent_id, ConsentKind.marketing, accepted)
-
-
-def single_parent_declared(db: Session, parent_id: uuid.UUID) -> bool:
-    return _given(db, parent_id, ConsentKind.single_parent_declaration)
-
-
-def set_single_parent_declaration(db: Session, parent_id: uuid.UUID, declared: bool) -> bool:
-    """ "I'm the only parent or legal guardian of the children I add" (CLAUDE.md 7): used instead of a
-    second masked Aadhaar, on the Aadhaar upload screen."""
-    _set_toggle(db, parent_id, ConsentKind.single_parent_declaration, declared)
-    return single_parent_declared(db, parent_id)
 
 
 def accept(db: Session, parent_id: uuid.UUID, version: str, marketing: bool) -> ConsentSummary:

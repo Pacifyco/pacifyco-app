@@ -9,10 +9,10 @@ tests.
 ## Current status
 
 - Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: items 1-5 and the psychology test engine (backend PR #61, frontend PR #62) are merged.
-  Reuben asked to restructure the sitter application page into a one-step-at-a-time wizard ending by
-  handing off to the psychology screening page; that's on `sitter/application-wizard`, not yet merged.
-  Next after that: the admin verification queue (including its review page for the psych test).
+- Next item: items 1-5, the psychology test engine (PRs #61-#62) and the sitter application wizard
+  (PR #63) are merged. This session: dropped Aadhaar everywhere, and restructured the family page into
+  a wizard the same way -- both on `parent/family-no-aadhaar`, not yet merged. Next after that: the
+  admin verification queue (including its review page for the psych test).
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -56,6 +56,11 @@ tests.
   12. "We store data in India" (2.2, 11.1): accounts and documents are in Mumbai, but sign-in emails go
       through Resend (Tokyo) and error reports to Sentry (Germany, no personal data). Check the wording
       with the lawyer.
+  13. **Added 2026-11-03.** Masked Aadhaar: terms 2.2 say Pacifyco collects the masked Aadhaar of both
+      parents. Reuben decided the app will no longer collect it at all (dropped everywhere, see the
+      session log) -- terms need a new version removing that line. Also leaves parent identity with no
+      check at all beyond a birth certificate per child; confirm that's intended, or whether something
+      should replace it.
 
 - [x] **Pricing: plans instead of hour packs** (Reuben, answered 2026-11-03). Now in CLAUDE.md 6.1, 6.2,
   6.4, 6.5, 6.8 and 8: plans Pause ₹499 (one child), Unwind ₹699 (+₹150 per extra child), Recharge ₹899
@@ -141,10 +146,10 @@ tests.
 `FIELD_ENCRYPTION_KEY` now set on Render (see Current status).
 
 - [x] Parent consents at sign-up (Family Terms 11.2: four required, one optional) and the single-parent
-  declaration, replacing the phase 2 consent form
+  declaration, replacing the phase 2 consent form (single-parent declaration dropped 2026-11-03 with Aadhaar)
 - [x] Emergency contacts per family (two) and authorised adults (Family Terms 2.5)
 - [x] Private storage buckets, signed upload URLs, file type/size validation
-- [x] Parent: children and emergency contacts, masked Aadhaar ×2, birth certificates
+- [x] Parent: children and emergency contacts, birth certificates (masked Aadhaar ×2 dropped 2026-11-03)
 - [x] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
 - [x] Psychology test engine with placeholder questions (backend PR #61, frontend PR #62)
 - [ ] Admin verification queue: view documents (logged), approve/reject each step with notes, set each sitter's level (CLAUDE.md 6.2)
@@ -240,7 +245,7 @@ tests.
 
 ## Phase 15 — Production launch
 
-- [ ] [Reuben] Compliance done: DPDP consent text, Aadhaar handling, pre-paid hours, GST, sitter tax status, privacy policy, parent terms (lawyer and CA)
+- [ ] [Reuben] Compliance done: DPDP consent text, pre-paid hours, GST, sitter tax status, privacy policy, parent terms (lawyer and CA) -- Aadhaar handling no longer applies, dropped 2026-11-03
 - [x] [Reuben] Sitter Terms of Use v1.0 reviewed by lawyer
 - [ ] [Reuben] Lawyer to confirm the v1.1 edits (2.4 check-out code and pay cap, 2.6 12-hour payouts, 4.8 18 months)
 - [ ] [Reuben] Psychology test questions from a licensed psychologist (until then, don't show the "Psychology screening passed" chip to parents)
@@ -261,6 +266,24 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-03 — Aadhaar dropped everywhere (Reuben: "we will not be taking aadhaar details anymore"):
+  removed the `aadhaar_masked` document type and the `single_parent_declaration` consent kind (it
+  existed only to stand in for a second Aadhaar) from the models, a new migration narrows both CHECK
+  constraints (deleting any existing rows of those kinds first, since staging only -- nothing in
+  production yet); removed `/parent/single-parent-declaration` and the two `consent.py` functions
+  behind it; removed the now-unused `DocumentUploadList` component and its test (nothing else needs
+  multi-slot upload); updated CLAUDE.md 7 and 8. Parent verification is now just a birth certificate
+  per child plus admin approval -- flagged as an open question (no replacement ID check) and as a new
+  Family Terms 2.2 mismatch, both above. Family page restructuring (below) also removed its Aadhaar
+  section as part of the same change.
+- 2026-11-03 — My family page restructured into a wizard (Reuben's request, matching the sitter
+  application page): "My family" and its intro centered; one step at a time (Your children,
+  Emergency contacts, Authorised adults) with Back/Continue navigation instead of a two-column page
+  of every section at once. Finishing the last step navigates to `/parent` (no further onboarding
+  page to hand off to, unlike the sitter side's psychology screening).
+  166/167 web tests, 290 API tests pass (pre-existing Node 20 quirk on the web side); lint/typecheck/
+  build clean on both; API tests not run against Postgres in this sandbox (no Docker) -- same as the
+  psych test engine, confirm via CI before merging.
 - 2026-11-03 — Sitter application page restructured into a wizard (`sitter/application-wizard`,
   Reuben's request): "Your application" and its intro centered; one step shown at a time (About you,
   Documents, Health disclosure, References, Payout details) with Back/Continue navigation instead of
