@@ -321,7 +321,7 @@ def add_reference(db_engine, sitter_id, name="Asha Rao", outcome="approved"):
     with db_engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO \"references\" (sitter_id, name, phone, relationship, outcome)"
+                'INSERT INTO "references" (sitter_id, name, phone, relationship, outcome)'
                 " VALUES (:s, :n, '+919876500000', 'Former employer', :o)"
             ),
             {"s": sitter_id, "n": name, "o": outcome},
