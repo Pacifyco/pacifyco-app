@@ -8,8 +8,8 @@ Do not re-read the whole codebase to find your place: `progress.md` says where w
 ## 1. What Pacifyco is
 
 Pacify (company: Pacifyco) is a babysitter marketplace for parents in Bengaluru. Parents browse vetted
-sitter profiles, meet a sitter in a free Google Meet introduction run by the Pacify team, then book
-scheduled care, paid by the hour at the plan the parent picks. Pacify vets everyone, can suspend or remove any user,
+sitter profiles and book scheduled care, paid by the hour at the plan the parent picks (a short first
+booking with the parent at home is encouraged with a new sitter). Pacify vets everyone, can suspend or remove any user,
 and pays sitters within 12 hours of each booking.
 
 - Care type: babysitting only.
@@ -56,7 +56,6 @@ and pays sitters within 12 hours of each booking.
 | Frontend hosting | Cloudflare Pages |
 | API hosting | Render (web service) |
 | Email | Resend |
-| Interview scheduling | Google Calendar API (creates Google Meet links and invites) |
 | Maps and distance | OpenStreetMap: Nominatim for geocoding (cache results, max 1 request/second, set a User-Agent), Leaflet for maps |
 | Error tracking | Sentry (frontend and API) |
 | CI/CD | GitHub Actions; Cloudflare Pages and Render auto-deploy from branches |
@@ -74,7 +73,7 @@ starts, daily backups). Staging stays on free tiers.
 /web            React app (parent, sitter and admin areas in one app, role-gated routes)
 /api            FastAPI app
   /app
-    /routers    one router per area: auth, profiles, documents, sitters, search, interviews,
+    /routers    one router per area: auth, profiles, documents, sitters, search,
                 payments, bookings, overtime, checkins, incidents, chat, reviews,
                 payouts, admin, jobs
     /services   business rules (pricing, payments, cancellations, strikes, payouts)
@@ -100,7 +99,6 @@ Staging and production are identical code with separate services, databases and 
 | Render service | `pacifyco-api-staging` | `pacifyco-api` |
 | Supabase project | `pacifyco-staging` | `pacifyco-prod` |
 | Resend | test sender | verified domain sender |
-| Google Calendar | test calendar | Pacify calendar |
 | Sentry environment | `staging` | `production` |
 | Seed data | yes (fake parents, sitters, bookings) | never |
 
@@ -120,7 +118,7 @@ Until DNS is set up, use the default Cloudflare Pages and Render URLs.
 
 API: `ENVIRONMENT`, `DATABASE_URL`, `MIGRATION_DATABASE_URL` (CI only), `SUPABASE_URL`, `SUPABASE_JWKS_URL` (optional; defaults
 from `SUPABASE_URL`), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`,
-`ADMIN_ALERT_EMAILS`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_CALENDAR_ID`, `SENTRY_DSN`,
+`ADMIN_ALERT_EMAILS`, `SENTRY_DSN`,
 `JOBS_SECRET`, `PUBLIC_WEB_URL`, `CORS_ORIGINS`, `PACIFY_UPI_ID`.
 
 Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY_DSN`,
@@ -224,16 +222,14 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
 - Sitters choose payout by **bank account or UPI**.
 - Sitters pay their own travel.
 
-### 6.3 Interviews (introductions)
+### 6.3 First booking with a new sitter (replaces interviews, decided 2026-11-08)
 
-- Every sitter has an onboarding interview with Pacify before going live.
-- Every new parent–sitter pair needs a passed introduction interview before their first booking. Pairs
-  with a past completed booking skip it.
-- Interviews are free (no hours used). Sitters publish availability; the parent picks an interview slot
-  inside it; the API creates a Google Calendar event with a Meet link and invites the parent, the
-  sitter and the Pacify interviewer.
-- An admin records the outcome: `passed`, `not_passed`, or `no_show`. Only `passed` unlocks booking for
-  that pair.
+- **No interviews.** There is no sitter onboarding interview and no parent–sitter introduction (no
+  Google Meet, no Google Calendar). A verified parent can book any live sitter of the plan's level
+  straight away; there is no pair-unlock step.
+- Parents are **asked** to make their first booking with a new sitter a **1-hour booking with a parent
+  at home**, to see if the sitter suits them. This is a nudge on the booking screen, not enforced:
+  longer first bookings are allowed.
 
 ### 6.4 Bookings
 
@@ -248,9 +244,12 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
 - Bath time is ticked when booking (Unwind and Recharge only). Outings are allowed only on Recharge,
   still approved by the parent during the booking (above).
 - A booking can be made if the slot is inside the sitter's availability, the sitter's level matches
-  the plan, she isn't already booked or blocked by a strike, the pair is unlocked, both users are
-  verified and active, and the parent owes nothing. It's `pending_payment` until the payment is
-  confirmed (6.1), then `confirmed`.
+  the plan, she isn't already booked or blocked by a strike, the sitter is live (7), the parent has
+  finished their profile (6.13) and is active, and the parent owes nothing. It's `pending_payment`
+  until the payment is confirmed (6.1), then `confirmed`.
+- **A booking is only confirmed once every child on it is verified** (birth certificate reviewed and
+  approved by an admin, 7), as well as paid. Decided 2026-11-08: parents can book before that review
+  is done; the booking waits until it is.
 - **No slot hold while payment is pending** (decided 2026-11-03): the sitter's availability for that
   slot is only removed once a booking is `confirmed`. More than one parent can have a `pending_payment`
   booking for the same slot at once — whoever's payment is confirmed first wins it; any other
@@ -347,8 +346,9 @@ Emergency button instead.
 - If a sitter's average over her last 10 bookings falls below **3.5**, flag her for admin review. Before
   removal for ratings, she must be told the reason and given a chance to respond (recorded).
 - Communication between families and sitters stays in the in-app chat.
-- Chat opens between a parent and sitter once their introduction is scheduled and stays open while they
-  have bookings. Admins can read chats when handling an incident (audit logged).
+- Chat opens between a parent and sitter once they have a booking and stays open while they have
+  bookings (introductions were dropped 2026-11-08; exactly when chat opens is an open question in
+  `progress.md`). Admins can read chats when handling an incident (audit logged).
 
 ### 6.12 Complaints and grievances
 
@@ -366,9 +366,15 @@ Emergency button instead.
 
 ### 6.13 Accounts
 
-- At sign-up a person chooses **parent** or **sitter** and confirms it ("You're joining as a parent.
-  Is that right?"). Sign-up asks for full name and an Indian mobile number. Admin accounts are never
-  chosen at sign-up; they are created with the CLI (`python -m app.cli create-admin`).
+- **Sign-up flow (decided 2026-11-08, replaces the long sign-up form):** on their first sign-in a
+  person chooses **parent** or **sitter**, confirms it ("You're joining as a parent. Is that right?")
+  and accepts the terms (click-wrap, 7). They then go **straight into their area** of the app. Everything
+  else (full name, Indian mobile number, home pin code and address, parent consents, family details,
+  the sitter application) is asked for there as "finish your profile" prompts. Parents can't book until
+  their profile is finished; sitters don't appear to parents until theirs is finished and approved (7).
+  The service-area pin code check (1) moves to where the pin code is entered, and still applies before
+  booking. Admin accounts are never chosen at sign-up; they are created with the CLI
+  (`python -m app.cli create-admin`).
 - Users can't change their own role. An admin can change it only while the account is empty (no
   children, documents, onboarding steps, payments or bookings), and the change is audit logged.
 - One email = one account = one role. Someone who is both a parent and a sitter uses two accounts with
@@ -383,8 +389,7 @@ Emergency button instead.
 
 **Sitter onboarding steps** (each has a status; the profile goes live only when all pass):
 1. Application and profile: photo, date of birth (must be **18+**), bio, years of experience, age
-   groups, languages, first-aid certification, home address, hourly rate, payout details (bank account
-   or UPI).
+   groups, languages, first-aid certification, home address, payout details (bank account or UPI).
    Health disclosure: any serious or long-term condition or allergy that could affect safe care. This is
    health data: store it encrypted, admin-only, access logged, never shown to parents, used only for
    matching. Sitters can update it any time.
@@ -395,11 +400,12 @@ Emergency button instead.
    admin reads them and records pass or fail. Questions come from a licensed psychologist and are stored as
    data (`psych_tests`, `psych_questions`); ship with clearly marked placeholder questions until then.
    Admin reviews and records pass/fail.
-6. Onboarding interview with Pacify.
-7. Admin approval.
+6. Admin approval, with the sitter's level set (6.2). (The onboarding interview was dropped
+   2026-11-08.) Only then is she live: shown to parents and bookable.
 
-**Parent verification:** a birth certificate per child, then admin approval. Parents can browse after
-sign-up but can't request an introduction until approved. **No ID document is collected from parents**
+**Parent verification:** a birth certificate per child, reviewed and approved by an admin. Parents can
+browse and book once their profile is finished, but a booking is only confirmed once every child on it
+is verified (6.4). **No ID document is collected from parents**
 (decided 2026-11-03, Reuben: "we will not be taking aadhaar details anymore" — drops the masked-Aadhaar
 upload entirely, and with it the single-parent declaration that existed only to stand in for a second
 Aadhaar). What, if anything, replaces a parent-identity check is an open question in `progress.md`.
@@ -456,8 +462,9 @@ not its name).
 - Aadhaar e-sign for sitters is planned for later (v2 backlog); keep acceptance logic behind one small
   function so a signing method can be added.
 
-**Copy must match reality.** Only claim the checks above: ID check, police verification, references,
-interview, psychology test, and meeting before the first booking. Do not claim address verification or
+**Copy must match reality.** Only claim the checks above: ID check, police verification, references
+and psychology test. Don't claim an interview or a meeting before the first booking (both dropped
+2026-11-08). Do not claim address verification or
 "Pacify Plus" until they exist.
 
 **Company:** Pacifyco LLP. Contact shown in the app: query.pacifyco@gmail.com, +91 8848873841.
@@ -488,8 +495,6 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `references` (id, sitter_id, name, phone, relationship, outcome, notes)
 - `psych_tests`, `psych_questions`, `psych_attempts`, `psych_answers`
 - `availability_slots` (id, sitter_id, starts_at, ends_at)
-- `interviews` (id, type: `onboarding|introduction`, sitter_id, parent_id null, starts_at, meet_url, calendar_event_id, outcome, recorded_by)
-- `pair_unlocks` (parent_id, sitter_id, unlocked_at, reason: `interview_passed|prior_booking`)
 - `payments` (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference, due_by, confirmed_by, confirmed_at, created_at) — append-only; replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
 - `bookings` (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
 - `booking_children` (booking_id, child_id)
@@ -523,7 +528,7 @@ in the beta phase.
 | Documents | Non-admins can't get a signed view URL; every admin view logged; birth certificate deleted after child verification |
 | Sitter onboarding | Profile not searchable until every step passes and an admin has set her level |
 | Search and filters | Only active, verified, unblocked sitters of the chosen plan's level returned; distance sort; each filter works; parent never sees sitter pay |
-| Interviews | Slot must be inside sitter availability; Calendar call mocked and event stored; only `passed` unlocks the pair; prior completed booking unlocks |
+| Sign-up flow | First sign-in asks only role and terms, then lands in the area; parent can't book until the profile is finished; booking stays unconfirmed until every child on it is verified; sitter not shown to parents until her profile is finished and approved |
 | Plans and pricing | Price per plan and children (Pause one child only; Unwind +₹150 per extra child; Recharge flat); whole-hour bookings only (no half-hours); booking `pending_payment` until an admin confirms; rejected or unpaid-by-deadline payment frees the booking |
 | Payments | Rows are append-only; amount owed = sum of rows; refunds and cancellation charges per 6.5; parents who owe money can't book |
 | Bookings | Sitter's level must match the plan; plan's latest end time (overtime included); bath time only on Unwind/Recharge; two parents can hold `pending_payment` bookings for the same slot, only the first confirmed payment wins it and the other is auto-cancelled; blocked sitter can't be booked |
@@ -540,7 +545,7 @@ in the beta phase.
 | Complaints | SLA timers; escalation; original decider can't handle the appeal; late complaints flagged |
 | Sitter terms | Wording matches `sitter-terms-v1.1.md`; placeholders filled from config; production refuses to serve it with an empty placeholder |
 | Sitter onboarding extras | Under-18 rejected; health disclosure admin-only and access logged |
-| Chat | Only between unlocked pairs; admin read is audit logged |
+| Chat | Only between a parent and sitter who have a booking; admin read is audit logged |
 | Audit | State changes on bookings, payouts, strikes and verifications write audit rows |
 
 ### Security testing (owned by Claude Code, phase 12)

@@ -18,7 +18,7 @@ export type SitterCardProps = {
   rating: number | null;
   reviewCount: number;
   familiesServed: number;
-  /** True once the pair has passed an introduction or had a booking. */
+  /** True once this parent has had a booking with this sitter. */
   unlocked: boolean;
   actionHref: string;
 };

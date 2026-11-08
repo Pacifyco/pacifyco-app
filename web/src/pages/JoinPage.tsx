@@ -138,7 +138,7 @@ export function JoinPage() {
                 Care that's <span className="text-coral-display">met</span>, checked and ready.
               </>
             }
-            body="Every sitter is ID and police verified, referenced and interviewed, and you always meet them first, free, before the first booking."
+            body="Every sitter is ID and police verified, referenced and screened by Pacify, and you can start with a short booking while you're at home."
             photo="parentsDinnerCouple"
           />
           <div className="mx-auto w-full max-w-[44rem] text-center lg:mx-0 lg:max-w-none lg:text-left">
@@ -206,7 +206,7 @@ export function JoinPage() {
             autoComplete="tel"
             inputMode="tel"
             maxLength={20}
-            hint="Pacify uses it to reach you about introductions and bookings."
+            hint="Pacify uses it to reach you about your bookings."
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             error={fieldErrors.phone}

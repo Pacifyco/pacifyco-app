@@ -57,7 +57,7 @@ export function SignInPage() {
           <span className="text-coral-display">Every time.</span>
         </>
       }
-      body="Verified sitters, a free introduction before any booking, and a team that's with you from the first hello."
+      body="Verified sitters, a short first booking while you're home, and a team that's with you from the first hello."
       photo="sitterHomePlay"
     />
   );

@@ -33,8 +33,6 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_from: str = ""
     admin_alert_emails: Annotated[list[str], NoDecode] = Field(default_factory=list)
-    google_service_account_json: str = ""
-    google_calendar_id: str = ""
     sentry_dsn: str = ""
     jobs_secret: str = ""
     public_web_url: str = ""
