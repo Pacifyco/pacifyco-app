@@ -17,11 +17,24 @@ router = APIRouter(tags=["auth"])
 class MeProfile(BaseModel):
     role: Role
     status: ProfileStatus
-    full_name: str
+    # Asked for in the person's area after sign-up (CLAUDE.md 6.13), so each may still be empty.
+    full_name: str | None
+    phone: str | None
+    pin_code: str | None
+    address: str | None
+    details_complete: bool
 
     @classmethod
     def of(cls, profile: Profile) -> MeProfile:
-        return cls(role=profile.role, status=profile.status, full_name=profile.full_name)
+        return cls(
+            role=profile.role,
+            status=profile.status,
+            full_name=profile.full_name,
+            phone=profile.phone,
+            pin_code=profile.pin_code,
+            address=profile.address,
+            details_complete=accounts.details_complete(profile),
+        )
 
 
 class TermsVersion(BaseModel):
@@ -93,14 +106,20 @@ def get_service_area(db: DbSession) -> ServiceArea:
 
 
 class SignUp(BaseModel):
+    """First sign-in: only the role and the terms (CLAUDE.md 6.13). Everything else comes later."""
+
     # Admins are never chosen at sign-up (CLAUDE.md 6.13).
     role: Literal["parent", "sitter"]
-    full_name: str = Field(min_length=1, max_length=100)
-    phone: str = Field(max_length=20)
-    # Home pin code; must be one of the launch pin codes (CLAUDE.md 1).
-    pin_code: str = Field(pattern=r"^[0-9]{6}$")
     # Click-wrap: the terms and privacy policy versions they ticked to agree to (CLAUDE.md 7).
     accepted: list[TermsVersion] = Field(default_factory=list, max_length=5)
+
+
+class Details(BaseModel):
+    full_name: str = Field(min_length=1, max_length=100)
+    phone: str = Field(max_length=20)
+    # Home pin code; must be one of the service-area pin codes (CLAUDE.md 1).
+    pin_code: str = Field(pattern=r"^[0-9]{6}$")
+    address: str = Field(min_length=1, max_length=300)
 
     @field_validator("full_name")
     @classmethod
@@ -118,6 +137,15 @@ class SignUp(BaseModel):
             raise ValueError("Please enter a 10-digit Indian mobile number")
         return phone
 
+    @field_validator("address")
+    @classmethod
+    def _clean_address(cls, value: str) -> str:
+        lines = [" ".join(line.split()) for line in value.splitlines()]
+        address = "\n".join(line for line in lines if line)
+        if not address or any(not ch.isprintable() for ch in address.replace("\n", "")):
+            raise ValueError("Please enter your home address")
+        return address
+
 
 @router.post("/me/profile", status_code=201)
 def sign_up(
@@ -131,10 +159,21 @@ def sign_up(
         user_id=identity.user_id,
         email=identity.email,
         role=Role(body.role),
-        full_name=body.full_name,
-        phone=body.phone,
-        pin_code=body.pin_code,
         accepted=[legal.Accepted(kind=item.kind, version=item.version) for item in body.accepted],
         request=request_info(request),
     )
     return me_for(db, identity.email, profile)
+
+
+@router.put("/me/details")
+def put_details(
+    body: Details,
+    profile: Annotated[Profile, Depends(current_profile)],
+    user: Annotated[CurrentUser, Depends(current_user)],
+    db: DbSession,
+) -> Me:
+    """Name, mobile, home pin code and address, filled in from the person's area (CLAUDE.md 6.13)."""
+    accounts.update_details(
+        db, profile, full_name=body.full_name, phone=body.phone, pin_code=body.pin_code, address=body.address
+    )
+    return me_for(db, user.identity.email, profile)

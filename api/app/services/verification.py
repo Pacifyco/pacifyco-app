@@ -37,7 +37,7 @@ from app.models import (
     SitterLevel,
     VerificationStatus,
 )
-from app.services import audit, encryption, psych_tests
+from app.services import accounts, audit, encryption, psych_tests
 from app.services.storage import StorageClient
 
 # Every step that must be approved before a sitter can be approved, in CLAUDE.md 7 order.
@@ -179,6 +179,8 @@ def decide_sitter(db: Session, admin_id: uuid.UUID, sitter_id: uuid.UUID, approv
             )
         if sitter.level is None:
             raise AppError(409, "level_not_set", "Set her level before approving her")
+        if not accounts.details_complete(profile):
+            raise AppError(409, "details_missing", "She hasn't filled in her name, mobile, pin code and address yet")
 
     before = {"onboarding_status": sitter.onboarding_status.value, "profile_status": profile.status.value}
     sitter.onboarding_status = OnboardingStatus.approved if approved else OnboardingStatus.rejected

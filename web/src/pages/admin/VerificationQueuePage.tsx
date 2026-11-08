@@ -11,7 +11,7 @@ import { errorMessage } from "./shared";
 
 type SitterItem = {
   id: string;
-  full_name: string;
+  full_name: string | null; // filled in after sign-up (CLAUDE.md 6.13)
   email: string;
   signed_up_at: string;
   steps_approved: number;
@@ -19,7 +19,7 @@ type SitterItem = {
   level: string | null;
 };
 
-type FamilyItem = { id: string; full_name: string; email: string; signed_up_at: string; children_to_review: number };
+type FamilyItem = { id: string; full_name: string | null; email: string; signed_up_at: string; children_to_review: number };
 
 export type VerificationQueue = { sitters: SitterItem[]; families: FamilyItem[] };
 
@@ -69,7 +69,7 @@ export function VerificationQueuePage() {
                   <QueueRow
                     key={sitter.id}
                     to={`/admin/sitters/${sitter.id}`}
-                    name={sitter.full_name}
+                    name={sitter.full_name ?? sitter.email}
                     caption={`${sitter.email} · joined ${formatDate(new Date(sitter.signed_up_at))}`}
                     status={`${sitter.steps_approved} of ${sitter.steps_total} steps`}
                   />
@@ -89,7 +89,7 @@ export function VerificationQueuePage() {
                   <QueueRow
                     key={family.id}
                     to={`/admin/parents/${family.id}`}
-                    name={family.full_name}
+                    name={family.full_name ?? family.email}
                     caption={`${family.email} · joined ${formatDate(new Date(family.signed_up_at))}`}
                     status={plural(family.children_to_review, "child to check", "children to check")}
                   />

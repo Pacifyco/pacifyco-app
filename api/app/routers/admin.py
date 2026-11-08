@@ -59,8 +59,8 @@ class PsychAttemptSummary(BaseModel):
 def _sitter_names(db: DbSession, sitter_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
     if not sitter_ids:
         return {}
-    rows = db.execute(select(Profile.id, Profile.full_name).where(Profile.id.in_(sitter_ids)))
-    return dict(rows.all())
+    rows = db.execute(select(Profile.id, Profile.full_name, Profile.email).where(Profile.id.in_(sitter_ids)))
+    return {row.id: row.full_name or row.email for row in rows}  # the name is filled in after sign-up
 
 
 @router.get("/psych-attempts")
@@ -155,7 +155,7 @@ class Decision(BaseModel):
 
 class SitterQueueItem(BaseModel):
     id: uuid.UUID
-    full_name: str
+    full_name: str | None  # filled in after sign-up (CLAUDE.md 6.13)
     email: str
     signed_up_at: datetime
     steps_approved: int
@@ -165,7 +165,7 @@ class SitterQueueItem(BaseModel):
 
 class FamilyQueueItem(BaseModel):
     id: uuid.UUID
-    full_name: str
+    full_name: str | None  # filled in after sign-up (CLAUDE.md 6.13)
     email: str
     signed_up_at: datetime
     children_to_review: int
@@ -230,7 +230,7 @@ class SitterReview(BaseModel):
     health disclosure has its own logged endpoint, and payout details aren't part of vetting."""
 
     id: uuid.UUID
-    full_name: str
+    full_name: str | None  # filled in after sign-up (CLAUDE.md 6.13)
     email: str
     phone: str | None
     pin_code: str | None
@@ -362,7 +362,7 @@ class ChildReview(BaseModel):
 
 class FamilyReview(BaseModel):
     id: uuid.UUID
-    full_name: str
+    full_name: str | None  # filled in after sign-up (CLAUDE.md 6.13)
     email: str
     phone: str | None
     pin_code: str | None

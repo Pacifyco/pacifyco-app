@@ -29,7 +29,7 @@ type ChildReview = {
 
 type FamilyReview = {
   id: string;
-  full_name: string;
+  full_name: string | null; // filled in after sign-up (CLAUDE.md 6.13)
   email: string;
   phone: string | null;
   pin_code: string | null;
@@ -96,7 +96,7 @@ export function FamilyReviewPage() {
       <BackToQueue />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1>{family.full_name}</h1>
+          <h1>{family.full_name ?? family.email}</h1>
           <p className="mt-2 text-muted">
             {[family.email, family.phone, family.pin_code].filter(Boolean).join(" · ")} · joined{" "}
             {formatDate(new Date(family.signed_up_at))}

@@ -17,7 +17,7 @@ from app.services.storage import get_storage
 from tests.test_auth import FakeKeys, make_settings
 from tests.test_migrations import alembic_config
 from tests.test_roles import as_user, make_profile  # noqa: F401  (fixture)
-from tests.test_sign_up import PARENT, auth_for, user  # noqa: F401  (fixture)
+from tests.test_sign_up import PARENT, auth_for, fill_details, user  # noqa: F401  (fixture)
 
 PDF = b"%PDF-1.4\n%fake but starts right\n"
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 16
@@ -89,6 +89,7 @@ def sitter(client, db_engine):
     identity = {"id": uuid.uuid4(), "email": f"sitter-{uuid.uuid4()}@example.com"}
     body = {**PARENT, "role": "sitter"}
     assert client.post("/me/profile", json=body, headers=auth_for(identity)).status_code == 201
+    assert fill_details(client, identity).status_code == 200
     yield identity
     cleanup_documents(db_engine, identity["id"])
 

@@ -33,7 +33,7 @@ type Reference = {
 
 type SitterReview = {
   id: string;
-  full_name: string;
+  full_name: string | null; // filled in after sign-up (CLAUDE.md 6.13)
   email: string;
   phone: string | null;
   pin_code: string | null;
@@ -255,7 +255,7 @@ export function SitterReviewPage() {
     <section className="mx-auto flex max-w-[72ch] flex-col gap-6">
       <BackToQueue />
       <div>
-        <h1>{sitter.full_name}</h1>
+        <h1>{sitter.full_name ?? sitter.email}</h1>
         <p className="mt-2 text-muted">
           {[sitter.email, sitter.phone, sitter.pin_code].filter(Boolean).join(" · ")} · joined{" "}
           {formatDate(new Date(sitter.signed_up_at))} · {ONBOARDING_WORDS[sitter.onboarding_status]}

@@ -8,12 +8,13 @@ import pytest
 from sqlalchemy import text
 
 from tests.test_auth import client  # noqa: F401  (fixture)
-from tests.test_sign_up import PARENT, auth_for, user  # noqa: F401  (fixture)
+from tests.test_sign_up import PARENT, auth_for, fill_details, user  # noqa: F401  (fixture)
 
 
 @pytest.fixture
 def sitter(client, db_engine, user):  # noqa: F811
     assert client.post("/me/profile", json={**PARENT, "role": "sitter"}, headers=auth_for(user)).status_code == 201
+    assert fill_details(client, user).status_code == 200
     yield user
     with db_engine.begin() as conn:
         conn.execute(

@@ -8,6 +8,7 @@ import { AppLayout } from "./layouts/AppLayout";
 import { AdminHomePage, ParentHomePage, SitterHomePage } from "./pages/AreaPages";
 import { ComponentsPage } from "./pages/ComponentsPage";
 import { ConsentPage } from "./pages/ConsentPage";
+import { DetailsPage } from "./pages/DetailsPage";
 import { NotFoundPage, RouteErrorPage } from "./pages/ErrorPages";
 import { FamilyPage } from "./pages/FamilyPage";
 import { HomePage } from "./pages/HomePage";
@@ -32,6 +33,15 @@ export const routes: RouteObject[] = [
           </RequireRole>
         ),
       },
+      // "Your details" (name, mobile, pin code, address): asked for after sign-up (CLAUDE.md 6.13).
+      ...(["parent", "sitter"] as const).map((role) => ({
+        path: `${role}/details`,
+        element: (
+          <RequireRole role={role}>
+            <DetailsPage />
+          </RequireRole>
+        ),
+      })),
       {
         path: "parent/consent",
         element: (

@@ -47,12 +47,35 @@ beforeEach(() => {
 
 const PARENT_PROFILE = { role: "parent", status: "pending", full_name: "Asha K" };
 
+const PARENT_CHECKLIST = {
+  items: [
+    { key: "details", status: "to_do" },
+    { key: "consent", status: "to_do" },
+    { key: "children", status: "to_do" },
+    { key: "emergency_contacts", status: "to_do" },
+  ],
+  finished: false,
+};
+const SITTER_CHECKLIST = {
+  items: ["details", "profile", "identity_documents", "police_certificate", "references", "psych_test"].map((key) => ({
+    key,
+    status: "to_do",
+  })),
+  live: false,
+};
+
+function checklistFor(url: string): Response | null {
+  if (url.endsWith("/parent/checklist")) return jsonResponse(PARENT_CHECKLIST);
+  if (url.endsWith("/sitter/checklist")) return jsonResponse(SITTER_CHECKLIST);
+  return null;
+}
+
 function meResponse(profile: unknown = null) {
   return (url: string) =>
     Promise.resolve(
       url.endsWith("/me")
         ? jsonResponse({ email: "asha@example.com", profile })
-        : jsonResponse({ status: "ok", environment: "local" }),
+        : (checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" })),
     );
 }
 
@@ -206,8 +229,7 @@ describe("joining after the first sign-in", () => {
         );
       }
       if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: null }));
-      if (url.endsWith("/service-area")) return Promise.resolve(jsonResponse({ pin_codes: ["560001", "560034"] }));
-      return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
+      return Promise.resolve(checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" }));
     }) as typeof fetch);
     return calls;
   }
@@ -217,22 +239,20 @@ describe("joining after the first sign-in", () => {
     fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
   }
 
-  async function chooseAndFill(role: RegExp, name: string, phone: string, pinCode = "560034") {
+  async function choose(role: RegExp) {
     fireEvent.click(await screen.findByRole("button", { name: role }));
-    fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
-    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: name } });
-    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: phone } });
-    fireEvent.change(screen.getByLabelText("Home pin code"), { target: { value: pinCode } });
     fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
   }
 
-  test("a parent chooses, confirms and lands in the parent area", async () => {
+  test("a parent chooses, confirms and lands in the parent area: only role and terms are asked", async () => {
     fake.state.session = fake.session;
     const calls = joinApi({ email: "asha@example.com", profile: PARENT_PROFILE });
     const { router } = renderApp("/join");
 
-    await chooseAndFill(/I'm a parent/, "Asha K", "98765 43210");
+    await choose(/I'm a parent/);
     expect(screen.getByRole("heading", { name: "You're joining as a parent." })).toBeTruthy();
+    expect(screen.queryByLabelText("Full name")).toBeNull();
+    expect(screen.queryByLabelText("Mobile number")).toBeNull();
     await agreeAndCreate();
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/parent"));
@@ -240,21 +260,20 @@ describe("joining after the first sign-in", () => {
     expect(post.init!.method).toBe("POST");
     expect(JSON.parse(post.init!.body as string)).toEqual({
       role: "parent",
-      full_name: "Asha K",
-      phone: "98765 43210",
-      pin_code: "560034",
       accepted: [
         { kind: "parent_terms", version: "1.0" },
         { kind: "privacy_policy", version: "0.1-draft" },
       ],
     });
+    // Straight into the area, where the profile is finished from a checklist.
+    expect(await screen.findByRole("heading", { name: "Finish your profile" })).toBeTruthy();
   });
 
   test("a sitter is asked to confirm being a sitter", async () => {
     fake.state.session = fake.session;
     joinApi({ email: "asha@example.com", profile: { ...PARENT_PROFILE, role: "sitter" } });
     const { router } = renderApp("/join");
-    await chooseAndFill(/I'm a sitter/, "Asha K", "+91 6123456789");
+    await choose(/I'm a sitter/);
     expect(screen.getByRole("heading", { name: "You're joining as a sitter." })).toBeTruthy();
     await agreeAndCreate();
     await waitFor(() => expect(router.state.location.pathname).toBe("/sitter"));
@@ -264,76 +283,17 @@ describe("joining after the first sign-in", () => {
     fake.state.session = fake.session;
     const calls = joinApi({});
     renderApp("/join");
-    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210");
+    await choose(/I'm a parent/);
     fireEvent.click(screen.getByRole("button", { name: "Go back" }));
     expect(screen.getByRole("heading", { name: "How will you use Pacify?" })).toBeTruthy();
     expect(calls.some((call) => call.url.endsWith("/me/profile"))).toBe(false);
   });
 
-  test("a name and an Indian mobile number are needed", async () => {
+  test("a refusal we can't explain asks for a reload", async () => {
     fake.state.session = fake.session;
-    joinApi({});
+    joinApi(null, { status: 422, code: "validation_error", details: [{ field: "body.role", message: "x" }] });
     renderApp("/join");
-    await chooseAndFill(/I'm a parent/, "  ", "12345");
-    expect(screen.getByText("Please tell us your full name.")).toBeTruthy();
-    expect(screen.getByText(/That number doesn't look quite right/)).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: /You're joining as/ })).toBeNull();
-  });
-
-  test("a pin code outside the service area is caught before confirming", async () => {
-    fake.state.session = fake.session;
-    joinApi({});
-    renderApp("/join");
-    // Wait for the service area list, as a person filling the form would.
-    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/service-area"))).toBe(true));
-    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210", "560002");
-    expect(
-      await screen.findByText("Pacify isn't in 560002 yet. For now we're in these Bengaluru pin codes: 560001, 560034."),
-    ).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: /You're joining as/ })).toBeNull();
-  });
-
-  test("a short pin code is a field error", async () => {
-    fake.state.session = fake.session;
-    joinApi({});
-    renderApp("/join");
-    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210", "5600");
-    expect(screen.getByText(/Pin codes have 6 digits/)).toBeTruthy();
-  });
-
-  test("if the API refuses the pin code, the form shows it on the pin code field", async () => {
-    fake.state.session = fake.session;
-    joinApi(null, { status: 422, code: "outside_service_area" });
-    renderApp("/join");
-    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210", "560034");
-    await agreeAndCreate();
-    expect(await screen.findByText(/Pacify isn't in 560034 yet/)).toBeTruthy();
-    expect(screen.getByLabelText("Home pin code")).toBeTruthy();
-  });
-
-  test("if the API refuses a field, the form marks that field and clears the old error", async () => {
-    fake.state.session = fake.session;
-    joinApi(null, {
-      status: 422,
-      code: "validation_error",
-      details: [{ field: "body.pin_code", message: "Field required" }],
-    });
-    renderApp("/join");
-    await chooseAndFill(/I'm a sitter/, "Asha K", "9876543210");
-    await agreeAndCreate();
-
-    expect(await screen.findByText("Please enter your home pin code.")).toBeTruthy();
-    expect(screen.queryByText("Nope")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
-    expect(await screen.findByRole("heading", { name: "You're joining as a sitter." })).toBeTruthy();
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  test("a refusal we can't pin to a field asks for a reload", async () => {
-    fake.state.session = fake.session;
-    joinApi(null, { status: 422, code: "validation_error", details: [{ field: "body.extra", message: "x" }] });
-    renderApp("/join");
-    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210");
+    await choose(/I'm a parent/);
     await agreeAndCreate();
     expect(await screen.findByText(/Please reload the page and try again/)).toBeTruthy();
   });
@@ -342,7 +302,7 @@ describe("joining after the first sign-in", () => {
     fake.state.session = fake.session;
     joinApi(null, { status: 409, code: "email_in_use" });
     renderApp("/join");
-    await chooseAndFill(/I'm a parent/, "Asha K", "9876543210");
+    await choose(/I'm a parent/);
     await agreeAndCreate();
     expect(await screen.findByText(/This email already has a Pacify account/)).toBeTruthy();
   });
@@ -358,14 +318,156 @@ describe("joining after the first sign-in", () => {
     const { router } = renderApp("/join");
     await waitFor(() => expect(router.state.location.pathname).toBe("/sign-in"));
   });
+});
+
+describe("finishing a profile after sign-up", () => {
+  type Call = { url: string; init?: RequestInit };
+
+  // A signed-up person with no details yet. PUT /me/details answers with `saved` (or `failure`).
+  function detailsApi(role = "parent", failure?: { status: number; code: string; details?: unknown }) {
+    fake.state.session = fake.session;
+    const calls: Call[] = [];
+    const profile = { ...PARENT_PROFILE, role, full_name: null, details_complete: false };
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url.endsWith("/me/details")) {
+        if (failure) {
+          return Promise.resolve(
+            jsonResponse({ error: { code: failure.code, message: "Nope", details: failure.details ?? null } }, failure.status),
+          );
+        }
+        const body = JSON.parse(init!.body as string) as Record<string, string>;
+        return Promise.resolve(
+          jsonResponse({ email: "asha@example.com", profile: { ...profile, ...body, details_complete: true } }),
+        );
+      }
+      if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile }));
+      if (url.endsWith("/service-area")) return Promise.resolve(jsonResponse({ pin_codes: ["560001", "560034"] }));
+      return Promise.resolve(checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" }));
+    }) as typeof fetch);
+    return calls;
+  }
+
+  async function fill(name: string, phone: string, pinCode = "560034", address = "12, 4th Cross, Koramangala") {
+    fireEvent.change(await screen.findByLabelText("Full name"), { target: { value: name } });
+    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: phone } });
+    fireEvent.change(screen.getByLabelText("Home pin code"), { target: { value: pinCode } });
+    fireEvent.change(screen.getByLabelText("Home address"), { target: { value: address } });
+    fireEvent.click(screen.getByRole("button", { name: /Save my details/ }));
+  }
+
+  test("the parent home lists what's left, each linking to where it's done", async () => {
+    detailsApi();
+    renderApp("/parent");
+    expect(await screen.findByText("Finish these to book a sitter.")).toBeTruthy();
+    const links = {
+      "Your details": "/parent/details",
+      "Parental consent": "/parent/consent",
+      "Your children": "/parent/family",
+      "Emergency contacts": "/parent/family",
+    };
+    for (const [name, href] of Object.entries(links)) {
+      expect(screen.getByRole("link", { name: new RegExp(name) }).getAttribute("href")).toBe(href);
+    }
+  });
+
+  test("a finished parent profile says booking waits for the birth certificates", async () => {
+    detailsApi();
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      Promise.resolve(
+        url.endsWith("/parent/checklist")
+          ? jsonResponse({
+              items: PARENT_CHECKLIST.items.map((item) => ({
+                ...item,
+                status: item.key === "children" ? "waiting" : "done",
+              })),
+              finished: true,
+            })
+          : jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE }),
+      )) as typeof fetch);
+    renderApp("/parent");
+    expect(await screen.findByText(/a booking is confirmed once Pacify has checked/i)).toBeTruthy();
+    expect(within(screen.getByRole("link", { name: /Your children/ })).getByText("Being checked")).toBeTruthy();
+  });
+
+  test("the sitter home lists every onboarding step", async () => {
+    detailsApi("sitter");
+    renderApp("/sitter");
+    expect(await screen.findByText(/once every step passes and Pacify approves your profile/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Your details/ }).getAttribute("href")).toBe("/sitter/details");
+    expect(screen.getByRole("link", { name: /Police clearance certificate/ }).getAttribute("href")).toBe(
+      "/sitter/application",
+    );
+    expect(screen.getByRole("link", { name: /Psychology screening/ }).getAttribute("href")).toBe("/sitter/psych-test");
+  });
+
+  test("details are saved and the person goes back to their home", async () => {
+    const calls = detailsApi();
+    const { router } = renderApp("/parent/details");
+    await fill("Asha K", "98765 43210");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/parent"));
+    const put = calls.find((call) => call.url.endsWith("/me/details"))!;
+    expect(put.init!.method).toBe("PUT");
+    expect(JSON.parse(put.init!.body as string)).toEqual({
+      full_name: "Asha K",
+      phone: "98765 43210",
+      pin_code: "560034",
+      address: "12, 4th Cross, Koramangala",
+    });
+  });
+
+  test("a name, an Indian mobile number and an address are needed", async () => {
+    const calls = detailsApi();
+    renderApp("/parent/details");
+    await fill("  ", "12345", "560034", " ");
+    expect(screen.getByText("Please tell us your full name.")).toBeTruthy();
+    expect(screen.getByText(/That number doesn't look quite right/)).toBeTruthy();
+    expect(screen.getByText("Please enter your home address.")).toBeTruthy();
+    expect(calls.some((call) => call.url.endsWith("/me/details"))).toBe(false);
+  });
+
+  test("a pin code outside the service area is caught before saving", async () => {
+    detailsApi("sitter");
+    renderApp("/sitter/details");
+    // Wait for the service area list, as a person filling the form would.
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/service-area"))).toBe(true));
+    await fill("Asha K", "9876543210", "560002");
+    expect(
+      await screen.findByText("Pacify isn't in 560002 yet. For now we're in these Bengaluru pin codes: 560001, 560034."),
+    ).toBeTruthy();
+  });
+
+  test("a short pin code is a field error", async () => {
+    detailsApi();
+    renderApp("/parent/details");
+    await fill("Asha K", "9876543210", "5600");
+    expect(screen.getByText(/Pin codes have 6 digits/)).toBeTruthy();
+  });
+
+  test("if the API refuses the pin code, the form shows it on the pin code field", async () => {
+    detailsApi("parent", { status: 422, code: "outside_service_area" });
+    renderApp("/parent/details");
+    await fill("Asha K", "9876543210", "560034");
+    expect(await screen.findByText(/Pacify isn't in 560034 yet/)).toBeTruthy();
+  });
+
+  test("if the API refuses a field, the form marks that field", async () => {
+    detailsApi("parent", {
+      status: 422,
+      code: "validation_error",
+      details: [{ field: "body.address", message: "Field required" }],
+    });
+    renderApp("/parent/details");
+    await fill("Asha K", "9876543210");
+    expect(await screen.findByText("Please enter your home address.")).toBeTruthy();
+    expect(screen.queryByText("Nope")).toBeNull();
+  });
 
   test("Google's name prefills the form", async () => {
+    detailsApi();
     fake.state.session = { ...fake.session, user: { ...fake.session.user, user_metadata: { full_name: "Asha Kumar" } } };
-    joinApi({});
-    renderApp("/join");
-    fireEvent.click(await screen.findByRole("button", { name: /I'm a parent/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
-    expect((screen.getByLabelText("Full name") as HTMLInputElement).value).toBe("Asha Kumar");
+    renderApp("/parent/details");
+    expect(((await screen.findByLabelText("Full name")) as HTMLInputElement).value).toBe("Asha Kumar");
   });
 });
 
@@ -453,17 +555,28 @@ describe("parental consent", () => {
         }
         return Promise.resolve(jsonResponse(current));
       }
+      if (url.endsWith("/parent/checklist")) {
+        const items = PARENT_CHECKLIST.items.map((item) =>
+          item.key === "consent" ? { ...item, status: current.required_accepted ? "done" : "to_do" } : item,
+        );
+        return Promise.resolve(jsonResponse({ items, finished: false }));
+      }
       if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE }));
       return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
     }) as typeof fetch);
     return calls;
   }
 
+  async function consentItem() {
+    return within(await screen.findByRole("link", { name: /Parental consent/ }));
+  }
+
   test("a parent who hasn't consented is asked to, from their home", async () => {
     parentWithConsent(NOT_ACCEPTED);
     renderApp("/parent");
-    const link = await screen.findByRole("link", { name: /Read the consent form/ });
+    const link = await screen.findByRole("link", { name: /Parental consent/ });
     expect(link.getAttribute("href")).toBe("/parent/consent");
+    expect(within(link).getByText("To do")).toBeTruthy();
   });
 
   test("the form shows the draft text and needs every required box ticked before agreeing", async () => {
@@ -490,9 +603,9 @@ describe("parental consent", () => {
 
     for (const box of required.slice(1)) fireEvent.click(box);
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
-    // Back to the parent home, which now shows the date.
-    expect(await screen.findByText("Parental consent given on 1 Nov 2026.")).toBeTruthy();
-    expect(router.state.location.pathname).toBe("/parent");
+    // Back to the parent home, where consent is now done.
+    await waitFor(() => expect(router.state.location.pathname).toBe("/parent"));
+    expect((await consentItem()).getByText("Done")).toBeTruthy();
     const post = calls.find((call) => call.init?.method === "POST")!;
     expect(JSON.parse(post.init!.body as string)).toEqual({ version: CONSENT_VERSION, marketing: false });
   });
@@ -507,16 +620,15 @@ describe("parental consent", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /offers and updates/ }));
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
 
-    await screen.findByText("Parental consent given on 1 Nov 2026.");
+    expect((await consentItem()).getByText("Done")).toBeTruthy();
     const post = calls.find((call) => call.init?.method === "POST")!;
     expect(JSON.parse(post.init!.body as string)).toEqual({ version: CONSENT_VERSION, marketing: true });
   });
 
-  test("a parent who has consented sees when, with no form to fill", async () => {
+  test("a parent who has consented sees it done on their checklist", async () => {
     parentWithConsent({ version: CONSENT_VERSION, required_accepted: true, accepted_at: "2026-10-30T08:00:00Z", marketing: false });
     renderApp("/parent");
-    expect(await screen.findByText("Parental consent given on 30 Oct 2026.")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /Read the consent form/ })).toBeNull();
+    expect((await consentItem()).getByText("Done")).toBeTruthy();
   });
 
   test("opening the form again after consenting shows when, the way home, and a marketing toggle", async () => {
@@ -559,18 +671,13 @@ describe("terms at sign-up and after changes", () => {
         );
       }
       if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: null }));
-      if (url.endsWith("/service-area")) return Promise.resolve(jsonResponse({ pin_codes: ["560034"] }));
-      return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
+      return Promise.resolve(checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" }));
     }) as typeof fetch);
     return calls;
   }
 
   async function reachConfirmation(role: RegExp) {
     fireEvent.click(await screen.findByRole("button", { name: role }));
-    fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
-    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Asha K" } });
-    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "9876543210" } });
-    fireEvent.change(screen.getByLabelText("Home pin code"), { target: { value: "560034" } });
     fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
     await screen.findByRole("heading", { name: /You're joining as/ });
   }
