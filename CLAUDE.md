@@ -249,7 +249,8 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   until the payment is confirmed (6.1), then `confirmed`.
 - **A booking is only confirmed once every child on it is verified** (birth certificate reviewed and
   approved by an admin, 7), as well as paid. Decided 2026-11-08: parents can book before that review
-  is done; the booking waits until it is.
+  is done; the booking waits until it is. Until it's confirmed, the booking doesn't show on the
+  sitter's side (her bookings and schedule); she only sees confirmed bookings.
 - **No slot hold while payment is pending** (decided 2026-11-03): the sitter's availability for that
   slot is only removed once a booking is `confirmed`. More than one parent can have a `pending_payment`
   booking for the same slot at once — whoever's payment is confirmed first wins it; any other
@@ -346,9 +347,9 @@ Emergency button instead.
 - If a sitter's average over her last 10 bookings falls below **3.5**, flag her for admin review. Before
   removal for ratings, she must be told the reason and given a chance to respond (recorded).
 - Communication between families and sitters stays in the in-app chat.
-- Chat opens between a parent and sitter once they have a booking and stays open while they have
-  bookings (introductions were dropped 2026-11-08; exactly when chat opens is an open question in
-  `progress.md`). Admins can read chats when handling an incident (audit logged).
+- Chat opens between a parent and sitter once they have a confirmed booking (no messaging before
+  booking; decided 2026-11-08) and stays open while they have bookings. Admins can read chats when
+  handling an incident (audit logged).
 
 ### 6.12 Complaints and grievances
 
@@ -403,9 +404,12 @@ Emergency button instead.
 6. Admin approval, with the sitter's level set (6.2). (The onboarding interview was dropped
    2026-11-08.) Only then is she live: shown to parents and bookable.
 
-**Parent verification:** a birth certificate per child, reviewed and approved by an admin. Parents can
-browse and book once their profile is finished, but a booking is only confirmed once every child on it
-is verified (6.4). **No ID document is collected from parents**
+**Parent verification:** a birth certificate per child, reviewed and approved by an admin. The family
+(parent) is verified once **every** child's certificate is approved; adding a child sets the family back
+to waiting until that child is approved (decided 2026-11-08). Parents can browse and book once their
+profile is finished, but a booking is only confirmed once every child on it is verified (6.4). Once a
+child is verified, its name and date of birth are locked (the parent asks Pacify to change them); the
+parent can still add more children. A rejected certificate is kept until the parent uploads a new one. **No ID document is collected from parents**
 (decided 2026-11-03, Reuben: "we will not be taking aadhaar details anymore" — drops the masked-Aadhaar
 upload entirely, and with it the single-parent declaration that existed only to stand in for a second
 Aadhaar). What, if anything, replaces a parent-identity check is an open question in `progress.md`.

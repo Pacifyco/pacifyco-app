@@ -333,10 +333,13 @@ def decide_child(
 
 
 def _approve_parent(db: Session, admin_id: uuid.UUID, parent_id: uuid.UUID) -> None:
-    """A parent is verified once an admin has approved a child's birth certificate (CLAUDE.md 7).
-    Never reinstates a suspended or removed account."""
+    """A family is verified once an admin has approved every child's birth certificate (CLAUDE.md 7,
+    decided 2026-11-08). Never reinstates a suspended or removed account."""
     profile, parent = get_parent(db, parent_id)
     if parent.verification_status == VerificationStatus.approved:
+        return
+    statuses = db.scalars(select(Child.verification_status).where(Child.parent_id == parent_id))
+    if any(status != VerificationStatus.approved for status in statuses):
         return
     before = {"verification_status": parent.verification_status.value, "profile_status": profile.status.value}
     parent.verification_status = VerificationStatus.approved

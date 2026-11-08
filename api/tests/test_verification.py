@@ -337,6 +337,39 @@ def test_approving_a_child_verifies_the_parent(client, db_engine, storage, paren
     assert audit_actions(db_engine, reviewer) == ["child_verified", "parent_verified"]
 
 
+def test_a_family_is_verified_only_once_every_child_is_approved(client, db_engine, storage, parent, reviewer):  # noqa: F811
+    first, _ = family_with_certificate(client, db_engine, storage, parent)
+    second = add_child(db_engine, parent["id"])
+    upload(client, storage, parent, "birth_certificate", second)
+
+    review(client, reviewer, f"/admin/children/{first}/decision")
+    status = "SELECT verification_status FROM parents WHERE profile_id = :id"
+    assert scalar(db_engine, status, id=parent["id"]) == "pending"
+
+    review(client, reviewer, f"/admin/children/{second}/decision")
+    assert scalar(db_engine, status, id=parent["id"]) == "approved"
+
+
+def test_a_verified_family_can_add_a_child_and_waits_for_its_certificate(client, db_engine, storage, parent, reviewer):  # noqa: F811
+    first, _ = family_with_certificate(client, db_engine, storage, parent)
+    review(client, reviewer, f"/admin/children/{first}/decision")
+
+    response = client.post(
+        "/parent/children", json={"name": "Kabir", "date_of_birth": "2022-05-01"}, headers=auth_for(parent)
+    )
+    assert response.status_code in (200, 201)
+    assert scalar(db_engine, "SELECT verification_status FROM parents WHERE profile_id = :id", id=parent["id"]) == (
+        "pending"
+    )
+    assert scalar(db_engine, "SELECT verification_status FROM children WHERE id = :id", id=first) == "approved"
+    try:
+        reset = rows(db_engine, "SELECT actor_id FROM audit_log WHERE action = 'parent_verification_reset'")
+        assert [r["actor_id"] for r in reset] == [parent["id"]]
+    finally:  # the parent wrote this audit row; remove it so the parent can be cleaned up
+        with db_engine.begin() as conn:
+            conn.execute(text("DELETE FROM audit_log WHERE actor_id = :id"), {"id": parent["id"]})
+
+
 def test_a_child_cannot_be_approved_without_a_certificate(client, db_engine, parent, reviewer):  # noqa: F811
     child_id = add_child(db_engine, parent["id"])
     response = review(client, reviewer, f"/admin/children/{child_id}/decision")

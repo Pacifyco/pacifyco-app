@@ -88,21 +88,18 @@ tests.
   other overtime past the latest end that has no next tier: round up to the full hour at the
   **Recharge** rate, sitter paid her level pay — revisit if/when it actually comes up.
 
-- [ ] **When does chat open?** (added 2026-11-08) It used to open once an introduction was scheduled;
-  introductions are gone. Proposed: chat opens once the parent has a booking with the sitter (even
-  `pending_payment`) and stays open while they have bookings. Confirm, or should parents be able to
-  message a sitter before booking?
+- [x] **When does chat open?** (added 2026-11-08; answered 2026-11-08: "once there is a booking").
+  Chat opens once the parent has a confirmed booking with the sitter (CLAUDE.md 6.11); no messaging
+  before booking.
 - [ ] **Family Terms and introductions** (added 2026-11-08): the Family Terms may still describe a
   free introduction before the first booking; check and add to the v1.1 list for the lawyer.
 
-- [ ] **Verification queue choices to confirm** (added 2026-11-08, `phase3/admin-verification-queue`):
-  1. A parent's account becomes verified and active as soon as an admin approves **one** child's birth
-     certificate (each child still needs its own approval before it can be booked).
-  2. Once a child is verified, the parent can't change the child's name or date of birth (the
-     certificate they were checked against is deleted); they ask Pacify instead. Allergies, medical notes
-     and routines stay editable.
-  3. A **rejected** birth certificate is kept (only approval deletes it) and a new upload sends the child
-     back for review. Should rejected certificates be deleted at once instead?
+- [x] **Verification queue choices** (added 2026-11-08; answered 2026-11-08, CLAUDE.md 6.4 and 7):
+  1. A family is verified only once **every** child's birth certificate is approved; adding a child
+     sets it back to waiting. Parents can book before that, but a booking is confirmed only once its
+     children are verified, and it doesn't show on the sitter's side until confirmed.
+  2. A verified child's name and date of birth are locked (ask Pacify); parents can still add children.
+  3. Rejected certificates are kept until a new one is uploaded.
 
 - [ ] **Psych test retake after a fail** (added 2026-11-03, `phase3/psych-test-engine`): not in
   CLAUDE.md 7 step 5. Built so a sitter can retake with no limit once an admin records `failed` (she
@@ -210,7 +207,7 @@ at home (CLAUDE.md 6.3).
 ## Phase 7 — Bookings, cancellations, strikes
 
 - [ ] Book a time: plan and level match, plan's latest end, Pause one child, bath time, children 18 months+, camera declaration, parent profile finished, `pending_payment` → confirmed only once paid **and** every child is verified, remove availability; "try a 1-hour first booking at home" nudge with a new sitter
-- [ ] Parent and sitter booking lists and detail pages
+- [ ] Parent and sitter booking lists and detail pages (sitters see only confirmed bookings)
 - [ ] Cancellations with 3-hour and 8-hour rules
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
 - [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit, doctor's note strike removal
@@ -223,7 +220,7 @@ at home (CLAUDE.md 6.3).
 - [ ] Overdue check-out alert job (end + 30 min) and admin manual close
 - [ ] Overtime at check-out: rounded up to the full hour at the plan price, UPI link/QR due in 2 hours, unpaid blocks new bookings
 - [ ] Emergency/Report button for parents and sitters; admin email alert; incident records
-- [ ] Chat between a parent and sitter with a booking (polling)
+- [ ] Chat between a parent and sitter with a confirmed booking (polling)
 - [ ] Outing permission requests during a booking (Recharge only)
 - [ ] Tests for this phase
 
@@ -291,6 +288,10 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-08 — Reuben answered the verification and chat questions. A family is now verified only
+  once every child is approved, and adding a child sets it back to waiting (audit `parent_verification_reset`).
+  Bookings show to sitters only once confirmed, and chat opens with a confirmed booking. Rules updated in
+  CLAUDE.md 6.4, 6.11 and 7; 329 API tests pass.
 - 2026-11-08 — Phase 3 done (`phase3/admin-verification-queue`): `onboarding_steps` table (admin
   reviews of profile, ID documents, police certificate), `sitters.level`, child verifier fields
   (migration `55d0da5cd21c`). `/admin/verifications` queue, sitter review (each step, references,
