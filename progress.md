@@ -8,11 +8,10 @@ tests.
 
 ## Current status
 
-- Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] items left: Google Calendar service account, bank/UPI)
-- Next item: items 1-5, the psychology test engine (PRs #61-#62) and the sitter application wizard
-  (PR #63) are merged. This session: dropped Aadhaar everywhere, and restructured the family page into
-  a wizard the same way -- both on `parent/family-no-aadhaar`, not yet merged. Next after that: the
-  admin verification queue (including its review page for the psych test).
+- Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] item left: bank/UPI)
+- Next item: the admin verification queue (including its review page for the psych test). Family
+  wizard and Aadhaar removal merged (PR #64). Interviews dropped and a new sign-up flow added as
+  phase 4 (2026-11-08).
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -90,6 +89,13 @@ tests.
   other overtime past the latest end that has no next tier: round up to the full hour at the
   **Recharge** rate, sitter paid her level pay — revisit if/when it actually comes up.
 
+- [ ] **When does chat open?** (added 2026-11-08) It used to open once an introduction was scheduled;
+  introductions are gone. Proposed: chat opens once the parent has a booking with the sitter (even
+  `pending_payment`) and stays open while they have bookings. Confirm, or should parents be able to
+  message a sitter before booking?
+- [ ] **Family Terms and introductions** (added 2026-11-08): the Family Terms may still describe a
+  free introduction before the first booking; check and add to the v1.1 list for the lawyer.
+
 - [ ] **Psych test retake after a fail** (added 2026-11-03, `phase3/psych-test-engine`): not in
   CLAUDE.md 7 step 5. Built so a sitter can retake with no limit once an admin records `failed` (she
   can't start a second attempt while one is `in_progress`/`submitted`, or after `passed`). Confirm this
@@ -108,8 +114,9 @@ tests.
 - [x] [Reuben] Cloudflare account linked to GitHub (delete the stray Workers project `pacifyco-app` it created; staging uses a Pages project)
 - [x] [Reuben] Resend account; Sentry account with web and API projects
   (Sentry 2026-11-01: org `pacifyco` (EU region), projects `pacifyco-api` and `pacifyco-web`, error monitoring only, 100 events/hour per key, org-wide data scrubbing and no IP storage. Resend 2026-11-01: domain pacifyco.in verified (DNS at Hostinger), Supabase SMTP uses one Resend API key per environment.)
-- [ ] [Reuben] Google Cloud project with Calendar API, service account, interview calendar
-  (Project `Pacify` created 2026-11-01 with OAuth clients for sign-in, staging and production; app in Testing mode, publish before launch. Calendar API, service account and calendar still to do, phase 5.)
+- [x] [Reuben] Google Cloud project (`Pacify`, 2026-11-01) with OAuth clients for sign-in, staging and
+  production; app in Testing mode, publish before launch. Calendar API, service account and interview
+  calendar **no longer needed** (interviews dropped 2026-11-08).
 - [ ] [Reuben] Business bank account and UPI ID for beta payments
 - [x] [Reuben] Logo files added: wordmark and reversed wordmark (PNG, `assets/primary-logo*.png`), symbol (SVG). Web copies in `/web/src/assets/brand/`. SVG wordmarks still wanted from the designer (design.md section 6).
 
@@ -156,7 +163,19 @@ tests.
 - [ ] Birth certificate auto-delete after child verification
 - [ ] Tests for this phase
 
-## Phase 4 — Marketplace
+## Phase 4 — New sign-up flow (added 2026-11-08, CLAUDE.md 6.13)
+
+- [ ] First sign-in asks only role (with confirmation) and terms, then goes straight to `/parent` or `/sitter`
+- [ ] Name, mobile, pin code (service-area check) and address move into the area as "finish your profile"
+- [ ] Parent area: checklist prompting to finish the profile (details, consents, children with birth
+  certificates, emergency contacts); booking blocked until it's done
+- [ ] Sitter area: checklist of onboarding steps with each step's status; not shown to parents until
+  approved and live
+- [ ] Booking stays unconfirmed until every child on it is verified (enforced in phase 7; the rule and
+  its test are listed there)
+- [ ] Tests for this phase
+
+## Phase 5 — Marketplace
 
 - [ ] Sitter availability calendar (add/remove free times)
 - [ ] Geocoding with cache; distance from parent
@@ -164,19 +183,17 @@ tests.
 - [ ] Sitter profile page and SitterCard (no price shown)
 - [ ] Tests for this phase
 
-## Phase 5 — Interviews
-
-- [ ] Onboarding interview for sitters (admin schedules)
-- [ ] Introduction request: parent picks a slot in sitter availability
-- [ ] Google Calendar event with Meet link and invites
-- [ ] Admin records outcome; pair unlock on pass or prior booking
-- [ ] Tests for this phase
+Interviews (the old phase 5) were dropped on 2026-11-08: no sitter onboarding interview, no
+introductions, no Google Calendar. Parents are encouraged to make a 1-hour first booking with a parent
+at home (CLAUDE.md 6.3).
 
 ## Phase 6 — Plans and payments (was hour packs and ledger; changed 2026-11-03)
 
-- [ ] Pricing service (plans, children, half hours)
+- [ ] Pricing service (plans, children, whole hours only)
 - [ ] Plan picker: prices per plan for the chosen children, what each includes, the total
-- [ ] Booking payment: UPI instructions, UPI reference entry, `pending_payment`, match deposit (once defined)
+- [ ] Booking payment: UPI instructions, UPI reference entry, `pending_payment` (no match deposit)
+- [ ] Frequent job: auto-cancel `pending_payment` bookings 3 hours before start; first confirmed payment
+  wins a slot and auto-cancels the others
 - [ ] Admin confirms/rejects payments; refunds recorded with a reference
 - [ ] Parent payment history; outstanding amounts block new bookings
 - [ ] Remove the unused HourBalance component
@@ -184,7 +201,7 @@ tests.
 
 ## Phase 7 — Bookings, cancellations, strikes
 
-- [ ] Book a time: plan and level match, plan's latest end, Pause one child, bath time, children 18 months+, camera declaration, `pending_payment` → confirmed, remove availability
+- [ ] Book a time: plan and level match, plan's latest end, Pause one child, bath time, children 18 months+, camera declaration, parent profile finished, `pending_payment` → confirmed only once paid **and** every child is verified, remove availability; "try a 1-hour first booking at home" nudge with a new sitter
 - [ ] Parent and sitter booking lists and detail pages
 - [ ] Cancellations with 3-hour and 8-hour rules
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
@@ -198,7 +215,7 @@ tests.
 - [ ] Overdue check-out alert job (end + 30 min) and admin manual close
 - [ ] Overtime at check-out: rounded up to the full hour at the plan price, UPI link/QR due in 2 hours, unpaid blocks new bookings
 - [ ] Emergency/Report button for parents and sitters; admin email alert; incident records
-- [ ] Chat between unlocked pairs (polling)
+- [ ] Chat between a parent and sitter with a booking (polling)
 - [ ] Outing permission requests during a booking (Recharge only)
 - [ ] Tests for this phase
 
@@ -266,6 +283,13 @@ tests.
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-08 — Reuben: no sitter onboarding interview and no parent-sitter introductions (no Google
+  Meet or Calendar); parents are encouraged, not forced, to make a 1-hour first booking at home. New
+  sign-up flow: role and terms only, then straight into the area with "finish your profile" prompts;
+  parents can't book until finished, bookings confirm only once children are verified; sitters show
+  to parents once finished and approved. CLAUDE.md 1, 3, 4, 6.3, 6.4, 6.11, 6.13, 7, 8, 9 updated;
+  new phase 4, old phase 5 removed; Google Calendar settings removed; copy promising introductions
+  or interviews fixed.
 - 2026-11-03 — Aadhaar dropped everywhere (Reuben: "we will not be taking aadhaar details anymore"):
   removed the `aadhaar_masked` document type and the `single_parent_declaration` consent kind (it
   existed only to stand in for a second Aadhaar) from the models, a new migration narrows both CHECK

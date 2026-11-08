@@ -1,8 +1,8 @@
 # Pacify
 
 Pacify (Pacifyco LLP) is a babysitter marketplace for parents in Bengaluru. Parents browse vetted
-sitter profiles, meet a sitter in a free introduction call, then book care paid from pre-bought hour
-packs.
+sitter profiles and book care by the hour at the plan they pick, starting with a short first booking
+while a parent is at home.
 
 Build rules, stack and business rules: [CLAUDE.md](CLAUDE.md). Design system: [design.md](design.md).
 Where the build is up to: [progress.md](progress.md).

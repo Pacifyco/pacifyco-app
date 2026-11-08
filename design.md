@@ -24,7 +24,7 @@ people *feel* Pacify.
 1. Who is looking after my child? — real name, face and a short story.
 2. Are they verified? — the checks we actually do, stated plainly.
 3. What experience do they have? — years, age groups, families served, first aid.
-4. Can I meet them first? — yes, always: a free introduction before the first booking.
+4. Can I try them first? — yes: we suggest a short first booking (about an hour) while you're at home.
 5. Additional safety — reserved for Pacify Plus, **not in v1** (see section 11).
 
 ---
@@ -259,7 +259,7 @@ spring overshoot, spin, fast parallax or autoplaying video with sound. Respect
 1. **Pacify Plus** (enhanced checks, live check-ins, support line) isn't in v1. Don't show the badge or
    the fifth trust pillar.
 2. **Address verification** is mentioned in the guide, but v1 checks are ID, police verification,
-   references, a psychology test and interviews. Only claim those.
+   references and a psychology test. Only claim those (no interview, dropped 2026-11-08).
 3. **Sitter card price** — the guide shows "₹450/hour · 1 child"; v1 sitter cards show no price.
    Plan prices appear only when the parent picks a plan (CLAUDE.md 6.1).
 4. **"Join the waitlist"** belongs to the marketing site (scrollytelling, phase 13). In the app the
@@ -336,6 +336,6 @@ this file and CLAUDE.md win.
 - **Skills taxonomy** and **weekday availability toggles**: v1 has free-text age groups and languages,
   and availability as dated time slots.
 - Checks we don't do or name differently: show only CLAUDE.md 7's steps (ID, police certificate,
-  references, psychology test, interview, approval).
+  references, psychology test, approval).
 - The prototype's login screen ("Choose a portal", demo account pickers, "Reset demo data") and its
   hero copy and stats. Our sign-in and `/join` already follow section 10.
