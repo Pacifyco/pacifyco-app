@@ -22,6 +22,8 @@ from app.models import (
     Sitter,
     VerificationStatus,
 )
+from app.routers.parents import ChecklistItem, checklist_out
+from app.services import checklists, verification
 from app.services import psych_tests as psych_tests_service
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
@@ -89,6 +91,20 @@ def _profile_out(row: Sitter) -> SitterProfileOut:
         languages=row.languages,
         first_aid=row.first_aid,
         onboarding_status=row.onboarding_status,
+    )
+
+
+class SitterChecklist(BaseModel):
+    items: list[ChecklistItem]
+    live: bool  # approved, level set and active: shown to parents (CLAUDE.md 7)
+
+
+@router.get("/checklist")
+def get_checklist(sitter: SitterProfile, db: DbSession) -> SitterChecklist:
+    """Her onboarding steps and where each stands (CLAUDE.md 6.13, 7)."""
+    profile, row = verification.get_sitter(db, sitter.id)
+    return SitterChecklist(
+        items=checklist_out(checklists.sitter_checklist(db, profile, row)), live=verification.is_live(profile, row)
     )
 
 

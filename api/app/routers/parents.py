@@ -10,12 +10,34 @@ from pydantic import BaseModel, Field, field_validator
 from app.auth import require_role
 from app.deps import DbSession
 from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, VerificationStatus
+from app.services import checklists, consent, family
 from app.services import children as children_service
-from app.services import consent, family
 from app.services.accounts import normalise_mobile
 
 router = APIRouter(prefix="/parent", tags=["parent"], dependencies=[Depends(require_role(Role.parent))])
 Parent = Annotated[Profile, Depends(require_role(Role.parent))]
+
+
+class ChecklistItem(BaseModel):
+    key: str
+    status: checklists.ItemStatus
+
+
+class Checklist(BaseModel):
+    items: list[ChecklistItem]
+    # Everything needed to book is done (birth certificates sent; they needn't be verified yet).
+    finished: bool
+
+
+def checklist_out(items: list[checklists.Item]) -> list[ChecklistItem]:
+    return [ChecklistItem(key=item.key, status=item.status) for item in items]
+
+
+@router.get("/checklist")
+def get_checklist(parent: Parent, db: DbSession) -> Checklist:
+    """What's left of "finish your profile" (CLAUDE.md 6.13)."""
+    items = checklists.parent_checklist(db, parent)
+    return Checklist(items=checklist_out(items), finished=checklists.parent_profile_finished(items))
 
 
 class ConsentStatus(BaseModel):

@@ -34,7 +34,7 @@ class Profile(Base):
     # Same id as the Supabase auth user (not a foreign key: auth lives in Supabase's own schema).
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     role: Mapped[Role] = mapped_column(enum_column(Role, "profile_role"))
-    full_name: Mapped[str] = mapped_column(Text)
+    full_name: Mapped[str | None] = mapped_column(Text)  # asked for after sign-up (CLAUDE.md 6.13)
     phone: Mapped[str | None] = mapped_column(String(20))
     email: Mapped[str] = mapped_column(Text, unique=True)
     status: Mapped[ProfileStatus] = mapped_column(

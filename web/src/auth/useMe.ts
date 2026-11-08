@@ -9,10 +9,21 @@ export const AREA_PATH: Record<Role, string> = { parent: "/parent", sitter: "/si
 export type TermsKind = "parent_terms" | "sitter_terms" | "privacy_policy";
 export type TermsVersion = { kind: TermsKind; version: string };
 
+export type MeProfile = {
+  role: Role;
+  status: "pending" | "active" | "suspended" | "removed";
+  /** Name, mobile, pin code and address are asked for in the area after sign-up (CLAUDE.md 6.13). */
+  full_name: string | null;
+  phone?: string | null;
+  pin_code?: string | null;
+  address?: string | null;
+  details_complete?: boolean;
+};
+
 export type Me = {
   email: string | null;
   /** Null until the person finishes sign-up. */
-  profile: { role: Role; status: "pending" | "active" | "suspended" | "removed"; full_name: string } | null;
+  profile: MeProfile | null;
   /** Current terms they still have to accept. */
   terms_to_accept?: TermsVersion[];
 };

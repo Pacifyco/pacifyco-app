@@ -1,20 +1,43 @@
 import { BadgeCheck, Calendar, Clock, CreditCard, HeartHandshake, Siren, Wallet } from "lucide-react";
 import { useMe } from "../auth/useMe";
 import { ButtonLink, IconTile } from "../components/ui";
-import { formatDate } from "../lib/format";
-import { CONSENT_VERSION, useConsent } from "./ConsentPage";
+import {
+  ChecklistCard,
+  PARENT_STEPS,
+  SITTER_STEPS,
+  useChecklist,
+  type ParentChecklist as ParentChecklistData,
+  type SitterChecklist as SitterChecklistData,
+} from "./ProfileChecklist";
 
-// Placeholders for each role's area (gated by RequireRole in routes.tsx). Headings stay exactly as
-// signIn.test.tsx expects them; everything below personalises the page and previews what's coming.
+// Each role's home (gated by RequireRole in routes.tsx). Parents and sitters land here straight after
+// sign-up and see their "finish your profile" checklist (CLAUDE.md 6.13). Headings stay exactly as
+// signIn.test.tsx expects them.
 
-function firstName(fullName: string | undefined): string | undefined {
+function firstName(fullName: string | null | undefined): string | undefined {
   return fullName?.trim().split(/\s+/)[0];
 }
 
-// Sunken-panel pattern already used by ConsentPrompt and JoinPage's confirmation step.
-function PendingNote({ children }: { children: string }) {
+function ParentChecklist() {
+  const checklist = useChecklist<ParentChecklistData>("parent");
+  if (!checklist.isSuccess) return null;
+  const { items, finished } = checklist.data;
+  const childrenVerified = items.find((item) => item.key === "children")?.status === "approved";
+  // Parents can book before the birth certificates are checked; the booking waits (CLAUDE.md 6.4).
+  const intro = !finished
+    ? "Finish these to book a sitter."
+    : childrenVerified
+      ? "Your profile is finished."
+      : "Your profile is finished, so you can book. A booking is confirmed once Pacify has checked your children's birth certificates.";
   return (
-    <p className="mx-auto mt-6 max-w-[50ch] rounded-lg bg-surface-sunken p-5 text-small text-ink">{children}</p>
+    <div className="mt-7">
+      <ChecklistCard
+        heading={finished ? "Your profile" : "Finish your profile"}
+        intro={intro}
+        items={items}
+        steps={PARENT_STEPS}
+      />
+    </div>
   );
 }
 
@@ -28,38 +51,34 @@ export function ParentHomePage() {
       <p className="mt-4 text-muted">
         {name ? `Hello ${name}, ` : ""}your bookings and sitters will be here.
       </p>
-      {me.data?.profile?.status === "pending" && (
-        <PendingNote>Your account is being verified. We'll be in touch once that's done.</PendingNote>
-      )}
+      <ParentChecklist />
       <div className="mt-7 grid gap-5 sm:grid-cols-3">
         <IconTile icon={HeartHandshake} label="Start with a short booking" />
         <IconTile icon={Calendar} label="Scheduled care" />
         <IconTile icon={Wallet} label="Pay by the hour" />
       </div>
-      <div className="mt-7 flex justify-center">
-        <ButtonLink to="/parent/family" arrow>
-          Add your family's details
-        </ButtonLink>
-      </div>
-      <ConsentPrompt />
     </section>
   );
 }
 
-// Until the current consent form is accepted, ask for it; children's documents need it (CLAUDE.md 7).
-function ConsentPrompt() {
-  const consent = useConsent();
-  if (!consent.isSuccess) return null;
-  const { version, required_accepted: requiredAccepted, accepted_at: acceptedAt } = consent.data;
-  if (requiredAccepted && acceptedAt && version === CONSENT_VERSION) {
-    return <p className="mt-6 text-small text-muted">Parental consent given on {formatDate(new Date(acceptedAt))}.</p>;
-  }
+function SitterChecklist() {
+  const checklist = useChecklist<SitterChecklistData>("sitter");
+  if (!checklist.isSuccess) return null;
+  const { items, live } = checklist.data;
+  const allPassed = items.every((item) => item.status === "done" || item.status === "approved");
+  const intro = live
+    ? "Your profile is live. Families can now find and book you."
+    : allPassed
+      ? "Every step has passed. Pacify will review your profile and let you know when it's live."
+      : "Families can find you once every step passes and Pacify approves your profile.";
   return (
-    <div className="mt-6 flex flex-col items-center gap-4 rounded-lg bg-surface-sunken p-5">
-      <p className="text-ink">Before you add your children, please read and accept the parental consent form.</p>
-      <ButtonLink to="/parent/consent" arrow>
-        Read the consent form
-      </ButtonLink>
+    <div className="mt-7">
+      <ChecklistCard
+        heading={live ? "Your profile" : "Finish your profile"}
+        intro={intro}
+        items={items}
+        steps={SITTER_STEPS}
+      />
     </div>
   );
 }
@@ -74,18 +93,11 @@ export function SitterHomePage() {
       <p className="mt-4 text-muted">
         {name ? `Hello ${name}. ` : ""}Your bookings, availability and earnings will be here.
       </p>
-      {me.data?.profile?.status === "pending" && (
-        <PendingNote>Your profile is being verified. We'll let you know once it's ready to go live.</PendingNote>
-      )}
+      <SitterChecklist />
       <div className="mt-7 grid gap-5 sm:grid-cols-3">
         <IconTile icon={Calendar} label="Booking requests" />
         <IconTile icon={Clock} label="Your availability" />
         <IconTile icon={Wallet} label="Your earnings" />
-      </div>
-      <div className="mt-7 flex justify-center">
-        <ButtonLink to="/sitter/application" arrow>
-          Complete your application
-        </ButtonLink>
       </div>
     </section>
   );

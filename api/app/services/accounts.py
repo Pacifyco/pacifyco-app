@@ -47,24 +47,21 @@ def sign_up(
     user_id: uuid.UUID,
     email: str,
     role: Role,
-    full_name: str,
-    phone: str,
-    pin_code: str,
     accepted: list[legal.Accepted],
     request: legal.RequestInfo,
 ) -> Profile:
     """Create the profile, its parent or sitter record and the terms acceptances, all or nothing.
-    Status starts as pending (verification). Sign-up can't complete without accepting the terms."""
+    Only the role and the terms are asked for here; name, mobile, pin code and address come later
+    in the person's area (CLAUDE.md 6.13). Status starts as pending (verification)."""
     if role not in SIGN_UP_ROLES:
         raise AppError(422, "role_not_allowed", "Choose parent or sitter")
-    require_in_service_area(db, pin_code)
     documents = legal.check_accepted(db, role, accepted)
     if db.get(Profile, user_id) is not None:
         raise _already_signed_up()
     if db.scalar(select(Profile.id).where(Profile.email == email)) is not None:
         raise AppError(409, "email_in_use", "This email already has a Pacify account")
 
-    profile = Profile(id=user_id, role=role, full_name=full_name, phone=phone, email=email, pin_code=pin_code)
+    profile = Profile(id=user_id, role=role, email=email)
     db.add(profile)
     db.flush()  # profile first: the parent or sitter row points at it
     db.add(Parent(profile_id=user_id) if role == Role.parent else Sitter(profile_id=user_id))
@@ -76,6 +73,26 @@ def sign_up(
         db.rollback()
         raise _already_signed_up() from exc
     return profile
+
+
+def update_details(
+    db: Session, profile: Profile, *, full_name: str, phone: str, pin_code: str, address: str
+) -> Profile:
+    """The "your details" part of finishing a profile (CLAUDE.md 6.13). The home pin code must be in
+    the service area (CLAUDE.md 1)."""
+    if profile.role not in SIGN_UP_ROLES:
+        raise AppError(403, "forbidden", "This isn't available for your account")
+    require_in_service_area(db, pin_code)
+    profile.full_name = full_name
+    profile.phone = phone
+    profile.pin_code = pin_code
+    profile.address = address
+    db.commit()
+    return profile
+
+
+def details_complete(profile: Profile) -> bool:
+    return all((profile.full_name, profile.phone, profile.pin_code, profile.address))
 
 
 def find_auth_user_id(db: Session, email: str) -> uuid.UUID | None:

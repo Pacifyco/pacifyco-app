@@ -15,12 +15,13 @@ ACCEPTED = [
     {"kind": "sitter_terms", "version": "1.1"},
     {"kind": "privacy_policy", "version": "0.1-draft"},
 ]
-PARENT = {
-    "role": "parent",
+# Sign-up asks only the role and the terms (CLAUDE.md 6.13); the details come later, in the area.
+PARENT = {"role": "parent", "accepted": ACCEPTED}
+DETAILS = {
     "full_name": "  Meera   Rao ",
     "phone": "+91 98765-43210",
     "pin_code": "560034",
-    "accepted": ACCEPTED,
+    "address": " 12, 4th Cross \n\n  Koramangala ",
 }
 
 
@@ -40,6 +41,10 @@ def auth_for(user, **claims) -> dict[str, str]:
     return bearer(token(**{"sub": str(user["id"]), "email": user["email"], **claims}))
 
 
+def fill_details(client, user, **changes):  # noqa: F811
+    return client.put("/me/details", json={**DETAILS, **changes}, headers=auth_for(user))
+
+
 def row(db_engine, sql: str, user_id):
     with db_engine.connect() as conn:
         return conn.execute(text(sql), {"id": user_id}).mappings().first()
@@ -50,20 +55,78 @@ def test_parent_sign_up_creates_profile_and_parent(client, db_engine, user):  # 
     assert response.status_code == 201
     assert response.json() == {
         "email": user["email"],
-        "profile": {"role": "parent", "status": "pending", "full_name": "Meera Rao"},
+        "profile": {
+            "role": "parent",
+            "status": "pending",
+            "full_name": None,
+            "phone": None,
+            "pin_code": None,
+            "address": None,
+            "details_complete": False,
+        },
         "terms_to_accept": [],  # accepted at sign-up
     }
-    profile = row(db_engine, "SELECT role, phone, email, status, pin_code FROM profiles WHERE id = :id", user["id"])
-    assert dict(profile) == {
-        "role": "parent",
-        "phone": "+919876543210",
-        "email": user["email"],
-        "status": "pending",
-        "pin_code": "560034",
-    }
+    profile = row(db_engine, "SELECT role, email, status, full_name FROM profiles WHERE id = :id", user["id"])
+    assert dict(profile) == {"role": "parent", "email": user["email"], "status": "pending", "full_name": None}
     assert row(db_engine, "SELECT 1 FROM parents WHERE profile_id = :id", user["id"]) is not None
     assert row(db_engine, "SELECT 1 FROM sitters WHERE profile_id = :id", user["id"]) is None
     assert client.get("/me", headers=auth_for(user)).json()["profile"]["role"] == "parent"
+
+
+def test_sign_up_ignores_details(client, db_engine, user):  # noqa: F811
+    """Only the role and the terms are taken at sign-up."""
+    response = client.post("/me/profile", json={**PARENT, **DETAILS}, headers=auth_for(user))
+    assert response.status_code == 201
+    assert response.json()["profile"]["full_name"] is None
+
+
+@pytest.mark.parametrize("role", ["parent", "sitter"])
+def test_details_are_filled_in_after_sign_up(client, db_engine, user, role):  # noqa: F811
+    assert client.post("/me/profile", json={**PARENT, "role": role}, headers=auth_for(user)).status_code == 201
+    response = fill_details(client, user)
+    assert response.status_code == 200
+    assert response.json()["profile"] == {
+        "role": role,
+        "status": "pending",
+        "full_name": "Meera Rao",
+        "phone": "+919876543210",
+        "pin_code": "560034",
+        "address": "12, 4th Cross\nKoramangala",
+        "details_complete": True,
+    }
+    stored = row(db_engine, "SELECT phone, address FROM profiles WHERE id = :id", user["id"])
+    assert dict(stored) == {"phone": "+919876543210", "address": "12, 4th Cross\nKoramangala"}
+
+
+def test_details_need_a_profile(client, user):  # noqa: F811
+    response = fill_details(client, user)
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "profile_required"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"full_name": "   "},
+        {"full_name": "x" * 101},
+        {"full_name": "Meera\x00Rao"},
+        {"phone": "12345"},
+        {"phone": "5876543210"},  # Indian mobiles start 6-9
+        {"phone": "+1 415 555 0100"},
+        {"pin_code": "56003"},
+        {"pin_code": "56003A"},
+        {"pin_code": None},
+        {"address": "  \n "},
+        {"address": "x" * 301},
+        {"address": "12\x00 Road"},
+    ],
+)
+def test_invalid_details_are_422_and_change_nothing(client, db_engine, user, change):  # noqa: F811
+    assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    response = fill_details(client, user, **change)
+    assert response.status_code == 422
+    assert "98765" not in response.text  # submitted values aren't echoed
+    assert row(db_engine, "SELECT full_name FROM profiles WHERE id = :id", user["id"])["full_name"] is None
 
 
 def test_sitter_sign_up_creates_sitter_in_onboarding(client, db_engine, user):  # noqa: F811
@@ -105,25 +168,9 @@ def test_email_already_used_by_another_account(client, db_engine, user):  # noqa
             conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": other})
 
 
-@pytest.mark.parametrize(
-    "change",
-    [
-        {"full_name": "   "},
-        {"full_name": "x" * 101},
-        {"full_name": "Meera\x00Rao"},
-        {"phone": "12345"},
-        {"phone": "5876543210"},  # Indian mobiles start 6–9
-        {"phone": "+1 415 555 0100"},
-        {"role": "nanny"},
-        {"pin_code": "56003"},
-        {"pin_code": "56003A"},
-        {"pin_code": None},
-    ],
-)
-def test_invalid_details_are_422_and_create_nothing(client, db_engine, user, change):  # noqa: F811
-    response = client.post("/me/profile", json={**PARENT, **change}, headers=auth_for(user))
+def test_unknown_role_is_422_and_creates_nothing(client, db_engine, user):  # noqa: F811
+    response = client.post("/me/profile", json={**PARENT, "role": "nanny"}, headers=auth_for(user))
     assert response.status_code == 422
-    assert "98765" not in response.text  # submitted values aren't echoed
     assert row(db_engine, "SELECT 1 FROM profiles WHERE id = :id", user["id"]) is None
 
 

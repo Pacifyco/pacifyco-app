@@ -89,7 +89,15 @@ def test_loads_the_profile_and_role(client, db_engine):
     try:
         response = client.get("/me", headers=bearer(token(sub=str(user_id))))
         assert response.status_code == 200
-        assert response.json()["profile"] == {"role": "sitter", "status": "pending", "full_name": "Asha K"}
+        assert response.json()["profile"] == {
+            "role": "sitter",
+            "status": "pending",
+            "full_name": "Asha K",
+            "phone": None,
+            "pin_code": None,
+            "address": None,
+            "details_complete": False,
+        }
     finally:
         with db_engine.begin() as conn:
             conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": user_id})

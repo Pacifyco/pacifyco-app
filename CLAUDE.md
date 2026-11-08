@@ -482,7 +482,7 @@ of truth for their columns. Other tables are added by the phase that needs them,
 Status values use text columns with CHECK constraints (not Postgres enums), so adding a value is a small
 migration. Verification statuses are `pending|approved|rejected`.
 
-- `profiles` **(created)** (id = Supabase user id, role, full_name, phone, email, status: `pending|active|suspended|removed`, pin_code, address, lat, lng, created_at)
+- `profiles` **(created)** (id = Supabase user id, role, full_name (empty until filled in after sign-up, 6.13), phone, email, status: `pending|active|suspended|removed`, pin_code, address, lat, lng, created_at)
 - `parents` **(created)** (profile_id, second_parent_name, verification_status)
 - `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status, verified_by, verified_at, verification_notes) — name and date of birth locked once verified
 - `emergency_contacts` **(created)** (id, parent_id, name, relationship, phone) — exactly two per family

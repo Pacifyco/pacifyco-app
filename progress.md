@@ -8,9 +8,9 @@ tests.
 
 ## Current status
 
-- Phase: 4 — New sign-up flow (Phase 3 built: rules PR #65, verification queue PR on
-  `phase3/admin-verification-queue`; both need merging. Phase 0 [Reuben] item left: bank/UPI)
-- Next item: phase 4, first sign-in asks only role and terms.
+- Phase: 5 — Marketplace (Phase 4, the new sign-up flow, built on `phase4/new-signup-flow`; needs
+  merging. Phase 0 [Reuben] item left: bank/UPI)
+- Next item: phase 5, first unchecked item.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -170,15 +170,18 @@ tests.
 
 ## Phase 4 — New sign-up flow (added 2026-11-08, CLAUDE.md 6.13)
 
-- [ ] First sign-in asks only role (with confirmation) and terms, then goes straight to `/parent` or `/sitter`
-- [ ] Name, mobile, pin code (service-area check) and address move into the area as "finish your profile"
-- [ ] Parent area: checklist prompting to finish the profile (details, consents, children with birth
-  certificates, emergency contacts); booking blocked until it's done
-- [ ] Sitter area: checklist of onboarding steps with each step's status; not shown to parents until
-  approved and live
-- [ ] Booking stays unconfirmed until every child on it is verified (enforced in phase 7; the rule and
-  its test are listed there)
-- [ ] Tests for this phase
+- [x] First sign-in asks only role (with confirmation) and terms, then goes straight to `/parent` or `/sitter`
+- [x] Name, mobile, pin code (service-area check) and address move into the area as "finish your profile"
+  (`PUT /me/details`, `/parent/details` and `/sitter/details`)
+- [x] Parent area: checklist prompting to finish the profile (details, consents, children with birth
+  certificates, emergency contacts); booking blocked until it's done (`GET /parent/checklist`;
+  `checklists.require_finished_parent_profile` is the guard booking calls in phase 7)
+- [x] Sitter area: checklist of onboarding steps with each step's status; not shown to parents until
+  approved and live (`GET /sitter/checklist`; approval also needs her details, `details_missing`;
+  search in phase 5 uses `verification.is_live`)
+- [x] Booking stays unconfirmed until every child on it is verified (moved to phase 7, where booking is
+  built; the rule and its test are listed there)
+- [x] Tests for this phase
 
 ## Phase 5 — Marketplace
 
@@ -288,6 +291,11 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-08 — Phase 4 done (`phase4/new-signup-flow`): sign-up asks only role and terms;
+  `profiles.full_name` nullable (migration `4b8e1f0c2a7d`); `PUT /me/details` (name, mobile, pin code
+  with service-area check, address); parent and sitter checklists (`app/services/checklists.py`,
+  `GET /parent/checklist`, `GET /sitter/checklist`) on each home page; sitter approval needs her details.
+  344 API and 181 web tests pass.
 - 2026-11-08 — Reuben answered the verification and chat questions. A family is now verified only
   once every child is approved, and adding a child sets it back to waiting (audit `parent_verification_reset`).
   Bookings show to sitters only once confirmed, and chat opens with a confirmed booking. Rules updated in
