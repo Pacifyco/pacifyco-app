@@ -15,6 +15,7 @@ from app.models import (
     Consent,
     EmergencyContact,
     LegalAcceptance,
+    OnboardingStep,
     Parent,
     Profile,
     ProfileStatus,
@@ -122,6 +123,8 @@ def is_empty(db: Session, profile: Profile) -> bool:
         if any(value is not None for value in filled) or sitter.age_groups or sitter.languages:
             return False
         if db.scalar(select(Reference.id).where(Reference.sitter_id == profile.id).limit(1)) is not None:
+            return False
+        if db.scalar(select(OnboardingStep.step).where(OnboardingStep.sitter_id == profile.id).limit(1)) is not None:
             return False
     return True
 

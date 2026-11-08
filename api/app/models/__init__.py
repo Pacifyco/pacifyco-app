@@ -15,7 +15,15 @@ from app.models.psych_tests import (
     PsychQuestionKind,
     PsychTest,
 )
-from app.models.sitters import OnboardingStatus, PayoutMethod, Reference, Sitter
+from app.models.sitters import (
+    OnboardingStatus,
+    OnboardingStep,
+    OnboardingStepName,
+    PayoutMethod,
+    Reference,
+    Sitter,
+    SitterLevel,
+)
 
 __all__ = [
     "AcceptanceMethod",
@@ -33,6 +41,8 @@ __all__ = [
     "LegalDocument",
     "LegalKind",
     "OnboardingStatus",
+    "OnboardingStep",
+    "OnboardingStepName",
     "Parent",
     "PayoutMethod",
     "Profile",
@@ -47,5 +57,6 @@ __all__ = [
     "Role",
     "ServiceAreaPincode",
     "Sitter",
+    "SitterLevel",
     "VerificationStatus",
 ]

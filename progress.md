@@ -8,10 +8,9 @@ tests.
 
 ## Current status
 
-- Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] item left: bank/UPI)
-- Next item: the admin verification queue (including its review page for the psych test). Family
-  wizard and Aadhaar removal merged (PR #64). Interviews dropped and a new sign-up flow added as
-  phase 4 (2026-11-08).
+- Phase: 4 — New sign-up flow (Phase 3 built: rules PR #65, verification queue PR on
+  `phase3/admin-verification-queue`; both need merging. Phase 0 [Reuben] item left: bank/UPI)
+- Next item: phase 4, first sign-in asks only role and terms.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -96,6 +95,15 @@ tests.
 - [ ] **Family Terms and introductions** (added 2026-11-08): the Family Terms may still describe a
   free introduction before the first booking; check and add to the v1.1 list for the lawyer.
 
+- [ ] **Verification queue choices to confirm** (added 2026-11-08, `phase3/admin-verification-queue`):
+  1. A parent's account becomes verified and active as soon as an admin approves **one** child's birth
+     certificate (each child still needs its own approval before it can be booked).
+  2. Once a child is verified, the parent can't change the child's name or date of birth (the
+     certificate they were checked against is deleted); they ask Pacify instead. Allergies, medical notes
+     and routines stay editable.
+  3. A **rejected** birth certificate is kept (only approval deletes it) and a new upload sends the child
+     back for review. Should rejected certificates be deleted at once instead?
+
 - [ ] **Psych test retake after a fail** (added 2026-11-03, `phase3/psych-test-engine`): not in
   CLAUDE.md 7 step 5. Built so a sitter can retake with no limit once an admin records `failed` (she
   can't start a second attempt while one is `in_progress`/`submitted`, or after `passed`). Confirm this
@@ -159,9 +167,9 @@ tests.
 - [x] Parent: children and emergency contacts, birth certificates (masked Aadhaar ×2 dropped 2026-11-03)
 - [x] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
 - [x] Psychology test engine with placeholder questions (backend PR #61, frontend PR #62)
-- [ ] Admin verification queue: view documents (logged), approve/reject each step with notes, set each sitter's level (CLAUDE.md 6.2)
-- [ ] Birth certificate auto-delete after child verification
-- [ ] Tests for this phase
+- [x] Admin verification queue: view documents (logged), approve/reject each step with notes, set each sitter's level (CLAUDE.md 6.2)
+- [x] Birth certificate auto-delete after child verification
+- [x] Tests for this phase
 
 ## Phase 4 — New sign-up flow (added 2026-11-08, CLAUDE.md 6.13)
 
@@ -283,6 +291,15 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-08 — Phase 3 done (`phase3/admin-verification-queue`): `onboarding_steps` table (admin
+  reviews of profile, ID documents, police certificate), `sitters.level`, child verifier fields
+  (migration `55d0da5cd21c`). `/admin/verifications` queue, sitter review (each step, references,
+  psych test pass/fail, level, approve only when all five steps pass and a level is set; health
+  disclosure behind its own logged endpoint), family review (approve/reject each child; approval
+  deletes the birth certificate at once and verifies the parent). `verification.is_live` for search
+  in phase 5. Web: queue, sitter and family review pages, linked from the admin home; parent home
+  tiles no longer promise introductions or hour packs. 327 API tests (local Postgres) and 177 web
+  tests pass; lint, typecheck and build clean. Three choices listed under Open questions.
 - 2026-11-08 — Reuben: no sitter onboarding interview and no parent-sitter introductions (no Google
   Meet or Calendar); parents are encouraged, not forced, to make a 1-hour first booking at home. New
   sign-up flow: role and terms only, then straight into the area with "finish your profile" prompts;

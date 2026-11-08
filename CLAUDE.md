@@ -480,20 +480,19 @@ migration. Verification statuses are `pending|approved|rejected`.
 
 - `profiles` **(created)** (id = Supabase user id, role, full_name, phone, email, status: `pending|active|suspended|removed`, pin_code, address, lat, lng, created_at)
 - `parents` **(created)** (profile_id, second_parent_name, verification_status)
-- `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status)
-- `emergency_contacts` **(created)** (id, child_id, name, relationship, phone) — **to change in phase 3**:
-  per family (parent_id instead of child_id), exactly two per family
-- `authorised_adults` (id, parent_id, name, relationship, phone) — phase 3
-- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, avg_rating, review_count; to add: level `pause|unwind|recharge` null until an admin sets it, reference_shared_consent) — no rate column (dropped 2026-11-03)
-- `onboarding_steps` (sitter_id, step, status, notes, reviewed_by, reviewed_at)
-- `documents` (id, owner_profile_id, child_id null, type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)
-- `document_access_log` (id, document_id, admin_id, accessed_at)
+- `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status, verified_by, verified_at, verification_notes) — name and date of birth locked once verified
+- `emergency_contacts` **(created)** (id, parent_id, name, relationship, phone) — exactly two per family
+- `authorised_adults` **(created)** (id, parent_id, name, relationship, phone)
+- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), avg_rating, review_count; to add: reference_shared_consent) — no rate column (dropped 2026-11-03)
+- `onboarding_steps` **(created)** (sitter_id, step: `profile|identity_documents|police_certificate`, status, notes, reviewed_by, reviewed_at) — admin reviews of steps 1-3; references and the psych test keep their own outcomes; `app/services/verification.py` combines them. Health disclosure views are logged in `audit_log` (`health_disclosure_viewed`)
+- `documents` **(created)** (id, owner_profile_id, child_id null, type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)
+- `document_access_log` **(created)** (id, document_id, admin_id, accessed_at)
 - `consents` **(created)** one row per consent kind (`own_data|child_data|share_care_details|emergency_authorisation|marketing`)
   and version, with marketing withdrawable — append-only, one row per parent per version; current version is `CONSENT_VERSION` in `api/app/services/consent.py`, matching the `version:` line of `web/src/content/consent.md`. No `single_parent_declaration` kind (dropped 2026-11-03 with Aadhaar)
 - `legal_documents` **(created)** (id, kind: `parent_terms|sitter_terms|privacy_policy`, version, published_at, effective_at, content_path) — read-only for the API; a new version is a migration that adds a row (plus the new text in `web/src/content/` with the same version; a test checks they match). The current version is the latest whose `effective_at` has passed, so pay or rights changes to the sitter terms get an `effective_at` 14+ days out
 - `legal_acceptances` **(created)** (id, profile_id, document_id, method: `clickwrap`, accepted_at, ip_address, user_agent) — append-only; written only by `record_acceptances` in `api/app/services/legal.py`; `require_current_terms` gates booking, buying hours and taking bookings
-- `references` (id, sitter_id, name, phone, relationship, outcome, notes)
-- `psych_tests`, `psych_questions`, `psych_attempts`, `psych_answers`
+- `references` **(created)** (id, sitter_id, name, phone, relationship, outcome, notes)
+- `psych_tests`, `psych_questions`, `psych_attempts`, `psych_answers` **(created)**
 - `availability_slots` (id, sitter_id, starts_at, ends_at)
 - `payments` (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference, due_by, confirmed_by, confirmed_at, created_at) — append-only; replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
 - `bookings` (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call

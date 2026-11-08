@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Child, Document
+from app.models import Child, Document, VerificationStatus
 
 
 def list_children(db: Session, parent_id: uuid.UUID) -> list[Child]:
@@ -57,6 +57,14 @@ def update_child(
     routines: str | None,
 ) -> Child:
     child = _owned_child(db, parent_id, child_id)
+    verified = child.verification_status == VerificationStatus.approved
+    if verified and (name != child.name or date_of_birth != child.date_of_birth):
+        # Checked against a birth certificate that's since been deleted; only Pacify can change them.
+        raise AppError(
+            409,
+            "child_verified",
+            "This child's name and date of birth are verified. Please contact Pacify to change them.",
+        )
     child.name = name
     child.date_of_birth = date_of_birth
     child.allergies = allergies
