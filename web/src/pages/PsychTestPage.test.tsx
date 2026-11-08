@@ -24,7 +24,7 @@ const QUESTIONS = [
 
 type Call = { url: string; init?: RequestInit };
 
-function mockApi(attempt: { status: string; submitted_at: string | null; answers: Record<string, string> } | null) {
+function mockApi(attempt: { status: string; submitted_at: string | null; answers: Record<string, string>; retake_allowed?: boolean } | null) {
   const calls: Call[] = [];
   let currentAttempt = attempt;
   vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
@@ -127,10 +127,27 @@ describe("the psychology screening page", () => {
     expect(await screen.findByText("You've passed the psychology screening.")).toBeTruthy();
   });
 
-  test("a failed attempt offers to try again, which reveals a fresh form", async () => {
-    mockApi({ status: "failed", submitted_at: "2026-11-04T10:00:00Z", answers: { q1: "A", q2: "Because." } });
+  test("a failed attempt waits for Pacify to allow a retake", async () => {
+    mockApi({
+      status: "failed",
+      submitted_at: "2026-11-04T10:00:00Z",
+      answers: { q1: "A", q2: "Because." },
+      retake_allowed: false,
+    });
     renderPage();
-    expect(await screen.findByText("You didn't pass this time. You're welcome to try again.")).toBeTruthy();
+    expect(await screen.findByText(/Pacify will be in touch about whether you can take the screening again/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
+  test("once Pacify allows it, a failed attempt offers to try again with a fresh form", async () => {
+    mockApi({
+      status: "failed",
+      submitted_at: "2026-11-04T10:00:00Z",
+      answers: { q1: "A", q2: "Because." },
+      retake_allowed: true,
+    });
+    renderPage();
+    expect(await screen.findByText("You didn't pass this time, and Pacify has said you can try again.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 

@@ -97,6 +97,7 @@ class PsychAttemptDetail(BaseModel):
     submitted_at: datetime | None
     reviewed_at: datetime | None
     notes: str | None
+    retake_allowed: bool
     answers: list[PsychAttemptAnswerOut]
 
 
@@ -114,6 +115,7 @@ def get_psych_attempt(attempt_id: uuid.UUID, admin: Admin, db: DbSession) -> Psy
         submitted_at=attempt.submitted_at,
         reviewed_at=attempt.reviewed_at,
         notes=attempt.notes,
+        retake_allowed=attempt.retake_allowed_at is not None,
         answers=[
             PsychAttemptAnswerOut(
                 question_id=question.id,
@@ -142,6 +144,13 @@ def decide_psych_attempt(
     attempt_id: uuid.UUID, body: PsychAttemptDecisionIn, admin: Admin, db: DbSession
 ) -> PsychAttemptDecisionOut:
     attempt = psych_tests_service.record_decision(db, admin.id, attempt_id, body.passed, body.notes)
+    return PsychAttemptDecisionOut(id=attempt.id, status=attempt.status)
+
+
+@router.post("/psych-attempts/{attempt_id}/allow-retake")
+def allow_psych_retake(attempt_id: uuid.UUID, admin: Admin, db: DbSession) -> PsychAttemptDecisionOut:
+    """After a fail, let her take the screening again (decided 2026-11-08)."""
+    attempt = psych_tests_service.allow_retake(db, admin.id, attempt_id)
     return PsychAttemptDecisionOut(id=attempt.id, status=attempt.status)
 
 
@@ -242,6 +251,7 @@ class SitterReview(BaseModel):
     age_groups: list[str]
     languages: list[str]
     first_aid: bool
+    reference_shared_consent: bool
     has_health_disclosure: bool
     payout_method: PayoutMethod | None
     onboarding_status: OnboardingStatus
@@ -270,6 +280,7 @@ def get_sitter_review(sitter_id: uuid.UUID, admin: Admin, db: DbSession) -> Sitt
         age_groups=sitter.age_groups,
         languages=sitter.languages,
         first_aid=sitter.first_aid,
+        reference_shared_consent=sitter.reference_shared_consent,
         has_health_disclosure=sitter.health_disclosure_encrypted is not None,
         payout_method=sitter.payout_method,
         onboarding_status=sitter.onboarding_status,

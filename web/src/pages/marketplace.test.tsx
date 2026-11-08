@@ -198,6 +198,7 @@ describe("a sitter's profile page", () => {
     bio: "I love storytime.",
     plan: "pause",
     free_times: [{ starts_at: "2026-11-10T03:30:00Z", ends_at: "2026-11-10T07:30:00Z" }],
+    reference: null,
   };
 
   test("shows who she is, when she's free and the 1-hour nudge, with no price", async () => {
@@ -210,6 +211,22 @@ describe("a sitter's profile page", () => {
     expect(screen.getByText(/Start with a 1-hour booking while you're at home/)).toBeTruthy();
     expect(screen.queryByText("First-aid certified")).toBeNull();
     expect(container.textContent).not.toMatch(/₹|per hour|\/hour/);
+  });
+
+  test("a Recharge sitter's shared reference is shown; others have none", async () => {
+    const reference = { name: "Asha Rao", phone: "+919876500000", relationship: "Former employer" };
+    mockApi({ "GET /parent/sitters/s1": () => jsonResponse({ ...DETAIL, plan: "recharge", reference }) });
+    renderAt("/parent/sitters/s1");
+    expect(await screen.findByRole("heading", { name: "A reference for Lakshmi" })).toBeTruthy();
+    expect(screen.getByText("Asha Rao · Former employer")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "+919876500000" }).getAttribute("href")).toBe("tel:+919876500000");
+  });
+
+  test("no reference card without a shared reference", async () => {
+    mockApi({ "GET /parent/sitters/s1": () => jsonResponse(DETAIL) });
+    renderAt("/parent/sitters/s1");
+    await screen.findByRole("heading", { level: 1, name: "Lakshmi Nair" });
+    expect(screen.queryByRole("heading", { name: /A reference for/ })).toBeNull();
   });
 
   test("a sitter who isn't available says so", async () => {

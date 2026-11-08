@@ -398,7 +398,8 @@ Emergency button instead.
 3. Police clearance certificate upload.
 4. Two references (name, phone, relationship). Admin records the outcome.
 5. Psychology test, taken in the app: multiple-choice questions plus a few short written answers; an
-   admin reads them and records pass or fail. Questions come from a licensed psychologist and are stored as
+   admin reads them and records pass or fail. After a fail, she can take it again only once an admin
+   allows a retake (decided 2026-11-08; audit logged). Questions come from a licensed psychologist and are stored as
    data (`psych_tests`, `psych_questions`); ship with clearly marked placeholder questions until then.
    Admin reviews and records pass/fail.
 6. Admin approval, with the sitter's level set (6.2). (The onboarding interview was dropped
@@ -487,7 +488,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status, verified_by, verified_at, verification_notes) — name and date of birth locked once verified
 - `emergency_contacts` **(created)** (id, parent_id, name, relationship, phone) — exactly two per family
 - `authorised_adults` **(created)** (id, parent_id, name, relationship, phone)
-- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), avg_rating, review_count; to add: reference_shared_consent) — no rate column (dropped 2026-11-03)
+- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), reference_shared_consent, avg_rating, review_count) — no rate column (dropped 2026-11-03)
 - `onboarding_steps` **(created)** (sitter_id, step: `profile|identity_documents|police_certificate`, status, notes, reviewed_by, reviewed_at) — admin reviews of steps 1-3; references and the psych test keep their own outcomes; `app/services/verification.py` combines them. Health disclosure views are logged in `audit_log` (`health_disclosure_viewed`)
 - `documents` **(created)** (id, owner_profile_id, child_id null, type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)
 - `document_access_log` **(created)** (id, document_id, admin_id, accessed_at)

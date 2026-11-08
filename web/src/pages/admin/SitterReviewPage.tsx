@@ -45,6 +45,7 @@ type SitterReview = {
   age_groups: string[];
   languages: string[];
   first_aid: boolean;
+  reference_shared_consent: boolean;
   has_health_disclosure: boolean;
   payout_method: "bank" | "upi" | null;
   onboarding_status: "in_progress" | "approved" | "rejected";
@@ -56,7 +57,7 @@ type SitterReview = {
 };
 
 type PsychAnswer = { question_id: string; kind: string; prompt: string; options: string[] | null; answer_text: string | null };
-type PsychAttemptDetail = { status: string; notes: string | null; answers: PsychAnswer[] };
+type PsychAttemptDetail = { status: string; notes: string | null; retake_allowed: boolean; answers: PsychAnswer[] };
 
 const STEP_LABELS: Record<StepName, string> = {
   profile: "Application and profile",
@@ -174,7 +175,33 @@ function PsychTest({ sitter, invalidate }: { sitter: SitterReview; invalidate: u
           body={(approved, notes) => ({ passed: approved, notes })}
         />
       )}
+      {attempt?.status === "failed" && detail.isSuccess && (
+        <AllowRetake attemptId={attempt.id} allowed={detail.data.retake_allowed} invalidate={invalidate} />
+      )}
     </Section>
+  );
+}
+
+// After a fail she can only try again once an admin allows it (decided 2026-11-08). Audit logged.
+function AllowRetake({ attemptId, allowed, invalidate }: { attemptId: string; allowed: boolean; invalidate: unknown[][] }) {
+  const queryClient = useQueryClient();
+  const allow = useMutation({
+    mutationFn: () => apiFetch<unknown>(`/admin/psych-attempts/${attemptId}/allow-retake`, { method: "POST" }),
+    onSuccess: () => Promise.all(invalidate.map((queryKey) => queryClient.invalidateQueries({ queryKey }))),
+  });
+  if (allowed) return <p className="mt-4 text-small text-muted">You've allowed her to take it again.</p>;
+  return (
+    <div className="mt-4 flex flex-col items-start gap-2">
+      <p className="text-small text-muted">She failed. She can only take it again if you allow it.</p>
+      <Button variant="secondary" fullWidthOnPhone={false} loading={allow.isPending} onClick={() => allow.mutate()}>
+        Allow a retake
+      </Button>
+      {allow.isError && (
+        <p role="alert" className="text-small text-danger">
+          {errorMessage(allow.error)}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -275,6 +302,7 @@ export function SitterReviewPage() {
           <Field label="Age groups">{sitter.age_groups.join(", ") || "Not given"}</Field>
           <Field label="Languages">{sitter.languages.join(", ") || "Not given"}</Field>
           <Field label="First aid">{sitter.first_aid ? "Certified" : "No"}</Field>
+          <Field label="Reference shared at Recharge">{sitter.reference_shared_consent ? "Yes, she agreed" : "No"}</Field>
           <Field label="About her">
             <span className="whitespace-pre-wrap">{sitter.bio ?? "Not given"}</span>
           </Field>

@@ -64,6 +64,8 @@ class Sitter(Base):
     )
     # Null until an admin sets it; she can't go live without one (CLAUDE.md 6.2 and 7 step 6).
     level: Mapped[SitterLevel | None] = mapped_column(enum_column(SitterLevel, "sitter_level"))
+    # Her tick in the application: at Recharge level, parents may see one of her references (CLAUDE.md 6.2).
+    reference_shared_consent: Mapped[bool] = mapped_column(server_default=false())
     avg_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     review_count: Mapped[int] = mapped_column(server_default="0")
 

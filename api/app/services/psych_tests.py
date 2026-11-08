@@ -52,14 +52,16 @@ def _open_attempt(db: Session, sitter_id: uuid.UUID) -> PsychAttempt | None:
 
 def start_or_resume_attempt(db: Session, sitter_id: uuid.UUID) -> PsychAttempt:
     """The attempt to write to right now: her open one, or a fresh one against the active test.
-    A passed attempt stands -- she can't start another. Retaking after a fail isn't in CLAUDE.md;
-    allowed for now (flagged in progress.md as an assumption to confirm with Reuben)."""
+    A passed attempt stands -- she can't start another. After a fail she can try again only once an
+    admin has allowed a retake (decided 2026-11-08)."""
     open_attempt = _open_attempt(db, sitter_id)
     if open_attempt is not None:
         return open_attempt
     current = latest_attempt(db, sitter_id)
     if current is not None and current.status in (PsychAttemptStatus.submitted, PsychAttemptStatus.passed):
         return current
+    if current is not None and current.status == PsychAttemptStatus.failed and current.retake_allowed_at is None:
+        raise AppError(409, "retake_not_allowed", "Pacify will let you know if you can take the screening again")
     test = get_active_test(db)
     attempt = PsychAttempt(sitter_id=sitter_id, test_id=test.id)
     db.add(attempt)
@@ -151,4 +153,20 @@ def record_decision(
         after={"status": attempt.status.value},
     )
     db.commit()
+    return attempt
+
+
+def allow_retake(db: Session, admin_id: uuid.UUID, attempt_id: uuid.UUID) -> PsychAttempt:
+    """After a fail, an admin lets the sitter try again (decided 2026-11-08). Audit logged."""
+    attempt = get_attempt(db, attempt_id)
+    if attempt.status != PsychAttemptStatus.failed:
+        raise AppError(409, "not_failed", "Only a failed attempt can be retaken")
+    latest = latest_attempt(db, attempt.sitter_id)
+    if latest is None or latest.id != attempt.id:
+        raise AppError(409, "not_latest", "She has already started another attempt")
+    if attempt.retake_allowed_at is None:
+        attempt.retake_allowed_by = admin_id
+        attempt.retake_allowed_at = datetime.now(UTC)
+        audit.record(db, admin_id, "psych_retake_allowed", "psych_attempts", str(attempt.id))
+        db.commit()
     return attempt

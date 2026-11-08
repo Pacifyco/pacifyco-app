@@ -312,3 +312,58 @@ def test_a_sitter_who_isnt_live_has_no_profile_page(client, finished_parent, mak
     response = client.get(f"/parent/sitters/{hidden['id']}", headers=auth_for(finished_parent))
     assert response.status_code == 404
     assert client.get(f"/parent/sitters/{uuid.uuid4()}", headers=auth_for(finished_parent)).status_code == 404
+
+
+# ---------- Recharge sitters' reference (CLAUDE.md 6.2) ----------
+
+
+def add_reference(db_engine, sitter_id, name="Asha Rao", outcome="approved"):
+    with db_engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO \"references\" (sitter_id, name, phone, relationship, outcome)"
+                " VALUES (:s, :n, '+919876500000', 'Former employer', :o)"
+            ),
+            {"s": sitter_id, "n": name, "o": outcome},
+        )
+
+
+def set_consent(db_engine, sitter_id, consent=True):
+    with db_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE sitters SET reference_shared_consent = :c WHERE profile_id = :id"),
+            {"c": consent, "id": sitter_id},
+        )
+
+
+def detail(client, parent_user, sitter_user):  # noqa: F811
+    return client.get(f"/parent/sitters/{sitter_user['id']}", headers=auth_for(parent_user)).json()
+
+
+def test_a_recharge_sitters_reference_is_shown_with_her_consent(client, db_engine, finished_parent, make_sitter):  # noqa: F811
+    recharge = make_sitter(level="recharge")
+    add_reference(db_engine, recharge["id"], "Zara Pending", outcome="pending")
+    add_reference(db_engine, recharge["id"], "Asha Rao")
+    assert detail(client, finished_parent, recharge)["reference"] is None  # no consent yet
+
+    set_consent(db_engine, recharge["id"])
+    assert detail(client, finished_parent, recharge)["reference"] == {
+        "name": "Asha Rao",  # only an approved reference
+        "phone": "+919876500000",
+        "relationship": "Former employer",
+    }
+
+
+def test_other_levels_never_show_a_reference(client, db_engine, finished_parent, make_sitter):  # noqa: F811
+    unwind = make_sitter(level="unwind")
+    add_reference(db_engine, unwind["id"])
+    set_consent(db_engine, unwind["id"])
+    assert detail(client, finished_parent, unwind)["reference"] is None
+
+
+def test_the_search_list_never_shows_references(client, db_engine, finished_parent, make_sitter):  # noqa: F811
+    recharge = make_sitter(level="recharge")
+    add_reference(db_engine, recharge["id"])
+    set_consent(db_engine, recharge["id"])
+    [summary] = find(client, finished_parent, plan="recharge")
+    assert "reference" not in summary

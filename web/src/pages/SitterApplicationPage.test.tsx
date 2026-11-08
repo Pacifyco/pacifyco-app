@@ -31,6 +31,7 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       age_groups: [] as string[],
       languages: [] as string[],
       first_aid: false,
+      reference_shared_consent: false,
       onboarding_status: "in_progress",
     },
     "health-disclosure": { disclosure: null as string | null },
@@ -136,8 +137,20 @@ describe("the sitter application page", () => {
       age_groups: [],
       languages: [],
       first_aid: false,
+      reference_shared_consent: false,
     });
     expect(await screen.findByText("Step 2 of 5 · Documents")).toBeTruthy();
+  });
+
+  test("sharing a reference with parents is unticked unless she ticks it", async () => {
+    const calls = mockApi();
+    renderPage();
+    const tick = await screen.findByRole("checkbox", { name: /Pacify may show parents one of my references/ });
+    expect((tick as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(tick);
+    await fillProfileAndContinue();
+    const put = calls.find((call) => call.url.endsWith("/sitter/profile") && call.init?.method === "PUT")!;
+    expect(JSON.parse(put.init!.body as string).reference_shared_consent).toBe(true);
   });
 
   test("the back button returns to the previous step", async () => {

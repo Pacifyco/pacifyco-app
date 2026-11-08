@@ -252,10 +252,18 @@ class FreeTime(BaseModel):
     ends_at: datetime
 
 
+class SharedReference(BaseModel):
+    name: str
+    phone: str
+    relationship: str
+
+
 class SitterDetail(SitterSummary):
     bio: str | None
     plan: SitterLevel  # the plan she works (her level); its price is shown when the parent books
     free_times: list[FreeTime]
+    # Recharge sitters only, with her consent (CLAUDE.md 6.2).
+    reference: SharedReference | None
 
 
 def _summary_fields(found: search_service.Found) -> dict:
@@ -310,9 +318,13 @@ def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession) -> SitterDet
     checklists.require_finished_parent_profile(db, parent)
     found = search_service.live_sitter(db, parent, sitter_id)
     slots = search_service.free_times(db, sitter_id, datetime.now(UTC))
+    shared = search_service.shared_reference(db, found.sitter)
     return SitterDetail(
         **_summary_fields(found),
         bio=found.sitter.bio,
         plan=found.sitter.level,
         free_times=[FreeTime(starts_at=slot.starts_at, ends_at=slot.ends_at) for slot in slots],
+        reference=(
+            SharedReference(name=shared.name, phone=shared.phone, relationship=shared.relationship) if shared else None
+        ),
     )

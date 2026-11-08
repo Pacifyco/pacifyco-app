@@ -52,6 +52,8 @@ class SitterProfileIn(BaseModel):
     age_groups: list[str] = Field(default_factory=list, max_length=10)
     languages: list[str] = Field(default_factory=list, max_length=10)
     first_aid: bool
+    # At Recharge level, parents may see one of her references (CLAUDE.md 6.2). Unticked unless she says so.
+    reference_shared_consent: bool = False
 
     @field_validator("date_of_birth")
     @classmethod
@@ -81,6 +83,7 @@ class SitterProfileOut(BaseModel):
     age_groups: list[str]
     languages: list[str]
     first_aid: bool
+    reference_shared_consent: bool
     onboarding_status: str
 
 
@@ -92,6 +95,7 @@ def _profile_out(row: Sitter) -> SitterProfileOut:
         age_groups=row.age_groups,
         languages=row.languages,
         first_aid=row.first_aid,
+        reference_shared_consent=row.reference_shared_consent,
         onboarding_status=row.onboarding_status,
     )
 
@@ -126,6 +130,7 @@ def put_profile(body: SitterProfileIn, sitter: SitterProfile, db: DbSession) -> 
         age_groups=body.age_groups,
         languages=body.languages,
         first_aid=body.first_aid,
+        reference_shared_consent=body.reference_shared_consent,
     )
     return _profile_out(row)
 
@@ -289,6 +294,7 @@ class PsychAttemptOut(BaseModel):
     status: PsychAttemptStatus
     submitted_at: datetime | None
     answers: dict[uuid.UUID, str]
+    retake_allowed: bool  # after a fail, an admin has let her try again
 
 
 class PsychTestOut(BaseModel):
@@ -311,7 +317,10 @@ def _attempt_out(db: Session, row: PsychAttempt | None) -> PsychAttemptOut | Non
     if row is None:
         return None
     return PsychAttemptOut(
-        status=row.status, submitted_at=row.submitted_at, answers=psych_tests_service.list_answers(db, row.id)
+        status=row.status,
+        submitted_at=row.submitted_at,
+        answers=psych_tests_service.list_answers(db, row.id),
+        retake_allowed=row.retake_allowed_at is not None,
     )
 
 

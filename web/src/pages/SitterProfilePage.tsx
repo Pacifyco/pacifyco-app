@@ -13,6 +13,8 @@ type SitterDetail = SitterSummary & {
   bio: string | null;
   plan: Plan;
   free_times: { starts_at: string; ends_at: string }[];
+  /** Recharge sitters only, with her consent (CLAUDE.md 6.2). */
+  reference: { name: string; phone: string; relationship: string } | null;
 };
 
 function Facts({ sitter }: { sitter: SitterDetail }) {
@@ -94,6 +96,21 @@ export function SitterProfilePage() {
         {sitter.bio && <p className="mt-5 whitespace-pre-line text-ink">{sitter.bio}</p>}
         <p className="mt-5 text-small text-muted">Works the {PLAN_LABELS[sitter.plan]} plan.</p>
       </Card>
+
+      {sitter.reference && (
+        <Card as="section" padding="roomy" aria-labelledby="reference-heading">
+          <h2 id="reference-heading" className="text-h3">
+            A reference for {firstName}
+          </h2>
+          <p className="mt-2 text-small text-muted">Checked by Pacify and shared with {firstName}'s permission.</p>
+          <p className="mt-3 text-ink">
+            {sitter.reference.name} · {sitter.reference.relationship}
+          </p>
+          <a href={`tel:${sitter.reference.phone}`} className="mt-1 inline-block">
+            {sitter.reference.phone}
+          </a>
+        </Card>
+      )}
 
       <Card as="section" padding="roomy" aria-labelledby="free-heading">
         <h2 id="free-heading" className="text-h3">

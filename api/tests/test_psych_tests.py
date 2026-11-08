@@ -172,24 +172,47 @@ def test_admin_records_pass_and_it_is_audit_logged(client, db_engine, sitter, ad
     assert str(logged["actor_id"]) == str(admin["id"])
 
 
-def test_admin_records_fail_and_sitter_can_retake(client, sitter, admin):  # noqa: F811
+def test_after_a_fail_a_retake_needs_an_admin(client, db_engine, sitter, admin):  # noqa: F811
     questions = client.get("/sitter/psych-test", headers=auth_for(sitter)).json()["questions"]
     answer_every_question(client, sitter, questions)
     client.post("/sitter/psych-test/submit", headers=auth_for(sitter))
     attempt_id = client.get("/admin/psych-attempts", headers=auth_for(admin)).json()[0]["id"]
-
     client.post(f"/admin/psych-attempts/{attempt_id}/decision", json={"passed": False}, headers=auth_for(admin))
 
     mine = client.get("/sitter/psych-test", headers=auth_for(sitter)).json()
     assert mine["attempt"]["status"] == "failed"
+    assert mine["attempt"]["retake_allowed"] is False
+    answer = {"answers": [{"question_id": questions[0]["id"], "answer_text": "Trying again."}]}
+    refused = client.put("/sitter/psych-test/answers", json=answer, headers=auth_for(sitter))
+    assert refused.status_code == 409
+    assert refused.json()["error"]["code"] == "retake_not_allowed"
 
-    retake = client.put(
-        "/sitter/psych-test/answers",
-        json={"answers": [{"question_id": questions[0]["id"], "answer_text": "Trying again."}]},
-        headers=auth_for(sitter),
-    )
+    allowed = client.post(f"/admin/psych-attempts/{attempt_id}/allow-retake", headers=auth_for(admin))
+    assert allowed.status_code == 200
+    assert client.get(f"/admin/psych-attempts/{attempt_id}", headers=auth_for(admin)).json()["retake_allowed"] is True
+    assert client.get("/sitter/psych-test", headers=auth_for(sitter)).json()["attempt"]["retake_allowed"] is True
+    with db_engine.connect() as conn:
+        actions = (
+            conn.execute(text("SELECT action FROM audit_log WHERE actor_id = :id"), {"id": admin["id"]}).scalars().all()
+        )
+    assert "psych_retake_allowed" in actions
+
+    retake = client.put("/sitter/psych-test/answers", json=answer, headers=auth_for(sitter))
     assert retake.status_code == 200
     assert retake.json()["status"] == "in_progress"
+    # The old attempt is no longer the latest, so it can't be "allowed" again.
+    again = client.post(f"/admin/psych-attempts/{attempt_id}/allow-retake", headers=auth_for(admin))
+    assert again.status_code == 409
+
+
+def test_only_a_failed_attempt_can_be_retaken(client, sitter, admin):  # noqa: F811
+    questions = client.get("/sitter/psych-test", headers=auth_for(sitter)).json()["questions"]
+    answer_every_question(client, sitter, questions)
+    client.post("/sitter/psych-test/submit", headers=auth_for(sitter))
+    attempt_id = client.get("/admin/psych-attempts", headers=auth_for(admin)).json()[0]["id"]
+    response = client.post(f"/admin/psych-attempts/{attempt_id}/allow-retake", headers=auth_for(admin))
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "not_failed"
 
 
 def test_cannot_decide_an_attempt_twice(client, sitter, admin):  # noqa: F811

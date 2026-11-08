@@ -35,6 +35,7 @@ type SitterProfile = {
   age_groups: string[];
   languages: string[];
   first_aid: boolean;
+  reference_shared_consent: boolean;
   onboarding_status: OnboardingStatus;
 };
 
@@ -45,6 +46,7 @@ type ProfileInput = {
   age_groups: string;
   languages: string;
   first_aid: boolean;
+  reference_shared_consent: boolean;
 };
 
 function profileInput(profile: SitterProfile): ProfileInput {
@@ -55,6 +57,7 @@ function profileInput(profile: SitterProfile): ProfileInput {
     age_groups: profile.age_groups.join(", "),
     languages: profile.languages.join(", "),
     first_aid: profile.first_aid,
+    reference_shared_consent: profile.reference_shared_consent,
   };
 }
 
@@ -66,6 +69,7 @@ function toProfileBody(input: ProfileInput) {
     age_groups: splitList(input.age_groups),
     languages: splitList(input.languages),
     first_aid: input.first_aid,
+    reference_shared_consent: input.reference_shared_consent,
   };
 }
 
@@ -152,6 +156,11 @@ function ProfileForm({
         label="I'm first-aid certified"
         checked={form.first_aid}
         onChange={(event) => setForm({ ...form, first_aid: event.target.checked })}
+      />
+      <Checkbox
+        label="When I reach the most experienced level, Pacify may show parents one of my references (their name, phone number and how they know me)."
+        checked={form.reference_shared_consent}
+        onChange={(event) => setForm({ ...form, reference_shared_consent: event.target.checked })}
       />
       <ErrorLine message={error} />
       <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
