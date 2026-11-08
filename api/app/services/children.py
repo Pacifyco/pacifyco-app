@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Child, Document
+from app.models import Child, Document, Parent, VerificationStatus
+from app.services import audit
 
 
 def list_children(db: Session, parent_id: uuid.UUID) -> list[Child]:
@@ -33,6 +34,20 @@ def add_child(
         routines=routines,
     )
     db.add(child)
+    # A verified family adding a child waits again until that child's birth certificate is approved
+    # (CLAUDE.md 7). The other children stay verified.
+    parent = db.get(Parent, parent_id)
+    if parent is not None and parent.verification_status == VerificationStatus.approved:
+        parent.verification_status = VerificationStatus.pending
+        audit.record(
+            db,
+            parent_id,
+            "parent_verification_reset",
+            "parents",
+            str(parent_id),
+            before={"verification_status": "approved"},
+            after={"verification_status": "pending"},
+        )
     db.commit()
     return child
 
@@ -57,6 +72,14 @@ def update_child(
     routines: str | None,
 ) -> Child:
     child = _owned_child(db, parent_id, child_id)
+    verified = child.verification_status == VerificationStatus.approved
+    if verified and (name != child.name or date_of_birth != child.date_of_birth):
+        # Checked against a birth certificate that's since been deleted; only Pacify can change them.
+        raise AppError(
+            409,
+            "child_verified",
+            "This child's name and date of birth are verified. Please contact Pacify to change them.",
+        )
     child.name = name
     child.date_of_birth = date_of_birth
     child.allergies = allergies

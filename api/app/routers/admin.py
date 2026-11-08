@@ -1,7 +1,7 @@
 """The admin area. Every route here is for admins only (CLAUDE.md 9: wrong role gets 403)."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -10,14 +10,29 @@ from sqlalchemy import select
 
 from app.auth import require_role
 from app.deps import DbSession
-from app.models import Profile, PsychAttemptStatus, PsychQuestionKind, Role
-from app.services import documents
+from app.models import (
+    DocumentType,
+    OnboardingStatus,
+    OnboardingStepName,
+    PayoutMethod,
+    Profile,
+    ProfileStatus,
+    PsychAttemptStatus,
+    PsychQuestionKind,
+    Role,
+    SitterLevel,
+    VerificationStatus,
+)
+from app.services import children as children_service
+from app.services import documents, verification
 from app.services import psych_tests as psych_tests_service
 from app.services.storage import StorageClient, get_storage
+from app.settings import Settings, get_settings
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role(Role.admin))])
 Admin = Annotated[Profile, Depends(require_role(Role.admin))]
 Storage = Annotated[StorageClient, Depends(get_storage)]
+AppSettings = Annotated[Settings, Depends(get_settings)]
 
 
 class DocumentViewUrl(BaseModel):
@@ -128,3 +143,266 @@ def decide_psych_attempt(
 ) -> PsychAttemptDecisionOut:
     attempt = psych_tests_service.record_decision(db, admin.id, attempt_id, body.passed, body.notes)
     return PsychAttemptDecisionOut(id=attempt.id, status=attempt.status)
+
+
+# ---------- verification queue (CLAUDE.md 7) ----------
+
+
+class Decision(BaseModel):
+    approved: bool
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class SitterQueueItem(BaseModel):
+    id: uuid.UUID
+    full_name: str
+    email: str
+    signed_up_at: datetime
+    steps_approved: int
+    steps_total: int
+    level: SitterLevel | None
+
+
+class FamilyQueueItem(BaseModel):
+    id: uuid.UUID
+    full_name: str
+    email: str
+    signed_up_at: datetime
+    children_to_review: int
+
+
+class VerificationQueue(BaseModel):
+    sitters: list[SitterQueueItem]
+    families: list[FamilyQueueItem]
+
+
+@router.get("/verifications")
+def verification_queue(admin: Admin, db: DbSession) -> VerificationQueue:
+    return VerificationQueue(
+        sitters=[
+            SitterQueueItem(
+                id=item.profile.id,
+                full_name=item.profile.full_name,
+                email=item.profile.email,
+                signed_up_at=item.profile.created_at,
+                steps_approved=item.steps_approved,
+                steps_total=len(verification.REVIEWED_STEPS),
+                level=item.sitter.level,
+            )
+            for item in verification.sitters_to_review(db)
+        ],
+        families=[
+            FamilyQueueItem(
+                id=item.profile.id,
+                full_name=item.profile.full_name,
+                email=item.profile.email,
+                signed_up_at=item.profile.created_at,
+                children_to_review=item.children_to_review,
+            )
+            for item in verification.families_to_review(db)
+        ],
+    )
+
+
+class DocumentSummary(BaseModel):
+    id: uuid.UUID
+    type: DocumentType
+    uploaded_at: datetime
+
+
+class ReferenceOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    phone: str
+    relationship: str
+    outcome: VerificationStatus
+    notes: str | None
+
+
+class PsychAttemptRef(BaseModel):
+    id: uuid.UUID
+    status: PsychAttemptStatus
+    submitted_at: datetime | None
+
+
+class SitterReview(BaseModel):
+    """Everything an admin needs to review a sitter, except health data and payout details: the
+    health disclosure has its own logged endpoint, and payout details aren't part of vetting."""
+
+    id: uuid.UUID
+    full_name: str
+    email: str
+    phone: str | None
+    pin_code: str | None
+    profile_status: ProfileStatus
+    signed_up_at: datetime
+    date_of_birth: date | None
+    bio: str | None
+    years_experience: int | None
+    age_groups: list[str]
+    languages: list[str]
+    first_aid: bool
+    has_health_disclosure: bool
+    payout_method: PayoutMethod | None
+    onboarding_status: OnboardingStatus
+    level: SitterLevel | None
+    steps: dict[str, VerificationStatus]
+    documents: list[DocumentSummary]
+    references: list[ReferenceOut]
+    psych_attempt: PsychAttemptRef | None
+
+
+@router.get("/sitters/{sitter_id}")
+def get_sitter_review(sitter_id: uuid.UUID, admin: Admin, db: DbSession) -> SitterReview:
+    profile, sitter = verification.get_sitter(db, sitter_id)
+    attempt = psych_tests_service.latest_attempt(db, sitter_id)
+    return SitterReview(
+        id=profile.id,
+        full_name=profile.full_name,
+        email=profile.email,
+        phone=profile.phone,
+        pin_code=profile.pin_code,
+        profile_status=profile.status,
+        signed_up_at=profile.created_at,
+        date_of_birth=sitter.date_of_birth,
+        bio=sitter.bio,
+        years_experience=sitter.years_experience,
+        age_groups=sitter.age_groups,
+        languages=sitter.languages,
+        first_aid=sitter.first_aid,
+        has_health_disclosure=sitter.health_disclosure_encrypted is not None,
+        payout_method=sitter.payout_method,
+        onboarding_status=sitter.onboarding_status,
+        level=sitter.level,
+        steps=verification.step_statuses(db, sitter_id),
+        documents=[
+            DocumentSummary(id=doc.id, type=doc.type, uploaded_at=doc.created_at)
+            for doc in verification.sitter_documents(db, sitter_id)
+        ],
+        references=[
+            ReferenceOut(
+                id=ref.id,
+                name=ref.name,
+                phone=ref.phone,
+                relationship=ref.relationship,
+                outcome=ref.outcome,
+                notes=ref.notes,
+            )
+            for ref in verification.sitter_references(db, sitter_id)
+        ],
+        psych_attempt=(
+            PsychAttemptRef(id=attempt.id, status=attempt.status, submitted_at=attempt.submitted_at)
+            if attempt is not None
+            else None
+        ),
+    )
+
+
+class HealthDisclosureOut(BaseModel):
+    disclosure: str | None
+
+
+@router.get("/sitters/{sitter_id}/health-disclosure")
+def view_health_disclosure(
+    sitter_id: uuid.UUID, admin: Admin, db: DbSession, settings: AppSettings
+) -> HealthDisclosureOut:
+    """Health data: every view is logged (CLAUDE.md 7 step 1)."""
+    return HealthDisclosureOut(
+        disclosure=verification.view_health_disclosure(db, admin.id, sitter_id, settings.field_encryption_key)
+    )
+
+
+class StatusOut(BaseModel):
+    status: VerificationStatus
+
+
+@router.post("/sitters/{sitter_id}/steps/{step}")
+def review_onboarding_step(
+    sitter_id: uuid.UUID, step: OnboardingStepName, body: Decision, admin: Admin, db: DbSession
+) -> StatusOut:
+    row = verification.record_step(db, admin.id, sitter_id, step, body.approved, body.notes)
+    return StatusOut(status=row.status)
+
+
+@router.post("/references/{reference_id}/decision")
+def review_reference(reference_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession) -> StatusOut:
+    reference = verification.record_reference_outcome(db, admin.id, reference_id, body.approved, body.notes)
+    return StatusOut(status=reference.outcome)
+
+
+class LevelIn(BaseModel):
+    level: SitterLevel
+
+
+@router.put("/sitters/{sitter_id}/level")
+def set_sitter_level(sitter_id: uuid.UUID, body: LevelIn, admin: Admin, db: DbSession) -> LevelIn:
+    verification.set_level(db, admin.id, sitter_id, body.level)
+    return LevelIn(level=body.level)
+
+
+class OnboardingStatusOut(BaseModel):
+    onboarding_status: OnboardingStatus
+
+
+@router.post("/sitters/{sitter_id}/decision")
+def decide_sitter(sitter_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession) -> OnboardingStatusOut:
+    sitter = verification.decide_sitter(db, admin.id, sitter_id, body.approved, body.notes)
+    return OnboardingStatusOut(onboarding_status=sitter.onboarding_status)
+
+
+class ChildReview(BaseModel):
+    id: uuid.UUID
+    name: str
+    date_of_birth: date
+    verification_status: VerificationStatus
+    verified_at: datetime | None
+    verification_notes: str | None
+    birth_certificates: list[DocumentSummary]
+
+
+class FamilyReview(BaseModel):
+    id: uuid.UUID
+    full_name: str
+    email: str
+    phone: str | None
+    pin_code: str | None
+    profile_status: ProfileStatus
+    verification_status: VerificationStatus
+    signed_up_at: datetime
+    children: list[ChildReview]
+
+
+@router.get("/parents/{parent_id}")
+def get_family_review(parent_id: uuid.UUID, admin: Admin, db: DbSession) -> FamilyReview:
+    profile, parent = verification.get_parent(db, parent_id)
+    return FamilyReview(
+        id=profile.id,
+        full_name=profile.full_name,
+        email=profile.email,
+        phone=profile.phone,
+        pin_code=profile.pin_code,
+        profile_status=profile.status,
+        verification_status=parent.verification_status,
+        signed_up_at=profile.created_at,
+        children=[
+            ChildReview(
+                id=child.id,
+                name=child.name,
+                date_of_birth=child.date_of_birth,
+                verification_status=child.verification_status,
+                verified_at=child.verified_at,
+                verification_notes=child.verification_notes,
+                birth_certificates=[
+                    DocumentSummary(id=doc.id, type=doc.type, uploaded_at=doc.created_at)
+                    for doc in verification.birth_certificates(db, child.id)
+                ],
+            )
+            for child in children_service.list_children(db, parent_id)
+        ],
+    )
+
+
+@router.post("/children/{child_id}/decision")
+def decide_child(child_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession, storage: Storage) -> StatusOut:
+    child = verification.decide_child(db, storage, admin.id, child_id, body.approved, body.notes)
+    return StatusOut(status=child.verification_status)

@@ -26,15 +26,15 @@ export function ParentHomePage() {
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Time for you.</h1>
       <p className="mt-4 text-muted">
-        {name ? `Hello ${name}, ` : ""}your bookings, hours and sitters will be here.
+        {name ? `Hello ${name}, ` : ""}your bookings and sitters will be here.
       </p>
       {me.data?.profile?.status === "pending" && (
         <PendingNote>Your account is being verified. We'll be in touch once that's done.</PendingNote>
       )}
       <div className="mt-7 grid gap-5 sm:grid-cols-3">
-        <IconTile icon={HeartHandshake} label="Meet a sitter first" />
+        <IconTile icon={HeartHandshake} label="Start with a short booking" />
         <IconTile icon={Calendar} label="Scheduled care" />
-        <IconTile icon={Wallet} label="Hour packs" />
+        <IconTile icon={Wallet} label="Pay by the hour" />
       </div>
       <div className="mt-7 flex justify-center">
         <ButtonLink to="/parent/family" arrow>
@@ -96,6 +96,11 @@ export function AdminHomePage() {
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Admin</h1>
       <p className="mt-4 text-muted">Verifications, payments, payouts and incidents will be here.</p>
+      <div className="mt-7 flex justify-center">
+        <ButtonLink to="/admin/verifications" arrow>
+          Open the verification queue
+        </ButtonLink>
+      </div>
       <div className="mt-7 grid gap-5 sm:grid-cols-2">
         <IconTile icon={BadgeCheck} label="Verifications" />
         <IconTile icon={CreditCard} label="Payments" />

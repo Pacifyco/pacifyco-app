@@ -1,7 +1,7 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -34,6 +34,10 @@ class Child(Base):
         enum_column(VerificationStatus, "child_verification_status"),
         server_default=VerificationStatus.pending.value,
     )
+    # Kept after the birth certificate is deleted on approval (CLAUDE.md 7: status, verifier and date).
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verification_notes: Mapped[str | None] = mapped_column(Text)
 
 
 class EmergencyContact(Base):

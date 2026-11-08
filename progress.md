@@ -8,10 +8,9 @@ tests.
 
 ## Current status
 
-- Phase: 3 — Verification and onboarding (Phase 2 done on staging; release to production pending. Phase 0 [Reuben] item left: bank/UPI)
-- Next item: the admin verification queue (including its review page for the psych test). Family
-  wizard and Aadhaar removal merged (PR #64). Interviews dropped and a new sign-up flow added as
-  phase 4 (2026-11-08).
+- Phase: 4 — New sign-up flow (Phase 3 built: rules PR #65, verification queue PR on
+  `phase3/admin-verification-queue`; both need merging. Phase 0 [Reuben] item left: bank/UPI)
+- Next item: phase 4, first sign-in asks only role and terms.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -89,12 +88,18 @@ tests.
   other overtime past the latest end that has no next tier: round up to the full hour at the
   **Recharge** rate, sitter paid her level pay — revisit if/when it actually comes up.
 
-- [ ] **When does chat open?** (added 2026-11-08) It used to open once an introduction was scheduled;
-  introductions are gone. Proposed: chat opens once the parent has a booking with the sitter (even
-  `pending_payment`) and stays open while they have bookings. Confirm, or should parents be able to
-  message a sitter before booking?
+- [x] **When does chat open?** (added 2026-11-08; answered 2026-11-08: "once there is a booking").
+  Chat opens once the parent has a confirmed booking with the sitter (CLAUDE.md 6.11); no messaging
+  before booking.
 - [ ] **Family Terms and introductions** (added 2026-11-08): the Family Terms may still describe a
   free introduction before the first booking; check and add to the v1.1 list for the lawyer.
+
+- [x] **Verification queue choices** (added 2026-11-08; answered 2026-11-08, CLAUDE.md 6.4 and 7):
+  1. A family is verified only once **every** child's birth certificate is approved; adding a child
+     sets it back to waiting. Parents can book before that, but a booking is confirmed only once its
+     children are verified, and it doesn't show on the sitter's side until confirmed.
+  2. A verified child's name and date of birth are locked (ask Pacify); parents can still add children.
+  3. Rejected certificates are kept until a new one is uploaded.
 
 - [ ] **Psych test retake after a fail** (added 2026-11-03, `phase3/psych-test-engine`): not in
   CLAUDE.md 7 step 5. Built so a sitter can retake with no limit once an admin records `failed` (she
@@ -159,9 +164,9 @@ tests.
 - [x] Parent: children and emergency contacts, birth certificates (masked Aadhaar ×2 dropped 2026-11-03)
 - [x] Sitter: application/profile (18+, health disclosure), government ID, college or work ID, police certificate, references, first-aid certificate, bank or UPI details, rate (₹80–120)
 - [x] Psychology test engine with placeholder questions (backend PR #61, frontend PR #62)
-- [ ] Admin verification queue: view documents (logged), approve/reject each step with notes, set each sitter's level (CLAUDE.md 6.2)
-- [ ] Birth certificate auto-delete after child verification
-- [ ] Tests for this phase
+- [x] Admin verification queue: view documents (logged), approve/reject each step with notes, set each sitter's level (CLAUDE.md 6.2)
+- [x] Birth certificate auto-delete after child verification
+- [x] Tests for this phase
 
 ## Phase 4 — New sign-up flow (added 2026-11-08, CLAUDE.md 6.13)
 
@@ -202,7 +207,7 @@ at home (CLAUDE.md 6.3).
 ## Phase 7 — Bookings, cancellations, strikes
 
 - [ ] Book a time: plan and level match, plan's latest end, Pause one child, bath time, children 18 months+, camera declaration, parent profile finished, `pending_payment` → confirmed only once paid **and** every child is verified, remove availability; "try a 1-hour first booking at home" nudge with a new sitter
-- [ ] Parent and sitter booking lists and detail pages
+- [ ] Parent and sitter booking lists and detail pages (sitters see only confirmed bookings)
 - [ ] Cancellations with 3-hour and 8-hour rules
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
 - [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit, doctor's note strike removal
@@ -215,7 +220,7 @@ at home (CLAUDE.md 6.3).
 - [ ] Overdue check-out alert job (end + 30 min) and admin manual close
 - [ ] Overtime at check-out: rounded up to the full hour at the plan price, UPI link/QR due in 2 hours, unpaid blocks new bookings
 - [ ] Emergency/Report button for parents and sitters; admin email alert; incident records
-- [ ] Chat between a parent and sitter with a booking (polling)
+- [ ] Chat between a parent and sitter with a confirmed booking (polling)
 - [ ] Outing permission requests during a booking (Recharge only)
 - [ ] Tests for this phase
 
@@ -283,6 +288,19 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-08 — Reuben answered the verification and chat questions. A family is now verified only
+  once every child is approved, and adding a child sets it back to waiting (audit `parent_verification_reset`).
+  Bookings show to sitters only once confirmed, and chat opens with a confirmed booking. Rules updated in
+  CLAUDE.md 6.4, 6.11 and 7; 329 API tests pass.
+- 2026-11-08 — Phase 3 done (`phase3/admin-verification-queue`): `onboarding_steps` table (admin
+  reviews of profile, ID documents, police certificate), `sitters.level`, child verifier fields
+  (migration `55d0da5cd21c`). `/admin/verifications` queue, sitter review (each step, references,
+  psych test pass/fail, level, approve only when all five steps pass and a level is set; health
+  disclosure behind its own logged endpoint), family review (approve/reject each child; approval
+  deletes the birth certificate at once and verifies the parent). `verification.is_live` for search
+  in phase 5. Web: queue, sitter and family review pages, linked from the admin home; parent home
+  tiles no longer promise introductions or hour packs. 327 API tests (local Postgres) and 177 web
+  tests pass; lint, typecheck and build clean. Three choices listed under Open questions.
 - 2026-11-08 — Reuben: no sitter onboarding interview and no parent-sitter introductions (no Google
   Meet or Calendar); parents are encouraged, not forced, to make a 1-hour first booking at home. New
   sign-up flow: role and terms only, then straight into the area with "finish your profile" prompts;

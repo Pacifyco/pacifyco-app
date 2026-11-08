@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Child, Document, DocumentAccessLog, DocumentStatus, DocumentType
+from app.models import Child, Document, DocumentAccessLog, DocumentStatus, DocumentType, VerificationStatus
 from app.services import consent
 from app.services.storage import StorageClient
 
@@ -91,6 +91,10 @@ def confirm_upload(
         raise AppError(422, "invalid_file", message)
 
     document.status = DocumentStatus.uploaded
+    if document.type == DocumentType.birth_certificate and document.child_id is not None:
+        child = db.get(Child, document.child_id)
+        if child is not None and child.verification_status == VerificationStatus.rejected:
+            child.verification_status = VerificationStatus.pending  # a new certificate goes back for review
     db.commit()
     return document
 
