@@ -1,17 +1,20 @@
 """The parent area. Every route here is for parents only (CLAUDE.md 9: wrong role gets 403)."""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field, field_validator
+from fastapi import APIRouter, Depends, Query
+from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 from app.auth import require_role
 from app.deps import DbSession
-from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, VerificationStatus
+from app.errors import AppError
+from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, SitterLevel, VerificationStatus
 from app.services import checklists, consent, family
 from app.services import children as children_service
+from app.services import search as search_service
 from app.services.accounts import normalise_mobile
 
 router = APIRouter(prefix="/parent", tags=["parent"], dependencies=[Depends(require_role(Role.parent))])
@@ -225,3 +228,91 @@ def put_child(child_id: uuid.UUID, body: ChildIn, parent: Parent, db: DbSession)
 @router.delete("/children/{child_id}", status_code=204)
 def delete_child(child_id: uuid.UUID, parent: Parent, db: DbSession) -> None:
     children_service.remove_child(db, parent.id, child_id)
+
+
+# ---------- finding sitters (CLAUDE.md 9 "Search and filters") ----------
+
+
+class SitterSummary(BaseModel):
+    """What parents see of a sitter. Never her pay, level pay, address, phone or email (CLAUDE.md 6.2)."""
+
+    id: uuid.UUID
+    full_name: str | None
+    years_experience: int | None
+    age_groups: list[str]
+    languages: list[str]
+    first_aid: bool
+    avg_rating: float | None
+    review_count: int
+    distance_km: float | None  # straight line from the parent's home, to 0.1 km
+
+
+class FreeTime(BaseModel):
+    starts_at: datetime
+    ends_at: datetime
+
+
+class SitterDetail(SitterSummary):
+    bio: str | None
+    plan: SitterLevel  # the plan she works (her level); its price is shown when the parent books
+    free_times: list[FreeTime]
+
+
+def _summary_fields(found: search_service.Found) -> dict:
+    profile, sitter = found.profile, found.sitter
+    return {
+        "id": profile.id,
+        "full_name": profile.full_name,
+        "years_experience": sitter.years_experience,
+        "age_groups": sitter.age_groups,
+        "languages": sitter.languages,
+        "first_aid": sitter.first_aid,
+        "avg_rating": float(sitter.avg_rating) if sitter.avg_rating is not None else None,
+        "review_count": sitter.review_count,
+        "distance_km": round(found.distance_km, 1) if found.distance_km is not None else None,
+    }
+
+
+@router.get("/sitters")
+def search_sitters(
+    parent: Parent,
+    db: DbSession,
+    plan: SitterLevel,
+    starts_at: Annotated[AwareDatetime | None, Query()] = None,
+    ends_at: Annotated[AwareDatetime | None, Query()] = None,
+    min_rating: Annotated[Decimal | None, Query(ge=1, le=5)] = None,
+    min_years: Annotated[int | None, Query(ge=0, le=60)] = None,
+    language: Annotated[str | None, Query(max_length=40)] = None,
+    first_aid: bool = False,
+    sort: search_service.SortBy = search_service.SortBy.distance,
+) -> list[SitterSummary]:
+    """Live sitters of the plan's level. Parents browse once their profile is finished (CLAUDE.md 7)."""
+    checklists.require_finished_parent_profile(db, parent)
+    if (starts_at is None) != (ends_at is None):
+        raise AppError(422, "time_incomplete", "Choose both a start and an end time")
+    if starts_at is not None and ends_at is not None and ends_at <= starts_at:
+        raise AppError(422, "time_order", "The end time must be after the start time")
+    filters = search_service.Filters(
+        plan=plan,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        min_rating=min_rating,
+        min_years=min_years,
+        language=language,
+        first_aid=first_aid,
+        sort=sort,
+    )
+    return [SitterSummary(**_summary_fields(found)) for found in search_service.search(db, parent, filters)]
+
+
+@router.get("/sitters/{sitter_id}")
+def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession) -> SitterDetail:
+    checklists.require_finished_parent_profile(db, parent)
+    found = search_service.live_sitter(db, parent, sitter_id)
+    slots = search_service.free_times(db, sitter_id, datetime.now(UTC))
+    return SitterDetail(
+        **_summary_fields(found),
+        bio=found.sitter.bio,
+        plan=found.sitter.level,
+        free_times=[FreeTime(starts_at=slot.starts_at, ends_at=slot.ends_at) for slot in slots],
+    )

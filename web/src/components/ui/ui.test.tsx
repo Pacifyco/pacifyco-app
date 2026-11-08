@@ -172,18 +172,17 @@ const sitter: SitterCardProps = {
   rating: 4.8,
   reviewCount: 23,
   familiesServed: 14,
-  unlocked: false,
   actionHref: "/sitters/priya",
 };
 
 describe("SitterCard", () => {
-  test("shows who, checks, experience and the meet-first action", () => {
+  test("shows who, checks, experience and a link to the profile", () => {
     withRouter(<SitterCard {...sitter} />);
     expect(screen.getByRole("heading", { name: "Priya Raman" })).toBeTruthy();
     expect(screen.getByText("6 years' experience · Indiranagar")).toBeTruthy();
     expect(screen.getByText("ID & police verified")).toBeTruthy();
     expect(screen.getByText("Trusted by 14 Pacify families")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Meet Priya first" }).getAttribute("href")).toBe("/sitters/priya");
+    expect(screen.getByRole("link", { name: "See Priya's profile" }).getAttribute("href")).toBe("/sitters/priya");
   });
 
   test("never shows a price", () => {
@@ -191,9 +190,9 @@ describe("SitterCard", () => {
     expect(container.textContent).not.toMatch(/₹|\/hour|rate/i);
   });
 
-  test("unlocked pairs get 'Choose a time'", () => {
-    withRouter(<SitterCard {...sitter} unlocked />);
-    expect(screen.getByRole("link", { name: "Choose a time" })).toBeTruthy();
+  test("the area is left out when unknown", () => {
+    withRouter(<SitterCard {...sitter} area={undefined} />);
+    expect(screen.getByText("6 years' experience")).toBeTruthy();
   });
 
   test("new sitters show initials, no rating and no family count", () => {

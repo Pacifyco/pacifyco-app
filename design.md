@@ -237,7 +237,7 @@ spring overshoot, spin, fast parallax or autoplaying video with sound. Respect
 - **Card** — white, `radius-lg`, `shadow-soft`, `space-5`/`space-6` padding.
 - **SitterCard** — photo or initials avatar on peach, name, years of experience and area (caption),
   chips for age groups and interests, VerifiedChips, rating and "Trusted by N Pacify families", primary
-  action "Meet [first name] first" (or "Choose a time" for unlocked pairs). **No price on the card** —
+  action "See [first name]'s profile" (introductions were dropped 2026-11-08). **No price on the card** —
   parents don't see sitter rates.
 - **BookingCard** — "Next booking" eyebrow, date and time ("Sat, 11 Oct · 10:00 am – 1:00 pm"), "[Sitter]
   is looking after [child] at home."

@@ -23,7 +23,7 @@ from app.models import (
     Role,
     Sitter,
 )
-from app.services import legal
+from app.services import geocoding, legal
 from app.services.service_area import require_in_service_area
 
 # Indian mobile numbers: 10 digits starting 6–9, optionally written with +91, 91 or a leading 0.
@@ -76,13 +76,23 @@ def sign_up(
 
 
 def update_details(
-    db: Session, profile: Profile, *, full_name: str, phone: str, pin_code: str, address: str
+    db: Session,
+    profile: Profile,
+    geocoder: geocoding.Geocoder,
+    *,
+    full_name: str,
+    phone: str,
+    pin_code: str,
+    address: str,
 ) -> Profile:
     """The "your details" part of finishing a profile (CLAUDE.md 6.13). The home pin code must be in
-    the service area (CLAUDE.md 1)."""
+    the service area (CLAUDE.md 1). The home's map position is looked up when the address changes."""
     if profile.role not in SIGN_UP_ROLES:
         raise AppError(403, "forbidden", "This isn't available for your account")
     require_in_service_area(db, pin_code)
+    if profile.lat is None or (address, pin_code) != (profile.address, profile.pin_code):
+        position = geocoding.locate_home(db, geocoder, address, pin_code)
+        profile.lat, profile.lng = position if position else (None, None)
     profile.full_name = full_name
     profile.phone = phone
     profile.pin_code = pin_code

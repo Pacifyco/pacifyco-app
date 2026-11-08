@@ -6,17 +6,20 @@ import { VerificationQueuePage } from "./pages/admin/VerificationQueuePage";
 import { config } from "./config";
 import { AppLayout } from "./layouts/AppLayout";
 import { AdminHomePage, ParentHomePage, SitterHomePage } from "./pages/AreaPages";
+import { AvailabilityPage } from "./pages/AvailabilityPage";
 import { ComponentsPage } from "./pages/ComponentsPage";
 import { ConsentPage } from "./pages/ConsentPage";
 import { DetailsPage } from "./pages/DetailsPage";
 import { NotFoundPage, RouteErrorPage } from "./pages/ErrorPages";
 import { FamilyPage } from "./pages/FamilyPage";
+import { FindSittersPage } from "./pages/FindSittersPage";
 import { HomePage } from "./pages/HomePage";
 import { JoinPage } from "./pages/JoinPage";
 import { ParentTermsPage, PrivacyPolicyPage, SitterTermsPage } from "./pages/LegalPages";
 import { PsychTestPage } from "./pages/PsychTestPage";
 import { AuthCallbackPage, SignInPage } from "./pages/SignInPage";
 import { SitterApplicationPage } from "./pages/SitterApplicationPage";
+import { SitterProfilePage } from "./pages/SitterProfilePage";
 
 // One app, three role areas (CLAUDE.md section 3), each open only to its own role.
 export const routes: RouteObject[] = [
@@ -42,6 +45,14 @@ export const routes: RouteObject[] = [
           </RequireRole>
         ),
       })),
+      // The marketplace (phase 5): parents find sitters; sitters set their free times.
+      ...(
+        [
+          ["parent/sitters", "parent", <FindSittersPage />],
+          ["parent/sitters/:sitterId", "parent", <SitterProfilePage />],
+          ["sitter/availability", "sitter", <AvailabilityPage />],
+        ] as const
+      ).map(([path, role, page]) => ({ path, element: <RequireRole role={role}>{page}</RequireRole> })),
       {
         path: "parent/consent",
         element: (

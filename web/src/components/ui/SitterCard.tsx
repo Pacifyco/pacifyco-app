@@ -4,22 +4,21 @@ import { ButtonLink } from "./Button";
 import { Card } from "./Card";
 import { Chip, VerifiedChip, type VerifiedCheck } from "./Chip";
 
-// design.md section 10. Answers the trust pillars in order: who, verified, experience, meet first.
+// design.md section 10. Answers the trust pillars in order: who, verified, experience, try them first.
 // There is deliberately no rate or price prop: parents never see a sitter's rate (CLAUDE.md 6.2).
 export type SitterCardProps = {
   name: string;
   firstName: string;
   photoUrl?: string;
   yearsExperience: number;
-  area: string;
+  /** Where she is, e.g. "2.4 km away"; left out when unknown. */
+  area?: string;
   ageGroups: string[];
   interests: string[];
   checks: VerifiedCheck[];
   rating: number | null;
   reviewCount: number;
-  familiesServed: number;
-  /** True once this parent has had a booking with this sitter. */
-  unlocked: boolean;
+  familiesServed?: number;
   actionHref: string;
 };
 
@@ -34,7 +33,7 @@ function initials(name: string): string {
 
 export function SitterCard(props: SitterCardProps) {
   const { name, firstName, photoUrl, yearsExperience, area, ageGroups, interests, checks } = props;
-  const { rating, reviewCount, familiesServed, unlocked, actionHref } = props;
+  const { rating, reviewCount, familiesServed = 0, actionHref } = props;
 
   return (
     <Card as="article" className="flex flex-col gap-4">
@@ -52,7 +51,7 @@ export function SitterCard(props: SitterCardProps) {
         <div className="min-w-0">
           <h3 className="text-h3">{name}</h3>
           <p className="text-small text-muted">
-            {plural(yearsExperience, "year's", "years'")} experience · {area}
+            {plural(yearsExperience, "year's", "years'")} experience{area ? ` · ${area}` : ""}
           </p>
         </div>
       </div>
@@ -99,7 +98,7 @@ export function SitterCard(props: SitterCardProps) {
       </div>
 
       <ButtonLink to={actionHref} variant="primary">
-        {unlocked ? "Choose a time" : `Meet ${firstName} first`}
+        See {firstName}'s profile
       </ButtonLink>
     </Card>
   );

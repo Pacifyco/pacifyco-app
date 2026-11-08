@@ -8,9 +8,9 @@ tests.
 
 ## Current status
 
-- Phase: 5 — Marketplace (Phase 4, the new sign-up flow, built on `phase4/new-signup-flow`; needs
-  merging. Phase 0 [Reuben] item left: bank/UPI)
-- Next item: phase 5, first unchecked item.
+- Phase: 5 — Marketplace (built on `phase5/marketplace`; needs merging. One item left: the Recharge
+  reference shown to parents. Phase 0 [Reuben] item left: bank/UPI)
+- Next item: phase 5, Recharge sitters' reference on her profile.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -188,11 +188,16 @@ tests.
 
 ## Phase 5 — Marketplace
 
-- [ ] Sitter availability calendar (add/remove free times)
-- [ ] Geocoding with cache; distance from parent
-- [ ] Sitter search: distance, availability, rating, experience, languages, first aid
-- [ ] Sitter profile page and SitterCard (no price shown)
-- [ ] Tests for this phase
+- [x] Sitter availability calendar (add/remove free times) — `/sitter/availability`
+- [x] Geocoding with cache; distance from parent — Nominatim, 1 request/second, `geocode_cache`
+- [x] Sitter search: distance, availability, rating, experience, languages, first aid —
+  `GET /parent/sitters`, `/parent/sitters`; parents browse once their profile is finished (CLAUDE.md 7);
+  strikes will also hide a blocked sitter once they exist (phase 9)
+- [x] Sitter profile page and SitterCard (no price shown) — `/parent/sitters/:id`; the card's action is
+  now "See [name]'s profile"
+- [ ] Recharge sitters' reference shown to parents with her consent (CLAUDE.md 6.2): add
+  `reference_shared_consent`, a tick in the sitter application, and the reference on her profile page
+- [x] Tests for this phase
 
 Interviews (the old phase 5) were dropped on 2026-11-08: no sitter onboarding interview, no
 introductions, no Google Calendar. Parents are encouraged to make a 1-hour first booking with a parent
@@ -294,6 +299,12 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-08 — Phase 5 marketplace (`phase5/marketplace`): `availability_slots` and `geocode_cache`
+  (migration `0de52ef87290`); sitters add and remove free times; homes geocoded with Nominatim on
+  saving details (cached, 1 request/second, tests use a fake); `GET /parent/sitters` (live sitters of
+  the plan's level; availability, rating, experience, language and first-aid filters; nearest, rating
+  or experience sort) and `GET /parent/sitters/{id}`; Find a sitter and profile pages; SitterCard now
+  links to the profile. 371 API and 192 web tests pass.
 - 2026-11-08 — Phase 4 done (`phase4/new-signup-flow`): sign-up asks only role and terms;
   `profiles.full_name` nullable (migration `4b8e1f0c2a7d`); `PUT /me/details` (name, mobile, pin code
   with service-area check, address); parent and sitter checklists (`app/services/checklists.py`,

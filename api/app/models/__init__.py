@@ -5,6 +5,7 @@ from app.models.common import VerificationStatus
 from app.models.consents import Consent, ConsentKind
 from app.models.documents import Document, DocumentAccessLog, DocumentStatus, DocumentType
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
+from app.models.marketplace import AvailabilitySlot, GeocodeCache
 from app.models.parents import AuthorisedAdult, Child, EmergencyContact, Parent
 from app.models.profiles import Profile, ProfileStatus, Role, ServiceAreaPincode
 from app.models.psych_tests import (
@@ -28,6 +29,7 @@ from app.models.sitters import (
 __all__ = [
     "AcceptanceMethod",
     "AuditLog",
+    "AvailabilitySlot",
     "AuthorisedAdult",
     "Child",
     "Consent",
@@ -37,6 +39,7 @@ __all__ = [
     "DocumentStatus",
     "DocumentType",
     "EmergencyContact",
+    "GeocodeCache",
     "LegalAcceptance",
     "LegalDocument",
     "LegalKind",

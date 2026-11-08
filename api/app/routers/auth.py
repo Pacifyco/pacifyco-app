@@ -9,7 +9,7 @@ from app.auth import CurrentUser, Identity, current_identity, current_profile, c
 from app.deps import DbSession
 from app.errors import AppError
 from app.models import LegalKind, Profile, ProfileStatus, Role
-from app.services import accounts, legal, service_area
+from app.services import accounts, geocoding, legal, service_area
 
 router = APIRouter(tags=["auth"])
 
@@ -170,10 +170,11 @@ def put_details(
     body: Details,
     profile: Annotated[Profile, Depends(current_profile)],
     user: Annotated[CurrentUser, Depends(current_user)],
+    geocoder: Annotated[geocoding.Geocoder, Depends(geocoding.get_geocoder)],
     db: DbSession,
 ) -> Me:
     """Name, mobile, home pin code and address, filled in from the person's area (CLAUDE.md 6.13)."""
     accounts.update_details(
-        db, profile, full_name=body.full_name, phone=body.phone, pin_code=body.pin_code, address=body.address
+        db, profile, geocoder, full_name=body.full_name, phone=body.phone, pin_code=body.pin_code, address=body.address
     )
     return me_for(db, user.identity.email, profile)
