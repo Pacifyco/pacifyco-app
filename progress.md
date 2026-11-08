@@ -182,6 +182,9 @@ tests.
 - [x] Booking stays unconfirmed until every child on it is verified (moved to phase 7, where booking is
   built; the rule and its test are listed there)
 - [x] Tests for this phase
+- Confirmed by Reuben 2026-11-08: a parent's profile is finished once everything is filled in and
+  every birth certificate is uploaded (not yet verified); home address is required for both roles; the
+  booking guard takes effect when booking is built in phase 7.
 
 ## Phase 5 — Marketplace
 
