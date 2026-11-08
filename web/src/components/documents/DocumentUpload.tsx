@@ -25,8 +25,11 @@ export type DocumentOut = {
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+// Parents see sitters' photos in the browser, so a photo must be an image (the API checks too).
+const PHOTO_TYPES = ["image/jpeg", "image/png"];
 
-function clientCheck(file: File): string | undefined {
+function clientCheck(file: File, type: DocumentType): string | undefined {
+  if (type === "photo" && !PHOTO_TYPES.includes(file.type)) return "Please choose a JPG or PNG photo.";
   if (!ALLOWED_TYPES.includes(file.type)) return "Please choose a PDF, JPG or PNG file.";
   if (file.size > MAX_FILE_BYTES) return "That file is larger than 5 MB.";
   return undefined;
@@ -111,7 +114,7 @@ function UploadSlot({
     const file = event.target.files?.[0];
     event.target.value = ""; // so picking the same file again still fires onChange
     if (!file) return;
-    const problem = clientCheck(file);
+    const problem = clientCheck(file, type);
     if (problem) return setError(problem);
     setError(undefined);
     upload.mutate(file);
@@ -129,7 +132,11 @@ function UploadSlot({
           ref={inputRef}
           id={inputId}
           type="file"
-          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          accept={
+            type === "photo"
+              ? ".jpg,.jpeg,.png,image/jpeg,image/png"
+              : ".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          }
           className="hidden"
           onChange={pick}
         />

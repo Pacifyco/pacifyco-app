@@ -38,6 +38,8 @@ class Child(Base):
     verified_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     verification_notes: Mapped[str | None] = mapped_column(Text)
+    # Shown to the person when rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class EmergencyContact(Base):

@@ -20,6 +20,8 @@ export type SitterSummary = {
   avg_rating: number | null;
   review_count: number;
   distance_km: number | null;
+  /** Short-lived signed link to her photo; null shows initials. */
+  photo_url: string | null;
 };
 
 export const PLAN_LABELS: Record<Plan, string> = {
@@ -115,6 +117,7 @@ function Results({ query }: { query: string }) {
           <SitterCard
             name={sitter.full_name ?? "Pacify sitter"}
             firstName={firstNameOf(sitter.full_name)}
+            photoUrl={sitter.photo_url ?? undefined}
             yearsExperience={sitter.years_experience ?? 0}
             area={distanceText(sitter.distance_km)}
             ageGroups={sitter.age_groups}

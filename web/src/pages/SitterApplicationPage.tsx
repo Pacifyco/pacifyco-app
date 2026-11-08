@@ -367,7 +367,15 @@ function PayoutDetailsSection({ onContinue }: { onContinue: () => void }) {
 // ---------- references (CLAUDE.md section 7 step 4) ----------
 
 type ReferenceOutcome = "pending" | "approved" | "rejected";
-type Reference = { id: string; name: string; relationship: string; phone: string; outcome: ReferenceOutcome };
+type Reference = {
+  id: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  outcome: ReferenceOutcome;
+  /** Why Pacify couldn't accept it, if it was rejected. */
+  rejection_reason: string | null;
+};
 type ReferenceInput = { name: string; relationship: string; phone: string };
 const EMPTY_REFERENCE: ReferenceInput = { name: "", relationship: "", phone: "" };
 const MAX_REFERENCES = 2;
@@ -411,6 +419,12 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
                 <p className="text-small text-muted">
                   {reference.relationship} · {reference.phone}
                 </p>
+                {reference.outcome === "rejected" && (
+                  <div className="mt-1 text-small text-danger">
+                    <p>Pacify couldn't accept this reference. Please remove it and add someone else.</p>
+                    {reference.rejection_reason && <p>Reason: {reference.rejection_reason}</p>}
+                  </div>
+                )}
               </div>
               <button
                 type="button"
@@ -472,6 +486,11 @@ function DocumentsSection({ onContinue }: { onContinue: () => void }) {
         <h2 className="text-h3">Documents</h2>
         <p className="mt-1 text-small text-muted">Only Pacify admins view these, and every view is logged.</p>
       </div>
+      <DocumentUpload
+        type="photo"
+        label="Profile photo"
+        hint="A clear, friendly photo of your face (JPG or PNG). Parents see it once your profile is live."
+      />
       <DocumentUpload type="government_id" label="Government ID" />
       <DocumentUpload type="college_or_work_id" label="College or work ID" />
       <DocumentUpload type="police_certificate" label="Police clearance certificate" />

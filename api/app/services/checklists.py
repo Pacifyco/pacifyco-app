@@ -19,6 +19,7 @@ from app.models import (
     DocumentStatus,
     DocumentType,
     EmergencyContact,
+    OnboardingStep,
     Profile,
     PsychAttemptStatus,
     Sitter,
@@ -41,6 +42,11 @@ class ItemStatus(StrEnum):
 class Item:
     key: str
     status: ItemStatus
+    reason: str | None = None  # when rejected: why, in the admin's words (decided 2026-11-09)
+
+
+def _with_reason(item: Item, reason) -> Item:
+    return Item(item.key, item.status, reason()) if item.status == ItemStatus.rejected else item
 
 
 def _done(finished: bool) -> ItemStatus:
@@ -60,6 +66,16 @@ def _uploaded(db: Session, owner_id: uuid.UUID, doc_type: DocumentType, child_id
 
 
 # ---------- parents ----------
+
+
+def _children_reason(db: Session, parent_id: uuid.UUID) -> str | None:
+    rejected = db.scalars(
+        select(Child).where(Child.parent_id == parent_id, Child.verification_status == VerificationStatus.rejected)
+    )
+    reasons = [
+        f"{child.name}: {child.rejection_reason}" if child.rejection_reason else child.name for child in rejected
+    ]
+    return "; ".join(reasons) or None
 
 
 def _children_status(db: Session, parent_id: uuid.UUID) -> ItemStatus:
@@ -88,7 +104,7 @@ def parent_checklist(db: Session, profile: Profile) -> list[Item]:
     return [
         Item("details", _done(accounts.details_complete(profile))),
         Item("consent", _done(consent.summary(db, profile.id).required_accepted)),
-        Item("children", _children_status(db, profile.id)),
+        _with_reason(Item("children", _children_status(db, profile.id)), lambda: _children_reason(db, profile.id)),
         Item("emergency_contacts", _done(contacts >= REQUIRED_EMERGENCY_CONTACTS)),
     ]
 
@@ -119,13 +135,26 @@ def _reviewed(review: VerificationStatus, sent: bool) -> ItemStatus:
 def sitter_checklist(db: Session, profile: Profile, sitter: Sitter) -> list[Item]:
     """Each onboarding step (CLAUDE.md 7) with where it stands, after her own details."""
     reviews = verification.step_statuses(db, sitter.profile_id)
+    step_reasons = {
+        row.step.value: row.rejection_reason
+        for row in db.scalars(select(OnboardingStep).where(OnboardingStep.sitter_id == sitter.profile_id))
+    }
+    rejected_references = [
+        f"{ref.name}: {ref.rejection_reason}" if ref.rejection_reason else ref.name
+        for ref in verification.sitter_references(db, sitter.profile_id)
+        if ref.outcome == VerificationStatus.rejected
+    ]
+    step_reasons["references"] = "; ".join(rejected_references) or None
     references = len(verification.sitter_references(db, sitter.profile_id))
     attempt = psych_tests.latest_attempt(db, sitter.profile_id)
-    application_sent = all(value is not None for value in (sitter.date_of_birth, sitter.bio, sitter.payout_method))
+    step_reasons["psych_test"] = attempt.rejection_reason if attempt is not None else None
+    application_sent = all(
+        value is not None for value in (sitter.date_of_birth, sitter.bio, sitter.payout_method)
+    ) and _uploaded(db, profile.id, DocumentType.photo)
     ids_sent = _uploaded(db, profile.id, DocumentType.government_id) and _uploaded(
         db, profile.id, DocumentType.college_or_work_id
     )
-    return [
+    items = [
         Item("details", _done(accounts.details_complete(profile))),
         Item("profile", _reviewed(reviews["profile"], application_sent)),
         Item("identity_documents", _reviewed(reviews["identity_documents"], ids_sent)),
@@ -139,3 +168,4 @@ def sitter_checklist(db: Session, profile: Profile, sitter: Sitter) -> list[Item
             _reviewed(reviews["psych_test"], attempt is not None and attempt.status == PsychAttemptStatus.submitted),
         ),
     ]
+    return [_with_reason(item, lambda key=item.key: step_reasons.get(key)) for item in items]

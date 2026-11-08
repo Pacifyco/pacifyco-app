@@ -92,20 +92,27 @@ export function ViewDocumentButton({ document, label }: { document: DocumentSumm
   );
 }
 
-type BodyFor = (approved: boolean, notes: string | null) => unknown;
+type BodyFor = (approved: boolean, notes: string | null, rejectionReason: string | null) => unknown;
 
-const defaultBody: BodyFor = (approved, notes) => ({ approved, notes });
+const defaultBody: BodyFor = (approved, notes, rejectionReason) => ({
+  approved,
+  notes,
+  rejection_reason: rejectionReason,
+});
+
+type DecisionInput = { approved: boolean; notes: string | null; rejectionReason: string | null };
 
 export function useDecision(path: string, invalidate: unknown[][], body: BodyFor = defaultBody) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ approved, notes }: { approved: boolean; notes: string | null }) =>
-      apiFetch<unknown>(path, { method: "POST", body: JSON.stringify(body(approved, notes)) }),
+    mutationFn: ({ approved, notes, rejectionReason }: DecisionInput) =>
+      apiFetch<unknown>(path, { method: "POST", body: JSON.stringify(body(approved, notes, rejectionReason)) }),
     onSuccess: () => Promise.all(invalidate.map((queryKey) => queryClient.invalidateQueries({ queryKey }))),
   });
 }
 
-// Notes plus Approve and Reject. Notes are optional but recorded with the decision (audit logged).
+// Notes plus Approve and Reject. Notes are internal and optional. Rejecting needs a reason, which the
+// parent or sitter sees (decided 2026-11-09).
 export function DecisionForm({
   path,
   invalidate,
@@ -123,8 +130,14 @@ export function DecisionForm({
   body?: BodyFor;
 }) {
   const [notes, setNotes] = useState("");
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string>();
   const decision = useDecision(path, invalidate, body);
-  const decide = (approved: boolean) => decision.mutate({ approved, notes: notes.trim() || null });
+  const decide = (approved: boolean) => {
+    if (!approved && !reason.trim()) return setReasonError("Please give a reason. It's shown to them.");
+    setReasonError(undefined);
+    decision.mutate({ approved, notes: notes.trim() || null, rejectionReason: approved ? null : reason.trim() });
+  };
 
   return (
     <div className="mt-4 flex flex-col gap-3">
@@ -134,6 +147,16 @@ export function DecisionForm({
         rows={2}
         value={notes}
         onChange={(event) => setNotes(event.target.value)}
+      />
+      <Textarea
+        label={`Reason for rejecting ${subject}`}
+        hint="Only if you reject. They'll see this, so write it to them."
+        optional
+        rows={2}
+        maxLength={500}
+        value={reason}
+        error={reasonError}
+        onChange={(event) => setReason(event.target.value)}
       />
       <div className="flex flex-wrap gap-3">
         <Button fullWidthOnPhone={false} loading={decision.isPending} onClick={() => decide(true)}>

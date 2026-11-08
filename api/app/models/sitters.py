@@ -66,6 +66,8 @@ class Sitter(Base):
     level: Mapped[SitterLevel | None] = mapped_column(enum_column(SitterLevel, "sitter_level"))
     # Her tick in the application: at Recharge level, parents may see one of her references (CLAUDE.md 6.2).
     reference_shared_consent: Mapped[bool] = mapped_column(server_default=false())
+    # Shown to the person when her application is rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
     avg_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     review_count: Mapped[int] = mapped_column(server_default="0")
 
@@ -85,6 +87,8 @@ class Reference(Base):
         enum_column(VerificationStatus, "reference_outcome"), server_default=VerificationStatus.pending.value
     )
     notes: Mapped[str | None] = mapped_column(Text)
+    # Shown to the person when rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class OnboardingStep(Base):
@@ -98,5 +102,7 @@ class OnboardingStep(Base):
     )
     status: Mapped[VerificationStatus] = mapped_column(enum_column(VerificationStatus, "onboarding_step_status"))
     notes: Mapped[str | None] = mapped_column(Text)
+    # Shown to the person when rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"))
     reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

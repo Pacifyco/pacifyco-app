@@ -153,6 +153,15 @@ describe("the sitter application page", () => {
     expect(JSON.parse(put.init!.body as string).reference_shared_consent).toBe(true);
   });
 
+  test("the documents step asks for a profile photo, JPG or PNG only", async () => {
+    mockApi();
+    renderPage();
+    await fillProfileAndContinue();
+    expect(screen.getByText("Profile photo")).toBeTruthy();
+    const input = document.getElementById(screen.getByText("Profile photo").getAttribute("for")!) as HTMLInputElement;
+    expect(input.accept).toBe(".jpg,.jpeg,.png,image/jpeg,image/png");
+  });
+
   test("the back button returns to the previous step", async () => {
     mockApi();
     renderPage();

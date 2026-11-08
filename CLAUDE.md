@@ -147,7 +147,8 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   headers, request bodies, query strings and local variables are all off in both SDKs.
 - **Storage buckets are private.** Uploads go through signed upload URLs issued by the API. Files are
   viewed only by admins through short-lived signed URLs, and every view writes a row to
-  `document_access_log`.
+  `document_access_log`. One exception (decided 2026-11-09): a live sitter's profile photo (JPG or PNG)
+  is shown to parents through short-lived signed URLs on her card and profile page (not logged).
 - **Money** is stored as integer paise. **Time** is stored in UTC (`timestamptz`) and shown in
   Asia/Kolkata.
 - **Booked time** is stored as integer hours ("units"); bookings and overtime are both whole hours
@@ -416,7 +417,14 @@ upload entirely, and with it the single-parent declaration that existed only to 
 Aadhaar). What, if anything, replaces a parent-identity check is an open question in `progress.md`.
 
 **Document handling:** private bucket, admin-only access, every view logged, birth certificates deleted
-automatically once the child is verified (keep status, verifier and date).
+automatically once the child is verified (keep status, verifier and date). Sitters' profile photos are
+the one exception: parents see a live sitter's photo (section 5).
+
+**Rejections (decided 2026-11-09):** an admin who rejects anything (a birth certificate, an onboarding
+step, a reference, the psychology test or a whole application) must give a rejection reason, which
+the parent or sitter sees; admin notes stay internal. A new upload or change after a rejection sends
+that item back for review (birth certificates and sitter steps 1-4). The psychology test is the
+exception: after a fail, an admin decides when she can retake it.
 
 **Consent (decided 2026-11-02, follow Family Terms 11.2):** at parent sign-up, separate unticked boxes,
 nothing pre-ticked, each recorded with its version and time:

@@ -62,6 +62,13 @@ export function SitterProfilePage() {
     <article className="mx-auto flex max-w-[48rem] flex-col gap-6">
       <BackLink to="/parent/sitters" label="Find a sitter" />
       <Card as="section" padding="roomy">
+        {sitter.photo_url && (
+          <img
+            src={sitter.photo_url}
+            alt={sitter.full_name ?? "Pacify sitter"}
+            className="mb-5 size-[120px] rounded-pill object-cover"
+          />
+        )}
         <h1>{sitter.full_name ?? "Pacify sitter"}</h1>
         <Facts sitter={sitter} />
         <p className="mt-3 flex items-center gap-1 text-small text-muted">

@@ -69,10 +69,12 @@ export function ParentHomePage() {
 function SitterChecklist() {
   const checklist = useChecklist<SitterChecklistData>("sitter");
   if (!checklist.isSuccess) return null;
-  const { items, live } = checklist.data;
+  const { items, live, application_rejected_reason: rejectedReason } = checklist.data;
   const allPassed = items.every((item) => item.status === "done" || item.status === "approved");
-  const intro = live
-    ? "Your profile is live. Families can now find and book you."
+  const intro = rejectedReason
+    ? `Pacify couldn't approve your application: ${rejectedReason}`
+    : live
+      ? "Your profile is live. Families can now find and book you."
     : allPassed
       ? "Every step has passed. Pacify will review your profile and let you know when it's live."
       : "Families can find you once every step passes and Pacify approves your profile.";

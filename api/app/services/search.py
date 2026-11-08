@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session
 from app.errors import AppError
 from app.models import (
     AvailabilitySlot,
+    Document,
+    DocumentStatus,
+    DocumentType,
     OnboardingStatus,
     Profile,
     ProfileStatus,
@@ -118,6 +121,22 @@ def shared_reference(db: Session, sitter: Sitter) -> Reference | None:
         select(Reference)
         .where(Reference.sitter_id == sitter.profile_id, Reference.outcome == VerificationStatus.approved)
         .order_by(Reference.name)
+        .limit(1)
+    )
+
+
+def photo_path(db: Session, sitter_id: uuid.UUID) -> str | None:
+    """Her latest profile photo. Shown to parents only while she's live, through a short-lived signed
+    URL (CLAUDE.md 5; the one exception to admin-only files, decided 2026-11-09)."""
+    return db.scalar(
+        select(Document.storage_path)
+        .where(
+            Document.owner_profile_id == sitter_id,
+            Document.type == DocumentType.photo,
+            Document.status == DocumentStatus.uploaded,
+            Document.deleted_at.is_(None),
+        )
+        .order_by(Document.created_at.desc())
         .limit(1)
     )
 
