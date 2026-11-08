@@ -14,7 +14,8 @@ export type ParentChecklist = { items: Item[]; finished: boolean };
 export type SitterChecklist = { items: Item[]; live: boolean; application_rejected_reason?: string | null };
 
 export function useChecklist<T extends ParentChecklist | SitterChecklist>(role: "parent" | "sitter") {
-  return useQuery({ queryKey: ["checklist", role], queryFn: () => apiFetch<T>(`/${role}/checklist`) });
+  // Always fresh when the home page opens: it reflects changes made on many other pages.
+  return useQuery({ queryKey: ["checklist", role], queryFn: () => apiFetch<T>(`/${role}/checklist`), staleTime: 0 });
 }
 
 type Step = { label: string; hint: string; to: string };

@@ -124,6 +124,20 @@ The app runs at http://localhost:5173.
 | `npm run lint` | Lint with ESLint |
 | `npm run typecheck` | Type-check with TypeScript |
 | `npm run build` | Type-check and build to `web/dist` |
+| `npm run e2e` | End-to-end tests in a real browser (Playwright; see below) |
+
+#### End-to-end tests
+
+`web/e2e` walks through the main journeys in a real (phone-sized) Chrome: a parent and a sitter sign up and
+finish their profiles, an admin rejects a step with a reason and the sitter fixes it, the admin approves the
+sitter and the family, and the parent finds the sitter. It runs the real web app and API against a fresh
+`pacifyco_e2e` database (recreated every run by `api/e2e_database.py`). Only the outside services are
+stand-ins (`web/e2e/fake-services.mjs`): Supabase sign-in keys and file storage, and OpenStreetMap. No `.env`
+or real keys are needed.
+
+Needs the local database running (`docker compose up -d --wait`) and the API's `.venv`. The first time, install
+the browser: `npx playwright install chromium`. Then, from `web/`: `npm run e2e`. CI runs it on every pull request
+("End-to-end tests"); if it fails there, the run keeps a report with screenshots and a trace.
 
 ### 5. Run everything with one command
 

@@ -41,11 +41,18 @@ class Settings(BaseSettings):
     # Encrypts sitters' health disclosure and bank payout details (CLAUDE.md section 7). A Fernet key,
     # e.g. `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
     field_encryption_key: str = ""
+    # OpenStreetMap Nominatim search endpoint (CLAUDE.md 3). Only end-to-end tests point it elsewhere.
+    nominatim_url: str = "https://nominatim.openstreetmap.org/search"
 
     @field_validator("environment", mode="before")
     @classmethod
     def _blank_environment_is_local(cls, value: object) -> object:
         return value or Environment.local
+
+    @field_validator("nominatim_url", mode="before")
+    @classmethod
+    def _blank_nominatim_is_public(cls, value: object) -> object:
+        return value or "https://nominatim.openstreetmap.org/search"
 
     @field_validator("admin_alert_emails", "cors_origins", mode="before")
     @classmethod

@@ -19,7 +19,6 @@ from sqlalchemy.orm import Session
 from app.models import GeocodeCache
 from app.settings import Settings, get_settings
 
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 USER_AGENT = "Pacifyco/1.0 (query.pacifyco@gmail.com)"
 MIN_SECONDS_BETWEEN_REQUESTS = 1.0
 REQUEST_TIMEOUT = 5.0
@@ -33,6 +32,9 @@ class Geocoder(Protocol):
 
 
 class NominatimGeocoder:
+    def __init__(self, url: str) -> None:
+        self.url = url
+
     _lock = threading.Lock()  # shared by every instance: the limit is per server, not per request
     _last_request = 0.0
 
@@ -43,7 +45,7 @@ class NominatimGeocoder:
                 time.sleep(wait)
             try:
                 response = httpx.get(
-                    NOMINATIM_URL,
+                    self.url,
                     params={"q": query, "format": "jsonv2", "limit": 1, "countrycodes": "in"},
                     headers={"User-Agent": USER_AGENT},
                     timeout=REQUEST_TIMEOUT,
@@ -60,7 +62,7 @@ class NominatimGeocoder:
 
 
 def get_geocoder(settings: Annotated[Settings, Depends(get_settings)]) -> Geocoder:
-    return NominatimGeocoder()
+    return NominatimGeocoder(settings.nominatim_url)
 
 
 def _round(value: str | float) -> Decimal:

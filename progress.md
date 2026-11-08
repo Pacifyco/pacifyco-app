@@ -210,6 +210,8 @@ at home (CLAUDE.md 6.3).
 - [x] Changes after a rejection go back for review (sitter steps 1-4; psych retakes stay admin-allowed)
 - [ ] Emails for approvals and rejections: held until phase 11 (Reuben 2026-11-09)
 - [ ] [Reuben] Real psychology test questions (phase 15)
+- [x] End-to-end tests (Playwright) for parent and sitter onboarding, admin review and finding a sitter;
+  run in CI on every pull request (README "End-to-end tests")
 
 ## Phase 6 — Plans and payments (was hour packs and ledger; changed 2026-11-03)
 
@@ -279,7 +281,7 @@ at home (CLAUDE.md 6.3).
 
 ## Phase 14 — Beta on staging
 
-- [ ] Seed realistic data; Playwright smoke tests for parent, sitter and admin journeys
+- [ ] Seed realistic data; extend the Playwright tests (onboarding journeys done 2026-11-09) to booking, check-in and payout journeys
 - [ ] [Reuben] Manual functional test pass on staging
 - [ ] [Reuben] User testing with ~5 parents and ~5 sitters; feedback logged in `docs/beta-feedback.md`
 - [ ] Fix beta feedback items marked must-fix
@@ -307,6 +309,9 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-09 — End-to-end tests (`e2e-tests`): Playwright runs the onboarding journeys against the real
+  web app and API on a fresh database, with stand-ins for Supabase and OpenStreetMap; new CI job. Found and
+  fixed: the home checklist showed stale steps for up to 30 seconds after finishing one.
 - 2026-11-09 — Onboarding polish (`onboarding-polish`): sitter profile photo (JPG/PNG; parents see
   live sitters' photos via signed URLs); admins must give a rejection reason, shown to parents and
   sitters on their checklist, family page and references; changes after a rejection go back for
