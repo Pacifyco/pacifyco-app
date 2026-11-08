@@ -154,6 +154,22 @@ describe("reviewing a sitter", () => {
     );
   });
 
+  test("after a fail, an admin can allow a retake", async () => {
+    const failed = { ...SITTER, psych_attempt: { ...SITTER.psych_attempt, status: "failed" } };
+    const calls = mockApi(
+      sitterRoutes({
+        "GET /admin/sitters/s1": () => jsonResponse(failed),
+        "GET /admin/psych-attempts/a1": () => jsonResponse({ ...PSYCH, status: "failed", retake_allowed: false }),
+        "POST /admin/psych-attempts/a1/allow-retake": () => jsonResponse({ id: "a1", status: "failed" }),
+      }),
+    );
+    renderAt("/admin/sitters/s1");
+    fireEvent.click(await screen.findByRole("button", { name: "Allow a retake" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({ method: "POST", path: "/admin/psych-attempts/a1/allow-retake", body: null }),
+    );
+  });
+
   test("opening the health disclosure fetches it from its logged endpoint", async () => {
     const calls = mockApi(
       sitterRoutes({ "GET /admin/sitters/s1/health-disclosure": () => jsonResponse({ disclosure: "Mild asthma" }) }),

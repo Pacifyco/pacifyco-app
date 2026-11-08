@@ -50,6 +50,7 @@ def update_profile(
     age_groups: list[str],
     languages: list[str],
     first_aid: bool,
+    reference_shared_consent: bool = False,
 ) -> Sitter:
     sitter = _get_sitter(db, sitter_id)
     sitter.date_of_birth = date_of_birth
@@ -58,6 +59,7 @@ def update_profile(
     sitter.age_groups = age_groups
     sitter.languages = languages
     sitter.first_aid = first_aid
+    sitter.reference_shared_consent = reference_shared_consent
     db.commit()
     return sitter
 

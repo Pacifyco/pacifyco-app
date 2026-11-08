@@ -64,6 +64,18 @@ def test_saving_a_profile(client, db_engine, sitter):  # noqa: F811
     assert stored["years_experience"] == 5
 
 
+def test_sharing_a_reference_is_off_unless_she_ticks_it(client, db_engine, sitter):  # noqa: F811
+    """CLAUDE.md 6.2: at Recharge level her reference is shown to parents only with her consent."""
+    assert (
+        client.put("/sitter/profile", json=PROFILE_BODY, headers=auth_for(sitter)).json()["reference_shared_consent"]
+        is False
+    )
+    body = {**PROFILE_BODY, "reference_shared_consent": True}
+    assert client.put("/sitter/profile", json=body, headers=auth_for(sitter)).json()["reference_shared_consent"] is True
+    stored = row(db_engine, "SELECT reference_shared_consent FROM sitters WHERE profile_id = :id", id=sitter["id"])
+    assert stored["reference_shared_consent"] is True
+
+
 def test_sitter_under_18_rejected(client, sitter):  # noqa: F811
     body = {**PROFILE_BODY, "date_of_birth": years_ago(17)}
     response = client.put("/sitter/profile", json=body, headers=auth_for(sitter))

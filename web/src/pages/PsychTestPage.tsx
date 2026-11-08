@@ -25,6 +25,8 @@ type Attempt = {
   status: AttemptStatus;
   submitted_at: string | null;
   answers: Record<string, string>;
+  /** After a fail, Pacify has allowed her to try again (decided 2026-11-08). */
+  retake_allowed: boolean;
 };
 
 type PsychTest = {
@@ -154,10 +156,19 @@ function PassedView() {
   );
 }
 
-function FailedView({ onRetake }: { onRetake: () => void }) {
+function FailedView({ retakeAllowed, onRetake }: { retakeAllowed: boolean; onRetake: () => void }) {
+  if (!retakeAllowed) {
+    return (
+      <div className="rounded-lg bg-surface-sunken p-5">
+        <p className="text-ink">
+          You didn't pass this time. Pacify will be in touch about whether you can take the screening again.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-start gap-4 rounded-lg bg-surface-sunken p-5">
-      <p className="text-ink">You didn't pass this time. You're welcome to try again.</p>
+      <p className="text-ink">You didn't pass this time, and Pacify has said you can try again.</p>
       <Button variant="secondary" onClick={onRetake}>
         Try again
       </Button>
@@ -187,7 +198,7 @@ export function PsychTestPage() {
             if (attempt && attempt.status === "submitted") return <SubmittedView submittedAt={attempt.submitted_at} />;
             if (attempt && attempt.status === "passed") return <PassedView />;
             if (attempt && attempt.status === "failed" && !retaking) {
-              return <FailedView onRetake={() => setRetaking(true)} />;
+              return <FailedView retakeAllowed={attempt.retake_allowed} onRetake={() => setRetaking(true)} />;
             }
             return <PsychTestForm questions={questions} initial={retaking ? {} : attempt?.answers ?? {}} />;
           })()}

@@ -8,9 +8,9 @@ tests.
 
 ## Current status
 
-- Phase: 5 — Marketplace (built on `phase5/marketplace`; needs merging. One item left: the Recharge
-  reference shown to parents. Phase 0 [Reuben] item left: bank/UPI)
-- Next item: phase 5, Recharge sitters' reference on her profile.
+- Phase: 6 — Plans and payments (Phase 5 finished on `phase5/recharge-reference`; needs merging.
+  Phase 0 [Reuben] item left: bank/UPI)
+- Next item: phase 6, pricing service.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
@@ -93,6 +93,7 @@ tests.
   before booking.
 - [ ] **Family Terms and introductions** (added 2026-11-08): the Family Terms may still describe a
   free introduction before the first booking; check and add to the v1.1 list for the lawyer.
+  Reuben 2026-11-08: keep documenting the differences; the T&C will be changed later.
 
 - [x] **Verification queue choices** (added 2026-11-08; answered 2026-11-08, CLAUDE.md 6.4 and 7):
   1. A family is verified only once **every** child's birth certificate is approved; adding a child
@@ -101,10 +102,9 @@ tests.
   2. A verified child's name and date of birth are locked (ask Pacify); parents can still add children.
   3. Rejected certificates are kept until a new one is uploaded.
 
-- [ ] **Psych test retake after a fail** (added 2026-11-03, `phase3/psych-test-engine`): not in
-  CLAUDE.md 7 step 5. Built so a sitter can retake with no limit once an admin records `failed` (she
-  can't start a second attempt while one is `in_progress`/`submitted`, or after `passed`). Confirm this
-  is the intended policy, or whether retakes should need an admin's say-so instead.
+- [x] **Psych test retake after a fail** (added 2026-11-03; answered 2026-11-08: "Admin should
+  allow"). After a fail she can retake only once an admin presses "Allow a retake" on her review
+  page (`POST /admin/psych-attempts/{id}/allow-retake`, audit `psych_retake_allowed`).
 
 - [x] Parent late and declines overtime: answered 2026-11-03, overtime is worked out automatically at check-out and the sitter is paid for it (CLAUDE.md 6.8).
 
@@ -195,8 +195,8 @@ tests.
   strikes will also hide a blocked sitter once they exist (phase 9)
 - [x] Sitter profile page and SitterCard (no price shown) — `/parent/sitters/:id`; the card's action is
   now "See [name]'s profile"
-- [ ] Recharge sitters' reference shown to parents with her consent (CLAUDE.md 6.2): add
-  `reference_shared_consent`, a tick in the sitter application, and the reference on her profile page
+- [x] Recharge sitters' reference shown to parents with her consent (CLAUDE.md 6.2): a tick in the
+  sitter application (`reference_shared_consent`), one admin-approved reference on her profile page
 - [x] Tests for this phase
 
 Interviews (the old phase 5) were dropped on 2026-11-08: no sitter onboarding interview, no
@@ -299,6 +299,9 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-08 — Phase 5 finished (`phase5/recharge-reference`): Recharge sitters' reference shown to
+  parents with her consent (tick in the application); psych retakes now need an admin's "Allow a
+  retake" (Reuben's answer). Migration `77b18ccb70f8`.
 - 2026-11-08 — Phase 5 marketplace (`phase5/marketplace`): `availability_slots` and `geocode_cache`
   (migration `0de52ef87290`); sitters add and remove free times; homes geocoded with Nominatim on
   saving details (cached, 1 request/second, tests use a fake); `GET /parent/sitters` (live sitters of

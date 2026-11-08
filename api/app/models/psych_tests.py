@@ -65,6 +65,9 @@ class PsychAttempt(Base):
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
+    # After a fail, she can only try again once an admin allows it (decided 2026-11-08).
+    retake_allowed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"))
+    retake_allowed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class PsychAnswer(Base):
