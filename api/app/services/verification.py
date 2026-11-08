@@ -107,7 +107,13 @@ def sitter_documents(db: Session, sitter_id: uuid.UUID) -> list[Document]:
 
 
 def record_step(
-    db: Session, admin_id: uuid.UUID, sitter_id: uuid.UUID, step: OnboardingStepName, approved: bool, notes: str | None
+    db: Session,
+    admin_id: uuid.UUID,
+    sitter_id: uuid.UUID,
+    step: OnboardingStepName,
+    approved: bool,
+    notes: str | None,
+    rejection_reason: str | None = None,
 ) -> OnboardingStep:
     get_sitter(db, sitter_id)
     row = db.get(OnboardingStep, (sitter_id, step))
@@ -117,6 +123,7 @@ def record_step(
         db.add(row)
     row.status = _decision(approved)
     row.notes = notes
+    row.rejection_reason = None if approved else rejection_reason
     row.reviewed_by = admin_id
     row.reviewed_at = _now()
     audit.record(
@@ -132,8 +139,32 @@ def record_step(
     return row
 
 
+# Which onboarding step each sitter document belongs to (CLAUDE.md 7 steps 1-3).
+DOCUMENT_STEPS = {
+    DocumentType.photo: OnboardingStepName.profile,
+    DocumentType.first_aid_certificate: OnboardingStepName.profile,
+    DocumentType.government_id: OnboardingStepName.identity_documents,
+    DocumentType.college_or_work_id: OnboardingStepName.identity_documents,
+    DocumentType.police_certificate: OnboardingStepName.police_certificate,
+}
+
+
+def resubmitted(db: Session, sitter_id: uuid.UUID, step: OnboardingStepName) -> None:
+    """She changed something in a rejected step: it goes back to waiting for review (decided
+    2026-11-09). The caller commits. The psychology test is different: an admin allows a retake."""
+    row = db.get(OnboardingStep, (sitter_id, step))
+    if row is not None and row.status == VerificationStatus.rejected:
+        row.status = VerificationStatus.pending
+        row.rejection_reason = None
+
+
 def record_reference_outcome(
-    db: Session, admin_id: uuid.UUID, reference_id: uuid.UUID, approved: bool, notes: str | None
+    db: Session,
+    admin_id: uuid.UUID,
+    reference_id: uuid.UUID,
+    approved: bool,
+    notes: str | None,
+    rejection_reason: str | None = None,
 ) -> Reference:
     reference = db.get(Reference, reference_id)
     if reference is None:
@@ -141,6 +172,7 @@ def record_reference_outcome(
     before = {"outcome": reference.outcome.value}
     reference.outcome = _decision(approved)
     reference.notes = notes
+    reference.rejection_reason = None if approved else rejection_reason
     audit.record(
         db,
         admin_id,
@@ -166,7 +198,14 @@ def set_level(db: Session, admin_id: uuid.UUID, sitter_id: uuid.UUID, level: Sit
     return sitter
 
 
-def decide_sitter(db: Session, admin_id: uuid.UUID, sitter_id: uuid.UUID, approved: bool, notes: str | None) -> Sitter:
+def decide_sitter(
+    db: Session,
+    admin_id: uuid.UUID,
+    sitter_id: uuid.UUID,
+    approved: bool,
+    notes: str | None,
+    rejection_reason: str | None = None,
+) -> Sitter:
     """The last onboarding step (CLAUDE.md 7 step 6). Approving needs every step approved and a level."""
     profile, sitter = get_sitter(db, sitter_id)
     if approved:
@@ -184,6 +223,7 @@ def decide_sitter(db: Session, admin_id: uuid.UUID, sitter_id: uuid.UUID, approv
 
     before = {"onboarding_status": sitter.onboarding_status.value, "profile_status": profile.status.value}
     sitter.onboarding_status = OnboardingStatus.approved if approved else OnboardingStatus.rejected
+    sitter.rejection_reason = None if approved else rejection_reason
     if approved and profile.status == ProfileStatus.pending:  # never reinstates a suspended or removed account
         profile.status = ProfileStatus.active
     audit.record(
@@ -299,7 +339,13 @@ def birth_certificates(db: Session, child_id: uuid.UUID) -> list[Document]:
 
 
 def decide_child(
-    db: Session, storage: StorageClient, admin_id: uuid.UUID, child_id: uuid.UUID, approved: bool, notes: str | None
+    db: Session,
+    storage: StorageClient,
+    admin_id: uuid.UUID,
+    child_id: uuid.UUID,
+    approved: bool,
+    notes: str | None,
+    rejection_reason: str | None = None,
 ) -> Child:
     child = db.get(Child, child_id)
     if child is None:
@@ -313,6 +359,7 @@ def decide_child(
     child.verified_by = admin_id
     child.verified_at = _now()
     child.verification_notes = notes
+    child.rejection_reason = None if approved else rejection_reason
     audit.record(
         db,
         admin_id,

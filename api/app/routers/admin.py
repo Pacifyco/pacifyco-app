@@ -5,7 +5,7 @@ from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 
 from app.auth import require_role
@@ -97,6 +97,7 @@ class PsychAttemptDetail(BaseModel):
     submitted_at: datetime | None
     reviewed_at: datetime | None
     notes: str | None
+    rejection_reason: str | None
     retake_allowed: bool
     answers: list[PsychAttemptAnswerOut]
 
@@ -115,6 +116,7 @@ def get_psych_attempt(attempt_id: uuid.UUID, admin: Admin, db: DbSession) -> Psy
         submitted_at=attempt.submitted_at,
         reviewed_at=attempt.reviewed_at,
         notes=attempt.notes,
+        rejection_reason=attempt.rejection_reason,
         retake_allowed=attempt.retake_allowed_at is not None,
         answers=[
             PsychAttemptAnswerOut(
@@ -129,9 +131,22 @@ def get_psych_attempt(attempt_id: uuid.UUID, admin: Admin, db: DbSession) -> Psy
     )
 
 
+def _clean_reason(value: str | None) -> str | None:
+    return (value.strip() or None) if value is not None else None
+
+
 class PsychAttemptDecisionIn(BaseModel):
     passed: bool
     notes: str | None = Field(default=None, max_length=2000)
+    # Shown to the parent or sitter (decided 2026-11-09). Required when rejecting; notes stay internal.
+    rejection_reason: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def _reason_when_failing(self) -> PsychAttemptDecisionIn:
+        self.rejection_reason = _clean_reason(self.rejection_reason)
+        if not self.passed and self.rejection_reason is None:
+            raise ValueError("Please give a reason for failing; it's shown to her")
+        return self
 
 
 class PsychAttemptDecisionOut(BaseModel):
@@ -143,7 +158,9 @@ class PsychAttemptDecisionOut(BaseModel):
 def decide_psych_attempt(
     attempt_id: uuid.UUID, body: PsychAttemptDecisionIn, admin: Admin, db: DbSession
 ) -> PsychAttemptDecisionOut:
-    attempt = psych_tests_service.record_decision(db, admin.id, attempt_id, body.passed, body.notes)
+    attempt = psych_tests_service.record_decision(
+        db, admin.id, attempt_id, body.passed, body.notes, body.rejection_reason
+    )
     return PsychAttemptDecisionOut(id=attempt.id, status=attempt.status)
 
 
@@ -160,6 +177,15 @@ def allow_psych_retake(attempt_id: uuid.UUID, admin: Admin, db: DbSession) -> Ps
 class Decision(BaseModel):
     approved: bool
     notes: str | None = Field(default=None, max_length=2000)
+    # Shown to the parent or sitter (decided 2026-11-09). Required when rejecting; notes stay internal.
+    rejection_reason: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def _reason_when_rejecting(self) -> Decision:
+        self.rejection_reason = _clean_reason(self.rejection_reason)
+        if not self.approved and self.rejection_reason is None:
+            raise ValueError("Please give a reason for rejecting; it's shown to them")
+        return self
 
 
 class SitterQueueItem(BaseModel):
@@ -226,6 +252,7 @@ class ReferenceOut(BaseModel):
     relationship: str
     outcome: VerificationStatus
     notes: str | None
+    rejection_reason: str | None
 
 
 class PsychAttemptRef(BaseModel):
@@ -298,6 +325,7 @@ def get_sitter_review(sitter_id: uuid.UUID, admin: Admin, db: DbSession) -> Sitt
                 relationship=ref.relationship,
                 outcome=ref.outcome,
                 notes=ref.notes,
+                rejection_reason=ref.rejection_reason,
             )
             for ref in verification.sitter_references(db, sitter_id)
         ],
@@ -331,13 +359,15 @@ class StatusOut(BaseModel):
 def review_onboarding_step(
     sitter_id: uuid.UUID, step: OnboardingStepName, body: Decision, admin: Admin, db: DbSession
 ) -> StatusOut:
-    row = verification.record_step(db, admin.id, sitter_id, step, body.approved, body.notes)
+    row = verification.record_step(db, admin.id, sitter_id, step, body.approved, body.notes, body.rejection_reason)
     return StatusOut(status=row.status)
 
 
 @router.post("/references/{reference_id}/decision")
 def review_reference(reference_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession) -> StatusOut:
-    reference = verification.record_reference_outcome(db, admin.id, reference_id, body.approved, body.notes)
+    reference = verification.record_reference_outcome(
+        db, admin.id, reference_id, body.approved, body.notes, body.rejection_reason
+    )
     return StatusOut(status=reference.outcome)
 
 
@@ -357,7 +387,7 @@ class OnboardingStatusOut(BaseModel):
 
 @router.post("/sitters/{sitter_id}/decision")
 def decide_sitter(sitter_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession) -> OnboardingStatusOut:
-    sitter = verification.decide_sitter(db, admin.id, sitter_id, body.approved, body.notes)
+    sitter = verification.decide_sitter(db, admin.id, sitter_id, body.approved, body.notes, body.rejection_reason)
     return OnboardingStatusOut(onboarding_status=sitter.onboarding_status)
 
 
@@ -368,6 +398,7 @@ class ChildReview(BaseModel):
     verification_status: VerificationStatus
     verified_at: datetime | None
     verification_notes: str | None
+    rejection_reason: str | None
     birth_certificates: list[DocumentSummary]
 
 
@@ -403,6 +434,7 @@ def get_family_review(parent_id: uuid.UUID, admin: Admin, db: DbSession) -> Fami
                 verification_status=child.verification_status,
                 verified_at=child.verified_at,
                 verification_notes=child.verification_notes,
+                rejection_reason=child.rejection_reason,
                 birth_certificates=[
                     DocumentSummary(id=doc.id, type=doc.type, uploaded_at=doc.created_at)
                     for doc in verification.birth_certificates(db, child.id)
@@ -415,5 +447,5 @@ def get_family_review(parent_id: uuid.UUID, admin: Admin, db: DbSession) -> Fami
 
 @router.post("/children/{child_id}/decision")
 def decide_child(child_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession, storage: Storage) -> StatusOut:
-    child = verification.decide_child(db, storage, admin.id, child_id, body.approved, body.notes)
+    child = verification.decide_child(db, storage, admin.id, child_id, body.approved, body.notes, body.rejection_reason)
     return StatusOut(status=child.verification_status)

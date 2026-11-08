@@ -9,9 +9,9 @@ import { apiFetch } from "../lib/api";
 // (api/app/services/checklists.py).
 
 export type ItemStatus = "to_do" | "waiting" | "done" | "approved" | "rejected";
-type Item = { key: string; status: ItemStatus };
+type Item = { key: string; status: ItemStatus; reason?: string | null };
 export type ParentChecklist = { items: Item[]; finished: boolean };
-export type SitterChecklist = { items: Item[]; live: boolean };
+export type SitterChecklist = { items: Item[]; live: boolean; application_rejected_reason?: string | null };
 
 export function useChecklist<T extends ParentChecklist | SitterChecklist>(role: "parent" | "sitter") {
   return useQuery({ queryKey: ["checklist", role], queryFn: () => apiFetch<T>(`/${role}/checklist`) });
@@ -62,7 +62,7 @@ export function ChecklistCard({
       </h2>
       <p className="mt-2 text-muted">{intro}</p>
       <ul className="mt-3">
-        {items.map(({ key, status }) => {
+        {items.map(({ key, status, reason }) => {
           const step = steps[key];
           if (!step) return null;
           const { word, icon: Icon, tone } = STATUS[status];
@@ -73,6 +73,9 @@ export function ChecklistCard({
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="text-ui">{step.label}</span>
                   <span className="text-small text-muted">{step.hint}</span>
+                  {status === "rejected" && reason && (
+                    <span className="mt-1 text-small text-danger">Reason: {reason}</span>
+                  )}
                 </span>
                 <span className={cx("text-small", tone)}>{word}</span>
                 <ChevronRight aria-hidden="true" size={20} strokeWidth={1.75} className="shrink-0 text-muted" />

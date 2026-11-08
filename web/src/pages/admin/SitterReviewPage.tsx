@@ -172,7 +172,7 @@ function PsychTest({ sitter, invalidate }: { sitter: SitterReview; invalidate: u
           subject="the psychology test"
           approveLabel="Pass"
           rejectLabel="Fail"
-          body={(approved, notes) => ({ passed: approved, notes })}
+          body={(approved, notes, rejectionReason) => ({ passed: approved, notes, rejection_reason: rejectionReason })}
         />
       )}
       {attempt?.status === "failed" && detail.isSuccess && (

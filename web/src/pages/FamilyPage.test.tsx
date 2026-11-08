@@ -122,6 +122,27 @@ describe("the family page", () => {
     );
   });
 
+  test("a rejected birth certificate says why and asks for a new one", async () => {
+    mockApi({
+      children: [
+        {
+          id: "child-0",
+          name: "Asha",
+          date_of_birth: "2023-05-01",
+          verification_status: "rejected",
+          rejection_reason: "The name doesn't match",
+        },
+        { id: "child-1", name: "Kabir", date_of_birth: "2021-05-01", verification_status: "approved" },
+      ],
+    });
+    renderFamilyPage();
+    expect(
+      await screen.findByText("Pacify couldn't accept this birth certificate. Please upload a new one below."),
+    ).toBeTruthy();
+    expect(screen.getByText("Reason: The name doesn't match")).toBeTruthy();
+    expect(screen.getByText("Verified. The birth certificate has been deleted.")).toBeTruthy();
+  });
+
   test("continuing from step 1 advances to emergency contacts", async () => {
     mockApi();
     renderFamilyPage();

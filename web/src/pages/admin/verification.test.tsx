@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../../test/renderApp";
@@ -139,7 +139,33 @@ describe("reviewing a sitter", () => {
       expect(calls).toContainEqual({
         method: "POST",
         path: "/admin/sitters/s1/steps/police_certificate",
-        body: { approved: true, notes: "Checked with the station" },
+        body: { approved: true, notes: "Checked with the station", rejection_reason: null },
+      }),
+    );
+  });
+
+  test("rejecting needs a reason, which is sent to show the sitter", async () => {
+    const calls = mockApi(
+      sitterRoutes({ "POST /admin/sitters/s1/steps/police_certificate": () => jsonResponse({ status: "rejected" }) }),
+    );
+    renderAt("/admin/sitters/s1");
+    const notes = await screen.findByLabelText(/Notes on the police certificate/);
+    const section = notes.closest("section")!;
+    const reject = () => fireEvent.click(Array.from(section.querySelectorAll("button")).find((b) => b.textContent === "Reject")!);
+
+    reject();
+    expect(within(section).getByText("Please give a reason. It's shown to them.")).toBeTruthy();
+    expect(calls.some((call) => call.method === "POST")).toBe(false);
+
+    fireEvent.change(within(section).getByLabelText(/Reason for rejecting the police certificate/), {
+      target: { value: "It's older than six months" },
+    });
+    reject();
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: "POST",
+        path: "/admin/sitters/s1/steps/police_certificate",
+        body: { approved: false, notes: null, rejection_reason: "It's older than six months" },
       }),
     );
   });
@@ -150,7 +176,7 @@ describe("reviewing a sitter", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Pass" }));
     await waitFor(() =>
-      expect(calls).toContainEqual({ method: "POST", path: "/admin/psych-attempts/a1/decision", body: { passed: true, notes: null } }),
+      expect(calls).toContainEqual({ method: "POST", path: "/admin/psych-attempts/a1/decision", body: { passed: true, notes: null, rejection_reason: null } }),
     );
   });
 
@@ -264,7 +290,7 @@ describe("reviewing a family", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await waitFor(() =>
-      expect(calls).toContainEqual({ method: "POST", path: "/admin/children/c1/decision", body: { approved: true, notes: null } }),
+      expect(calls).toContainEqual({ method: "POST", path: "/admin/children/c1/decision", body: { approved: true, notes: null, rejection_reason: null } }),
     );
   });
 });

@@ -120,6 +120,7 @@ describe("finding a sitter", () => {
     avg_rating: null,
     review_count: 0,
     distance_km: 2.37,
+    photo_url: "https://storage.example/photo/s1?token=x",
   };
 
   test("shows nearby sitters of the default plan, with no prices", async () => {
@@ -127,6 +128,9 @@ describe("finding a sitter", () => {
     const { container } = renderAt("/parent/sitters");
     const card = within((await screen.findByRole("heading", { name: "Lakshmi Nair" })).closest("article")!);
     expect(card.getByText("4 years' experience · 2.4 km away")).toBeTruthy();
+    expect(card.getByRole("img", { name: "Lakshmi Nair" }).getAttribute("src")).toBe(
+      "https://storage.example/photo/s1?token=x",
+    );
     expect(card.getByText("First-aid certified")).toBeTruthy();
     expect(card.queryByText("Psychology screening passed")).toBeNull(); // placeholder questions for now
     expect(card.getByRole("link", { name: "See Lakshmi's profile" }).getAttribute("href")).toBe("/parent/sitters/s1");
@@ -195,6 +199,7 @@ describe("a sitter's profile page", () => {
     avg_rating: 4.8,
     review_count: 12,
     distance_km: 0.4,
+    photo_url: null,
     bio: "I love storytime.",
     plan: "pause",
     free_times: [{ starts_at: "2026-11-10T03:30:00Z", ends_at: "2026-11-10T07:30:00Z" }],

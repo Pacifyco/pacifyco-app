@@ -24,6 +24,7 @@ type ChildReview = {
   verification_status: ReviewStatus;
   verified_at: string | null;
   verification_notes: string | null;
+  rejection_reason: string | null;
   birth_certificates: DocumentSummary[];
 };
 
@@ -50,6 +51,9 @@ function ChildCard({ child, invalidate }: { child: ChildReview; invalidate: unkn
         <StatusPill status={child.verification_status} />
       </div>
       {child.verification_notes && <p className="mt-3 text-small text-muted">Notes: {child.verification_notes}</p>}
+      {child.verification_status === "rejected" && child.rejection_reason && (
+        <p className="mt-1 text-small text-muted">Reason given to the parent: {child.rejection_reason}</p>
+      )}
 
       {child.verification_status === "approved" ? (
         <p className="mt-3 text-small text-muted">

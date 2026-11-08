@@ -63,8 +63,12 @@ def psych_attempt(db_engine, sitter_id, status):
         )
 
 
-def review(client, admin_id, path, approved=True, notes=None):  # noqa: F811
-    return client.post(path, json={"approved": approved, "notes": notes}, headers=as_user(admin_id))
+def review(client, admin_id, path, approved=True, notes=None, reason=None):  # noqa: F811
+    """A decision. Rejecting needs a reason shown to the person; by default the notes double as one."""
+    if not approved and reason is None:
+        reason = notes or "Please upload a clearer copy"
+    body = {"approved": approved, "notes": notes, "rejection_reason": reason}
+    return client.post(path, json=body, headers=as_user(admin_id))
 
 
 def approve_everything(client, db_engine, sitter_user, admin_id):  # noqa: F811

@@ -16,6 +16,9 @@ from app.services import checklists, consent, family
 from app.services import children as children_service
 from app.services import search as search_service
 from app.services.accounts import normalise_mobile
+from app.services.storage import StorageClient, get_storage
+
+Storage = Annotated[StorageClient, Depends(get_storage)]
 
 router = APIRouter(prefix="/parent", tags=["parent"], dependencies=[Depends(require_role(Role.parent))])
 Parent = Annotated[Profile, Depends(require_role(Role.parent))]
@@ -24,6 +27,7 @@ Parent = Annotated[Profile, Depends(require_role(Role.parent))]
 class ChecklistItem(BaseModel):
     key: str
     status: checklists.ItemStatus
+    reason: str | None = None  # when rejected: why, in the admin's words
 
 
 class Checklist(BaseModel):
@@ -33,7 +37,7 @@ class Checklist(BaseModel):
 
 
 def checklist_out(items: list[checklists.Item]) -> list[ChecklistItem]:
-    return [ChecklistItem(key=item.key, status=item.status) for item in items]
+    return [ChecklistItem(key=item.key, status=item.status, reason=item.reason) for item in items]
 
 
 @router.get("/checklist")
@@ -190,6 +194,7 @@ class ChildOut(BaseModel):
     medical_notes: str | None
     routines: str | None
     verification_status: VerificationStatus
+    rejection_reason: str | None  # why Pacify couldn't accept the birth certificate
 
 
 def _child_out(child: Child) -> ChildOut:
@@ -201,6 +206,7 @@ def _child_out(child: Child) -> ChildOut:
         medical_notes=child.medical_notes,
         routines=child.routines,
         verification_status=child.verification_status,
+        rejection_reason=child.rejection_reason,
     )
 
 
@@ -245,6 +251,7 @@ class SitterSummary(BaseModel):
     avg_rating: float | None
     review_count: int
     distance_km: float | None  # straight line from the parent's home, to 0.1 km
+    photo_url: str | None  # short-lived signed URL; live sitters only
 
 
 class FreeTime(BaseModel):
@@ -266,7 +273,17 @@ class SitterDetail(SitterSummary):
     reference: SharedReference | None
 
 
-def _summary_fields(found: search_service.Found) -> dict:
+def _photo_url(db: DbSession, storage: StorageClient, sitter_id: uuid.UUID) -> str | None:
+    path = search_service.photo_path(db, sitter_id)
+    if path is None:
+        return None
+    try:
+        return storage.create_signed_view_url(path)
+    except AppError:  # storage hiccup: show initials rather than fail the page
+        return None
+
+
+def _summary_fields(found: search_service.Found, photo_url: str | None) -> dict:
     profile, sitter = found.profile, found.sitter
     return {
         "id": profile.id,
@@ -278,6 +295,7 @@ def _summary_fields(found: search_service.Found) -> dict:
         "avg_rating": float(sitter.avg_rating) if sitter.avg_rating is not None else None,
         "review_count": sitter.review_count,
         "distance_km": round(found.distance_km, 1) if found.distance_km is not None else None,
+        "photo_url": photo_url,
     }
 
 
@@ -285,6 +303,7 @@ def _summary_fields(found: search_service.Found) -> dict:
 def search_sitters(
     parent: Parent,
     db: DbSession,
+    storage: Storage,
     plan: SitterLevel,
     starts_at: Annotated[AwareDatetime | None, Query()] = None,
     ends_at: Annotated[AwareDatetime | None, Query()] = None,
@@ -310,17 +329,20 @@ def search_sitters(
         first_aid=first_aid,
         sort=sort,
     )
-    return [SitterSummary(**_summary_fields(found)) for found in search_service.search(db, parent, filters)]
+    return [
+        SitterSummary(**_summary_fields(found, _photo_url(db, storage, found.profile.id)))
+        for found in search_service.search(db, parent, filters)
+    ]
 
 
 @router.get("/sitters/{sitter_id}")
-def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession) -> SitterDetail:
+def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Storage) -> SitterDetail:
     checklists.require_finished_parent_profile(db, parent)
     found = search_service.live_sitter(db, parent, sitter_id)
     slots = search_service.free_times(db, sitter_id, datetime.now(UTC))
     shared = search_service.shared_reference(db, found.sitter)
     return SitterDetail(
-        **_summary_fields(found),
+        **_summary_fields(found, _photo_url(db, storage, sitter_id)),
         bio=found.sitter.bio,
         plan=found.sitter.level,
         free_times=[FreeTime(starts_at=slot.starts_at, ends_at=slot.ends_at) for slot in slots],

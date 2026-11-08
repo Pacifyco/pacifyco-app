@@ -177,7 +177,11 @@ def test_after_a_fail_a_retake_needs_an_admin(client, db_engine, sitter, admin):
     answer_every_question(client, sitter, questions)
     client.post("/sitter/psych-test/submit", headers=auth_for(sitter))
     attempt_id = client.get("/admin/psych-attempts", headers=auth_for(admin)).json()[0]["id"]
-    client.post(f"/admin/psych-attempts/{attempt_id}/decision", json={"passed": False}, headers=auth_for(admin))
+    client.post(
+        f"/admin/psych-attempts/{attempt_id}/decision",
+        json={"passed": False, "rejection_reason": "Some answers worried us"},
+        headers=auth_for(admin),
+    )
 
     mine = client.get("/sitter/psych-test", headers=auth_for(sitter)).json()
     assert mine["attempt"]["status"] == "failed"
@@ -223,7 +227,9 @@ def test_cannot_decide_an_attempt_twice(client, sitter, admin):  # noqa: F811
 
     client.post(f"/admin/psych-attempts/{attempt_id}/decision", json={"passed": True}, headers=auth_for(admin))
     second = client.post(
-        f"/admin/psych-attempts/{attempt_id}/decision", json={"passed": False}, headers=auth_for(admin)
+        f"/admin/psych-attempts/{attempt_id}/decision",
+        json={"passed": False, "rejection_reason": "Some answers worried us"},
+        headers=auth_for(admin),
     )
     assert second.status_code == 409
     assert second.json()["error"]["code"] == "not_submitted"

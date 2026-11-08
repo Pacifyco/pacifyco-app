@@ -8,8 +8,8 @@ tests.
 
 ## Current status
 
-- Phase: 6 — Plans and payments (Phase 5 finished on `phase5/recharge-reference`; needs merging.
-  Phase 0 [Reuben] item left: bank/UPI)
+- Phase: 6 — Plans and payments (onboarding polish on `onboarding-polish`; needs merging. Beta uses
+  a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch)
 - Next item: phase 6, pricing service.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -203,6 +203,14 @@ Interviews (the old phase 5) were dropped on 2026-11-08: no sitter onboarding in
 introductions, no Google Calendar. Parents are encouraged to make a 1-hour first booking with a parent
 at home (CLAUDE.md 6.3).
 
+## Onboarding polish (added 2026-11-09, before phase 6)
+
+- [x] Sitter profile photo (JPG/PNG) in the application; parents see live sitters' photos
+- [x] Rejection reason required from admins and shown to parents and sitters
+- [x] Changes after a rejection go back for review (sitter steps 1-4; psych retakes stay admin-allowed)
+- [ ] Emails for approvals and rejections: held until phase 11 (Reuben 2026-11-09)
+- [ ] [Reuben] Real psychology test questions (phase 15)
+
 ## Phase 6 — Plans and payments (was hour packs and ledger; changed 2026-11-03)
 
 - [ ] Pricing service (plans, children, whole hours only)
@@ -299,6 +307,10 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-09 — Onboarding polish (`onboarding-polish`): sitter profile photo (JPG/PNG; parents see
+  live sitters' photos via signed URLs); admins must give a rejection reason, shown to parents and
+  sitters on their checklist, family page and references; changes after a rejection go back for
+  review. Migration `0d2ed5a4f50b`.
 - 2026-11-08 — Phase 5 finished (`phase5/recharge-reference`): Recharge sitters' reference shown to
   parents with her consent (tick in the application); psych retakes now need an admin's "Allow a
   retake" (Reuben's answer). Migration `77b18ccb70f8`.

@@ -132,7 +132,12 @@ def get_attempt(db: Session, attempt_id: uuid.UUID) -> PsychAttempt:
 
 
 def record_decision(
-    db: Session, admin_id: uuid.UUID, attempt_id: uuid.UUID, passed: bool, notes: str | None
+    db: Session,
+    admin_id: uuid.UUID,
+    attempt_id: uuid.UUID,
+    passed: bool,
+    notes: str | None,
+    rejection_reason: str | None = None,
 ) -> PsychAttempt:
     attempt = get_attempt(db, attempt_id)
     if attempt.status != PsychAttemptStatus.submitted:
@@ -143,6 +148,7 @@ def record_decision(
     attempt.reviewed_by = admin_id
     attempt.reviewed_at = datetime.now(UTC)
     attempt.notes = notes
+    attempt.rejection_reason = None if passed else rejection_reason
     audit.record(
         db,
         admin_id,

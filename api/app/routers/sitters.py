@@ -13,6 +13,8 @@ from app.auth import require_role
 from app.deps import DbSession
 from app.models import (
     AvailabilitySlot,
+    OnboardingStatus,
+    OnboardingStepName,
     PayoutMethod,
     Profile,
     PsychAttempt,
@@ -43,6 +45,12 @@ def _clean_text(value: str) -> str:
 
 
 # ---------- profile (CLAUDE.md section 7 step 1) ----------
+
+
+def _resubmitted_profile(db: Session, sitter_id: uuid.UUID) -> None:
+    """Changing step 1 after it was rejected sends it back for review (decided 2026-11-09)."""
+    verification.resubmitted(db, sitter_id, OnboardingStepName.profile)
+    db.commit()
 
 
 class SitterProfileIn(BaseModel):
@@ -103,6 +111,8 @@ def _profile_out(row: Sitter) -> SitterProfileOut:
 class SitterChecklist(BaseModel):
     items: list[ChecklistItem]
     live: bool  # approved, level set and active: shown to parents (CLAUDE.md 7)
+    # Set when Pacify turned down her whole application, with the reason it gave.
+    application_rejected_reason: str | None
 
 
 @router.get("/checklist")
@@ -110,7 +120,11 @@ def get_checklist(sitter: SitterProfile, db: DbSession) -> SitterChecklist:
     """Her onboarding steps and where each stands (CLAUDE.md 6.13, 7)."""
     profile, row = verification.get_sitter(db, sitter.id)
     return SitterChecklist(
-        items=checklist_out(checklists.sitter_checklist(db, profile, row)), live=verification.is_live(profile, row)
+        items=checklist_out(checklists.sitter_checklist(db, profile, row)),
+        live=verification.is_live(profile, row),
+        application_rejected_reason=(
+            row.rejection_reason if row.onboarding_status == OnboardingStatus.rejected else None
+        ),
     )
 
 
@@ -132,6 +146,7 @@ def put_profile(body: SitterProfileIn, sitter: SitterProfile, db: DbSession) -> 
         first_aid=body.first_aid,
         reference_shared_consent=body.reference_shared_consent,
     )
+    _resubmitted_profile(db, sitter.id)
     return _profile_out(row)
 
 
@@ -159,6 +174,7 @@ def put_health_disclosure(
     body: HealthDisclosure, sitter: SitterProfile, db: DbSession, settings: AppSettings
 ) -> HealthDisclosure:
     sitters_service.set_health_disclosure(db, sitter.id, body.disclosure, settings.field_encryption_key)
+    _resubmitted_profile(db, sitter.id)
     return body
 
 
@@ -221,8 +237,10 @@ def put_payout_details(
             ifsc_code=_clean_text(body.ifsc_code or ""),
         )
         sitters_service.set_payout_bank(db, sitter.id, details, settings.field_encryption_key)
+        _resubmitted_profile(db, sitter.id)
         return PayoutDetailsOut(method=PayoutMethod.bank, **details.__dict__)
     sitters_service.set_payout_upi(db, sitter.id, body.upi_id or "")
+    _resubmitted_profile(db, sitter.id)
     return PayoutDetailsOut(method=PayoutMethod.upi, upi_id=body.upi_id)
 
 
@@ -257,10 +275,18 @@ class ReferenceOut(BaseModel):
     relationship: str
     phone: str
     outcome: VerificationStatus
+    rejection_reason: str | None  # why Pacify couldn't accept this reference
 
 
 def _reference_out(row: Reference) -> ReferenceOut:
-    return ReferenceOut(id=row.id, name=row.name, relationship=row.relationship, phone=row.phone, outcome=row.outcome)
+    return ReferenceOut(
+        id=row.id,
+        name=row.name,
+        relationship=row.relationship,
+        phone=row.phone,
+        outcome=row.outcome,
+        rejection_reason=row.rejection_reason,
+    )
 
 
 @router.get("/references")

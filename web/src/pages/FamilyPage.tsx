@@ -30,6 +30,8 @@ type Child = {
   medical_notes: string | null;
   routines: string | null;
   verification_status: VerificationStatus;
+  /** Why Pacify couldn't accept the birth certificate, if it was rejected. */
+  rejection_reason: string | null;
 };
 
 type ChildInput = {
@@ -132,6 +134,22 @@ function ChildForm({
   );
 }
 
+// Where the birth certificate check stands, and why it was turned down (decided 2026-11-09).
+function ChildStatus({ child }: { child: Child }) {
+  if (child.verification_status === "approved") {
+    return <p className="text-small text-trust">Verified. The birth certificate has been deleted.</p>;
+  }
+  if (child.verification_status === "rejected") {
+    return (
+      <div role="status" className="text-small text-danger">
+        <p>Pacify couldn't accept this birth certificate. Please upload a new one below.</p>
+        {child.rejection_reason && <p>Reason: {child.rejection_reason}</p>}
+      </div>
+    );
+  }
+  return null;
+}
+
 function ChildCard({ child }: { child: Child }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -191,6 +209,7 @@ function ChildCard({ child }: { child: Child }) {
         </div>
       </div>
       {child.allergies && <p className="text-small text-ink">Allergies: {child.allergies}</p>}
+      <ChildStatus child={child} />
       <ErrorLine message={error} />
       <div className="border-t border-line pt-3">
         <DocumentUpload

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import Child, Document, DocumentAccessLog, DocumentStatus, DocumentType, VerificationStatus
-from app.services import consent
+from app.services import consent, verification
 from app.services.storage import StorageClient
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -23,6 +23,10 @@ _SNIFFERS: tuple[tuple[bytes, str], ...] = (
     (b"\xff\xd8\xff", "image/jpeg"),
     (b"\x89PNG\r\n\x1a\n", "image/png"),
 )
+
+
+# Parents see sitters' photos in the browser, so a photo must be an image, not a PDF.
+PHOTO_TYPES = ("image/jpeg", "image/png")
 
 
 def sniff_content_type(data: bytes) -> str | None:
@@ -90,11 +94,21 @@ def confirm_upload(
         message = "That file is larger than 5 MB" if len(data) > MAX_FILE_BYTES else "That file isn't a PDF, JPG or PNG"
         raise AppError(422, "invalid_file", message)
 
+    if document.type == DocumentType.photo and sniff_content_type(data) not in PHOTO_TYPES:
+        storage.delete(document.storage_path)
+        document.status = DocumentStatus.invalid
+        db.commit()
+        raise AppError(422, "invalid_file", "Please upload your photo as a JPG or PNG")
+
     document.status = DocumentStatus.uploaded
+    # A new upload after a rejection goes back for review (CLAUDE.md 7; decided 2026-11-09 for sitters).
     if document.type == DocumentType.birth_certificate and document.child_id is not None:
         child = db.get(Child, document.child_id)
         if child is not None and child.verification_status == VerificationStatus.rejected:
-            child.verification_status = VerificationStatus.pending  # a new certificate goes back for review
+            child.verification_status = VerificationStatus.pending
+            child.rejection_reason = None
+    if document.type in verification.DOCUMENT_STEPS:
+        verification.resubmitted(db, document.owner_profile_id, verification.DOCUMENT_STEPS[document.type])
     db.commit()
     return document
 
