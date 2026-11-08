@@ -104,7 +104,7 @@ export function ComponentsPage() {
         </div>
         <div className="flex flex-wrap gap-6">
           <IconTile icon={ShieldCheck} label="ID & police checks" />
-          <IconTile icon={CalendarHeart} label="Meet first, free" />
+          <IconTile icon={CalendarHeart} label="Start with a short booking" />
           <IconTile icon={House} label="Care at home" />
           <IconTile icon={Sparkles} label="Play and learning" />
         </div>
@@ -123,7 +123,6 @@ export function ComponentsPage() {
             rating={4.8}
             reviewCount={23}
             familiesServed={14}
-            unlocked={false}
             actionHref="/dev/components"
           />
           <SitterCard
@@ -137,7 +136,6 @@ export function ComponentsPage() {
             rating={null}
             reviewCount={0}
             familiesServed={0}
-            unlocked
             actionHref="/dev/components"
           />
         </div>

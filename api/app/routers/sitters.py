@@ -2,16 +2,17 @@
 
 import re
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from app.auth import require_role
 from app.deps import DbSession
 from app.models import (
+    AvailabilitySlot,
     PayoutMethod,
     Profile,
     PsychAttempt,
@@ -23,6 +24,7 @@ from app.models import (
     VerificationStatus,
 )
 from app.routers.parents import ChecklistItem, checklist_out
+from app.services import availability as availability_service
 from app.services import checklists, verification
 from app.services import psych_tests as psych_tests_service
 from app.services import sitters as sitters_service
@@ -340,3 +342,44 @@ def put_psych_test_answers(body: PsychAnswersIn, sitter: SitterProfile, db: DbSe
 def post_psych_test_submit(sitter: SitterProfile, db: DbSession) -> PsychAttemptOut:
     attempt = psych_tests_service.submit_my_attempt(db, sitter.id)
     return _attempt_out(db, attempt)
+
+
+# ---------- availability (CLAUDE.md 6.4; dated free times) ----------
+
+
+class SlotIn(BaseModel):
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def _ends_after_start(self) -> SlotIn:
+        if self.ends_at <= self.starts_at:
+            raise ValueError("The end time must be after the start time")
+        return self
+
+
+class SlotOut(BaseModel):
+    id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+
+
+def _slot_out(slot: AvailabilitySlot) -> SlotOut:
+    return SlotOut(id=slot.id, starts_at=slot.starts_at, ends_at=slot.ends_at)
+
+
+@router.get("/availability")
+def get_availability(sitter: SitterProfile, db: DbSession) -> list[SlotOut]:
+    """Her free times that haven't ended yet, soonest first."""
+    return [_slot_out(slot) for slot in availability_service.upcoming(db, sitter.id, datetime.now(UTC))]
+
+
+@router.post("/availability", status_code=201)
+def post_availability(body: SlotIn, sitter: SitterProfile, db: DbSession) -> SlotOut:
+    slot = availability_service.add(db, sitter.id, body.starts_at, body.ends_at, datetime.now(UTC))
+    return _slot_out(slot)
+
+
+@router.delete("/availability/{slot_id}", status_code=204)
+def delete_availability(slot_id: uuid.UUID, sitter: SitterProfile, db: DbSession) -> None:
+    availability_service.remove(db, sitter.id, slot_id)

@@ -1,4 +1,6 @@
 import os
+import re
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -23,3 +25,38 @@ def db_engine():
         )
     yield engine
     engine.dispose()
+
+
+# Approximate centres of the launch pin codes; the fake geocoder answers from the pin code in the query.
+PIN_CODE_POSITIONS = {
+    "560001": ("12.976600", "77.599300"),
+    "560034": ("12.935200", "77.624500"),
+    "560038": ("12.978300", "77.640800"),
+    "560078": ("12.906300", "77.585700"),
+    "560084": ("13.012500", "77.627700"),
+    "560095": ("12.934500", "77.626600"),
+    "560103": ("12.925600", "77.676100"),
+}
+
+
+class FakeGeocoder:
+    """Stands in for Nominatim: tests never make network requests. Records each query it was asked."""
+
+    queries: list[str] = []
+
+    def lookup(self, query: str):
+        FakeGeocoder.queries.append(query)
+        match = re.search(r"\b(\d{6})\b", query)
+        if not match or match.group(1) not in PIN_CODE_POSITIONS:
+            return None
+        lat, lng = PIN_CODE_POSITIONS[match.group(1)]
+        return Decimal(lat), Decimal(lng)
+
+
+@pytest.fixture(autouse=True)
+def fake_geocoder(monkeypatch):
+    from app.services import geocoding  # imported here so collecting tests doesn't need the app
+
+    FakeGeocoder.queries = []
+    monkeypatch.setattr(geocoding.NominatimGeocoder, "lookup", FakeGeocoder.lookup)
+    return FakeGeocoder

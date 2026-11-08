@@ -497,7 +497,9 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `legal_acceptances` **(created)** (id, profile_id, document_id, method: `clickwrap`, accepted_at, ip_address, user_agent) — append-only; written only by `record_acceptances` in `api/app/services/legal.py`; `require_current_terms` gates booking, buying hours and taking bookings
 - `references` **(created)** (id, sitter_id, name, phone, relationship, outcome, notes)
 - `psych_tests`, `psych_questions`, `psych_attempts`, `psych_answers` **(created)**
-- `availability_slots` (id, sitter_id, starts_at, ends_at)
+- `availability_slots` **(created)** (id, sitter_id, starts_at, ends_at) — no overlaps per sitter, at least an hour long
+- `geocode_cache` **(created)** (query, lat, lng) — Nominatim results (`app/services/geocoding.py`); a profile's
+  lat/lng are looked up when its address is saved
 - `payments` (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference, due_by, confirmed_by, confirmed_at, created_at) — append-only; replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
 - `bookings` (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
 - `booking_children` (booking_id, child_id)

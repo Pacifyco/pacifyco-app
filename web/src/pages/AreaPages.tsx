@@ -52,6 +52,11 @@ export function ParentHomePage() {
         {name ? `Hello ${name}, ` : ""}your bookings and sitters will be here.
       </p>
       <ParentChecklist />
+      <div className="mt-7 flex justify-center">
+        <ButtonLink to="/parent/sitters" arrow>
+          Find a sitter
+        </ButtonLink>
+      </div>
       <div className="mt-7 grid gap-5 sm:grid-cols-3">
         <IconTile icon={HeartHandshake} label="Start with a short booking" />
         <IconTile icon={Calendar} label="Scheduled care" />
@@ -94,6 +99,11 @@ export function SitterHomePage() {
         {name ? `Hello ${name}. ` : ""}Your bookings, availability and earnings will be here.
       </p>
       <SitterChecklist />
+      <div className="mt-7 flex justify-center">
+        <ButtonLink to="/sitter/availability" arrow>
+          Your availability
+        </ButtonLink>
+      </div>
       <div className="mt-7 grid gap-5 sm:grid-cols-3">
         <IconTile icon={Calendar} label="Booking requests" />
         <IconTile icon={Clock} label="Your availability" />
