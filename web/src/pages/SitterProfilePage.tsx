@@ -3,7 +3,8 @@ import { Star } from "lucide-react";
 import { useParams } from "react-router";
 import { BackLink, ButtonLink, Card, Chip, EmptyState, VerifiedChip } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
-import { formatBookingTime, plural } from "../lib/format";
+import { plural } from "../lib/format";
+import { WEEKDAYS_SHORT, dayLabel, hoursLabel, type WeekHours } from "../lib/times";
 import { PLAN_LABELS, checksFor, distanceText, firstNameOf, type SitterSummary } from "./FindSittersPage";
 
 // One sitter's profile, for parents (CLAUDE.md 9). No price or pay (CLAUDE.md 6.1, 6.2); the plan's price
@@ -11,7 +12,10 @@ import { PLAN_LABELS, checksFor, distanceText, firstNameOf, type SitterSummary }
 
 type SitterDetail = SitterSummary & {
   bio: string | null;
-  free_times: { starts_at: string; ends_at: string }[];
+  /** Her usual week, repeating (weekday 0 is Monday). */
+  week: WeekHours[];
+  /** Days she isn't free in the next two weeks. */
+  days_off: string[];
   /** Recharge sitters only, with her consent (CLAUDE.md 6.2). */
   reference: { name: string; phone: string; relationship: string } | null;
 };
@@ -23,6 +27,25 @@ function Facts({ sitter }: { sitter: SitterDetail }) {
     sitter.languages.length ? `Speaks ${sitter.languages.join(", ")}` : null,
   ].filter(Boolean);
   return <p className="mt-2 text-muted">{facts.join(" · ")}</p>;
+}
+
+/** One line per day she's free: "Mon   9 am – 1 pm, 6 pm – 10 pm". */
+function Week({ week }: { week: WeekHours[] }) {
+  const days = WEEKDAYS_SHORT.map((name, weekday) => ({
+    name,
+    hours: week.filter((hours) => hours.weekday === weekday),
+  })).filter((day) => day.hours.length > 0);
+  if (days.length === 0) return <p className="mt-3 text-muted">No free times added yet.</p>;
+  return (
+    <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+      {days.map((day) => (
+        <div key={day.name} className="contents">
+          <dt className="text-ui text-ink">{day.name}</dt>
+          <dd className="text-muted">{day.hours.map((hours) => hoursLabel(hours.start_hour, hours.end_hour)).join(", ")}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 export function SitterProfilePage() {
@@ -120,18 +143,13 @@ export function SitterProfilePage() {
 
       <Card as="section" padding="roomy" aria-labelledby="free-heading">
         <h2 id="free-heading" className="text-h3">
-          When {firstName} is free
+          When {firstName} is usually free
         </h2>
-        {sitter.free_times.length === 0 ? (
-          <p className="mt-3 text-muted">No free times added yet.</p>
-        ) : (
-          <ul className="mt-3">
-            {sitter.free_times.map((time) => (
-              <li key={time.starts_at} className="border-t border-line py-3 first:border-t-0">
-                {formatBookingTime(new Date(time.starts_at), new Date(time.ends_at))}
-              </li>
-            ))}
-          </ul>
+        <Week week={sitter.week} />
+        {sitter.days_off.length > 0 && (
+          <p className="mt-3 text-small text-muted">
+            Not free on {sitter.days_off.map(dayLabel).join(", ")}.
+          </p>
         )}
         <p className="mt-5 rounded-lg bg-surface-sunken p-5 text-small text-ink">
           New to {firstName}? Start with a 1-hour booking while you're at home, to see how {firstName} gets on with

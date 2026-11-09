@@ -1,147 +1,348 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { BackLink, Button, Card, EmptyState, Select, TextInput } from "../components/ui";
+import { BackLink, Button, TextInput } from "../components/ui";
+import { cx } from "../components/ui/cx";
 import { ApiError, apiFetch } from "../lib/api";
-import { formatBookingTime } from "../lib/format";
-import { END_HOURS, START_HOURS, hourLabel, kolkataTime, todayInKolkata } from "../lib/times";
+import {
+  END_HOURS,
+  START_HOURS,
+  WEEKDAYS,
+  WEEKDAYS_SHORT,
+  dayLabel,
+  hoursLabel,
+  shortHour,
+  todayInKolkata,
+  type WeekHours,
+} from "../lib/times";
 
-// A sitter's free times (CLAUDE.md 6.4): dated slots she adds and removes (design.md: no weekday
-// toggles in v1). Parents can book her only inside these.
+// A sitter's availability (CLAUDE.md 6.4; decided 2026-11-09): a week that repeats until she changes it,
+// plus single days off. Families can book her inside these times, up to two weeks ahead. Kept compact so
+// the whole week fits a phone screen.
 
-type Slot = { id: string; starts_at: string; ends_at: string };
+type Availability = { week: WeekHours[]; days_off: string[] };
+type Range = { start: number; end: number };
+type Draft = Range[][]; // one list per weekday, Monday first
 
 const KEY = ["sitter-availability"];
+
+/** Quick fills (whole hours, India time). */
+export const PRESETS: { label: string; range: Range }[] = [
+  { label: "Mornings", range: { start: 9, end: 13 } },
+  { label: "Afternoons", range: { start: 13, end: 18 } },
+  { label: "Evenings", range: { start: 18, end: 22 } },
+];
+
+function toDraft(week: WeekHours[]): Draft {
+  const draft: Draft = WEEKDAYS.map(() => []);
+  for (const hours of week) draft[hours.weekday]!.push({ start: hours.start_hour, end: hours.end_hour });
+  return draft;
+}
+
+function toWeek(draft: Draft): WeekHours[] {
+  return draft.flatMap((ranges, weekday) =>
+    ranges.map((range) => ({ weekday, start_hour: range.start, end_hour: range.end })),
+  );
+}
+
+/** Whether two weeks hold the same times, in any order. */
+function sameWeek(a: WeekHours[], b: WeekHours[]): boolean {
+  const key = (week: WeekHours[]) =>
+    week
+      .map((hours) => `${hours.weekday}:${hours.start_hour}-${hours.end_hour}`)
+      .sort()
+      .join(",");
+  return key(a) === key(b);
+}
 
 function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
 }
 
-function AddTimeForm() {
-  const queryClient = useQueryClient();
-  const [date, setDate] = useState("");
-  const [from, setFrom] = useState(9);
-  const [until, setUntil] = useState(13);
-  const [dateError, setDateError] = useState<string>();
+const hourSelect =
+  "appearance-none rounded-pill border border-strong bg-surface-raised py-[6px] pr-[10px] pl-[10px] text-small text-ink";
 
+function HourSelect({
+  label,
+  value,
+  hours,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  hours: number[];
+  onChange: (hour: number) => void;
+}) {
+  return (
+    <select aria-label={label} value={value} onChange={(event) => onChange(Number(event.target.value))} className={hourSelect}>
+      {hours.map((hour) => (
+        <option key={hour} value={hour}>
+          {shortHour(hour)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function DayRow({
+  weekday,
+  ranges,
+  onChange,
+}: {
+  weekday: number;
+  ranges: Range[];
+  onChange: (ranges: Range[]) => void;
+}) {
+  const day = WEEKDAYS[weekday]!;
+  const free = ranges.length > 0;
+  const update = (index: number, range: Range) => onChange(ranges.map((item, at) => (at === index ? range : item)));
+  const nextRange = (): Range => {
+    const last = ranges.at(-1);
+    if (!last || last.end >= 23) return { start: 9, end: 13 };
+    return { start: last.end, end: Math.min(last.end + 3, 24) };
+  };
+
+  return (
+    <li className="flex items-start gap-2 border-t border-line py-2 first:border-t-0">
+      <label className="flex w-[60px] shrink-0 cursor-pointer items-center gap-2 pt-[6px] text-ui text-ink">
+        <input
+          type="checkbox"
+          checked={free}
+          aria-label={`Free on ${day}s`}
+          onChange={(event) => onChange(event.target.checked ? [{ start: 9, end: 13 }] : [])}
+          className="size-[18px] accent-[var(--accent-coral)]"
+        />
+        <span aria-hidden="true">{WEEKDAYS_SHORT[weekday]}</span>
+      </label>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {!free && <span className="pt-[6px] text-small text-muted">Not free</span>}
+        {ranges.map((range, index) => (
+          <div key={index} className="flex items-center gap-1">
+            <HourSelect
+              label={`${day} from`}
+              value={range.start}
+              hours={START_HOURS}
+              onChange={(start) => update(index, { ...range, start })}
+            />
+            <span aria-hidden="true" className="text-small text-muted">
+              –
+            </span>
+            <HourSelect
+              label={`${day} until`}
+              value={range.end}
+              hours={END_HOURS}
+              onChange={(end) => update(index, { ...range, end })}
+            />
+            <button
+              type="button"
+              aria-label={`Remove ${day} ${hoursLabel(range.start, range.end)}`}
+              onClick={() => onChange(ranges.filter((_, at) => at !== index))}
+              className="flex size-[32px] shrink-0 items-center justify-center rounded-pill text-muted hover:text-ink"
+            >
+              <X aria-hidden="true" size={18} strokeWidth={1.75} />
+            </button>
+            {index === ranges.length - 1 && (
+              <button
+                type="button"
+                aria-label={`Add a time on ${day}`}
+                title="Add a time"
+                onClick={() => onChange([...ranges, nextRange()])}
+                className="flex size-[32px] shrink-0 items-center justify-center rounded-pill text-coral-deep hover:bg-surface-sunken"
+              >
+                <Plus aria-hidden="true" size={18} strokeWidth={1.75} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </li>
+  );
+}
+
+function WeekCard({ saved }: { saved: WeekHours[] }) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState<Draft>(() => toDraft(saved));
+  const [problem, setProblem] = useState<string>();
+  const changed = !sameWeek(toWeek(draft), saved);
+  const save = useMutation({
+    mutationFn: (week: WeekHours[]) =>
+      apiFetch<Availability>("/sitter/availability/week", { method: "PUT", body: JSON.stringify({ hours: week }) }),
+    onSuccess: (data) => queryClient.setQueryData(KEY, data),
+  });
+
+  function fill(range: Range) {
+    const ticked = draft.some((ranges) => ranges.length > 0);
+    // With no day ticked yet, a quick fill sets Monday to Friday.
+    setDraft(draft.map((ranges, weekday) => ((ticked ? ranges.length > 0 : weekday < 5) ? [range] : ranges)));
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const week = toWeek(draft);
+    if (week.some((hours) => hours.end_hour <= hours.start_hour)) {
+      return setProblem("Each time must end after it starts.");
+    }
+    setProblem(undefined);
+    save.mutate(week);
+  }
+
+  return (
+    <section aria-labelledby="week-heading" className="rounded-lg bg-surface-raised p-4 shadow-soft sm:p-5">
+      <form onSubmit={submit} noValidate>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="week-heading" className="mr-auto text-ui font-semibold">
+            Your week
+          </h2>
+          <span className="text-small text-muted">Fill ticked days:</span>
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => fill(preset.range)}
+              title={hoursLabel(preset.range.start, preset.range.end)}
+              className="rounded-pill bg-surface-sunken px-3 py-1 text-small text-ink hover:bg-surface-tint"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        <ul className="mt-2">
+          {draft.map((ranges, weekday) => (
+            <DayRow
+              key={weekday}
+              weekday={weekday}
+              ranges={ranges}
+              onChange={(next) => setDraft(draft.map((item, at) => (at === weekday ? next : item)))}
+            />
+          ))}
+        </ul>
+        {(problem || save.isError) && (
+          <p role="alert" className="mt-2 text-small text-danger">
+            {problem ?? errorText(save.error)}
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Button type="submit" loading={save.isPending} disabled={!changed} fullWidthOnPhone={false}>
+            Save my week
+          </Button>
+          {save.isSuccess && !changed && (
+            <span role="status" className="text-small text-muted">
+              Saved. It repeats every week until you change it.
+            </span>
+          )}
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function DaysOffCard({ daysOff }: { daysOff: string[] }) {
+  const queryClient = useQueryClient();
+  const [day, setDay] = useState("");
+  const [dayError, setDayError] = useState<string>();
   const add = useMutation({
-    mutationFn: (body: { starts_at: string; ends_at: string }) =>
-      apiFetch<Slot>("/sitter/availability", { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: (value: string) =>
+      apiFetch<Availability>("/sitter/availability/days-off", { method: "POST", body: JSON.stringify({ day: value }) }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(KEY, data);
+      setDay("");
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (value: string) => apiFetch<void>(`/sitter/availability/days-off/${value}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY }),
   });
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!date) return setDateError("Please choose a day.");
-    setDateError(undefined);
-    add.mutate({ starts_at: kolkataTime(date, from), ends_at: kolkataTime(date, until) });
+    if (!day) return setDayError("Please choose a day.");
+    setDayError(undefined);
+    add.mutate(day);
   }
 
   return (
-    <Card as="section" padding="roomy" aria-labelledby="add-heading">
-      <h2 id="add-heading" className="text-h3">
-        Add a free time
+    <section aria-labelledby="off-heading" className="rounded-lg bg-surface-raised p-4 shadow-soft sm:p-5">
+      <h2 id="off-heading" className="text-ui font-semibold">
+        Days off
       </h2>
-      <form onSubmit={submit} className="mt-4 flex flex-col gap-5" noValidate>
-        <TextInput
-          label="Day"
-          type="date"
-          min={todayInKolkata()}
-          value={date}
-          onChange={(event) => setDate(event.target.value)}
-          error={dateError}
-        />
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Select label="From" value={from} onChange={(event) => setFrom(Number(event.target.value))}>
-            {START_HOURS.map((hour) => (
-              <option key={hour} value={hour}>
-                {hourLabel(hour)}
-              </option>
-            ))}
-          </Select>
-          <Select label="Until" value={until} onChange={(event) => setUntil(Number(event.target.value))}>
-            {END_HOURS.map((hour) => (
-              <option key={hour} value={hour}>
-                {hourLabel(hour)}
-              </option>
-            ))}
-          </Select>
+      <p className="text-small text-muted">A day you can't work, whatever your week says.</p>
+      <form onSubmit={submit} noValidate className="mt-2 flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <TextInput
+            compact
+            label="Day"
+            type="date"
+            min={todayInKolkata()}
+            value={day}
+            error={dayError}
+            onChange={(event) => setDay(event.target.value)}
+          />
         </div>
-        {add.isError && (
-          <p role="alert" className="text-small text-danger">
-            {add.error instanceof ApiError && add.error.code === "validation_error"
-              ? "The end time must be after the start time."
-              : errorText(add.error)}
-          </p>
-        )}
-        <Button type="submit" loading={add.isPending} fullWidthOnPhone={false} className="self-start">
-          Add this time
+        <Button
+          type="submit"
+          variant="secondary"
+          loading={add.isPending}
+          fullWidthOnPhone={false}
+          className={cx(dayError && "mb-[30px]")}
+        >
+          Mark day off
         </Button>
       </form>
-    </Card>
-  );
-}
-
-function SlotRow({ slot }: { slot: Slot }) {
-  const queryClient = useQueryClient();
-  const remove = useMutation({
-    mutationFn: () => apiFetch<void>(`/sitter/availability/${slot.id}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY }),
-  });
-  const when = formatBookingTime(new Date(slot.starts_at), new Date(slot.ends_at));
-  return (
-    <li className="flex flex-wrap items-center justify-between gap-3 border-t border-line py-4 first:border-t-0">
-      <span className="text-ui">{when}</span>
-      <Button
-        variant="tertiary"
-        loading={remove.isPending}
-        aria-label={`Remove ${when}`}
-        onClick={() => remove.mutate()}
-      >
-        Remove
-      </Button>
-      {remove.isError && (
-        <p role="alert" className="w-full text-small text-danger">
-          {errorText(remove.error)}
+      {(add.isError || remove.isError) && (
+        <p role="alert" className="mt-2 text-small text-danger">
+          {errorText(add.error ?? remove.error)}
         </p>
       )}
-    </li>
+      {daysOff.length > 0 && (
+        <ul aria-label="Your days off" className="mt-3 flex flex-wrap gap-2">
+          {daysOff.map((value) => (
+            <li key={value} className="flex items-center gap-1 rounded-pill bg-surface-sunken py-1 pr-1 pl-3 text-small">
+              {dayLabel(value)}
+              <button
+                type="button"
+                aria-label={`Remove day off ${dayLabel(value)}`}
+                onClick={() => remove.mutate(value)}
+                className="flex size-[24px] items-center justify-center rounded-pill text-muted hover:text-ink"
+              >
+                <X aria-hidden="true" size={14} strokeWidth={1.75} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
 export function AvailabilityPage() {
-  const slots = useQuery({ queryKey: KEY, queryFn: () => apiFetch<Slot[]>("/sitter/availability") });
+  const availability = useQuery({ queryKey: KEY, queryFn: () => apiFetch<Availability>("/sitter/availability") });
 
   return (
-    <section className="mx-auto flex max-w-[40rem] flex-col gap-6">
-      <BackLink to="/sitter" label="Home" />
-      <div className="text-center">
-        <h1>Your availability</h1>
-        <p className="mt-4 text-muted">Add the times you're free. Families can book you only inside these times.</p>
-      </div>
-      <AddTimeForm />
-      <Card as="section" padding="roomy" aria-labelledby="times-heading">
-        <h2 id="times-heading" className="text-h3">
-          Your free times
-        </h2>
-        {slots.isPending && <p className="mt-3 text-muted">Loading…</p>}
-        {slots.isError && (
-          <p role="alert" className="mt-3 text-danger">
-            {errorText(slots.error)}
+    <section className="mx-auto flex max-w-[40rem] flex-col gap-4">
+      <div className="flex items-start gap-4">
+        <span className="mt-1 shrink-0">
+          <BackLink to="/sitter" label="Home" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="text-h3">Your availability</h1>
+          <p className="mt-1 text-small text-muted">
+            Set your usual week once; it repeats every week. Families can book you inside these times, up to two
+            weeks ahead.
           </p>
-        )}
-        {slots.isSuccess &&
-          (slots.data.length === 0 ? (
-            <div className="mt-3">
-              <EmptyState message="No free times yet. Add one above so families can book you." />
-            </div>
-          ) : (
-            <ul className="mt-3">
-              {slots.data.map((slot) => (
-                <SlotRow key={slot.id} slot={slot} />
-              ))}
-            </ul>
-          ))}
-      </Card>
+        </div>
+      </div>
+      {availability.isPending && <p className="text-muted">Loading…</p>}
+      {availability.isError && (
+        <p role="alert" className="text-danger">
+          {errorText(availability.error)}
+        </p>
+      )}
+      {availability.isSuccess && (
+        <>
+          <WeekCard saved={availability.data.week} />
+          <DaysOffCard daysOff={availability.data.days_off} />
+        </>
+      )}
     </section>
   );
 }

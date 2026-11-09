@@ -4,17 +4,15 @@ level, filtered and sorted by distance, rating or experience. Parents never see 
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
-from zoneinfo import ZoneInfo
 
-from sqlalchemy import exists, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import (
-    AvailabilitySlot,
     Document,
     DocumentStatus,
     DocumentType,
@@ -38,7 +36,7 @@ class SortBy(StrEnum):
 @dataclass(frozen=True)
 class Filters:
     plan: SitterLevel | None = None  # None: every level. A sitter works only her own level's plan (6.2)
-    day: date | None = None  # she has free time left on this day (India time)
+    day: date | None = None  # she has free time left on this day (India time), from her weekly hours
     starts_at: datetime | None = None  # with ends_at: she's free for the whole of this time
     ends_at: datetime | None = None
     min_rating: Decimal | None = None
@@ -46,15 +44,6 @@ class Filters:
     language: str | None = None
     first_aid: bool = False
     sort: SortBy = SortBy.distance
-
-
-INDIA = ZoneInfo("Asia/Kolkata")
-
-
-def day_bounds(day: date, now: datetime) -> tuple[datetime, datetime]:
-    """The rest of this India day: from its start (or now, if later) to midnight."""
-    start = datetime.combine(day, time(), INDIA)
-    return max(start, now), start + timedelta(days=1)
 
 
 @dataclass(frozen=True)
@@ -81,23 +70,6 @@ def search(db: Session, parent: Profile, filters: Filters, now: datetime) -> lis
     query = select(Profile, Sitter).join(Sitter, Sitter.profile_id == Profile.id).where(_live())
     if filters.plan is not None:
         query = query.where(Sitter.level == filters.plan)
-    if filters.day is not None:
-        day_start, day_end = day_bounds(filters.day, now)
-        query = query.where(
-            exists().where(
-                AvailabilitySlot.sitter_id == Sitter.profile_id,
-                AvailabilitySlot.starts_at < day_end,
-                AvailabilitySlot.ends_at > day_start,
-            )
-        )
-    if filters.starts_at is not None and filters.ends_at is not None:
-        query = query.where(
-            exists().where(
-                AvailabilitySlot.sitter_id == Sitter.profile_id,
-                AvailabilitySlot.starts_at <= filters.starts_at,
-                AvailabilitySlot.ends_at >= filters.ends_at,
-            )
-        )
     if filters.min_rating is not None:
         query = query.where(Sitter.avg_rating >= filters.min_rating)
     if filters.min_years is not None:
@@ -106,10 +78,20 @@ def search(db: Session, parent: Profile, filters: Filters, now: datetime) -> lis
         query = query.where(Sitter.first_aid.is_(True))
 
     language = filters.language.strip().lower() if filters.language else None
-    found = [
-        Found(profile, sitter, geocoding.distance_km(_position(parent), _position(profile)))
+    rows = [
+        (profile, sitter)
         for profile, sitter in db.execute(query).all()
         if not language or language in (spoken.lower() for spoken in sitter.languages)
+    ]
+    # Free times come from each sitter's weekly hours and days off (worked out, not stored).
+    if filters.day is not None or (filters.starts_at is not None and filters.ends_at is not None):
+        times = availability.free_times_for(db, [profile.id for profile, _ in rows], now)
+        if filters.day is not None:
+            rows = [row for row in rows if availability.has_time_on(times[row[0].id], filters.day, now)]
+        if filters.starts_at is not None and filters.ends_at is not None:
+            rows = [row for row in rows if availability.is_free(times[row[0].id], filters.starts_at, filters.ends_at)]
+    found = [
+        Found(profile, sitter, geocoding.distance_km(_position(parent), _position(profile))) for profile, sitter in rows
     ]
 
     # Unknowns (no position, no rating yet) go last.
@@ -161,7 +143,3 @@ def photo_path(db: Session, sitter_id: uuid.UUID) -> str | None:
         .order_by(Document.created_at.desc())
         .limit(1)
     )
-
-
-def free_times(db: Session, sitter_id: uuid.UUID, now: datetime) -> list[AvailabilitySlot]:
-    return availability.upcoming(db, sitter_id, now)

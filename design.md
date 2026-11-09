@@ -339,8 +339,8 @@ this file and CLAUDE.md win.
   automatically (CLAUDE.md 6.4).
 - **Prices on sitter cards or bookings** ("Est. cost"), sitter earnings shown to parents, and
   occasions ("Date night", "Gym session") as a booking field.
-- **Skills taxonomy** and **weekday availability toggles**: v1 has free-text age groups and languages,
-  and availability as dated time slots.
+- **Skills taxonomy**: v1 has free-text age groups and languages. (Weekday availability is in: a week
+  that repeats, with quick fills and days off, decided 2026-11-09.)
 - Checks we don't do or name differently: show only CLAUDE.md 7's steps (ID, police certificate,
   references, psychology test, approval).
 - The prototype's login screen ("Choose a portal", demo account pickers, "Reset demo data") and its

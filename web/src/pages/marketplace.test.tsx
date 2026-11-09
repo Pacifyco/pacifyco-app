@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { hourLabel, kolkataTime } from "../lib/times";
+import { dayLabel, hourLabel, hoursLabel, kolkataTime, shortHour } from "../lib/times";
 import { jsonResponse } from "../test/renderApp";
 import { AvailabilityPage } from "./AvailabilityPage";
 import { FindSittersPage } from "./FindSittersPage";
@@ -60,52 +60,114 @@ describe("times in Kolkata", () => {
   });
 });
 
-describe("a sitter's availability", () => {
-  const SLOT = { id: "t1", starts_at: "2026-11-10T03:30:00Z", ends_at: "2026-11-10T07:30:00Z" };
+describe("week and day labels", () => {
+  test("short hours and days read naturally", () => {
+    expect(shortHour(9)).toBe("9 am");
+    expect(shortHour(12)).toBe("12 pm");
+    expect(shortHour(0)).toBe("12 am");
+    expect(shortHour(24)).toBe("12 am");
+    expect(hoursLabel(18, 22)).toBe("6 pm – 10 pm");
+    expect(dayLabel("2026-11-15")).toBe("Sun 15 Nov");
+  });
+});
 
-  test("lists her free times and removes one", async () => {
-    const calls = mockApi({
-      "GET /sitter/availability": () => jsonResponse([SLOT]),
-      "DELETE /sitter/availability/t1": () => new Response(null, { status: 204 }),
-    });
+describe("a sitter's weekly availability", () => {
+  const SAVED = {
+    week: [
+      { weekday: 0, start_hour: 9, end_hour: 13 },
+      { weekday: 5, start_hour: 18, end_hour: 22 },
+    ],
+    days_off: ["2026-11-15"],
+  };
+
+  test("shows her week, one row per day, and her days off", async () => {
+    mockApi({ "GET /sitter/availability": () => jsonResponse(SAVED) });
     renderAt("/sitter/availability");
-    expect(await screen.findByText("Tue, 10 Nov · 9:00 am – 1:00 pm")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Remove Tue, 10 Nov · 9:00 am – 1:00 pm" }));
-    await waitFor(() => expect(calls).toContainEqual({ method: "DELETE", path: "/sitter/availability/t1", body: null }));
+    expect(await screen.findByRole("checkbox", { name: "Free on Mondays" })).toHaveProperty("checked", true);
+    expect(screen.getByRole("checkbox", { name: "Free on Tuesdays" })).toHaveProperty("checked", false);
+    expect(screen.getByLabelText("Monday from")).toHaveProperty("value", "9");
+    expect(screen.getByLabelText("Saturday until")).toHaveProperty("value", "22");
+    expect(screen.getAllByText("Not free")).toHaveLength(5);
+    expect(within(screen.getByRole("list", { name: "Your days off" })).getByText("Sun 15 Nov")).toBeTruthy();
+    // Nothing changed yet, so there's nothing to save.
+    expect(screen.getByRole("button", { name: "Save my week" })).toHaveProperty("disabled", true);
   });
 
-  test("adding a time sends it in UTC", async () => {
+  test("a quick fill sets Monday to Friday on an empty week, and saving sends the whole week", async () => {
     const calls = mockApi({
-      "GET /sitter/availability": () => jsonResponse([]),
-      "POST /sitter/availability": () => jsonResponse(SLOT, 201),
+      "GET /sitter/availability": () => jsonResponse({ week: [], days_off: [] }),
+      "PUT /sitter/availability/week": (body) =>
+        jsonResponse({ week: (body as { hours: unknown[] }).hours, days_off: [] }),
     });
     renderAt("/sitter/availability");
-    expect(await screen.findByText(/No free times yet/)).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Day"), { target: { value: "2026-11-10" } });
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "9" } });
-    fireEvent.change(screen.getByLabelText("Until"), { target: { value: "13" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add this time" }));
-    await waitFor(() =>
-      expect(calls).toContainEqual({
-        method: "POST",
-        path: "/sitter/availability",
-        body: { starts_at: "2026-11-10T03:30:00.000Z", ends_at: "2026-11-10T07:30:00.000Z" },
-      }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Evenings" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Free on Saturdays" })); // adds 9 am - 1 pm
+    fireEvent.click(screen.getByRole("button", { name: "Add a time on Saturday" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save my week" }));
+
+    await waitFor(() => expect(calls.some((call) => call.method === "PUT")).toBe(true));
+    const put = calls.find((call) => call.method === "PUT")!;
+    expect(put.body).toEqual({
+      hours: [
+        ...[0, 1, 2, 3, 4].map((weekday) => ({ weekday, start_hour: 18, end_hour: 22 })),
+        { weekday: 5, start_hour: 9, end_hour: 13 },
+        { weekday: 5, start_hour: 13, end_hour: 16 },
+      ],
+    });
+    expect(await screen.findByText("Saved. It repeats every week until you change it.")).toBeTruthy();
   });
 
-  test("a day is needed, and the API's reason is shown", async () => {
+  test("a quick fill only changes the days already ticked", async () => {
+    mockApi({ "GET /sitter/availability": () => jsonResponse(SAVED) });
+    renderAt("/sitter/availability");
+    fireEvent.click(await screen.findByRole("button", { name: "Mornings" }));
+    expect(screen.getByLabelText("Saturday from")).toHaveProperty("value", "9");
+    expect(screen.getByLabelText("Saturday until")).toHaveProperty("value", "13");
+    expect(screen.getByRole("checkbox", { name: "Free on Tuesdays" })).toHaveProperty("checked", false);
+  });
+
+  test("unticking a day or removing its time clears it", async () => {
+    mockApi({ "GET /sitter/availability": () => jsonResponse(SAVED) });
+    renderAt("/sitter/availability");
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Saturday 6 pm – 10 pm" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Free on Mondays" }));
+    expect(screen.getAllByText("Not free")).toHaveLength(7);
+  });
+
+  test("an end before the start is caught, and the API's reason is shown", async () => {
     mockApi({
-      "GET /sitter/availability": () => jsonResponse([]),
-      "POST /sitter/availability": () => error("slot_overlaps", "This overlaps a time you've already added", 409),
+      "GET /sitter/availability": () => jsonResponse(SAVED),
+      "PUT /sitter/availability/week": () => error("hours_overlap", "Two times on the same day overlap", 422),
     });
     renderAt("/sitter/availability");
-    fireEvent.click(await screen.findByRole("button", { name: "Add this time" }));
+    fireEvent.change(await screen.findByLabelText("Monday until"), { target: { value: "8" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save my week" }));
+    expect(screen.getByText("Each time must end after it starts.")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Monday until"), { target: { value: "14" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save my week" }));
+    expect(await screen.findByText("Two times on the same day overlap")).toBeTruthy();
+  });
+
+  test("days off are marked and removed", async () => {
+    const calls = mockApi({
+      "GET /sitter/availability": () => jsonResponse(SAVED),
+      "POST /sitter/availability/days-off": () => jsonResponse({ ...SAVED, days_off: ["2026-11-15", "2026-11-20"] }, 201),
+      "DELETE /sitter/availability/days-off/2026-11-15": () => new Response(null, { status: 204 }),
+    });
+    renderAt("/sitter/availability");
+    fireEvent.click(await screen.findByRole("button", { name: "Mark day off" }));
     expect(screen.getByText("Please choose a day.")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("Day"), { target: { value: "2026-11-10" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add this time" }));
-    expect(await screen.findByText("This overlaps a time you've already added")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Day"), { target: { value: "2026-11-20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Mark day off" }));
+    expect(await screen.findByText("Fri 20 Nov")).toBeTruthy();
+    expect(calls).toContainEqual({ method: "POST", path: "/sitter/availability/days-off", body: { day: "2026-11-20" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove day off Sun 15 Nov" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({ method: "DELETE", path: "/sitter/availability/days-off/2026-11-15", body: null }),
+    );
   });
 });
 
@@ -216,7 +278,12 @@ describe("a sitter's profile page", () => {
     photo_url: null,
     bio: "I love storytime.",
     plan: "pause",
-    free_times: [{ starts_at: "2026-11-10T03:30:00Z", ends_at: "2026-11-10T07:30:00Z" }],
+    week: [
+      { weekday: 0, start_hour: 9, end_hour: 13 },
+      { weekday: 0, start_hour: 18, end_hour: 22 },
+      { weekday: 5, start_hour: 10, end_hour: 14 },
+    ],
+    days_off: ["2026-11-15"],
     reference: null,
   };
 
@@ -226,7 +293,11 @@ describe("a sitter's profile page", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Lakshmi Nair" })).toBeTruthy();
     expect(screen.getByText("4 years' experience · under 1 km away · Speaks English, Tamil")).toBeTruthy();
     expect(screen.getByText("I love storytime.")).toBeTruthy();
-    expect(screen.getByText("Tue, 10 Nov · 9:00 am – 1:00 pm")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "When Lakshmi is usually free" })).toBeTruthy();
+    expect(screen.getByText("Mon").nextElementSibling!.textContent).toBe("9 am – 1 pm, 6 pm – 10 pm");
+    expect(screen.getByText("Sat").nextElementSibling!.textContent).toBe("10 am – 2 pm");
+    expect(screen.queryByText("Tue")).toBeNull();
+    expect(screen.getByText("Not free on Sun 15 Nov.")).toBeTruthy();
     expect(screen.getByText(/Start with a 1-hour booking while you're at home/)).toBeTruthy();
     expect(screen.queryByText("First-aid certified")).toBeNull();
     expect(container.textContent).not.toMatch(/₹|per hour|\/hour/);

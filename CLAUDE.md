@@ -250,6 +250,10 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   plan's latest end time, overtime included.
 - Bath time is ticked when booking (Unwind and Recharge only). Outings are allowed only on Recharge,
   still approved by the parent during the booking (above).
+- **Sitter availability (decided 2026-11-09):** a sitter sets her usual week once (whole-hour times per
+  weekday, India time) and it repeats every week until she changes it; she marks single **days off**.
+  Her free times are worked out from these for the next **14 days**, which is also how far ahead
+  parents can book.
 - A booking can be made if the slot is inside the sitter's availability, the sitter's level matches
   the plan, she isn't already booked or blocked by a strike, the sitter is live (7), the parent has
   finished their profile (6.13) and is active, and the parent owes nothing. It's `pending_payment`
@@ -512,7 +516,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `legal_acceptances` **(created)** (id, profile_id, document_id, method: `clickwrap`, accepted_at, ip_address, user_agent) — append-only; written only by `record_acceptances` in `api/app/services/legal.py`; `require_current_terms` gates booking, buying hours and taking bookings
 - `references` **(created)** (id, sitter_id, name, phone, relationship, outcome, notes)
 - `psych_tests`, `psych_questions`, `psych_attempts`, `psych_answers` **(created)**
-- `availability_slots` **(created)** (id, sitter_id, starts_at, ends_at) — no overlaps per sitter, at least an hour long
+- `weekly_hours` **(created)** (id, sitter_id, weekday 0=Monday, start_hour 0-23, end_hour 1-24) — her usual week, repeating; times on a day may touch but not overlap. `days_off` **(created)** (sitter_id, day). Replaced `availability_slots` (dated times, dropped 2026-11-09). Free times are worked out, not stored (`app/services/availability.py`)
 - `geocode_cache` **(created)** (query, lat, lng) — Nominatim results (`app/services/geocoding.py`); a profile's
   lat/lng are looked up when its address is saved
 - `payments` (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference, due_by, confirmed_by, confirmed_at, created_at) — append-only; replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
