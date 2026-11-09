@@ -186,6 +186,12 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   | Unwind | ₹699 for the first child, +₹150 per extra child (2 children = ₹849) | any number | 10:30 pm | can be ticked | no |
   | Recharge | ₹899 for any number of children | any number | 12 am (midnight) | can be ticked | yes, with the parent's approval |
 
+- **Children on a booking (decided 2026-11-09):** a booking starts as one child, whatever the number
+  of verified children on the account; the parent adds each extra child who'll be there. Pause takes
+  one child only (Pause sitters are still shown to every parent). Unwind adds ₹150/hour per extra child.
+  Recharge costs the same for any number, but parents still add every child so the sitter knows who
+  she's caring for. Only the parent's own children can be added, and the booking is confirmed only
+  once each of them is verified (6.4).
 - Booking price = the plan's hourly price (for that number of children) × booked hours. Example:
   Recharge, 3 hours = ₹2,697. No GST for now.
 - Booked time is counted in **whole hours only** (no half-hours); no minimum length; no earliest start
