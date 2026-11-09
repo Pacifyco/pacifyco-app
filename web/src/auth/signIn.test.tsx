@@ -213,12 +213,15 @@ describe("signed-in state", () => {
 describe("joining after the first sign-in", () => {
   type Call = { url: string; init?: RequestInit };
 
-  // GET /me says "no profile yet"; POST /me/profile answers with `created` (or `failure`).
+  // GET /me says "no profile yet" until POST /me/profile answers with `created` (or `failure`); after
+  // that it returns `created`, like the real API.
   function joinApi(created: unknown, failure?: { status: number; code: string; details?: unknown }) {
     const calls: Call[] = [];
+    let me: unknown = { email: "asha@example.com", profile: null };
     vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
       calls.push({ url, init });
       if (url.endsWith("/me/profile")) {
+        if (!failure) me = created;
         return Promise.resolve(
           failure
             ? jsonResponse(
@@ -228,7 +231,7 @@ describe("joining after the first sign-in", () => {
             : jsonResponse(created, 201),
         );
       }
-      if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: null }));
+      if (url.endsWith("/me")) return Promise.resolve(jsonResponse(me));
       return Promise.resolve(checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" }));
     }) as typeof fetch);
     return calls;
