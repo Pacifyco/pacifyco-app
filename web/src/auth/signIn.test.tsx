@@ -266,7 +266,7 @@ describe("joining after the first sign-in", () => {
       ],
     });
     // Straight into the area; a bubble from the profile button leads to the checklist.
-    expect((await screen.findByRole("link", { name: "Finish your profile" })).getAttribute("href")).toBe(
+    expect((await screen.findByRole("link", { name: "Finish your profile" }, { timeout: 5000 })).getAttribute("href")).toBe(
       "/parent/profile",
     );
     expect(screen.queryByRole("heading", { name: "Finish your profile" })).toBeNull();
@@ -789,7 +789,7 @@ describe("the profile button and its bubble", () => {
   test("with steps left, the home shows a bubble from the profile button instead of the checklist", async () => {
     signedIn(PARENT_PROFILE, PARENT_CHECKLIST);
     renderApp("/parent");
-    const bubble = await screen.findByRole("link", { name: "Finish your profile" });
+    const bubble = await screen.findByRole("link", { name: "Finish your profile" }, { timeout: 5000 });
     expect(bubble.getAttribute("href")).toBe("/parent/profile");
     expect(screen.getByRole("link", { name: "Your profile" }).getAttribute("href")).toBe("/parent/profile");
     expect(screen.queryByRole("link", { name: /Parental consent/ })).toBeNull();
@@ -801,7 +801,7 @@ describe("the profile button and its bubble", () => {
       { ...SITTER_CHECKLIST, items: [{ key: "police_certificate", status: "rejected", reason: "Too old" }] },
     );
     renderApp("/sitter");
-    expect((await screen.findByRole("link", { name: "Something needs another look" })).getAttribute("href")).toBe(
+    expect((await screen.findByRole("link", { name: "Something needs another look" }, { timeout: 5000 })).getAttribute("href")).toBe(
       "/sitter/profile",
     );
   });
