@@ -1,7 +1,7 @@
 """The parent area. Every route here is for parents only (CLAUDE.md 9: wrong role gets 403)."""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
 
@@ -12,6 +12,7 @@ from app.auth import require_role
 from app.deps import DbSession
 from app.errors import AppError
 from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, SitterLevel, VerificationStatus
+from app.services import availability as availability_service
 from app.services import checklists, consent, family
 from app.services import children as children_service
 from app.services import search as search_service
@@ -255,9 +256,12 @@ class SitterSummary(BaseModel):
     plan: SitterLevel  # the plan she works (her level), shown as a label; its price only when booking
 
 
-class FreeTime(BaseModel):
-    starts_at: datetime
-    ends_at: datetime
+class WeekHours(BaseModel):
+    """A time she's usually free, every week (India time, whole hours; weekday 0 is Monday)."""
+
+    weekday: int = Field(ge=0, le=6)
+    start_hour: int = Field(ge=0, le=23)
+    end_hour: int = Field(ge=1, le=24)
 
 
 class SharedReference(BaseModel):
@@ -268,7 +272,8 @@ class SharedReference(BaseModel):
 
 class SitterDetail(SitterSummary):
     bio: str | None
-    free_times: list[FreeTime]
+    week: list[WeekHours]  # her usual week, repeating
+    days_off: list[date]  # days she isn't free within the booking window (the next two weeks)
     # Recharge sitters only, with her consent (CLAUDE.md 6.2).
     reference: SharedReference | None
 
@@ -342,12 +347,15 @@ def search_sitters(
 def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Storage) -> SitterDetail:
     checklists.require_finished_parent_profile(db, parent)
     found = search_service.live_sitter(db, parent, sitter_id)
-    slots = search_service.free_times(db, sitter_id, datetime.now(UTC))
+    now = datetime.now(UTC)
+    today = availability_service.today_in_india(now)
+    last_day = today + timedelta(days=availability_service.BOOK_AHEAD_DAYS - 1)
     shared = search_service.shared_reference(db, found.sitter)
     return SitterDetail(
         **_summary_fields(found, _photo_url(db, storage, sitter_id)),
         bio=found.sitter.bio,
-        free_times=[FreeTime(starts_at=slot.starts_at, ends_at=slot.ends_at) for slot in slots],
+        week=[WeekHours(**vars(hours)) for hours in availability_service.week(db, sitter_id)],
+        days_off=[day for day in availability_service.days_off(db, sitter_id, today) if day <= last_day],
         reference=(
             SharedReference(name=shared.name, phone=shared.phone, relationship=shared.relationship) if shared else None
         ),

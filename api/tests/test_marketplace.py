@@ -1,15 +1,16 @@
-"""The marketplace (CLAUDE.md 9 "Search and filters", phase 5): sitters' free times, geocoding with a
-cache, and search. Only live sitters of the chosen plan's level are returned; each filter works;
+"""The marketplace (CLAUDE.md 9 "Search and filters", phase 5): sitters' weekly hours and days off,
+geocoding with a cache, and search. Only live sitters of the chosen plan's level are returned; each filter works;
 distance sort; parents never see a sitter's pay."""
 
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from app.services import geocoding, search
+from app.services import availability, geocoding
 from app.services.geocoding import distance_km
 from tests.test_checklists import CONTACTS
 from tests.test_documents import (  # noqa: F401  (fixtures)
@@ -29,13 +30,18 @@ from tests.test_sign_up import DETAILS, PARENT, auth_for, fill_details, user  # 
 from tests.test_verification import upload
 
 
-def _hour(days: int, hour: int) -> datetime:
-    start = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) + timedelta(days=days)
-    return start.replace(hour=hour)
+def india_day(days_from_today: int) -> date:
+    return availability.today_in_india(datetime.now(UTC)) + timedelta(days=days_from_today)
 
 
-def slot(starts_at: datetime, hours: int = 3) -> dict[str, str]:
-    return {"starts_at": starts_at.isoformat(), "ends_at": (starts_at + timedelta(hours=hours)).isoformat()}
+def at(day: date, hour: int) -> datetime:
+    """This India day and hour, as an aware datetime."""
+    return datetime.combine(day, time(hour), availability.INDIA)
+
+
+def set_week(client, who, *hours: tuple[int, int, int]):  # noqa: F811
+    body = {"hours": [{"weekday": d, "start_hour": s, "end_hour": e} for d, s, e in hours]}
+    return client.put("/sitter/availability/week", json=body, headers=auth_for(who))
 
 
 @pytest.fixture
@@ -150,51 +156,99 @@ def test_distance_between_two_points():
 # ---------- availability ----------
 
 
-def test_a_sitter_adds_lists_and_removes_free_times(client, sitter):  # noqa: F811
-    later, sooner = _hour(3, 9), _hour(2, 9)
-    for start in (later, sooner):
-        response = client.post("/sitter/availability", json=slot(start), headers=auth_for(sitter))
-        assert response.status_code == 201
-    listed = client.get("/sitter/availability", headers=auth_for(sitter)).json()
-    assert [datetime.fromisoformat(item["starts_at"]) for item in listed] == [sooner, later]
+def test_a_sitter_sets_her_week_and_it_replaces_the_old_one(client, sitter):  # noqa: F811
+    response = set_week(client, sitter, (2, 18, 22), (0, 9, 13), (0, 13, 17))
+    assert response.status_code == 200, response.text
+    week = [(item["weekday"], item["start_hour"], item["end_hour"]) for item in response.json()["week"]]
+    assert week == [(0, 9, 13), (0, 13, 17), (2, 18, 22)]  # sorted; touching times are fine
 
-    deleted = client.delete(f"/sitter/availability/{listed[0]['id']}", headers=auth_for(sitter))
-    assert deleted.status_code == 204
-    assert len(client.get("/sitter/availability", headers=auth_for(sitter)).json()) == 1
+    assert set_week(client, sitter, (5, 18, 24)).status_code == 200
+    listed = client.get("/sitter/availability", headers=auth_for(sitter)).json()
+    assert listed["week"] == [{"weekday": 5, "start_hour": 18, "end_hour": 24}]
+    assert set_week(client, sitter).json()["week"] == []  # not free at all
 
 
 @pytest.mark.parametrize(
-    ("body", "code"),
+    ("hours", "code"),
     [
-        (slot(_hour(-1, 9)), "slot_in_the_past"),
-        (
-            {"starts_at": _hour(2, 9).isoformat(), "ends_at": (_hour(2, 9) + timedelta(minutes=30)).isoformat()},
-            "slot_too_short",
-        ),
-        ({"starts_at": _hour(2, 9).isoformat(), "ends_at": _hour(2, 8).isoformat()}, "validation_error"),
-        ({"starts_at": "2026-12-01T09:00:00", "ends_at": "2026-12-01T12:00:00"}, "validation_error"),  # no timezone
+        ([(0, 9, 13), (0, 12, 15)], "hours_overlap"),
+        ([(0, 13, 9)], "hours_order"),
+        ([(0, 9, 9)], "hours_order"),
+        ([(7, 9, 13)], "validation_error"),
+        ([(0, 9, 25)], "validation_error"),
     ],
 )
-def test_bad_free_times_are_refused(client, sitter, body, code):  # noqa: F811
-    response = client.post("/sitter/availability", json=body, headers=auth_for(sitter))
+def test_bad_weeks_are_refused(client, sitter, hours, code):  # noqa: F811
+    response = set_week(client, sitter, *hours)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == code
 
 
-def test_free_times_cannot_overlap(client, sitter):  # noqa: F811
-    assert client.post("/sitter/availability", json=slot(_hour(2, 9)), headers=auth_for(sitter)).status_code == 201
-    response = client.post("/sitter/availability", json=slot(_hour(2, 11)), headers=auth_for(sitter))
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "slot_overlaps"
-    # Back to back is fine.
-    assert client.post("/sitter/availability", json=slot(_hour(2, 12)), headers=auth_for(sitter)).status_code == 201
+def test_days_off_are_added_listed_and_removed(client, sitter):  # noqa: F811
+    soon, later = india_day(3), india_day(10)
+    for day in (later, soon, soon):  # the same day twice is fine
+        response = client.post("/sitter/availability/days-off", json={"day": day.isoformat()}, headers=auth_for(sitter))
+        assert response.status_code == 201
+    assert response.json()["days_off"] == [soon.isoformat(), later.isoformat()]
+
+    assert client.delete(f"/sitter/availability/days-off/{soon}", headers=auth_for(sitter)).status_code == 204
+    assert client.get("/sitter/availability", headers=auth_for(sitter)).json()["days_off"] == [later.isoformat()]
+    assert client.delete(f"/sitter/availability/days-off/{soon}", headers=auth_for(sitter)).status_code == 404
 
 
-def test_a_sitter_cannot_remove_another_sitters_time(client, sitter, make_sitter):  # noqa: F811
+def test_a_day_off_in_the_past_is_refused(client, sitter):  # noqa: F811
+    response = client.post(
+        "/sitter/availability/days-off", json={"day": india_day(-1).isoformat()}, headers=auth_for(sitter)
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "day_in_the_past"
+
+
+def test_a_sitter_cannot_remove_another_sitters_day_off(client, db_engine, sitter, make_sitter):  # noqa: F811
     other = make_sitter()
-    slot_id = client.post("/sitter/availability", json=slot(_hour(2, 9)), headers=auth_for(other)).json()["id"]
-    assert client.delete(f"/sitter/availability/{slot_id}", headers=auth_for(sitter)).status_code == 403
-    assert client.delete(f"/sitter/availability/{uuid.uuid4()}", headers=auth_for(sitter)).status_code == 404
+    day = india_day(4)
+    client.post("/sitter/availability/days-off", json={"day": day.isoformat()}, headers=auth_for(other))
+    assert client.delete(f"/sitter/availability/days-off/{day}", headers=auth_for(sitter)).status_code == 404
+    assert scalar(db_engine, "SELECT count(*) FROM days_off WHERE sitter_id = :id", id=other["id"]) == 1
+
+
+def test_parents_cannot_set_a_week(client, parent):  # noqa: F811
+    assert set_week(client, parent, (0, 9, 13)).status_code == 403
+
+
+def test_free_times_come_from_her_week_for_two_weeks(client, db_engine, make_sitter):  # noqa: F811
+    found = make_sitter()
+    # Mondays 9 am-1 pm, and Sunday evening running into Monday: 6 pm-midnight then midnight-2 am.
+    set_week(client, found, (0, 9, 13), (6, 18, 24), (0, 0, 2))
+    monday = date(2026, 11, 16)
+    now = at(monday, 10)  # Monday 10 am in India: the morning has started but has time left
+    with db_engine.begin() as conn:
+        conn.execute(text("INSERT INTO days_off (sitter_id, day) VALUES (:id, '2026-11-23')"), {"id": found["id"]})
+
+    with Session(db_engine) as db:
+        times = availability.free_times(db, found["id"], now)
+    spans = [(item.starts_at, item.ends_at) for item in times]
+    sunday, next_monday = date(2026, 11, 22), date(2026, 11, 23)
+    assert spans == [
+        (at(monday, 9), at(monday, 13)),  # started, but kept: time is left
+        (at(sunday, 18), at(next_monday, 0)),  # the 23rd is a day off, so no 0-2 am or 9-1 on it
+        # 14 days from 16 Nov ends on 29 Nov (a Sunday): its evening is in, Monday the 30th is not.
+        (at(date(2026, 11, 29), 18), at(date(2026, 11, 30), 0)),
+    ]
+    assert availability.is_free(times, at(monday, 10), at(monday, 12))
+    assert not availability.is_free(times, at(monday, 12), at(monday, 14))
+    assert availability.has_time_on(times, sunday, now)
+    assert not availability.has_time_on(times, date(2026, 11, 18), now)
+
+
+def test_times_that_touch_are_joined(client, db_engine, make_sitter):  # noqa: F811
+    found = make_sitter()
+    set_week(client, found, (6, 18, 24), (0, 0, 2))
+    sunday = date(2026, 11, 15)
+    with Session(db_engine) as db:
+        times = availability.free_times(db, found["id"], at(sunday, 8))
+    assert (times[0].starts_at, times[0].ends_at) == (at(sunday, 18), at(date(2026, 11, 16), 2))
+    assert availability.is_free(times, at(sunday, 23), at(date(2026, 11, 16), 1))
 
 
 # ---------- search ----------
@@ -257,12 +311,13 @@ def test_each_filter_works(client, finished_parent, make_sitter, params, expecte
     assert names(find(client, finished_parent, **params)) == expected
 
 
-def test_availability_filter_needs_her_free_for_the_whole_time(client, finished_parent, make_sitter):  # noqa: F811
+def test_time_filter_needs_her_free_for_the_whole_time(client, finished_parent, make_sitter):  # noqa: F811
+    day = india_day(3)
     free = make_sitter("Free All Morning")
     partly = make_sitter("Free Until Ten")
-    client.post("/sitter/availability", json=slot(_hour(2, 8), hours=4), headers=auth_for(free))
-    client.post("/sitter/availability", json=slot(_hour(2, 8), hours=2), headers=auth_for(partly))
-    wanted = {"starts_at": _hour(2, 9).isoformat(), "ends_at": _hour(2, 11).isoformat()}
+    set_week(client, free, (day.weekday(), 8, 12))
+    set_week(client, partly, (day.weekday(), 8, 10))
+    wanted = {"starts_at": at(day, 9).isoformat(), "ends_at": at(day, 11).isoformat()}
     assert names(find(client, finished_parent, **wanted)) == ["Free All Morning"]
 
 
@@ -284,34 +339,35 @@ def test_without_a_plan_every_live_sitter_is_found(client, db_engine, finished_p
     }
 
 
-def test_day_filter_finds_sitters_with_free_time_that_day(client, finished_parent, make_sitter):  # noqa: F811
-    that_day = make_sitter("Free That Day")
-    next_day = make_sitter("Free The Next Day")
+def test_day_filter_finds_sitters_free_that_day(client, finished_parent, make_sitter):  # noqa: F811
+    day = india_day(3)
+    that_day = make_sitter("Free That Weekday")
+    other_day = make_sitter("Free Another Weekday")
+    off = make_sitter("Day Off That Day")
     make_sitter("Never Free")
-    # 6 am UTC is 11:30 am in India, so these free times sit inside one India day.
-    client.post("/sitter/availability", json=slot(_hour(3, 6)), headers=auth_for(that_day))
-    client.post("/sitter/availability", json=slot(_hour(4, 6)), headers=auth_for(next_day))
-    day = _hour(3, 6).astimezone(search.INDIA).date().isoformat()
-    response = client.get("/parent/sitters", params={"day": day}, headers=auth_for(finished_parent))
+    set_week(client, that_day, (day.weekday(), 9, 13))
+    set_week(client, other_day, ((day.weekday() + 1) % 7, 9, 13))
+    set_week(client, off, (day.weekday(), 9, 13))
+    client.post("/sitter/availability/days-off", json={"day": day.isoformat()}, headers=auth_for(off))
+    response = client.get("/parent/sitters", params={"day": day.isoformat()}, headers=auth_for(finished_parent))
     assert response.status_code == 200, response.text
-    assert names(response.json()) == ["Free That Day"]
+    assert names(response.json()) == ["Free That Weekday"]
 
 
-def test_day_bounds_use_india_time_and_skip_the_past():
-    day = date(2026, 12, 1)
-    start, end = search.day_bounds(day, datetime(2026, 11, 1, tzinfo=UTC))
-    assert start == datetime(2026, 11, 30, 18, 30, tzinfo=UTC)  # midnight in India
-    assert end == datetime(2026, 12, 1, 18, 30, tzinfo=UTC)
-    later = datetime(2026, 12, 1, 10, 0, tzinfo=UTC)
-    assert search.day_bounds(day, later)[0] == later  # today: only what's left of it
+def test_nobody_is_free_beyond_two_weeks(client, finished_parent, make_sitter):  # noqa: F811
+    make_sitter("Every Day")
+    every_day = make_sitter("Every Day Too")
+    set_week(client, every_day, *[(weekday, 9, 13) for weekday in range(7)])
+    assert names(find(client, finished_parent, day=india_day(13).isoformat())) == ["Every Day Too"]
+    assert names(find(client, finished_parent, day=india_day(14).isoformat())) == []
 
 
 @pytest.mark.parametrize(
     ("params", "code"),
     [
         ({"day": "tomorrow"}, "validation_error"),
-        ({"starts_at": _hour(2, 9).isoformat()}, "time_incomplete"),
-        ({"starts_at": _hour(2, 9).isoformat(), "ends_at": _hour(2, 8).isoformat()}, "time_order"),
+        ({"starts_at": at(india_day(2), 9).isoformat()}, "time_incomplete"),
+        ({"starts_at": at(india_day(2), 9).isoformat(), "ends_at": at(india_day(2), 8).isoformat()}, "time_order"),
         ({"plan": "deluxe"}, "validation_error"),
     ],
 )
@@ -335,9 +391,12 @@ def test_parents_never_see_pay_or_contact_details(client, finished_parent, make_
 # ---------- a sitter's profile page ----------
 
 
-def test_profile_page_shows_her_free_times(client, finished_parent, make_sitter):  # noqa: F811
+def test_profile_page_shows_her_week_and_days_off(client, finished_parent, make_sitter):  # noqa: F811
     found = make_sitter("Lakshmi Nair", languages=["English", "Tamil"])
-    client.post("/sitter/availability", json=slot(_hour(2, 9)), headers=auth_for(found))
+    set_week(client, found, (0, 9, 13), (5, 18, 22))
+    soon, beyond = india_day(2), india_day(20)
+    for day in (soon, beyond):
+        client.post("/sitter/availability/days-off", json={"day": day.isoformat()}, headers=auth_for(found))
     response = client.get(f"/parent/sitters/{found['id']}", headers=auth_for(finished_parent))
     assert response.status_code == 200
     body = response.json()
@@ -345,7 +404,11 @@ def test_profile_page_shows_her_free_times(client, finished_parent, make_sitter)
     assert body["bio"] == "Loves stories"
     assert body["plan"] == "pause"
     assert body["languages"] == ["English", "Tamil"]
-    assert [datetime.fromisoformat(item["starts_at"]) for item in body["free_times"]] == [_hour(2, 9)]
+    assert body["week"] == [
+        {"weekday": 0, "start_hour": 9, "end_hour": 13},
+        {"weekday": 5, "start_hour": 18, "end_hour": 22},
+    ]
+    assert body["days_off"] == [soon.isoformat()]  # only those within the next two weeks
 
 
 def test_a_sitter_who_isnt_live_has_no_profile_page(client, finished_parent, make_sitter):  # noqa: F811

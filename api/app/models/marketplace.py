@@ -1,29 +1,44 @@
-"""The marketplace (CLAUDE.md 8, phase 5): sitters' free times, and cached geocoding results."""
+"""The marketplace (CLAUDE.md 8, phase 5): sitters' weekly hours and days off, and cached geocoding results."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, Text
+from sqlalchemy import CheckConstraint, Date, ForeignKey, Index, Numeric, SmallInteger, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 from app.models.common import created_at, uuid_pk
 
 
-class AvailabilitySlot(Base):
-    """A dated time a sitter is free (design.md: availability as dated time slots, not weekday toggles)."""
+class WeeklyHours(Base):
+    """A time a sitter is usually free on one weekday, repeating every week (decided 2026-11-09,
+    replaces dated free times). Whole hours in India time; weekday 0 is Monday."""
 
-    __tablename__ = "availability_slots"
+    __tablename__ = "weekly_hours"
     __table_args__ = (
-        CheckConstraint("ends_at > starts_at", name="ends_after_start"),
-        Index("ix_availability_slots_sitter_id_starts_at", "sitter_id", "starts_at"),
+        CheckConstraint("weekday BETWEEN 0 AND 6", name="weekday_range"),
+        CheckConstraint("start_hour BETWEEN 0 AND 23", name="start_hour_range"),
+        CheckConstraint("end_hour BETWEEN 1 AND 24", name="end_hour_range"),
+        CheckConstraint("end_hour > start_hour", name="ends_after_start"),
+        Index("ix_weekly_hours_sitter_id", "sitter_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     sitter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sitters.profile_id", ondelete="CASCADE"))
-    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    weekday: Mapped[int] = mapped_column(SmallInteger)
+    start_hour: Mapped[int] = mapped_column(SmallInteger)
+    end_hour: Mapped[int] = mapped_column(SmallInteger)
+    created_at: Mapped[datetime] = created_at()
+
+
+class DayOff(Base):
+    """A date a sitter isn't free, whatever her weekly hours say."""
+
+    __tablename__ = "days_off"
+
+    sitter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sitters.profile_id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
     created_at: Mapped[datetime] = created_at()
 
 

@@ -214,6 +214,8 @@ at home (CLAUDE.md 6.3).
   run in CI on every pull request (README "End-to-end tests")
 - [x] Header: ☀️ / 🌙 theme switch (no "System") and a profile button whose bubble prompts people to
   finish their profile; the checklist moved from the home pages to "Your profile" (Reuben 2026-11-09)
+- [x] Weekly availability: a week that repeats (quick fills: mornings, afternoons, evenings) plus days
+  off; free times worked out for the next 14 days, the booking window (Reuben 2026-11-09)
 - [x] Find a sitter lists every live sitter (no plan filter); filters are day, language, sort and first
   aid only, applied straight away; intro beside "Home" (Reuben 2026-11-09)
 
@@ -316,6 +318,10 @@ at home (CLAUDE.md 6.3).
 - 2026-11-09 — End-to-end tests (`e2e-tests`): Playwright runs the onboarding journeys against the real
   web app and API on a fresh database, with stand-ins for Supabase and OpenStreetMap; new CI job. Found and
   fixed: the home checklist showed stale steps for up to 30 seconds after finishing one.
+- 2026-11-09 — Weekly availability (`weekly-availability`): `weekly_hours` and `days_off` replace
+  `availability_slots` (migration `d5577de53ca1`); `PUT /sitter/availability/week`, days-off
+  endpoints; search and the parent's sitter page use free times worked out for 14 days; sitter page
+  is a 7-day editor that fits a phone. Card plan label added. 399 API, 213 web, 5 e2e tests.
 - 2026-11-09 — Find a sitter (`find-sitters-simpler`): `GET /parent/sitters` plan is optional (all
   levels by default) and takes `day` (free time left that India day); the page keeps only day,
   language (options from sitters' own languages), sort and first-aid, applied on change, with compact

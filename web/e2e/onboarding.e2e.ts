@@ -127,7 +127,7 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   await expect(page.getByRole("link", { name: "Finish your profile" })).toHaveCount(0);
 });
 
-test("a sitter signs up, applies and adds a free time", async ({ browser }) => {
+test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   sitter = await signIn(browser, "sitter");
   const page = sitter.page;
   await join(page, "sitter");
@@ -182,13 +182,15 @@ test("a sitter signs up, applies and adds a free time", async ({ browser }) => {
   await expect(page).toHaveURL(/\/sitter\/profile$/);
   await expect(page.getByRole("link", { name: /Psychology screening/ }).getByText("Being checked")).toBeVisible();
 
+  // Her usual week: Mornings on every weekday, in one tap, plus a day off.
   await page.goto("/sitter/availability");
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  await page.getByLabel("Day").fill(tomorrow);
-  await page.getByLabel("From").selectOption("9");
-  await page.getByLabel("Until").selectOption("13");
-  await page.getByRole("button", { name: "Add this time" }).click();
-  await expect(page.getByRole("button", { name: /^Remove / })).toBeVisible();
+  await page.getByRole("button", { name: "Mornings" }).click();
+  await page.getByRole("button", { name: "Save my week" }).click();
+  await expect(page.getByText("Saved. It repeats every week until you change it.")).toBeVisible();
+  const inAWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await page.getByLabel("Day", { exact: true }).fill(inAWeek);
+  await page.getByRole("button", { name: "Mark day off" }).click();
+  await expect(page.getByRole("button", { name: /^Remove day off / })).toBeVisible();
 
   await page.goto("/sitter/profile");
   for (const step of ["About you", "ID documents", "Police clearance certificate", "References", "Psychology screening"]) {
@@ -271,7 +273,9 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
   await card.getByRole("link", { name: "See Lakshmi's profile" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Lakshmi Nair" })).toBeVisible();
   await expect(page.getByText("I love storytime and long walks.")).toBeVisible();
-  await expect(page.getByText(/9:00 am – 1:00 pm/)).toBeVisible();
+  await expect(page.getByText("Mon", { exact: true })).toBeVisible();
+  await expect(page.getByText("9 am – 1 pm").first()).toBeVisible();
+  await expect(page.getByText(/^Not free on /)).toBeVisible();
   await expect(page.getByText(/Start with a 1-hour booking while you're at home/)).toBeVisible();
   await expect(page.locator("body")).not.toContainText("₹");
 });

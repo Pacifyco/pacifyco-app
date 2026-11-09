@@ -23,3 +23,29 @@ export function hourLabel(hour: number): string {
 
 export const START_HOURS = Array.from({ length: 24 }, (_, hour) => hour); // 0–23
 export const END_HOURS = Array.from({ length: 24 }, (_, hour) => hour + 1); // 1–24
+
+// ---------- a sitter's week (decided 2026-11-09: a week that repeats, plus days off) ----------
+
+/** Weekday 0 is Monday, as the API sends it. */
+export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export const WEEKDAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+export type WeekHours = { weekday: number; start_hour: number; end_hour: number };
+
+/** 9 → "9 am", 12 → "12 pm", 0 and 24 → "12 am": short enough for a phone row. */
+export function shortHour(hour: number): string {
+  const twelve = hour % 12 === 0 ? 12 : hour % 12;
+  return `${twelve} ${hour % 24 < 12 ? "am" : "pm"}`;
+}
+
+/** "9 am – 1 pm". */
+export function hoursLabel(start: number, end: number): string {
+  return `${shortHour(start)} – ${shortHour(end)}`;
+}
+
+/** "2026-11-15" → "Sat 15 Nov". */
+export function dayLabel(day: string): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+    .format(new Date(`${day}T00:00:00Z`))
+    .replace(",", "");
+}
