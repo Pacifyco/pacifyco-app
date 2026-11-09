@@ -62,6 +62,9 @@ async function join(page: Page, role: "parent" | "sitter") {
   await page.getByRole("checkbox", { name: /I agree to the/ }).check();
   await page.getByRole("button", { name: /Yes, create my account/ }).click();
   await expect(page).toHaveURL(new RegExp(`/${role}$`));
+  // A bubble from the profile button in the header leads to the checklist.
+  await page.getByRole("link", { name: "Finish your profile" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${role}/profile$`));
   await expect(page.getByRole("heading", { name: "Finish your profile" })).toBeVisible();
 }
 
@@ -116,8 +119,12 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   await expect(page.getByText("Step 3 of 3 · Authorised adults")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page).toHaveURL(/\/parent$/);
+  await expect(page).toHaveURL(/\/parent\/profile$/);
   await expect(page.getByText(/Your profile is finished, so you can book/)).toBeVisible();
+  // Nothing left to do, so the home has no bubble.
+  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Time for you." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Finish your profile" })).toHaveCount(0);
 });
 
 test("a sitter signs up, applies and adds a free time", async ({ browser }) => {
@@ -171,8 +178,8 @@ test("a sitter signs up, applies and adds a free time", async ({ browser }) => {
   }
   for (const box of await page.locator("textarea").all()) await box.fill("I stay calm and keep the child safe.");
   await page.getByRole("button", { name: "Submit" }).click();
-  // Submitting takes her back to her home page, where the screening is now with Pacify.
-  await expect(page).toHaveURL(/\/sitter$/);
+  // Submitting takes her back to her profile checklist, where the screening is now with Pacify.
+  await expect(page).toHaveURL(/\/sitter\/profile$/);
   await expect(page.getByRole("link", { name: /Psychology screening/ }).getByText("Being checked")).toBeVisible();
 
   await page.goto("/sitter/availability");
@@ -183,7 +190,7 @@ test("a sitter signs up, applies and adds a free time", async ({ browser }) => {
   await page.getByRole("button", { name: "Add this time" }).click();
   await expect(page.getByRole("button", { name: /^Remove / })).toBeVisible();
 
-  await page.goto("/sitter");
+  await page.goto("/sitter/profile");
   for (const step of ["About you", "ID documents", "Police clearance certificate", "References", "Psychology screening"]) {
     await expect(page.getByRole("link", { name: new RegExp(step) }).getByText("Being checked")).toBeVisible();
   }
@@ -206,7 +213,7 @@ test("an admin rejects a step with a reason; the sitter sees it and uploads agai
   await expect(police.getByText("Rejected")).toBeVisible();
 
   const sitterPage = sitter.page;
-  await sitterPage.goto("/sitter");
+  await sitterPage.goto("/sitter/profile");
   const item = sitterPage.getByRole("link", { name: /Police clearance certificate/ });
   await expect(item.getByText("Needs another look")).toBeVisible();
   await expect(item.getByText("Reason: It's older than six months.")).toBeVisible();
@@ -214,7 +221,7 @@ test("an admin rejects a step with a reason; the sitter sees it and uploads agai
   await item.click();
   await sitterPage.getByRole("button", { name: "Continue" }).click();
   await upload(sitterPage, "Police clearance certificate", PDF);
-  await sitterPage.goto("/sitter");
+  await sitterPage.goto("/sitter/profile");
   await expect(sitterPage.getByRole("link", { name: /Police clearance certificate/ }).getByText("Being checked")).toBeVisible();
 
   await page.reload();
@@ -237,7 +244,7 @@ test("the admin approves the sitter and the family", async () => {
   await page.getByRole("button", { name: "Approve and go live" }).click();
   await expect(page.getByText("Approved", { exact: true }).last()).toBeVisible();
 
-  await sitter.page.goto("/sitter");
+  await sitter.page.goto("/sitter/profile");
   await expect(sitter.page.getByText("Your profile is live. Families can now find and book you.")).toBeVisible();
 
   await page.goto("/admin/verifications");
@@ -248,8 +255,9 @@ test("the admin approves the sitter and the family", async () => {
 
 test("the parent finds the sitter, with her photo and no prices", async () => {
   const page = parent.page;
-  await page.goto("/parent");
+  await page.goto("/parent/profile");
   await expect(page.getByRole("link", { name: /Your children/ }).getByText("Approved")).toBeVisible();
+  await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.getByRole("link", { name: "Find a sitter" }).click();
 
   const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Lakshmi Nair" }) });

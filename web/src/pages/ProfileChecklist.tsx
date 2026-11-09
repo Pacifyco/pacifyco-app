@@ -14,8 +14,16 @@ export type ParentChecklist = { items: Item[]; finished: boolean };
 export type SitterChecklist = { items: Item[]; live: boolean; application_rejected_reason?: string | null };
 
 export function useChecklist<T extends ParentChecklist | SitterChecklist>(role: "parent" | "sitter") {
-  // Always fresh when the home page opens: it reflects changes made on many other pages.
+  // Always fresh when the profile page opens: it reflects changes made on many other pages. The header's
+  // profile button shares this query, so its "finish your profile" bubble updates at the same time.
   return useQuery({ queryKey: ["checklist", role], queryFn: () => apiFetch<T>(`/${role}/checklist`), staleTime: 0 });
+}
+
+/** What the profile button's bubble says, or null when there's nothing for the person to do. */
+export function profilePrompt(items: Item[]): string | null {
+  if (items.some((item) => item.status === "rejected")) return "Something needs another look";
+  if (items.some((item) => item.status === "to_do")) return "Finish your profile";
+  return null;
 }
 
 type Step = { label: string; hint: string; to: string };
@@ -57,19 +65,19 @@ export function ChecklistCard({
   steps: Record<string, Step>;
 }) {
   return (
-    <Card as="section" padding="roomy" className="text-left" aria-labelledby="checklist-heading">
-      <h2 id="checklist-heading" className="text-h3">
+    <Card as="section" className="text-left" aria-labelledby="checklist-heading">
+      <h1 id="checklist-heading" className="text-h3">
         {heading}
-      </h2>
-      <p className="mt-2 text-muted">{intro}</p>
-      <ul className="mt-3">
+      </h1>
+      <p className="mt-2 text-small text-muted">{intro}</p>
+      <ul className="mt-2">
         {items.map(({ key, status, reason }) => {
           const step = steps[key];
           if (!step) return null;
           const { word, icon: Icon, tone } = STATUS[status];
           return (
             <li key={key} className="border-t border-line first:border-t-0">
-              <Link to={step.to} className="flex items-center gap-4 py-4 text-ink no-underline">
+              <Link to={step.to} className="flex items-center gap-3 py-3 text-ink no-underline">
                 <Icon aria-hidden="true" size={22} strokeWidth={1.75} className={cx("shrink-0", tone)} />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="text-ui">{step.label}</span>

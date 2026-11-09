@@ -217,12 +217,12 @@ describe("the family page", () => {
     await waitFor(() => expect(within(section).queryByText("Ravi K")).toBeNull());
   });
 
-  test("finishing the last step navigates to the parent home page", async () => {
+  test("finishing the last step goes back to the parent's profile checklist", async () => {
     mockApi();
     const router = createMemoryRouter(
       [
         { path: "/", element: <FamilyPage /> },
-        { path: "/parent", element: <p>Parent home page</p> },
+        { path: "/parent/profile", element: <p>Parent profile page</p> },
       ],
       { initialEntries: ["/"] },
     );
@@ -238,6 +238,6 @@ describe("the family page", () => {
     await screen.findByText("Step 3 of 3 · Authorised adults");
     await clickContinue(); // authorised adults, none required
 
-    expect(await screen.findByText("Parent home page")).toBeTruthy();
+    expect(await screen.findByText("Parent profile page")).toBeTruthy();
   });
 });

@@ -465,7 +465,7 @@ export function FamilyPage() {
 
   function goNext() {
     if (stepIndex === STEPS.length - 1) {
-      navigate("/parent"); // nothing further to hand off to -- back to her status page
+      navigate("/parent/profile"); // nothing further to hand off to -- back to the checklist
       return;
     }
     setStepIndex((index) => index + 1);

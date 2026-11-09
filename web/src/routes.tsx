@@ -16,6 +16,7 @@ import { FindSittersPage } from "./pages/FindSittersPage";
 import { HomePage } from "./pages/HomePage";
 import { JoinPage } from "./pages/JoinPage";
 import { ParentTermsPage, PrivacyPolicyPage, SitterTermsPage } from "./pages/LegalPages";
+import { ProfilePage } from "./pages/ProfilePage";
 import { PsychTestPage } from "./pages/PsychTestPage";
 import { AuthCallbackPage, SignInPage } from "./pages/SignInPage";
 import { SitterApplicationPage } from "./pages/SitterApplicationPage";
@@ -36,6 +37,15 @@ export const routes: RouteObject[] = [
           </RequireRole>
         ),
       },
+      // "Your profile": the finish-your-profile checklist, opened from the header's profile button.
+      ...(["parent", "sitter"] as const).map((role) => ({
+        path: `${role}/profile`,
+        element: (
+          <RequireRole role={role}>
+            <ProfilePage role={role} />
+          </RequireRole>
+        ),
+      })),
       // "Your details" (name, mobile, pin code, address): asked for after sign-up (CLAUDE.md 6.13).
       ...(["parent", "sitter"] as const).map((role) => ({
         path: `${role}/details`,

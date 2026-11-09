@@ -5,6 +5,8 @@ import { useAuth } from "./AuthProvider";
 // Mirrors GET /me (api/app/routers/auth.py).
 export type Role = "parent" | "sitter" | "admin";
 export const AREA_PATH: Record<Role, string> = { parent: "/parent", sitter: "/sitter", admin: "/admin" };
+/** "Your profile": the finish-your-profile checklist, opened from the header's profile button. */
+export const PROFILE_PATH = { parent: "/parent/profile", sitter: "/sitter/profile" } as const;
 
 export type TermsKind = "parent_terms" | "sitter_terms" | "privacy_policy";
 export type TermsVersion = { kind: TermsKind; version: string };

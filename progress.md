@@ -212,6 +212,8 @@ at home (CLAUDE.md 6.3).
 - [ ] [Reuben] Real psychology test questions (phase 15)
 - [x] End-to-end tests (Playwright) for parent and sitter onboarding, admin review and finding a sitter;
   run in CI on every pull request (README "End-to-end tests")
+- [x] Header: ☀️ / 🌙 theme switch (no "System") and a profile button whose bubble prompts people to
+  finish their profile; the checklist moved from the home pages to "Your profile" (Reuben 2026-11-09)
 
 ## Phase 6 — Plans and payments (was hour packs and ledger; changed 2026-11-03)
 
@@ -312,6 +314,9 @@ at home (CLAUDE.md 6.3).
 - 2026-11-09 — End-to-end tests (`e2e-tests`): Playwright runs the onboarding journeys against the real
   web app and API on a fresh database, with stand-ins for Supabase and OpenStreetMap; new CI job. Found and
   fixed: the home checklist showed stale steps for up to 30 seconds after finishing one.
+- 2026-11-09 — Header (`header-theme-profile`): sun and moon theme switch; profile button with a "finish
+  your profile" bubble; checklist moved to `/parent/profile` and `/sitter/profile`, and steps return
+  there; home pages trimmed to fit a phone screen. design.md 2 and 7 record the exceptions.
 - 2026-11-09 — Onboarding polish (`onboarding-polish`): sitter profile photo (JPG/PNG; parents see
   live sitters' photos via signed URLs); admins must give a rejection reason, shown to parents and
   sitters on their checklist, family page and references; changes after a rejection go back for
