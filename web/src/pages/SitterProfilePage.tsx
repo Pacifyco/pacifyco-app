@@ -4,14 +4,13 @@ import { useParams } from "react-router";
 import { BackLink, ButtonLink, Card, Chip, EmptyState, VerifiedChip } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { formatBookingTime, plural } from "../lib/format";
-import { PLAN_LABELS, checksFor, distanceText, firstNameOf, type Plan, type SitterSummary } from "./FindSittersPage";
+import { PLAN_LABELS, checksFor, distanceText, firstNameOf, type SitterSummary } from "./FindSittersPage";
 
 // One sitter's profile, for parents (CLAUDE.md 9). No price or pay (CLAUDE.md 6.1, 6.2); the plan's price
 // is shown when the parent books.
 
 type SitterDetail = SitterSummary & {
   bio: string | null;
-  plan: Plan;
   free_times: { starts_at: string; ends_at: string }[];
   /** Recharge sitters only, with her consent (CLAUDE.md 6.2). */
   reference: { name: string; phone: string; relationship: string } | null;

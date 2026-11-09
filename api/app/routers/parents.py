@@ -252,6 +252,7 @@ class SitterSummary(BaseModel):
     review_count: int
     distance_km: float | None  # straight line from the parent's home, to 0.1 km
     photo_url: str | None  # short-lived signed URL; live sitters only
+    plan: SitterLevel  # the plan she works (her level), shown as a label; its price only when booking
 
 
 class FreeTime(BaseModel):
@@ -267,7 +268,6 @@ class SharedReference(BaseModel):
 
 class SitterDetail(SitterSummary):
     bio: str | None
-    plan: SitterLevel  # the plan she works (her level); its price is shown when the parent books
     free_times: list[FreeTime]
     # Recharge sitters only, with her consent (CLAUDE.md 6.2).
     reference: SharedReference | None
@@ -296,6 +296,7 @@ def _summary_fields(found: search_service.Found, photo_url: str | None) -> dict:
         "review_count": sitter.review_count,
         "distance_km": round(found.distance_km, 1) if found.distance_km is not None else None,
         "photo_url": photo_url,
+        "plan": sitter.level,
     }
 
 
@@ -304,7 +305,8 @@ def search_sitters(
     parent: Parent,
     db: DbSession,
     storage: Storage,
-    plan: SitterLevel,
+    plan: SitterLevel | None = None,
+    day: Annotated[date | None, Query()] = None,
     starts_at: Annotated[AwareDatetime | None, Query()] = None,
     ends_at: Annotated[AwareDatetime | None, Query()] = None,
     min_rating: Annotated[Decimal | None, Query(ge=1, le=5)] = None,
@@ -313,7 +315,7 @@ def search_sitters(
     first_aid: bool = False,
     sort: search_service.SortBy = search_service.SortBy.distance,
 ) -> list[SitterSummary]:
-    """Live sitters of the plan's level. Parents browse once their profile is finished (CLAUDE.md 7)."""
+    """Every live sitter, or one plan's level. Parents browse once their profile is finished (CLAUDE.md 7)."""
     checklists.require_finished_parent_profile(db, parent)
     if (starts_at is None) != (ends_at is None):
         raise AppError(422, "time_incomplete", "Choose both a start and an end time")
@@ -321,6 +323,7 @@ def search_sitters(
         raise AppError(422, "time_order", "The end time must be after the start time")
     filters = search_service.Filters(
         plan=plan,
+        day=day,
         starts_at=starts_at,
         ends_at=ends_at,
         min_rating=min_rating,
@@ -331,7 +334,7 @@ def search_sitters(
     )
     return [
         SitterSummary(**_summary_fields(found, _photo_url(db, storage, found.profile.id)))
-        for found in search_service.search(db, parent, filters)
+        for found in search_service.search(db, parent, filters, datetime.now(UTC))
     ]
 
 
@@ -344,7 +347,6 @@ def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Sto
     return SitterDetail(
         **_summary_fields(found, _photo_url(db, storage, sitter_id)),
         bio=found.sitter.bio,
-        plan=found.sitter.level,
         free_times=[FreeTime(starts_at=slot.starts_at, ends_at=slot.ends_at) for slot in slots],
         reference=(
             SharedReference(name=shared.name, phone=shared.phone, relationship=shared.relationship) if shared else None

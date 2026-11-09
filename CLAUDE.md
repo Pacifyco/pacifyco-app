@@ -186,6 +186,12 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   | Unwind | ₹699 for the first child, +₹150 per extra child (2 children = ₹849) | any number | 10:30 pm | can be ticked | no |
   | Recharge | ₹899 for any number of children | any number | 12 am (midnight) | can be ticked | yes, with the parent's approval |
 
+- **Children on a booking (decided 2026-11-09):** a booking starts as one child, whatever the number
+  of verified children on the account; the parent adds each extra child who'll be there. Pause takes
+  one child only (Pause sitters are still shown to every parent). Unwind adds ₹150/hour per extra child.
+  Recharge costs the same for any number, but parents still add every child so the sitter knows who
+  she's caring for. Only the parent's own children can be added, and the booking is confirmed only
+  once each of them is verified (6.4).
 - Booking price = the plan's hourly price (for that number of children) × booked hours. Example:
   Recharge, 3 hours = ₹2,697. No GST for now.
 - Booked time is counted in **whole hours only** (no half-hours); no minimum length; no earliest start
@@ -541,7 +547,7 @@ in the beta phase.
 | Terms click-wrap | Sign-up can't complete without acceptance; acceptance stores version, time, IP and user agent; parent can't book or buy and sitter can't take bookings until the latest version is accepted; parents see parent terms and sitters see the Sitter Terms of Use |
 | Documents | Non-admins can't get a signed view URL; every admin view logged; birth certificate deleted after child verification |
 | Sitter onboarding | Profile not searchable until every step passes and an admin has set her level |
-| Search and filters | Only active, verified, unblocked sitters of the chosen plan's level returned; distance sort; each filter works; parent never sees sitter pay |
+| Search and filters | Only active, verified, unblocked sitters returned: every level by default (decided 2026-11-09; the parent's page filters by day, language and first aid, and sorts), or one plan's level when asked; distance sort; each filter works; parent never sees sitter pay |
 | Sign-up flow | First sign-in asks only role and terms, then lands in the area; parent can't book until the profile is finished; booking stays unconfirmed until every child on it is verified; sitter not shown to parents until her profile is finished and approved |
 | Plans and pricing | Price per plan and children (Pause one child only; Unwind +₹150 per extra child; Recharge flat); whole-hour bookings only (no half-hours); booking `pending_payment` until an admin confirms; rejected or unpaid-by-deadline payment frees the booking |
 | Payments | Rows are append-only; amount owed = sum of rows; refunds and cancellation charges per 6.5; parents who owe money can't book |

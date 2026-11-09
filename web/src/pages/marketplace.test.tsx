@@ -121,9 +121,23 @@ describe("finding a sitter", () => {
     review_count: 0,
     distance_km: 2.37,
     photo_url: "https://storage.example/photo/s1?token=x",
+    plan: "pause",
   };
 
-  test("shows nearby sitters of the default plan, with no prices", async () => {
+  test("each card shows the plan the sitter works, as a small label with no price", async () => {
+    mockApi({
+      "GET /parent/sitters": () =>
+        jsonResponse([LAKSHMI, { ...LAKSHMI, id: "s2", full_name: "Meena Rao", plan: "recharge" }]),
+    });
+    renderAt("/parent/sitters");
+    const lakshmi = within((await screen.findByRole("heading", { name: "Lakshmi Nair" })).closest("article")!);
+    const meena = within(screen.getByRole("heading", { name: "Meena Rao" }).closest("article")!);
+    // Seen as "Pause"; screen readers hear "Works the Pause plan".
+    expect(lakshmi.getByText("Pause").textContent).toBe("Works the Pause plan");
+    expect(meena.getByText("Recharge").textContent).toBe("Works the Recharge plan");
+  });
+
+  test("lists every live sitter (no plan filter) with no prices, and the intro beside Home", async () => {
     const calls = mockApi({ "GET /parent/sitters": () => jsonResponse([LAKSHMI]) });
     const { container } = renderAt("/parent/sitters");
     const card = within((await screen.findByRole("heading", { name: "Lakshmi Nair" })).closest("article")!);
@@ -135,49 +149,49 @@ describe("finding a sitter", () => {
     expect(card.queryByText("Psychology screening passed")).toBeNull(); // placeholder questions for now
     expect(card.getByRole("link", { name: "See Lakshmi's profile" }).getAttribute("href")).toBe("/parent/sitters/s1");
     expect(container.textContent).not.toMatch(/₹|per hour|\/hour/);
-    expect(calls[0]!.path).toBe("/parent/sitters?plan=pause&sort=distance");
+    expect(calls[0]!.path).toBe("/parent/sitters?sort=distance");
+    // Only day, language, sort and first aid: no plan, time, experience or rating filters, no search button.
+    for (const gone of ["Plan", "From", "Until", "Experience", "Rating"]) expect(screen.queryByLabelText(gone)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Show sitters/ })).toBeNull();
+    const heading = screen.getByRole("heading", { level: 1, name: "Find a sitter" });
+    expect(heading.closest("div")!.parentElement!.contains(screen.getByRole("link", { name: "Home" }))).toBe(true);
   });
 
-  test("filters become the search", async () => {
-    const calls = mockApi({ "GET /parent/sitters": () => jsonResponse([]) });
+  test("language options come from the sitters' own languages", async () => {
+    mockApi({
+      "GET /parent/sitters": () =>
+        jsonResponse([LAKSHMI, { ...LAKSHMI, id: "s2", full_name: "Meena", languages: ["kannada", "Tamil "] }]),
+    });
     renderAt("/parent/sitters");
-    expect(await screen.findByText(/No sitters match yet/)).toBeTruthy();
+    await screen.findByRole("heading", { name: "Meena" });
+    const options = within(screen.getByLabelText("Speaks")).getAllByRole("option").map((option) => option.textContent);
+    expect(options).toEqual(["Any", "English", "Kannada", "Tamil"]);
+  });
 
-    fireEvent.change(screen.getByLabelText("Plan"), { target: { value: "unwind" } });
+  test("each filter applies straight away", async () => {
+    const calls = mockApi({ "GET /parent/sitters": () => jsonResponse([LAKSHMI]) });
+    renderAt("/parent/sitters");
+    await screen.findByRole("heading", { name: "Lakshmi Nair" });
+
     fireEvent.change(screen.getByLabelText(/Day/), { target: { value: "2026-11-10" } });
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "18" } });
-    fireEvent.change(screen.getByLabelText("Until"), { target: { value: "21" } });
-    fireEvent.change(screen.getByLabelText(/Speaks/), { target: { value: "Kannada" } });
-    fireEvent.change(screen.getByLabelText("Experience"), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("Rating"), { target: { value: "4.5" } });
+    fireEvent.change(screen.getByLabelText("Speaks"), { target: { value: "Kannada" } });
     fireEvent.click(screen.getByLabelText("First-aid certified only"));
     fireEvent.change(screen.getByLabelText("Sort by"), { target: { value: "rating" } });
-    fireEvent.click(screen.getByRole("button", { name: /Show sitters/ }));
 
-    await waitFor(() => expect(calls).toHaveLength(2));
-    const params = new URLSearchParams(calls[1]!.path.split("?")[1]);
+    await waitFor(() => expect(calls.at(-1)!.path).toContain("sort=rating"));
+    const params = new URLSearchParams(calls.at(-1)!.path.split("?")[1]);
     expect(Object.fromEntries(params)).toEqual({
-      plan: "unwind",
       sort: "rating",
-      starts_at: "2026-11-10T12:30:00.000Z",
-      ends_at: "2026-11-10T15:30:00.000Z",
+      day: "2026-11-10",
       language: "Kannada",
-      min_years: "3",
-      min_rating: "4.5",
       first_aid: "true",
     });
   });
 
-  test("an end time before the start is caught before searching", async () => {
-    const calls = mockApi({ "GET /parent/sitters": () => jsonResponse([]) });
+  test("no match says so", async () => {
+    mockApi({ "GET /parent/sitters": () => jsonResponse([]) });
     renderAt("/parent/sitters");
-    await screen.findByText(/No sitters match yet/);
-    fireEvent.change(screen.getByLabelText(/Day/), { target: { value: "2026-11-10" } });
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "20" } });
-    fireEvent.change(screen.getByLabelText("Until"), { target: { value: "19" } });
-    fireEvent.click(screen.getByRole("button", { name: /Show sitters/ }));
-    expect(screen.getByText("The end time must be after the start time.")).toBeTruthy();
-    expect(calls).toHaveLength(1);
+    expect(await screen.findByText("No sitters match. Try another day or fewer filters.")).toBeTruthy();
   });
 
   test("a parent who hasn't finished their profile is sent to finish it", async () => {

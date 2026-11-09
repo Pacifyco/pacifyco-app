@@ -1,11 +1,13 @@
-"""Parents finding sitters (CLAUDE.md 9 "Search and filters"): only live sitters of the chosen plan's
-level, filtered and sorted by distance, rating or experience. Parents never see a sitter's pay."""
+"""Parents finding sitters (CLAUDE.md 9 "Search and filters"): every live sitter, or only one plan's
+level, filtered and sorted by distance, rating or experience. Parents never see a sitter's pay.
+(Decided 2026-11-09: the parent's page lists every live sitter and filters by day and language.)"""
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import StrEnum
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
@@ -35,7 +37,8 @@ class SortBy(StrEnum):
 
 @dataclass(frozen=True)
 class Filters:
-    plan: SitterLevel  # a sitter works only her own level's plan (CLAUDE.md 6.2)
+    plan: SitterLevel | None = None  # None: every level. A sitter works only her own level's plan (6.2)
+    day: date | None = None  # she has free time left on this day (India time)
     starts_at: datetime | None = None  # with ends_at: she's free for the whole of this time
     ends_at: datetime | None = None
     min_rating: Decimal | None = None
@@ -43,6 +46,15 @@ class Filters:
     language: str | None = None
     first_aid: bool = False
     sort: SortBy = SortBy.distance
+
+
+INDIA = ZoneInfo("Asia/Kolkata")
+
+
+def day_bounds(day: date, now: datetime) -> tuple[datetime, datetime]:
+    """The rest of this India day: from its start (or now, if later) to midnight."""
+    start = datetime.combine(day, time(), INDIA)
+    return max(start, now), start + timedelta(days=1)
 
 
 @dataclass(frozen=True)
@@ -65,9 +77,19 @@ def _position(profile: Profile) -> tuple[Decimal | None, Decimal | None]:
     return profile.lat, profile.lng
 
 
-def search(db: Session, parent: Profile, filters: Filters) -> list[Found]:
+def search(db: Session, parent: Profile, filters: Filters, now: datetime) -> list[Found]:
     query = select(Profile, Sitter).join(Sitter, Sitter.profile_id == Profile.id).where(_live())
-    query = query.where(Sitter.level == filters.plan)
+    if filters.plan is not None:
+        query = query.where(Sitter.level == filters.plan)
+    if filters.day is not None:
+        day_start, day_end = day_bounds(filters.day, now)
+        query = query.where(
+            exists().where(
+                AvailabilitySlot.sitter_id == Sitter.profile_id,
+                AvailabilitySlot.starts_at < day_end,
+                AvailabilitySlot.ends_at > day_start,
+            )
+        )
     if filters.starts_at is not None and filters.ends_at is not None:
         query = query.where(
             exists().where(
