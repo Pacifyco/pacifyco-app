@@ -274,7 +274,14 @@ def test_without_a_plan_every_live_sitter_is_found(client, db_engine, finished_p
     make_sitter("Every Not Live", live=False)
     response = client.get("/parent/sitters", headers=auth_for(finished_parent))
     assert response.status_code == 200, response.text
-    assert sorted(names(response.json())) == ["Every Pause", "Every Recharge", "Every Unwind"]
+    found = response.json()
+    assert sorted(names(found)) == ["Every Pause", "Every Recharge", "Every Unwind"]
+    # Each says which plan she works, so parents can tell them apart (a label, never a price).
+    assert {item["full_name"]: item["plan"] for item in found} == {
+        "Every Pause": "pause",
+        "Every Unwind": "unwind",
+        "Every Recharge": "recharge",
+    }
 
 
 def test_day_filter_finds_sitters_with_free_time_that_day(client, finished_parent, make_sitter):  # noqa: F811

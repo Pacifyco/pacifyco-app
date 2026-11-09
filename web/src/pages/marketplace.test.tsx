@@ -121,7 +121,21 @@ describe("finding a sitter", () => {
     review_count: 0,
     distance_km: 2.37,
     photo_url: "https://storage.example/photo/s1?token=x",
+    plan: "pause",
   };
+
+  test("each card shows the plan the sitter works, as a small label with no price", async () => {
+    mockApi({
+      "GET /parent/sitters": () =>
+        jsonResponse([LAKSHMI, { ...LAKSHMI, id: "s2", full_name: "Meena Rao", plan: "recharge" }]),
+    });
+    renderAt("/parent/sitters");
+    const lakshmi = within((await screen.findByRole("heading", { name: "Lakshmi Nair" })).closest("article")!);
+    const meena = within(screen.getByRole("heading", { name: "Meena Rao" }).closest("article")!);
+    // Seen as "Pause"; screen readers hear "Works the Pause plan".
+    expect(lakshmi.getByText("Pause").textContent).toBe("Works the Pause plan");
+    expect(meena.getByText("Recharge").textContent).toBe("Works the Recharge plan");
+  });
 
   test("lists every live sitter (no plan filter) with no prices, and the intro beside Home", async () => {
     const calls = mockApi({ "GET /parent/sitters": () => jsonResponse([LAKSHMI]) });

@@ -19,6 +19,8 @@ export type SitterCardProps = {
   rating: number | null;
   reviewCount: number;
   familiesServed?: number;
+  /** The plan she works, e.g. "Pause" (her level, CLAUDE.md 6.2). A name only, never a price. */
+  plan?: string;
   actionHref: string;
 };
 
@@ -33,7 +35,7 @@ function initials(name: string): string {
 
 export function SitterCard(props: SitterCardProps) {
   const { name, firstName, photoUrl, yearsExperience, area, ageGroups, interests, checks } = props;
-  const { rating, reviewCount, familiesServed = 0, actionHref } = props;
+  const { rating, reviewCount, familiesServed = 0, actionHref, plan } = props;
 
   return (
     <Card as="article" className="flex flex-col gap-4">
@@ -53,6 +55,13 @@ export function SitterCard(props: SitterCardProps) {
           <p className="text-small text-muted">
             {plural(yearsExperience, "year's", "years'")} experience{area ? ` · ${area}` : ""}
           </p>
+          {plan && (
+            <span className="mt-1 inline-block rounded-pill border border-line px-3 py-1 text-caption font-medium text-coral-deep">
+              <span className="sr-only">Works the </span>
+              {plan}
+              <span className="sr-only"> plan</span>
+            </span>
+          )}
         </div>
       </div>
 

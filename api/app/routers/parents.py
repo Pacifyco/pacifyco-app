@@ -252,6 +252,7 @@ class SitterSummary(BaseModel):
     review_count: int
     distance_km: float | None  # straight line from the parent's home, to 0.1 km
     photo_url: str | None  # short-lived signed URL; live sitters only
+    plan: SitterLevel  # the plan she works (her level), shown as a label; its price only when booking
 
 
 class FreeTime(BaseModel):
@@ -267,7 +268,6 @@ class SharedReference(BaseModel):
 
 class SitterDetail(SitterSummary):
     bio: str | None
-    plan: SitterLevel  # the plan she works (her level); its price is shown when the parent books
     free_times: list[FreeTime]
     # Recharge sitters only, with her consent (CLAUDE.md 6.2).
     reference: SharedReference | None
@@ -296,6 +296,7 @@ def _summary_fields(found: search_service.Found, photo_url: str | None) -> dict:
         "review_count": sitter.review_count,
         "distance_km": round(found.distance_km, 1) if found.distance_km is not None else None,
         "photo_url": photo_url,
+        "plan": sitter.level,
     }
 
 
@@ -346,7 +347,6 @@ def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Sto
     return SitterDetail(
         **_summary_fields(found, _photo_url(db, storage, sitter_id)),
         bio=found.sitter.bio,
-        plan=found.sitter.level,
         free_times=[FreeTime(starts_at=slot.starts_at, ends_at=slot.ends_at) for slot in slots],
         reference=(
             SharedReference(name=shared.name, phone=shared.phone, relationship=shared.relationship) if shared else None

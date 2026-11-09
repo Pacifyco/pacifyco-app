@@ -23,6 +23,8 @@ export type SitterSummary = {
   distance_km: number | null;
   /** Short-lived signed link to her photo; null shows initials. */
   photo_url: string | null;
+  /** The plan she works (her level), shown as a label on her card. */
+  plan: Plan;
 };
 
 export const PLAN_LABELS: Record<Plan, string> = {
@@ -30,6 +32,8 @@ export const PLAN_LABELS: Record<Plan, string> = {
   unwind: "Unwind · until 10:30 pm, bath time",
   recharge: "Recharge · until midnight, outings",
 };
+
+export const PLAN_NAMES: Record<Plan, string> = { pause: "Pause", unwind: "Unwind", recharge: "Recharge" };
 
 export function firstNameOf(name: string | null): string {
   return name?.trim().split(/\s+/)[0] || "this sitter";
@@ -122,6 +126,7 @@ function Results({ query }: { query: string }) {
             checks={checksFor(sitter)}
             rating={sitter.avg_rating}
             reviewCount={sitter.review_count}
+            plan={PLAN_NAMES[sitter.plan]}
             actionHref={`/parent/sitters/${sitter.id}`}
           />
         </li>
