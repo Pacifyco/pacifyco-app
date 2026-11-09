@@ -18,6 +18,8 @@ type FieldProps = {
   /** Blame-free message, e.g. "That email doesn't look quite right — could you check it?" */
   error?: string;
   optional?: boolean;
+  /** Smaller control for filter bars (e.g. Find a sitter); filters are optional, so no "(optional)". */
+  compact?: boolean;
 };
 
 const control =
@@ -34,13 +36,14 @@ function FieldShell({
   hint,
   error,
   optional,
+  compact,
   children,
 }: FieldProps & { id: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={id} className="text-ui text-ink">
+    <div className={cx("flex min-w-0 flex-col", compact ? "gap-1" : "gap-2")}>
+      <label htmlFor={id} className={compact ? "text-small font-medium text-ink" : "text-ui text-ink"}>
         {label}
-        {optional && <span className="font-normal text-muted"> (optional)</span>}
+        {optional && !compact && <span className="font-normal text-muted"> (optional)</span>}
       </label>
       {hint && (
         <p id={`${id}-hint`} className="-mt-1 text-small text-muted">
@@ -70,19 +73,26 @@ export function TextInput({
   hint,
   error,
   optional,
+  compact,
   id,
   className,
   ...props
 }: FieldProps & InputHTMLAttributes<HTMLInputElement>) {
   const { fieldId, describedBy } = useFieldIds(id, hint, error);
   return (
-    <FieldShell id={fieldId} label={label} hint={hint} error={error} optional={optional}>
+    <FieldShell id={fieldId} label={label} hint={hint} error={error} optional={optional} compact={compact}>
       <input
         id={fieldId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         required={!optional || undefined}
-        className={cx(control, "rounded-pill px-5 py-3", borderFor(error), className)}
+        className={cx(
+          control,
+          "rounded-pill",
+          compact ? "px-[12px] py-[9px] text-small" : "px-5 py-3",
+          borderFor(error),
+          className,
+        )}
         {...props}
       />
     </FieldShell>
@@ -120,6 +130,7 @@ export function Select({
   hint,
   error,
   optional,
+  compact,
   id,
   className,
   children,
@@ -127,23 +138,32 @@ export function Select({
 }: FieldProps & SelectHTMLAttributes<HTMLSelectElement>) {
   const { fieldId, describedBy } = useFieldIds(id, hint, error);
   return (
-    <FieldShell id={fieldId} label={label} hint={hint} error={error} optional={optional}>
+    <FieldShell id={fieldId} label={label} hint={hint} error={error} optional={optional} compact={compact}>
       <div className="relative">
         <select
           id={fieldId}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
           required={!optional || undefined}
-          className={cx(control, "appearance-none rounded-pill py-3 pr-7 pl-5", borderFor(error), className)}
+          className={cx(
+            control,
+            "appearance-none rounded-pill",
+            compact ? "py-[9px] pr-[34px] pl-[14px] text-small" : "py-3 pr-7 pl-5",
+            borderFor(error),
+            className,
+          )}
           {...props}
         >
           {children}
         </select>
         <ChevronDown
           aria-hidden="true"
-          size={20}
+          size={compact ? 18 : 20}
           strokeWidth={1.75}
-          className="pointer-events-none absolute top-1/2 right-5 -translate-y-1/2 text-ink"
+          className={cx(
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 text-ink",
+            compact ? "right-[12px]" : "right-5",
+          )}
         />
       </div>
     </FieldShell>

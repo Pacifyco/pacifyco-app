@@ -304,7 +304,8 @@ def search_sitters(
     parent: Parent,
     db: DbSession,
     storage: Storage,
-    plan: SitterLevel,
+    plan: SitterLevel | None = None,
+    day: Annotated[date | None, Query()] = None,
     starts_at: Annotated[AwareDatetime | None, Query()] = None,
     ends_at: Annotated[AwareDatetime | None, Query()] = None,
     min_rating: Annotated[Decimal | None, Query(ge=1, le=5)] = None,
@@ -313,7 +314,7 @@ def search_sitters(
     first_aid: bool = False,
     sort: search_service.SortBy = search_service.SortBy.distance,
 ) -> list[SitterSummary]:
-    """Live sitters of the plan's level. Parents browse once their profile is finished (CLAUDE.md 7)."""
+    """Every live sitter, or one plan's level. Parents browse once their profile is finished (CLAUDE.md 7)."""
     checklists.require_finished_parent_profile(db, parent)
     if (starts_at is None) != (ends_at is None):
         raise AppError(422, "time_incomplete", "Choose both a start and an end time")
@@ -321,6 +322,7 @@ def search_sitters(
         raise AppError(422, "time_order", "The end time must be after the start time")
     filters = search_service.Filters(
         plan=plan,
+        day=day,
         starts_at=starts_at,
         ends_at=ends_at,
         min_rating=min_rating,
@@ -331,7 +333,7 @@ def search_sitters(
     )
     return [
         SitterSummary(**_summary_fields(found, _photo_url(db, storage, found.profile.id)))
-        for found in search_service.search(db, parent, filters)
+        for found in search_service.search(db, parent, filters, datetime.now(UTC))
     ]
 
 

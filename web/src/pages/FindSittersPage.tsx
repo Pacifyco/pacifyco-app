@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
-import { BackLink, Button, ButtonLink, Card, Checkbox, EmptyState, Select, SitterCard, TextInput } from "../components/ui";
+import { useMemo, useState } from "react";
+import { BackLink, ButtonLink, Checkbox, EmptyState, Select, SitterCard, TextInput } from "../components/ui";
 import type { VerifiedCheck } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
-import { END_HOURS, START_HOURS, hourLabel, kolkataTime, todayInKolkata } from "../lib/times";
+import { todayInKolkata } from "../lib/times";
 
-// Parents finding sitters (CLAUDE.md 9 "Search and filters"). Only live sitters of the chosen plan's
-// level come back. No prices or pay anywhere here (CLAUDE.md 6.1, 6.2).
+// Parents finding sitters (CLAUDE.md 9 "Search and filters"). Every live sitter is listed; parents filter
+// by day and language, sort, and can ask for first-aid certified sitters only (Reuben, 2026-11-09). Kept
+// compact to avoid scrolling. No prices or pay anywhere here (CLAUDE.md 6.1, 6.2).
 
 export type Plan = "pause" | "unwind" | "recharge";
 
@@ -45,47 +46,43 @@ export function checksFor(sitter: { first_aid: boolean }): VerifiedCheck[] {
 }
 
 type Search = {
-  plan: Plan;
-  date: string;
-  from: number;
-  until: number;
+  day: string;
   language: string;
-  minYears: string;
-  minRating: string;
   firstAid: boolean;
   sort: "distance" | "rating" | "experience";
 };
 
-const START: Search = {
-  plan: "pause",
-  date: "",
-  from: 18,
-  until: 21,
-  language: "",
-  minYears: "",
-  minRating: "",
-  firstAid: false,
-  sort: "distance",
-};
+const START: Search = { day: "", language: "", firstAid: false, sort: "distance" };
 
 function queryString(search: Search): string {
-  const params = new URLSearchParams({ plan: search.plan, sort: search.sort });
-  if (search.date) {
-    params.set("starts_at", kolkataTime(search.date, search.from));
-    params.set("ends_at", kolkataTime(search.date, search.until));
-  }
-  if (search.language.trim()) params.set("language", search.language.trim());
-  if (search.minYears) params.set("min_years", search.minYears);
-  if (search.minRating) params.set("min_rating", search.minRating);
+  const params = new URLSearchParams({ sort: search.sort });
+  if (search.day) params.set("day", search.day);
+  if (search.language) params.set("language", search.language);
   if (search.firstAid) params.set("first_aid", "true");
   return params.toString();
 }
 
-function Results({ query }: { query: string }) {
-  const results = useQuery({
+function useSitters(query: string) {
+  return useQuery({
     queryKey: ["sitter-search", query],
     queryFn: () => apiFetch<SitterSummary[]>(`/parent/sitters?${query}`),
   });
+}
+
+/** The languages live sitters speak, from the unfiltered list, so every option finds someone. */
+export function languagesOf(sitters: SitterSummary[]): string[] {
+  const byKey = new Map<string, string>();
+  for (const sitter of sitters) {
+    for (const language of sitter.languages) {
+      const name = language.trim();
+      if (name && !byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), name);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+}
+
+function Results({ query }: { query: string }) {
+  const results = useSitters(query);
 
   if (results.isPending) return <p className="text-center text-muted">Finding sitters…</p>;
   if (results.isError) {
@@ -108,10 +105,10 @@ function Results({ query }: { query: string }) {
     );
   }
   if (results.data.length === 0) {
-    return <EmptyState message="No sitters match yet. Try another time, another plan or fewer filters." />;
+    return <EmptyState message="No sitters match. Try another day or fewer filters." />;
   }
   return (
-    <ul className="grid gap-5 md:grid-cols-2" aria-label="Sitters">
+    <ul className="grid gap-4 md:grid-cols-2 md:gap-5" aria-label="Sitters">
       {results.data.map((sitter) => (
         <li key={sitter.id}>
           <SitterCard
@@ -134,118 +131,71 @@ function Results({ query }: { query: string }) {
 }
 
 export function FindSittersPage() {
-  const [form, setForm] = useState<Search>(START);
-  const [applied, setApplied] = useState(() => queryString(START));
-  const [timeError, setTimeError] = useState<string>();
+  const [search, setSearch] = useState<Search>(START);
+  const everyone = useSitters(queryString(START));
+  const languages = useMemo(() => languagesOf(everyone.data ?? []), [everyone.data]);
 
+  // Filters apply as soon as they change: no search button to reach.
   function set<K extends keyof Search>(field: K, value: Search[K]) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (form.date && form.until <= form.from) return setTimeError("The end time must be after the start time.");
-    setTimeError(undefined);
-    setApplied(queryString(form));
+    setSearch((current) => ({ ...current, [field]: value }));
   }
 
   return (
-    <section className="mx-auto flex max-w-[72rem] flex-col gap-6">
-      <BackLink to="/parent" label="Home" />
-      <div className="text-center">
-        <h1>Find a sitter</h1>
-        <p className="mx-auto mt-4 max-w-[62ch] text-muted">
-          Every sitter here is ID and police verified and referenced by Pacify. With someone new, start with a 1-hour
-          booking while you're at home.
-        </p>
+    <section className="mx-auto flex max-w-[72rem] flex-col gap-4">
+      <div className="flex items-start gap-4">
+        <span className="mt-1 shrink-0">
+          <BackLink to="/parent" label="Home" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="text-h3">Find a sitter</h1>
+          <p className="mt-1 text-small text-muted">
+            Every sitter here is ID and police verified and referenced by Pacify. With someone new, start with a 1-hour
+            booking while you're at home.
+          </p>
+        </div>
       </div>
 
-      <Card as="section" padding="roomy" aria-label="Search">
-        <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
-          <div className="grid gap-5 md:grid-cols-2">
-            <Select label="Plan" value={form.plan} onChange={(event) => set("plan", event.target.value as Plan)}>
-              {(Object.keys(PLAN_LABELS) as Plan[]).map((plan) => (
-                <option key={plan} value={plan}>
-                  {PLAN_LABELS[plan]}
-                </option>
-              ))}
-            </Select>
-            <TextInput
-              label="Day"
-              type="date"
-              optional
-              min={todayInKolkata()}
-              value={form.date}
-              onChange={(event) => set("date", event.target.value)}
-            />
-          </div>
-          {form.date && (
-            <div className="grid gap-5 md:grid-cols-2">
-              <Select label="From" value={form.from} onChange={(event) => set("from", Number(event.target.value))}>
-                {START_HOURS.map((hour) => (
-                  <option key={hour} value={hour}>
-                    {hourLabel(hour)}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                label="Until"
-                value={form.until}
-                error={timeError}
-                onChange={(event) => set("until", Number(event.target.value))}
-              >
-                {END_HOURS.map((hour) => (
-                  <option key={hour} value={hour}>
-                    {hourLabel(hour)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          )}
-          <div className="grid gap-5 md:grid-cols-3">
-            <TextInput
-              label="Speaks"
-              optional
-              placeholder="e.g. Kannada"
-              maxLength={40}
-              value={form.language}
-              onChange={(event) => set("language", event.target.value)}
-            />
-            <Select label="Experience" value={form.minYears} onChange={(event) => set("minYears", event.target.value)}>
-              <option value="">Any</option>
-              <option value="1">1 year or more</option>
-              <option value="3">3 years or more</option>
-              <option value="5">5 years or more</option>
-            </Select>
-            <Select label="Rating" value={form.minRating} onChange={(event) => set("minRating", event.target.value)}>
-              <option value="">Any</option>
-              <option value="4">4 stars or more</option>
-              <option value="4.5">4.5 stars or more</option>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-            <Checkbox
-              label="First-aid certified only"
-              checked={form.firstAid}
-              onChange={(event) => set("firstAid", event.target.checked)}
-            />
-            <Select
-              label="Sort by"
-              value={form.sort}
-              onChange={(event) => set("sort", event.target.value as Search["sort"])}
-            >
-              <option value="distance">Nearest</option>
-              <option value="rating">Highest rated</option>
-              <option value="experience">Most experienced</option>
-            </Select>
-          </div>
-          <Button type="submit" arrow fullWidthOnPhone={false} className="self-start">
-            Show sitters
-          </Button>
-        </form>
-      </Card>
+      {/* A card with tighter padding than Card's, so the filters take less room on a phone. */}
+      <section
+        aria-label="Filters"
+        className="grid grid-cols-2 items-end gap-3 rounded-lg bg-surface-raised p-4 shadow-soft md:grid-cols-4 md:p-5"
+      >
+        <TextInput
+          label="Day"
+          type="date"
+          optional
+          compact
+          min={todayInKolkata()}
+          value={search.day}
+          onChange={(event) => set("day", event.target.value)}
+        />
+        <Select compact label="Speaks" value={search.language} onChange={(event) => set("language", event.target.value)}>
+          <option value="">Any</option>
+          {languages.map((language) => (
+            <option key={language} value={language}>
+              {language}
+            </option>
+          ))}
+        </Select>
+        <Select
+          compact
+          label="Sort by"
+          value={search.sort}
+          onChange={(event) => set("sort", event.target.value as Search["sort"])}
+        >
+          <option value="distance">Nearest</option>
+          <option value="rating">Highest rated</option>
+          <option value="experience">Most experienced</option>
+        </Select>
+        <Checkbox
+          className="pb-2"
+          label={<span className="text-small">First-aid certified only</span>}
+          checked={search.firstAid}
+          onChange={(event) => set("firstAid", event.target.checked)}
+        />
+      </section>
 
-      <Results query={applied} />
+      <Results query={queryString(search)} />
     </section>
   );
 }

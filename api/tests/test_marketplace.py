@@ -3,13 +3,13 @@ cache, and search. Only live sitters of the chosen plan's level are returned; ea
 distance sort; parents never see a sitter's pay."""
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from sqlalchemy import text
 
-from app.services import geocoding
+from app.services import geocoding, search
 from app.services.geocoding import distance_km
 from tests.test_checklists import CONTACTS
 from tests.test_documents import (  # noqa: F401  (fixtures)
@@ -266,9 +266,43 @@ def test_availability_filter_needs_her_free_for_the_whole_time(client, finished_
     assert names(find(client, finished_parent, **wanted)) == ["Free All Morning"]
 
 
+def test_without_a_plan_every_live_sitter_is_found(client, db_engine, finished_parent, make_sitter):  # noqa: F811
+    # Decided 2026-11-09: the parent's page lists every live sitter, whatever her level.
+    make_sitter("Every Pause")
+    make_sitter("Every Unwind", level="unwind")
+    make_sitter("Every Recharge", level="recharge")
+    make_sitter("Every Not Live", live=False)
+    response = client.get("/parent/sitters", headers=auth_for(finished_parent))
+    assert response.status_code == 200, response.text
+    assert sorted(names(response.json())) == ["Every Pause", "Every Recharge", "Every Unwind"]
+
+
+def test_day_filter_finds_sitters_with_free_time_that_day(client, finished_parent, make_sitter):  # noqa: F811
+    that_day = make_sitter("Free That Day")
+    next_day = make_sitter("Free The Next Day")
+    make_sitter("Never Free")
+    # 6 am UTC is 11:30 am in India, so these free times sit inside one India day.
+    client.post("/sitter/availability", json=slot(_hour(3, 6)), headers=auth_for(that_day))
+    client.post("/sitter/availability", json=slot(_hour(4, 6)), headers=auth_for(next_day))
+    day = _hour(3, 6).astimezone(search.INDIA).date().isoformat()
+    response = client.get("/parent/sitters", params={"day": day}, headers=auth_for(finished_parent))
+    assert response.status_code == 200, response.text
+    assert names(response.json()) == ["Free That Day"]
+
+
+def test_day_bounds_use_india_time_and_skip_the_past():
+    day = date(2026, 12, 1)
+    start, end = search.day_bounds(day, datetime(2026, 11, 1, tzinfo=UTC))
+    assert start == datetime(2026, 11, 30, 18, 30, tzinfo=UTC)  # midnight in India
+    assert end == datetime(2026, 12, 1, 18, 30, tzinfo=UTC)
+    later = datetime(2026, 12, 1, 10, 0, tzinfo=UTC)
+    assert search.day_bounds(day, later)[0] == later  # today: only what's left of it
+
+
 @pytest.mark.parametrize(
     ("params", "code"),
     [
+        ({"day": "tomorrow"}, "validation_error"),
         ({"starts_at": _hour(2, 9).isoformat()}, "time_incomplete"),
         ({"starts_at": _hour(2, 9).isoformat(), "ends_at": _hour(2, 8).isoformat()}, "time_order"),
         ({"plan": "deluxe"}, "validation_error"),
