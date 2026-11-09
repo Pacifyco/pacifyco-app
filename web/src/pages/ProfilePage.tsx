@@ -1,0 +1,64 @@
+import { BackLink } from "../components/ui";
+import {
+  ChecklistCard,
+  PARENT_STEPS,
+  SITTER_STEPS,
+  useChecklist,
+  type ParentChecklist as ParentChecklistData,
+  type SitterChecklist as SitterChecklistData,
+} from "./ProfileChecklist";
+
+// "Your profile" (CLAUDE.md 6.13), opened from the profile button in the header: what's left to finish,
+// each item linking to where it's done. Steps send people back here when they're saved.
+
+function ParentProfile() {
+  const checklist = useChecklist<ParentChecklistData>("parent");
+  if (!checklist.isSuccess) return <p className="text-center text-muted">Loading your profile…</p>;
+  const { items, finished } = checklist.data;
+  const childrenVerified = items.find((item) => item.key === "children")?.status === "approved";
+  // Parents can book before the birth certificates are checked; the booking waits (CLAUDE.md 6.4).
+  const intro = !finished
+    ? "Finish these to book a sitter."
+    : childrenVerified
+      ? "Your profile is finished."
+      : "Your profile is finished, so you can book. A booking is confirmed once Pacify has checked your children's birth certificates.";
+  return (
+    <ChecklistCard
+      heading={finished ? "Your profile" : "Finish your profile"}
+      intro={intro}
+      items={items}
+      steps={PARENT_STEPS}
+    />
+  );
+}
+
+function SitterProfile() {
+  const checklist = useChecklist<SitterChecklistData>("sitter");
+  if (!checklist.isSuccess) return <p className="text-center text-muted">Loading your profile…</p>;
+  const { items, live, application_rejected_reason: rejectedReason } = checklist.data;
+  const allPassed = items.every((item) => item.status === "done" || item.status === "approved");
+  const intro = rejectedReason
+    ? `Pacify couldn't approve your application: ${rejectedReason}`
+    : live
+      ? "Your profile is live. Families can now find and book you."
+      : allPassed
+        ? "Every step has passed. Pacify will review your profile and let you know when it's live."
+        : "Families can find you once every step passes and Pacify approves your profile.";
+  return (
+    <ChecklistCard
+      heading={live ? "Your profile" : "Finish your profile"}
+      intro={intro}
+      items={items}
+      steps={SITTER_STEPS}
+    />
+  );
+}
+
+export function ProfilePage({ role }: { role: "parent" | "sitter" }) {
+  return (
+    <section className="mx-auto flex max-w-[62ch] flex-col gap-4">
+      <BackLink to={`/${role}`} label="Home" />
+      {role === "parent" ? <ParentProfile /> : <SitterProfile />}
+    </section>
+  );
+}

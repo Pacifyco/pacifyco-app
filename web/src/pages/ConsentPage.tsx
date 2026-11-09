@@ -52,9 +52,10 @@ export function ConsentPage() {
         method: "POST",
         body: JSON.stringify({ version: CONSENT_VERSION, marketing }),
       }),
-    onSuccess: (status) => {
+    onSuccess: async (status) => {
       queryClient.setQueryData(["consent", userId], status);
-      navigate("/parent"); // home now shows the date consent was given
+      await queryClient.invalidateQueries({ queryKey: ["checklist"] });
+      navigate("/parent/profile"); // back to the checklist, which now shows consent as done
     },
   });
 
@@ -97,8 +98,8 @@ export function ConsentPage() {
               checked={marketingGiven}
               onChange={(event) => setMarketingChoice.mutate(event.target.checked)}
             />
-            <ButtonLink to="/parent" variant="secondary">
-              Back to your home
+            <ButtonLink to="/parent/profile" variant="secondary">
+              Back to your profile
             </ButtonLink>
           </div>
         ) : (

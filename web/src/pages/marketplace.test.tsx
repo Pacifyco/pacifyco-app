@@ -184,7 +184,7 @@ describe("finding a sitter", () => {
     mockApi({ "GET /parent/sitters": () => error("profile_unfinished", "Please finish your profile", 409) });
     renderAt("/parent/sitters");
     expect(await screen.findByText(/Finish your profile first/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Finish your profile/ }).getAttribute("href")).toBe("/parent");
+    expect(screen.getByRole("link", { name: /Finish your profile/ }).getAttribute("href")).toBe("/parent/profile");
   });
 });
 

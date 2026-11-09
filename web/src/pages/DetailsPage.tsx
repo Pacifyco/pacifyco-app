@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
-import { AREA_PATH, useMe, type Me } from "../auth/useMe";
+import { PROFILE_PATH, useMe, type Me } from "../auth/useMe";
 import { Button, LoadingScreen, TextInput, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
@@ -188,7 +188,7 @@ export function DetailsPage() {
           ? "So your sitter knows where to come, and Pacify can reach you."
           : "So Pacify can reach you about your work."}
       </p>
-      <DetailsForm initial={initial} home={AREA_PATH[profile.role]} />
+      <DetailsForm initial={initial} home={PROFILE_PATH[profile.role as "parent" | "sitter"]} />
     </section>
   );
 }

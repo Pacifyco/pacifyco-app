@@ -83,7 +83,7 @@ describe("the psychology screening page", () => {
     const router = createMemoryRouter(
       [
         { path: "/", element: <PsychTestPage /> },
-        { path: "/sitter", element: <p>Sitter home page</p> },
+        { path: "/sitter/profile", element: <p>Sitter profile page</p> },
       ],
       { initialEntries: ["/"] },
     );
@@ -111,7 +111,7 @@ describe("the psychology screening page", () => {
         { question_id: "q2", answer_text: "Because I care." },
       ],
     });
-    expect(await screen.findByText("Sitter home page")).toBeTruthy();
+    expect(await screen.findByText("Sitter profile page")).toBeTruthy();
   });
 
   test("an already-submitted attempt shows the awaiting-review state, not the form", async () => {

@@ -47,7 +47,7 @@ export function SitterProfilePage() {
                 : "Something went wrong. Please try again."
           }
           action={
-            <ButtonLink to={code === "profile_unfinished" ? "/parent" : "/parent/sitters"} arrow>
+            <ButtonLink to={code === "profile_unfinished" ? "/parent/profile" : "/parent/sitters"} arrow>
               {code === "profile_unfinished" ? "Finish your profile" : "Find a sitter"}
             </ButtonLink>
           }

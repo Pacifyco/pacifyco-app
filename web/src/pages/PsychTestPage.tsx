@@ -94,7 +94,7 @@ function PsychTestForm({ questions, initial }: { questions: Question[]; initial:
       return apiFetch<Attempt>("/sitter/psych-test/submit", { method: "POST" });
     },
     // Once she's submitted, there's nothing left to do on this page -- take her to what's next.
-    onSuccess: () => navigate("/sitter"),
+    onSuccess: () => navigate("/sitter/profile"),
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
   });
 

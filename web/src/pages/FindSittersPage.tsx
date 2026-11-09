@@ -94,7 +94,7 @@ function Results({ query }: { query: string }) {
         <EmptyState
           message="Finish your profile first, then you can see sitters near you."
           action={
-            <ButtonLink to="/parent" arrow>
+            <ButtonLink to="/parent/profile" arrow>
               Finish your profile
             </ButtonLink>
           }

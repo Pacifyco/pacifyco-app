@@ -37,7 +37,8 @@ people *feel* Pacify.
   uppercase.
 - **Full stops** on headline statements; never on buttons, labels or nav.
 - **The arrow →** only on the single primary forward action.
-- **No exclamation marks, no emoji, no urgency, no guilt, no superlatives.**
+- **No exclamation marks, no emoji, no urgency, no guilt, no superlatives.** One exception (Reuben,
+  2026-11-09): the theme switch in the header is a ☀️ / 🌙 pair, light and dark only (no "System").
 - British/Indian spelling (colour, neighbourhood, organise). No Oxford comma.
 - Numerals: 6 years, 6:30 pm, 12 Oct 2026, ₹250/hour.
 - In copy the brand is **Pacify**; the wordmark reads **pacifyco**.
@@ -198,7 +199,12 @@ Generous whitespace is part of the calm: when in doubt, add space, not elements.
 Rounded line icons, 24px grid, 1.75px stroke, round caps and joins, no fills. Use Lucide with
 `strokeWidth={1.75}` until the final drawn set exists. Sizes: 20–22px inline in ink; 28px on a 64px
 peach disc in `--text-coral-deep`. `--status-trust` only for verification ticks. **Every icon has a
-visible text label** — no icon-only controls except the close button (which still has an aria-label).
+visible text label** — no icon-only controls except the close button (which still has an aria-label),
+and, decided 2026-11-09, the header's theme switch and profile button (both with an aria-label and a
+title). While a parent or sitter has something left to do, a small coral speech bubble comes out of the
+profile button ("Finish your profile", or "Something needs another look" after a rejection) and leads
+to "Your profile" (`/parent/profile`, `/sitter/profile`), which holds the checklist; the home pages no
+longer show it. Keep pages short enough to avoid scrolling on a phone where possible.
 
 ---
 
