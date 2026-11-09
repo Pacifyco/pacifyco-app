@@ -8,6 +8,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 npm-debug.log*
+# Playwright end-to-end output
+test-results/
+playwright-report/
 
 # Python
 __pycache__/
