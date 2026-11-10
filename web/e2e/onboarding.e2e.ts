@@ -61,9 +61,11 @@ async function join(page: Page, role: "parent" | "sitter") {
   await expect(page.getByRole("heading", { name: `You're joining as a ${role}.` })).toBeVisible();
   await page.getByRole("checkbox", { name: /I agree to the/ }).check();
   await page.getByRole("button", { name: /Yes, create my account/ }).click();
-  await expect(page).toHaveURL(new RegExp(`/${role}$`));
-  // A bubble from the profile button in the header leads to the checklist.
-  await page.getByRole("link", { name: "Finish your profile" }).click();
+  // Parents land on Find a sitter; sitters on their bookings.
+  await expect(page).toHaveURL(role === "parent" ? /\/parent\/sitters$/ : /\/sitter$/);
+  // A bubble from the profile button in the header leads to the checklist. (On Find a sitter the page also
+  // has its own "Finish your profile" button; both go to the same place.)
+  await page.getByRole("link", { name: "Finish your profile" }).first().click();
   await expect(page).toHaveURL(new RegExp(`/${role}/profile$`));
   await expect(page.getByRole("heading", { name: "Finish your profile" })).toBeVisible();
 }
