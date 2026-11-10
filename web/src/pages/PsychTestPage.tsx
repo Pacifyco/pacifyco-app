@@ -1,7 +1,7 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { Button, ButtonLink, Card, Textarea } from "../components/ui";
+import { BackLink, Button, ButtonLink, Card, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { formatDate } from "../lib/format";
 
@@ -78,9 +78,13 @@ function QuestionField({
   );
 }
 
+// One question at a time, with Back to the question before (from the first question, back to the
+// application) and Next. Answers are sent together when she submits on the last question.
 function PsychTestForm({ questions, initial }: { questions: Question[]; initial: Record<string, string> }) {
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<Record<string, string>>(initial);
+  const [index, setIndex] = useState(0);
   const [error, setError] = useState<string>();
 
   const submit = useMutation({
@@ -93,43 +97,59 @@ function PsychTestForm({ questions, initial }: { questions: Question[]; initial:
       });
       return apiFetch<Attempt>("/sitter/psych-test/submit", { method: "POST" });
     },
-    // Once she's submitted, there's nothing left to do on this page -- take her to what's next.
-    onSuccess: () => navigate("/sitter/profile"),
+    // The screening is the last page of the application: swap the form for the "submitted" confirmation.
+    onSuccess: (attempt) => {
+      queryClient.setQueryData<PsychTest>(["psych-test"], (test) => (test ? { ...test, attempt } : test));
+      queryClient.invalidateQueries({ queryKey: ["checklist"] });
+    },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
   });
 
-  function handleSubmit() {
-    const unanswered = questions.some((question) => !(answers[question.id] ?? "").trim());
-    if (unanswered) {
-      setError("Please answer every question before submitting.");
+  const question = questions[index];
+  if (!question) return null;
+  const isLast = index === questions.length - 1;
+
+  function goBack() {
+    setError(undefined);
+    if (index === 0) navigate("/sitter/application");
+    else setIndex(index - 1);
+  }
+
+  function goNext() {
+    if (!(answers[question!.id] ?? "").trim()) {
+      setError("Please answer this question to continue.");
       return;
     }
     setError(undefined);
-    submit.mutate();
+    if (isLast) submit.mutate();
+    else setIndex(index + 1);
   }
 
   return (
     <div className="flex flex-col gap-6">
-      {questions.map((question, index) => (
-        <div key={question.id}>
-          <p className="mb-2 text-small text-muted">
-            Question {index + 1} of {questions.length}
-          </p>
-          <QuestionField
-            question={question}
-            value={answers[question.id] ?? ""}
-            onChange={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
-          />
-        </div>
-      ))}
+      <div key={question.id}>
+        <p className="mb-2 text-small text-muted">
+          Question {index + 1} of {questions.length}
+        </p>
+        <QuestionField
+          question={question}
+          value={answers[question.id] ?? ""}
+          onChange={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
+        />
+      </div>
       {error && (
         <p role="alert" className="text-small text-danger">
           {error}
         </p>
       )}
-      <Button loading={submit.isPending} onClick={handleSubmit}>
-        Submit
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" variant="secondary" fullWidthOnPhone={false} disabled={submit.isPending} onClick={goBack}>
+          ← Back
+        </Button>
+        <Button type="button" fullWidthOnPhone={false} loading={submit.isPending} onClick={goNext}>
+          {isLast ? "Submit" : "Next"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -138,12 +158,16 @@ function PsychTestForm({ questions, initial }: { questions: Question[]; initial:
 
 function SubmittedView({ submittedAt }: { submittedAt: string | null }) {
   return (
-    <div className="flex flex-col items-start gap-2 rounded-lg bg-surface-sunken p-5">
+    <div role="status" className="flex flex-col items-start gap-3 rounded-lg bg-surface-sunken p-5">
+      <p className="text-h3 text-ink">Your application is submitted.</p>
       <p className="text-ink">
-        Submitted{submittedAt ? ` on ${formatDate(new Date(submittedAt))}` : ""}. An admin will look over your
-        answers.
+        {submittedAt ? `We received it on ${formatDate(new Date(submittedAt))}. ` : ""}An admin will look over your
+        answers and the rest of your application.
       </p>
       <p className="text-small text-muted">We'll let you know once it's reviewed.</p>
+      <ButtonLink to="/sitter/profile" variant="secondary">
+        Go to your profile
+      </ButtonLink>
     </div>
   );
 }
@@ -184,6 +208,9 @@ export function PsychTestPage() {
 
   return (
     <article className="mx-auto max-w-[62ch]">
+      <div className="mb-4">
+        <BackLink to="/sitter/application" label="Your application" />
+      </div>
       <h1>Psychology screening</h1>
       <p className="mt-2 text-muted">
         A few questions so we can get to know how you think about caring for children.

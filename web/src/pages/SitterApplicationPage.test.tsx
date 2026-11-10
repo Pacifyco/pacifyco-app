@@ -121,7 +121,8 @@ describe("the sitter application page", () => {
     expect(screen.queryByRole("heading", { name: "Health disclosure" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "References" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Payout details" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "← Back" })).toBeNull();
+    // Back is there from the first step too: it goes to "Your profile".
+    expect(await screen.findByRole("button", { name: "← Back" })).toBeTruthy();
   });
 
   test("completing the profile step sends the right body and advances to documents", async () => {
@@ -167,7 +168,7 @@ describe("the sitter application page", () => {
     renderPage();
     await fillProfileAndContinue();
 
-    fireEvent.click(screen.getByRole("button", { name: "← Back" }));
+    fireEvent.click(await screen.findByRole("button", { name: "← Back" }));
     expect(await screen.findByRole("heading", { name: "Your profile" })).toBeTruthy();
     expect(await screen.findByText("Step 1 of 5 · About you")).toBeTruthy();
   });

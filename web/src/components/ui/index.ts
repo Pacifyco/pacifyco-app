@@ -12,4 +12,5 @@ export { IconTile } from "./IconTile";
 export { LoadingScreen } from "./LoadingScreen";
 export { Photo, type PhotoName } from "./Photo";
 export { RoleChooser, type ChosenRole } from "./RoleChooser";
+export { StepActions, StepBackContext } from "./StepActions";
 export { SitterCard, type SitterCardProps } from "./SitterCard";

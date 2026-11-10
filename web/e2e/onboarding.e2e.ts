@@ -121,9 +121,9 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
 
   await expect(page).toHaveURL(/\/parent\/profile$/);
   await expect(page.getByText(/Your profile is finished, so you can book/)).toBeVisible();
-  // Nothing left to do, so the home has no bubble.
+  // Nothing left to do, so the home (Find a sitter) has no bubble.
   await page.getByRole("link", { name: "Home", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Time for you." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find a sitter" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Finish your profile" })).toHaveCount(0);
 });
 
@@ -166,19 +166,22 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page).toHaveURL(/\/sitter\/psych-test$/);
-  const radios = page.locator('input[type="radio"]');
-  await expect(radios.first()).toBeVisible();
-  const groups = new Set<string>();
-  for (const radio of await radios.all()) {
-    const group = (await radio.getAttribute("name")) ?? "";
-    if (!groups.has(group)) {
-      groups.add(group);
-      await radio.check();
-    }
+  // One question at a time: answer it (first option, or a short answer), then Next; Submit on the last.
+  const progress = page.getByText(/^Question \d+ of \d+$/);
+  for (;;) {
+    const [current, total] = ((await progress.textContent()) ?? "").match(/\d+/g)!.map(Number);
+    const radio = page.locator('input[type="radio"]').first();
+    if (await radio.count()) await radio.check();
+    else await page.locator("textarea").fill("I stay calm and keep the child safe.");
+    if (current === total) break;
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(progress).toHaveText(`Question ${current! + 1} of ${total}`);
   }
-  for (const box of await page.locator("textarea").all()) await box.fill("I stay calm and keep the child safe.");
   await page.getByRole("button", { name: "Submit" }).click();
-  // Submitting takes her back to her profile checklist, where the screening is now with Pacify.
+  // Submitting confirms the application is in; from there she goes to her profile checklist, where the
+  // screening is now with Pacify.
+  await expect(page.getByText("Your application is submitted.")).toBeVisible();
+  await page.getByRole("link", { name: "Go to your profile" }).click();
   await expect(page).toHaveURL(/\/sitter\/profile$/);
   await expect(page.getByRole("link", { name: /Psychology screening/ }).getByText("Being checked")).toBeVisible();
 
@@ -259,8 +262,9 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
   const page = parent.page;
   await page.goto("/parent/profile");
   await expect(page.getByRole("link", { name: /Your children/ }).getByText("Approved")).toBeVisible();
+  // Home is Find a sitter.
   await page.getByRole("link", { name: "Home", exact: true }).click();
-  await page.getByRole("link", { name: "Find a sitter" }).click();
+  await expect(page.getByRole("heading", { name: "Find a sitter" })).toBeVisible();
 
   const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Lakshmi Nair" }) });
   await expect(card).toBeVisible();

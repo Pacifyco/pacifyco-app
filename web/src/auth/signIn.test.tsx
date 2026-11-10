@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { CONSENT_VERSION } from "../pages/ConsentPage";
 import { jsonResponse, renderApp } from "../test/renderApp";
@@ -67,6 +67,9 @@ const SITTER_CHECKLIST = {
 function checklistFor(url: string): Response | null {
   if (url.endsWith("/parent/checklist")) return jsonResponse(PARENT_CHECKLIST);
   if (url.endsWith("/sitter/checklist")) return jsonResponse(SITTER_CHECKLIST);
+  // Each area's landing page: Find a sitter (parents) and the sitter's bookings (asks for her availability).
+  if (url.includes("/parent/sitters?")) return jsonResponse([]);
+  if (url.endsWith("/sitter/availability")) return jsonResponse({ week: [], days_off: [] });
   return null;
 }
 
@@ -195,14 +198,14 @@ describe("signed-in state", () => {
     fake.state.session = fake.session;
     vi.mocked(fetch).mockImplementation(meResponse(PARENT_PROFILE) as typeof fetch);
     const { router } = renderApp("/sign-in");
-    await waitFor(() => expect(router.state.location.pathname).toBe("/parent"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/parent/sitters"));
   });
 
   test("signing out forgets the account and offers sign-in again", async () => {
     fake.state.session = fake.session;
     vi.mocked(fetch).mockImplementation(meResponse(PARENT_PROFILE) as typeof fetch);
     renderApp("/");
-    await screen.findByRole("heading", { level: 1, name: "Time for you." });
+    await screen.findByRole("heading", { level: 1, name: "Find a sitter" });
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(await screen.findByRole("link", { name: "Sign in" })).toBeTruthy();
@@ -258,7 +261,7 @@ describe("joining after the first sign-in", () => {
     expect(screen.queryByLabelText("Mobile number")).toBeNull();
     await agreeAndCreate();
 
-    await waitFor(() => expect(router.state.location.pathname).toBe("/parent"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/parent/sitters"));
     const post = calls.find((call) => call.url.endsWith("/me/profile"))!;
     expect(post.init!.method).toBe("POST");
     expect(JSON.parse(post.init!.body as string)).toEqual({
@@ -486,8 +489,8 @@ describe("role-gated areas", () => {
   }
 
   test.each([
-    ["parent", "/parent", "Time for you."],
-    ["sitter", "/sitter", "Your work with Pacify."],
+    ["parent", "/parent", "Find a sitter"],
+    ["sitter", "/sitter", "Your bookings"],
     ["admin", "/admin", "Admin"],
   ])("a %s sees their own area", async (role, path, heading) => {
     signedInAs(role);
@@ -495,9 +498,34 @@ describe("role-gated areas", () => {
     expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeTruthy();
   });
 
+  test("a sitter who hasn't set her availability is asked to, on her bookings page", async () => {
+    signedInAs("sitter");
+    renderApp("/sitter");
+    expect(await screen.findByRole("heading", { name: "Set your availability" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Your availability/ }).getAttribute("href")).toBe("/sitter/availability");
+  });
+
+  test("a sitter who has set her availability just sees her bookings, and changes it from her profile", async () => {
+    fake.state.session = fake.session;
+    const profile = { role: "sitter", status: "pending", full_name: "Asha K" };
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      url.endsWith("/sitter/availability")
+        ? Promise.resolve(jsonResponse({ week: [{ weekday: 0, start_hour: 9, end_hour: 13 }], days_off: [] }))
+        : meResponse(profile)(url)) as typeof fetch);
+    renderApp("/sitter");
+    expect(await screen.findByText("No bookings yet. Confirmed bookings will show here.")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Set your availability" })).toBeNull();
+
+    cleanup();
+    renderApp("/sitter/profile");
+    expect((await screen.findByRole("link", { name: "Change your availability" })).getAttribute("href")).toBe(
+      "/sitter/availability",
+    );
+  });
+
   test.each([
-    ["parent", "/sitter", "/parent"],
-    ["parent", "/admin", "/parent"],
+    ["parent", "/sitter", "/parent/sitters"],
+    ["parent", "/admin", "/parent/sitters"],
     ["sitter", "/parent", "/sitter"],
     ["sitter", "/admin", "/sitter"],
     ["admin", "/parent", "/admin"],
@@ -519,7 +547,7 @@ describe("role-gated areas", () => {
     expect(await screen.findByRole("heading", { name: "Your account is on hold." })).toBeTruthy();
     expect(screen.getByText(/appeal within 15 days/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "query.pacifyco@gmail.com" })).toBeTruthy();
-    expect(screen.queryByText("Your work with Pacify.")).toBeNull();
+    expect(screen.queryByText("Your bookings")).toBeNull();
   });
 
   test("a removed account sees that it's closed, even in another area", async () => {
@@ -739,7 +767,7 @@ describe("terms at sign-up and after changes", () => {
       if (url.endsWith("/me")) {
         return Promise.resolve(jsonResponse({ email: "asha@example.com", profile, terms_to_accept: toAccept }));
       }
-      return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
+      return Promise.resolve(checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" }));
     }) as typeof fetch);
     return calls;
   }
@@ -751,14 +779,14 @@ describe("terms at sign-up and after changes", () => {
     ]);
     renderApp("/sitter");
     expect(await screen.findByRole("heading", { name: "Please read and accept our terms." })).toBeTruthy();
-    expect(screen.queryByText("Your work with Pacify.")).toBeNull();
+    expect(screen.queryByText("Your bookings")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
     expect(screen.getByText("Please tick the box to agree before you continue.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("checkbox", { name: /I agree to the Sitter Terms of Use/ }));
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
-    expect(await screen.findByRole("heading", { name: "Your work with Pacify." })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Your bookings" })).toBeTruthy();
     const post = calls.find((call) => call.url.endsWith("/me/terms"))!;
     expect(JSON.parse(post.init!.body as string)).toEqual({
       accepted: [
@@ -785,7 +813,7 @@ describe("the profile button and its bubble", () => {
           ? jsonResponse(checklist)
           : url.endsWith("/me")
             ? jsonResponse({ email: "asha@example.com", profile })
-            : jsonResponse({ status: "ok", environment: "local" }),
+            : (checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" })),
       )) as typeof fetch);
   }
 

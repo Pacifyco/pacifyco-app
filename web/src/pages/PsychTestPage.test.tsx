@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
+import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/renderApp";
 import { PsychTestPage } from "./PsychTestPage";
@@ -58,45 +58,48 @@ beforeEach(() => {
 });
 
 describe("the psychology screening page", () => {
-  test("shows every question before anything is answered", async () => {
+  test("shows one question at a time, starting with the first", async () => {
     mockApi(null);
     renderPage();
     expect(await screen.findByText("Pick one")).toBeTruthy();
+    expect(screen.getByText("Question 1 of 2")).toBeTruthy();
     expect(screen.getByLabelText("A")).toBeTruthy();
     expect(screen.getByLabelText("B")).toBeTruthy();
-    expect(screen.getByLabelText("Explain yourself")).toBeTruthy();
+    expect(screen.queryByLabelText("Explain yourself")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
   });
 
-  test("refuses to submit until every question is answered", async () => {
+  test("won't move on until the question is answered", async () => {
     mockApi(null);
     renderPage();
     await screen.findByText("Pick one");
 
-    fireEvent.click(screen.getByLabelText("A"));
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-
-    expect(await screen.findByText("Please answer every question before submitting.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("Please answer this question to continue.")).toBeTruthy();
+    expect(screen.getByText("Question 1 of 2")).toBeTruthy();
   });
 
-  test("submitting sends every answer, then takes her to what's next", async () => {
+  test("Back returns to the question before, keeping its answer", async () => {
+    mockApi(null);
+    renderPage();
+    await screen.findByText("Pick one");
+    fireEvent.click(screen.getByLabelText("B"));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByLabelText("Explain yourself")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "← Back" }));
+    expect(await screen.findByText("Question 1 of 2")).toBeTruthy();
+    expect((screen.getByLabelText("B") as HTMLInputElement).checked).toBe(true);
+  });
+
+  test("submitting sends every answer, then confirms the application is submitted", async () => {
     const calls = mockApi(null);
-    const router = createMemoryRouter(
-      [
-        { path: "/", element: <PsychTestPage /> },
-        { path: "/sitter/profile", element: <p>Sitter profile page</p> },
-      ],
-      { initialEntries: ["/"] },
-    );
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>,
-    );
+    renderPage();
     await screen.findByText("Pick one");
 
     fireEvent.click(screen.getByLabelText("A"));
-    fireEvent.change(screen.getByLabelText("Explain yourself"), { target: { value: "Because I care." } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.change(await screen.findByLabelText("Explain yourself"), { target: { value: "Because I care." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
     await waitFor(() =>
@@ -111,7 +114,8 @@ describe("the psychology screening page", () => {
         { question_id: "q2", answer_text: "Because I care." },
       ],
     });
-    expect(await screen.findByText("Sitter profile page")).toBeTruthy();
+    expect(await screen.findByText("Your application is submitted.")).toBeTruthy();
+    expect(screen.queryByText("Pick one")).toBeNull();
   });
 
   test("an already-submitted attempt shows the awaiting-review state, not the form", async () => {
@@ -160,6 +164,7 @@ describe("the psychology screening page", () => {
     renderPage();
     await screen.findByText("Pick one");
     expect((screen.getByLabelText("B") as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText("Explain yourself") as HTMLTextAreaElement).value).toBe("Half-finished.");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(((await screen.findByLabelText("Explain yourself")) as HTMLTextAreaElement).value).toBe("Half-finished.");
   });
 });

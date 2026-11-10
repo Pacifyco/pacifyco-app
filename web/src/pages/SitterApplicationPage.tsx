@@ -3,7 +3,7 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { DocumentUpload } from "../components/documents/DocumentUpload";
-import { Button, Card, Checkbox, Select, TextInput, Textarea } from "../components/ui";
+import { BackLink, Button, Card, Checkbox, Select, StepActions, StepBackContext, TextInput, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
 // ---------- shared bits ----------
@@ -163,9 +163,11 @@ function ProfileForm({
         onChange={(event) => setForm({ ...form, reference_shared_consent: event.target.checked })}
       />
       <ErrorLine message={error} />
-      <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
-        Continue
-      </Button>
+      <StepActions>
+        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
+          Continue
+        </Button>
+      </StepActions>
     </>
   );
 }
@@ -224,9 +226,11 @@ function HealthDisclosureForm({ initial, onContinue }: { initial: string; onCont
         onChange={(event) => setValue(event.target.value)}
       />
       <ErrorLine message={error} />
-      <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
-        Continue
-      </Button>
+      <StepActions>
+        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
+          Continue
+        </Button>
+      </StepActions>
     </>
   );
 }
@@ -343,9 +347,11 @@ function PayoutDetailsForm({ initial, onContinue }: { initial: PayoutInput; onCo
         />
       )}
       <ErrorLine message={error} />
-      <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
-        Continue to the psychology screening
-      </Button>
+      <StepActions>
+        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
+          Continue to the psychology screening
+        </Button>
+      </StepActions>
     </>
   );
 }
@@ -470,9 +476,11 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
           </Button>
         </div>
       )}
-      <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
-        Continue
-      </Button>
+      <StepActions>
+        <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+          Continue
+        </Button>
+      </StepActions>
     </Card>
   );
 }
@@ -495,9 +503,11 @@ function DocumentsSection({ onContinue }: { onContinue: () => void }) {
       <DocumentUpload type="college_or_work_id" label="College or work ID" />
       <DocumentUpload type="police_certificate" label="Police clearance certificate" />
       <DocumentUpload type="first_aid_certificate" label="First-aid certificate" />
-      <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
-        Continue
-      </Button>
+      <StepActions>
+        <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+          Continue
+        </Button>
+      </StepActions>
     </Card>
   );
 }
@@ -528,12 +538,20 @@ export function SitterApplicationPage() {
     setStepIndex((index) => index + 1);
   }
 
+  // From the first step, Back goes to "Your profile", where the form was opened.
   function goBack() {
-    setStepIndex((index) => Math.max(0, index - 1));
+    if (stepIndex === 0) {
+      navigate("/sitter/profile");
+      return;
+    }
+    setStepIndex((index) => index - 1);
   }
 
   return (
     <article className="mx-auto max-w-[72rem]">
+      <div className="mx-auto mb-4 max-w-[40rem]">
+        <BackLink to="/sitter/profile" label="Your profile" />
+      </div>
       <div className="mx-auto max-w-[62ch] text-center">
         <h1>Your application</h1>
         <p className="mt-2 text-muted">
@@ -546,18 +564,15 @@ export function SitterApplicationPage() {
         <p className="text-center text-small text-muted">
           Step {stepIndex + 1} of {STEPS.length} · {STEP_LABEL[step]}
         </p>
-        <div className="mt-4 flex flex-col gap-4">
-          {step === "profile" && <ProfileSection onContinue={goNext} />}
-          {step === "documents" && <DocumentsSection onContinue={goNext} />}
-          {step === "health" && <HealthDisclosureSection onContinue={goNext} />}
-          {step === "references" && <ReferencesSection onContinue={goNext} />}
-          {step === "payout" && <PayoutDetailsSection onContinue={goNext} />}
-          {stepIndex > 0 && (
-            <Button type="button" variant="tertiary" className="self-start" onClick={goBack}>
-              ← Back
-            </Button>
-          )}
-        </div>
+        <StepBackContext.Provider value={goBack}>
+          <div className="mt-4 flex flex-col gap-4">
+            {step === "profile" && <ProfileSection onContinue={goNext} />}
+            {step === "documents" && <DocumentsSection onContinue={goNext} />}
+            {step === "health" && <HealthDisclosureSection onContinue={goNext} />}
+            {step === "references" && <ReferencesSection onContinue={goNext} />}
+            {step === "payout" && <PayoutDetailsSection onContinue={goNext} />}
+          </div>
+        </StepBackContext.Provider>
       </div>
     </article>
   );

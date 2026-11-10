@@ -4,7 +4,8 @@ import { useAuth } from "./AuthProvider";
 
 // Mirrors GET /me (api/app/routers/auth.py).
 export type Role = "parent" | "sitter" | "admin";
-export const AREA_PATH: Record<Role, string> = { parent: "/parent", sitter: "/sitter", admin: "/admin" };
+/** Where each role lands: parents go straight to Find a sitter; sitters to their bookings. */
+export const AREA_PATH: Record<Role, string> = { parent: "/parent/sitters", sitter: "/sitter", admin: "/admin" };
 /** "Your profile": the finish-your-profile checklist, opened from the header's profile button. */
 export const PROFILE_PATH = { parent: "/parent/profile", sitter: "/sitter/profile" } as const;
 

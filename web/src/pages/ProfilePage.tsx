@@ -1,4 +1,5 @@
-import { BackLink } from "../components/ui";
+import { AREA_PATH } from "../auth/useMe";
+import { BackLink, ButtonLink, Card } from "../components/ui";
 import {
   ChecklistCard,
   PARENT_STEPS,
@@ -45,19 +46,29 @@ function SitterProfile() {
         ? "Every step has passed. Pacify will review your profile and let you know when it's live."
         : "Families can find you once every step passes and Pacify approves your profile.";
   return (
-    <ChecklistCard
-      heading={live ? "Your profile" : "Finish your profile"}
-      intro={intro}
-      items={items}
-      steps={SITTER_STEPS}
-    />
+    <>
+      <ChecklistCard
+        heading={live ? "Your profile" : "Finish your profile"}
+        intro={intro}
+        items={items}
+        steps={SITTER_STEPS}
+      />
+      {/* Sitters change their availability here once they're set up; their home is their bookings. */}
+      <Card as="section" className="flex flex-col items-start gap-3">
+        <h2 className="text-h3">Your availability</h2>
+        <p className="text-small text-muted">Your usual week and days off. Families can book you inside these times.</p>
+        <ButtonLink to="/sitter/availability" variant="secondary">
+          Change your availability
+        </ButtonLink>
+      </Card>
+    </>
   );
 }
 
 export function ProfilePage({ role }: { role: "parent" | "sitter" }) {
   return (
     <section className="mx-auto flex max-w-[62ch] flex-col gap-4">
-      <BackLink to={`/${role}`} label="Home" />
+      <BackLink to={AREA_PATH[role]} label="Home" />
       {role === "parent" ? <ParentProfile /> : <SitterProfile />}
     </section>
   );

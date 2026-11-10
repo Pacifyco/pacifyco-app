@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { BackLink, ButtonLink, Checkbox, EmptyState, Select, SitterCard, TextInput } from "../components/ui";
+import { ButtonLink, Checkbox, EmptyState, Select, SitterCard, TextInput } from "../components/ui";
 import type { VerifiedCheck } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { todayInKolkata } from "../lib/times";
@@ -147,17 +147,13 @@ export function FindSittersPage() {
 
   return (
     <section className="mx-auto flex max-w-[72rem] flex-col gap-4">
-      <div className="flex items-start gap-4">
-        <span className="mt-1 shrink-0">
-          <BackLink to="/parent" label="Home" />
-        </span>
-        <div className="min-w-0">
-          <h1 className="text-h3">Find a sitter</h1>
-          <p className="mt-1 text-small text-muted">
-            Every sitter here is ID and police verified and referenced by Pacify. With someone new, start with a 1-hour
-            booking while you're at home.
-          </p>
-        </div>
+      {/* The parent's home page: signed-in parents land here (AREA_PATH), so there's no back link. */}
+      <div>
+        <h1 className="text-h3">Find a sitter</h1>
+        <p className="mt-1 text-small text-muted">
+          Every sitter here is ID and police verified and referenced by Pacify. With someone new, start with a 1-hour
+          booking while you're at home.
+        </p>
       </div>
 
       {/* A card with tighter padding than Card's, so the filters take less room on a phone. */}

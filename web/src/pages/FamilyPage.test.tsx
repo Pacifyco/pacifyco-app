@@ -87,7 +87,8 @@ describe("the family page", () => {
     expect(await screen.findByText("You haven't added a child yet.")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Emergency contacts" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Authorised adults" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "← Back" })).toBeNull();
+    // Back is there from the first step too: it goes to "Your profile".
+    expect(await screen.findByRole("button", { name: "← Back" })).toBeTruthy();
   });
 
   test("adding a child shows it in the list and sends the right body", async () => {
@@ -158,7 +159,7 @@ describe("the family page", () => {
     await clickContinue();
     await screen.findByText("Step 2 of 3 · Emergency contacts");
 
-    fireEvent.click(screen.getByRole("button", { name: "← Back" }));
+    fireEvent.click(await screen.findByRole("button", { name: "← Back" }));
     expect(await screen.findByText("Step 1 of 3 · Your children")).toBeTruthy();
   });
 

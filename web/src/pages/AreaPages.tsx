@@ -1,67 +1,41 @@
-import type { ReactNode } from "react";
-import { BadgeCheck, Calendar, Clock, CreditCard, HeartHandshake, Siren, Wallet } from "lucide-react";
-import { useMe } from "../auth/useMe";
-import { ButtonLink, IconTile } from "../components/ui";
+import { useQuery } from "@tanstack/react-query";
+import { BadgeCheck, CreditCard, Siren, Wallet } from "lucide-react";
+import { ButtonLink, Card, EmptyState, IconTile } from "../components/ui";
+import { apiFetch } from "../lib/api";
 
-// Each role's home (gated by RequireRole in routes.tsx). Parents and sitters land here straight after
-// sign-up; what's left of their profile is in "Your profile", reached from the header's profile button and
-// its "finish your profile" bubble (CLAUDE.md 6.13). Kept short so it fits a phone screen without scrolling.
+// Each role's home (gated by RequireRole in routes.tsx). Parents have none: they land on Find a sitter.
+// Sitters land on their bookings; a sitter who hasn't set her availability yet is asked to do that first.
+// After that she changes it from "Your profile".
 
-function firstName(fullName: string | null | undefined): string | undefined {
-  return fullName?.trim().split(/\s+/)[0];
-}
-
-// Extra room at the top on phones, so the profile button's bubble doesn't cover the heading.
-const HOME = "mx-auto max-w-[62ch] pt-6 text-center sm:pt-0";
-
-function Tiles({ children }: { children: ReactNode }) {
-  return <div className="mt-6 grid grid-cols-3 gap-3 sm:gap-5">{children}</div>;
-}
-
-export function ParentHomePage() {
-  const me = useMe();
-  const name = firstName(me.data?.profile?.full_name);
-
-  return (
-    <section className={HOME}>
-      <h1>Time for you.</h1>
-      <p className="mt-3 text-muted">
-        {name ? `Hello ${name}, your` : "Your"} bookings and sitters will be here.
-      </p>
-      <div className="mt-5 flex justify-center">
-        <ButtonLink to="/parent/sitters" arrow>
-          Find a sitter
-        </ButtonLink>
-      </div>
-      <Tiles>
-        <IconTile icon={HeartHandshake} label="Start with a short booking" />
-        <IconTile icon={Calendar} label="Scheduled care" />
-        <IconTile icon={Wallet} label="Pay by the hour" />
-      </Tiles>
-    </section>
-  );
-}
+type Availability = { week: unknown[]; days_off: string[] };
 
 export function SitterHomePage() {
-  const me = useMe();
-  const name = firstName(me.data?.profile?.full_name);
+  // Same query key as the availability page, so saving there updates this page.
+  const availability = useQuery({
+    queryKey: ["sitter-availability"],
+    queryFn: () => apiFetch<Availability>("/sitter/availability"),
+  });
+  const firstTime = availability.isSuccess && availability.data.week.length === 0;
 
   return (
-    <section className={HOME}>
-      <h1>Your work with Pacify.</h1>
-      <p className="mt-3 text-muted">
-        {name ? `Hello ${name}. ` : ""}Your bookings, availability and earnings will be here.
-      </p>
-      <div className="mt-5 flex justify-center">
-        <ButtonLink to="/sitter/availability" arrow>
-          Your availability
-        </ButtonLink>
-      </div>
-      <Tiles>
-        <IconTile icon={Calendar} label="Booking requests" />
-        <IconTile icon={Clock} label="Your availability" />
-        <IconTile icon={Wallet} label="Your earnings" />
-      </Tiles>
+    <section className="mx-auto flex max-w-[40rem] flex-col gap-4">
+      <h1 className="text-h3">Your bookings</h1>
+      {firstTime && (
+        <Card as="section" className="flex flex-col items-start gap-3">
+          <h2 className="text-h3">Set your availability</h2>
+          <p className="text-small text-muted">
+            Tell us your usual week, so families can book you inside those times.
+          </p>
+          <ButtonLink to="/sitter/availability" arrow>
+            Your availability
+          </ButtonLink>
+        </Card>
+      )}
+      {availability.isPending ? (
+        <p className="text-muted">Loading…</p>
+      ) : (
+        <EmptyState message="No bookings yet. Confirmed bookings will show here." />
+      )}
     </section>
   );
 }
