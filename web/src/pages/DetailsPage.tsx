@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { PROFILE_PATH, useMe, type Me } from "../auth/useMe";
-import { Button, LoadingScreen, TextInput, Textarea } from "../components/ui";
+import { BackLink, Button, LoadingScreen, TextInput, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
 // "Your details" (CLAUDE.md 6.13): name, mobile, home pin code and address. Sign-up only asks the role
@@ -182,6 +182,9 @@ export function DetailsPage() {
   };
   return (
     <section className="mx-auto max-w-[28rem] text-center">
+      <div className="mb-4 text-left">
+        <BackLink to={PROFILE_PATH[profile.role as "parent" | "sitter"]} label="Your profile" />
+      </div>
       <h1>Your details.</h1>
       <p className="mt-4 text-muted">
         {profile.role === "parent"

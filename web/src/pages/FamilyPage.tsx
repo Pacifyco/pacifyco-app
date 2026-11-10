@@ -3,7 +3,7 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { DocumentUpload } from "../components/documents/DocumentUpload";
-import { Button, Card, TextInput, Textarea } from "../components/ui";
+import { BackLink, Button, Card, StepActions, StepBackContext, TextInput, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { formatDate } from "../lib/format";
 
@@ -258,9 +258,11 @@ function ChildrenSection({ onContinue }: { onContinue: () => void }) {
           Add a child
         </Button>
       )}
-      <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
-        Continue
-      </Button>
+      <StepActions>
+        <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+          Continue
+        </Button>
+      </StepActions>
     </Card>
   );
 }
@@ -358,9 +360,11 @@ function EmergencyContactsForm({
         </div>
       ))}
       <ErrorLine message={error} />
-      <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate(form)}>
-        Continue
-      </Button>
+      <StepActions>
+        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate(form)}>
+          Continue
+        </Button>
+      </StepActions>
     </>
   );
 }
@@ -441,9 +445,11 @@ function AuthorisedAdultsSection({ onContinue }: { onContinue: () => void }) {
           Add
         </Button>
       </div>
-      <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
-        Continue
-      </Button>
+      <StepActions>
+        <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+          Continue
+        </Button>
+      </StepActions>
     </Card>
   );
 }
@@ -471,12 +477,20 @@ export function FamilyPage() {
     setStepIndex((index) => index + 1);
   }
 
+  // From the first step, Back goes to "Your profile", where the form was opened.
   function goBack() {
-    setStepIndex((index) => Math.max(0, index - 1));
+    if (stepIndex === 0) {
+      navigate("/parent/profile");
+      return;
+    }
+    setStepIndex((index) => index - 1);
   }
 
   return (
     <article className="mx-auto max-w-[72rem]">
+      <div className="mx-auto mb-4 max-w-[40rem]">
+        <BackLink to="/parent/profile" label="Your profile" />
+      </div>
       <div className="mx-auto max-w-[62ch] text-center">
         <h1>My family</h1>
         <p className="mt-2 text-muted">
@@ -488,16 +502,13 @@ export function FamilyPage() {
         <p className="text-center text-small text-muted">
           Step {stepIndex + 1} of {STEPS.length} · {STEP_LABEL[step]}
         </p>
-        <div className="mt-4 flex flex-col gap-4">
-          {step === "children" && <ChildrenSection onContinue={goNext} />}
-          {step === "emergency" && <EmergencyContactsSection onContinue={goNext} />}
-          {step === "authorised" && <AuthorisedAdultsSection onContinue={goNext} />}
-          {stepIndex > 0 && (
-            <Button type="button" variant="tertiary" className="self-start" onClick={goBack}>
-              ← Back
-            </Button>
-          )}
-        </div>
+        <StepBackContext.Provider value={goBack}>
+          <div className="mt-4 flex flex-col gap-4">
+            {step === "children" && <ChildrenSection onContinue={goNext} />}
+            {step === "emergency" && <EmergencyContactsSection onContinue={goNext} />}
+            {step === "authorised" && <AuthorisedAdultsSection onContinue={goNext} />}
+          </div>
+        </StepBackContext.Provider>
       </div>
     </article>
   );

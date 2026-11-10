@@ -315,6 +315,12 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-10 — Reuben's UI tweaks: "← Your profile" back link on every profile form (details, consent,
+  family, sitter application; screening links back to the application); small Submit on the screening,
+  then an "application submitted" confirmation instead of a silent redirect; parent and sitter home tiles removed.
+  Then: parents land on Find a sitter (no separate home); sitters land on "Your bookings" (asks a sitter
+  with no week set to set her availability; otherwise changed from "Your profile"); "← Back" beside
+  Continue on every step of the application and My family; the screening is one question at a time with Back.
 - 2026-11-09 — End-to-end tests (`e2e-tests`): Playwright runs the onboarding journeys against the real
   web app and API on a fresh database, with stand-ins for Supabase and OpenStreetMap; new CI job. Found and
   fixed: the home checklist showed stale steps for up to 30 seconds after finishing one.

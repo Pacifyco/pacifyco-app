@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
-import { Button, ButtonLink, Checkbox } from "../components/ui";
+import { BackLink, Button, ButtonLink, Checkbox } from "../components/ui";
 import consentSource from "../content/consent.md?raw";
 import { apiFetch } from "../lib/api";
 import { formatDate } from "../lib/format";
@@ -78,6 +78,9 @@ export function ConsentPage() {
 
   return (
     <article className="mx-auto max-w-[62ch]">
+      <div className="mb-4">
+        <BackLink to="/parent/profile" label="Your profile" />
+      </div>
       <Markdown body={CONSENT.body} />
       <p className="mt-4 text-small text-muted">Version {CONSENT_VERSION}</p>
 

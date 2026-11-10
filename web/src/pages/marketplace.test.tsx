@@ -199,7 +199,7 @@ describe("finding a sitter", () => {
     expect(meena.getByText("Recharge").textContent).toBe("Works the Recharge plan");
   });
 
-  test("lists every live sitter (no plan filter) with no prices, and the intro beside Home", async () => {
+  test("lists every live sitter (no plan filter) with no prices, as the parent's home", async () => {
     const calls = mockApi({ "GET /parent/sitters": () => jsonResponse([LAKSHMI]) });
     const { container } = renderAt("/parent/sitters");
     const card = within((await screen.findByRole("heading", { name: "Lakshmi Nair" })).closest("article")!);
@@ -215,8 +215,9 @@ describe("finding a sitter", () => {
     // Only day, language, sort and first aid: no plan, time, experience or rating filters, no search button.
     for (const gone of ["Plan", "From", "Until", "Experience", "Rating"]) expect(screen.queryByLabelText(gone)).toBeNull();
     expect(screen.queryByRole("button", { name: /Show sitters/ })).toBeNull();
-    const heading = screen.getByRole("heading", { level: 1, name: "Find a sitter" });
-    expect(heading.closest("div")!.parentElement!.contains(screen.getByRole("link", { name: "Home" }))).toBe(true);
+    // It's the parent's home page, so there's no back link to a home.
+    expect(screen.getByRole("heading", { level: 1, name: "Find a sitter" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
   });
 
   test("language options come from the sitters' own languages", async () => {
