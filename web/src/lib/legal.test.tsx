@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import familyTermsSource from "../content/family-terms-v1.0.md?raw";
+import sitterConsentSource from "../content/sitter-consent-v1.0.md?raw";
 import sitterTermsSource from "../content/sitter-terms-v1.1.md?raw";
 import { renderApp } from "../test/renderApp";
 import { fillFamilyTerms, fillSitterTerms } from "./legal";
@@ -10,6 +11,8 @@ import { fillFamilyTerms, fillSitterTerms } from "./legal";
 const SITTER_TERMS_SHA256 = "0b2796dde3e7de1f373cc20defa6c327dcfb68105fb5fd8024544f5c4bc67b41";
 // The same for the Family Terms of Use v1.0 (converted word for word from Reuben's final .docx).
 const FAMILY_TERMS_SHA256 = "52a18d3650b0b0a07d3ec0017c374dd46f2eed1d7fed100244d96cf994328ded";
+// The sitter consent v1.0 (converted word for word from Reuben's "Sitter consent" .docx, 2026-11-12).
+const SITTER_CONSENT_SHA256 = "66196167b2bd055705e3fb417cef19803b1aa417b7757ac3ae53f724d7655433";
 
 async function sha256(source: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source.replace(/\r\n/g, "\n")));
@@ -77,6 +80,12 @@ describe("Sitter Terms of Use v1.1", () => {
     expect(fillSitterTerms({ ...VALUES, sitterTermsDate: "15/11/2026" }, "x", true).missing).toEqual(["date"]);
     // 7 values (the address fills two placeholders; the privacy link is always set).
     expect(fillSitterTerms(EMPTY, "x", true).missing).toHaveLength(7);
+  });
+});
+
+describe("Sitter consent v1.0", () => {
+  test("wording is unchanged", async () => {
+    expect(await sha256(sitterConsentSource)).toBe(SITTER_CONSENT_SHA256);
   });
 });
 

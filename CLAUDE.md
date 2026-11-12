@@ -280,6 +280,7 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
 | Sitter more than 15 minutes late without telling the parent and Pacify | Parent may cancel from the booking screen; it then counts as a sitter no-show. If not cancelled, the sitter is paid only from check-in. |
 | Sitter ill | Must tell Pacify and the parent at least 8 hours before (a normal cancellation). With less notice it's a late cancellation and a strike, but an admin can remove the strike if she uploads a doctor's note. |
 | Child under 18 months at the booking | Should never happen (bookings are blocked), but if it does: sitter presses Report, isn't required to care for the child and may leave once an adult is with the child. Parent is charged for 1 hour; the rest is refunded. Sitter is paid for that 1 hour (her level pay); no strike. (Decided 2026-11-03.) |
+| Only adult at home is a man (decided 2026-11-12) | The sitter may decline the booking on the spot and reports it with the Issues button (6.9). Parent pays for the whole booking (no refund, as in the Family Terms). No strike; Pacify pays the sitter a **flat ₹100**. |
 | Sitter leaves because she feels unsafe | Only once the child is with a parent or a named adult; she presses Emergency. Once an admin confirms the report, she's paid for the time worked and it's not a strike. |
 
 **Parent not home:** the sitter calls the parent and presses Report; admins try to reach the parent too.
@@ -315,9 +316,12 @@ Emergency button instead.
 
 ### 6.8 Overtime
 
-- Overtime is worked out **automatically at check-out**: if the check-out time is past the booked end
-  time, the extra time is **rounded up to the next full hour** and charged at the booking's plan price
-  per hour. No request or approval during the booking.
+- **Overtime request (decided 2026-11-12):** during the booking the parent presses "Request overtime"
+  and picks a number of **whole hours**; the sitter gets a notification and accepts (they're assumed to
+  have agreed it between them) or declines. Nothing is charged when she accepts.
+- Overtime is always worked out **at check-out**, whether or not a request was accepted (a parent who is
+  simply late still pays): if the check-out time is past the booked end time, the extra time is
+  **rounded up to the next full hour** and charged at the booking's plan price per hour.
 - It's charged right away. Beta: the parent is shown a UPI payment link or QR for the amount, payable
   within **2 hours**, and enters the UPI reference; an admin confirms. Until it's paid, it's an
   outstanding amount and the parent can't make new bookings.
@@ -334,10 +338,15 @@ Emergency button instead.
 
 - Parents and sitters each have an Emergency/Report button on an active booking (sitters' is for their
   own safety too).
+- **Issues button (decided 2026-11-12):** separate from Emergency, parents and sitters can report a
+  non-emergency issue from the booking screen, e.g. running late, or the only adult at home being a
+  man (6.5). It goes to admins (a complaint linked to the booking, 6.12).
 - Pressing it creates an incident, emails every address in `ADMIN_ALERT_EMAILS` immediately, and shows
   an alert at the top of the admin panel until acknowledged. An admin then phones both people.
 - An open incident holds the sitter's payout for that booking.
-- A theft or abuse report suspends the sitter's account immediately until an admin resolves it.
+- A theft or abuse report suspends the sitter's account immediately until an admin resolves it. A
+  confirmed theft normally ends in removal (the sitter consent says "permanent removal and a police
+  complaint"; decided 2026-11-12).
 
 ### 6.10 Payouts (beta: manual)
 
@@ -357,7 +366,14 @@ Emergency button instead.
   other. A sitter's average rating and count show on their profile.
 - If a sitter's average over her last 10 bookings falls below **3.5**, flag her for admin review. Before
   removal for ratings, she must be told the reason and given a chance to respond (recorded).
-- Communication between families and sitters stays in the in-app chat.
+- Pacify connects families and sitters through the in-app chat, and sitters never have to share their
+  number. After the first booking they may choose to exchange numbers; the app doesn't stop it
+  (decided 2026-11-12).
+- Medicine: a sitter gives medicine only if the parent has written the instructions in the app. For
+  now that's the child's medical notes (`children.medical_notes`); no separate medicine field (decided
+  2026-11-12).
+- Potty training and diaper changes are agreed between parent and sitter, not through a booking field:
+  in the in-app chat or in person at the 1-hour first booking (decided 2026-11-12).
 - Chat opens between a parent and sitter once they have a confirmed booking (no messaging before
   booking; decided 2026-11-08) and stays open while they have bookings. Admins can read chats when
   handling an incident (audit logged).
@@ -379,10 +395,10 @@ Emergency button instead.
 ### 6.13 Accounts
 
 - **Sign-up flow (decided 2026-11-08, replaces the long sign-up form):** on their first sign-in a
-  person chooses **parent** or **sitter**, confirms it ("You're joining as a parent. Is that right?")
-  and accepts the terms (click-wrap, 7). They then go **straight into their area** of the app. Everything
-  else (full name, Indian mobile number, home pin code and address, parent consents, family details,
-  the sitter application) is asked for there as "finish your profile" prompts. Parents can't book until
+  person chooses **parent** or **sitter** and confirms it ("You're joining as a parent. Is that right?").
+  They then go **straight into their area** of the app. Everything else (full name, Indian mobile
+  number, home pin code and address, the consent page with the terms (7; moved off sign-up 2026-11-12),
+  family details, the sitter application) is asked for there as "finish your profile" prompts. Parents can't book until
   their profile is finished; sitters don't appear to parents until theirs is finished and approved (7).
   The service-area pin code check (1) moves to where the pin code is entered, and still applies before
   booking. Admin accounts are never chosen at sign-up; they are created with the CLI
@@ -459,7 +475,7 @@ details.
 not its name).
 
 **Terms acceptance (click-wrap, both roles):**
-- Documents: Parent terms of service, **Sitter Terms of Use** and the Privacy policy, all versioned, in
+- Documents: Parent terms of service, **Sitter Terms of Use**, the **sitter consent** and the Privacy policy, all versioned, in
   `/web/src/content/`.
 - **Sitter Terms of Use v1.1 is final:** `web/src/content/sitter-terms-v1.1.md` (a test checks its
   wording against a fingerprint). Placeholders are filled in `web/src/lib/legal.ts` from the
@@ -475,13 +491,19 @@ not its name).
 - The Privacy policy is still a placeholder marked "DRAFT — NOT LEGALLY REVIEWED".
 - Changes to the sitter terms that affect pay or rights must be announced in the app at least **14 days**
   before they take effect (`effective_at`); urgent safety or legal changes can take effect at once.
-- At sign-up, after choosing a role, the user sees an unticked checkbox: "I agree to the [Terms of
-  service / Sitter Terms of Use] and Privacy policy", with links that open the full text. They can't continue
-  until it's ticked and they press the button.
+- **On the consent page, not at sign-up (decided 2026-11-12, Reuben):** the user sees an unticked
+  checkbox: "I agree to the [Family Terms of Use / Sitter Terms of Use] and Privacy policy", with links
+  that open the full text. Parents: on the parental consent page (`/parent/consent`), beside the consents,
+  all saved together. Sitters: on the **sitter consent** page (`/sitter/consent`), below the sitter consent
+  (`web/src/content/sitter-consent-v1.0.md`, Reuben's "Sitter consent" document word for word, fingerprinted
+  like the terms) with its own tick ("I've read these and I'll follow them"). The sitter consent is a
+  versioned legal document (`sitter_consent`) accepted the same way. Nothing in the area is blocked until
+  then, but the profile isn't finished: parents can't book, and admins can't approve a sitter.
 - Record each acceptance: user, document, version, accepted_at, IP address, user agent.
 - When a document's version changes, users must accept the new version before their next action that
   matters: parents before booking or buying hours, sitters before taking new bookings. Existing bookings
-  are unaffected.
+  are unaffected. The consent step on their profile checklist goes back to "to do" and the consent page
+  asks for just the new version.
 - Aadhaar e-sign for sitters is planned for later (v2 backlog); keep acceptance logic behind one small
   function so a signing method can be added.
 
@@ -512,7 +534,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `document_access_log` **(created)** (id, document_id, admin_id, accessed_at)
 - `consents` **(created)** one row per consent kind (`own_data|child_data|share_care_details|emergency_authorisation|marketing`)
   and version, with marketing withdrawable — append-only, one row per parent per version; current version is `CONSENT_VERSION` in `api/app/services/consent.py`, matching the `version:` line of `web/src/content/consent.md`. No `single_parent_declaration` kind (dropped 2026-11-03 with Aadhaar)
-- `legal_documents` **(created)** (id, kind: `parent_terms|sitter_terms|privacy_policy`, version, published_at, effective_at, content_path) — read-only for the API; a new version is a migration that adds a row (plus the new text in `web/src/content/` with the same version; a test checks they match). The current version is the latest whose `effective_at` has passed, so pay or rights changes to the sitter terms get an `effective_at` 14+ days out
+- `legal_documents` **(created)** (id, kind: `parent_terms|sitter_terms|privacy_policy|sitter_consent`, version, published_at, effective_at, content_path) — read-only for the API; a new version is a migration that adds a row (plus the new text in `web/src/content/` with the same version; a test checks they match). The current version is the latest whose `effective_at` has passed, so pay or rights changes to the sitter terms get an `effective_at` 14+ days out
 - `legal_acceptances` **(created)** (id, profile_id, document_id, method: `clickwrap`, accepted_at, ip_address, user_agent) — append-only; written only by `record_acceptances` in `api/app/services/legal.py`; `require_current_terms` gates booking, buying hours and taking bookings
 - `references` **(created)** (id, sitter_id, name, phone, relationship, outcome, notes)
 - `psych_tests`, `psych_questions`, `psych_attempts`, `psych_answers` **(created)**
@@ -548,11 +570,11 @@ in the beta phase.
 | Auth and roles | JWT verified; wrong role gets 403 on every role-gated endpoint; suspended/removed users blocked |
 | Service area | Sign-up and booking rejected outside listed pin codes |
 | Consent | Child document upload refused without an accepted consent of the current version |
-| Terms click-wrap | Sign-up can't complete without acceptance; acceptance stores version, time, IP and user agent; parent can't book or buy and sitter can't take bookings until the latest version is accepted; parents see parent terms and sitters see the Sitter Terms of Use |
+| Terms click-wrap | Consent pages can't complete without acceptance (sitter: also the sitter consent tick); a sitter can't be approved until she's accepted; acceptance stores version, time, IP and user agent; parent can't book or buy and sitter can't take bookings until the latest version is accepted; parents see parent terms and sitters see the Sitter Terms of Use |
 | Documents | Non-admins can't get a signed view URL; every admin view logged; birth certificate deleted after child verification |
 | Sitter onboarding | Profile not searchable until every step passes and an admin has set her level |
 | Search and filters | Only active, verified, unblocked sitters returned: every level by default (decided 2026-11-09; the parent's page filters by day, language and first aid, and sorts), or one plan's level when asked; distance sort; each filter works; parent never sees sitter pay |
-| Sign-up flow | First sign-in asks only role and terms, then lands in the area; parent can't book until the profile is finished; booking stays unconfirmed until every child on it is verified; sitter not shown to parents until her profile is finished and approved |
+| Sign-up flow | First sign-in asks only the role, then lands in the area; parent can't book until the profile is finished; booking stays unconfirmed until every child on it is verified; sitter not shown to parents until her profile is finished and approved |
 | Plans and pricing | Price per plan and children (Pause one child only; Unwind +₹150 per extra child; Recharge flat); whole-hour bookings only (no half-hours); booking `pending_payment` until an admin confirms; rejected or unpaid-by-deadline payment frees the booking |
 | Payments | Rows are append-only; amount owed = sum of rows; refunds and cancellation charges per 6.5; parents who owe money can't book |
 | Bookings | Sitter's level must match the plan; plan's latest end time (overtime included); bath time only on Unwind/Recharge; two parents can hold `pending_payment` bookings for the same slot, only the first confirmed payment wins it and the other is auto-cancelled; blocked sitter can't be booked |

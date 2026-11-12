@@ -1,6 +1,8 @@
 """Parental consent (CLAUDE.md section 7, following Family Terms 11.2): four things ticked
-separately at sign-up, plus an optional, withdrawable marketing consent. The text lives in
-web/src/content/consent.md; its `version:` line must equal CONSENT_VERSION (a test checks)."""
+separately, plus an optional, withdrawable marketing consent. The same page has the tick for the
+Family Terms of Use and privacy policy (moved there from sign-up, decided 2026-11-12); those are
+recorded by `legal`. The text lives in web/src/content/consent.md; its `version:` line must equal
+CONSENT_VERSION (a test checks)."""
 
 import uuid
 from dataclasses import dataclass
@@ -10,7 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Consent, ConsentKind, Parent
+from app.models import Consent, ConsentKind, Parent, Role
+from app.services import legal
 
 CONSENT_VERSION = "0.2-draft"
 
@@ -71,18 +74,28 @@ def set_marketing(db: Session, parent_id: uuid.UUID, accepted: bool) -> ConsentS
     return _set_toggle(db, parent_id, ConsentKind.marketing, accepted)
 
 
-def accept(db: Session, parent_id: uuid.UUID, version: str, marketing: bool) -> ConsentSummary:
-    """Record every required consent at `version`, which must be current, plus the marketing choice.
-    Calling this at all means every required box was ticked (the web only allows it once they are);
-    repeating it keeps the first acceptance of each required kind."""
+def accept(
+    db: Session,
+    parent_id: uuid.UUID,
+    version: str,
+    marketing: bool,
+    terms: list[legal.Accepted],
+    request: legal.RequestInfo,
+) -> ConsentSummary:
+    """Record every required consent at `version`, which must be current, plus the marketing choice,
+    and the terms and privacy policy the parent still has to accept (`terms`: the versions they were
+    shown), all or nothing. Calling this at all means every required box was ticked (the web only
+    allows it once they are); repeating it keeps the first acceptance of each."""
     if version != CONSENT_VERSION:
         raise AppError(409, "consent_outdated", "The consent form has been updated. Please read the new version.")
     if db.get(Parent, parent_id) is None:  # a parent profile without its parent record: edited outside the app
         raise AppError(409, "account_incomplete", "Your account isn't fully set up. Please contact Pacify.")
+    documents = legal.check_accepted(db, Role.parent, terms, legal.outstanding(db, parent_id, Role.parent))
 
     for kind in REQUIRED_KINDS:
         if _latest(db, parent_id, kind) is None:
             db.add(Consent(parent_id=parent_id, kind=kind, version=version, accepted=True))
+    legal.record_acceptances(db, parent_id, documents, request)
     db.commit()  # commit the required kinds now: set_marketing only commits when the choice changes
     return set_marketing(db, parent_id, marketing)
 

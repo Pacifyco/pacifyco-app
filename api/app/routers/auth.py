@@ -46,7 +46,7 @@ class Me(BaseModel):
     email: str | None
     # None until the person finishes sign-up (chooses a role).
     profile: MeProfile | None
-    # Current terms this person still has to accept (new versions, or accounts from before click-wrap).
+    # Current documents this person still has to accept (on their consent page).
     terms_to_accept: list[TermsVersion] = []
 
 
@@ -90,7 +90,8 @@ def accept_terms(
     user: Annotated[CurrentUser, Depends(current_user)],
     db: DbSession,
 ) -> Me:
-    """Accept the current versions (after a change, or for accounts made before click-wrap)."""
+    """Accept the current versions: the sitter consent page, and the parental consent page after a
+    new version (first acceptance there goes with the consents, POST /parent/consent)."""
     legal.accept_outstanding(db, profile, body.items(), request_info(request))
     return me_for(db, user.identity.email, profile)
 
@@ -106,12 +107,11 @@ def get_service_area(db: DbSession) -> ServiceArea:
 
 
 class SignUp(BaseModel):
-    """First sign-in: only the role and the terms (CLAUDE.md 6.13). Everything else comes later."""
+    """First sign-in: only the role (CLAUDE.md 6.13). The terms are ticked on the consent page and
+    everything else comes later too (decided 2026-11-12)."""
 
     # Admins are never chosen at sign-up (CLAUDE.md 6.13).
     role: Literal["parent", "sitter"]
-    # Click-wrap: the terms and privacy policy versions they ticked to agree to (CLAUDE.md 7).
-    accepted: list[TermsVersion] = Field(default_factory=list, max_length=5)
 
 
 class Details(BaseModel):
@@ -148,9 +148,7 @@ class Details(BaseModel):
 
 
 @router.post("/me/profile", status_code=201)
-def sign_up(
-    body: SignUp, request: Request, identity: Annotated[Identity, Depends(current_identity)], db: DbSession
-) -> Me:
+def sign_up(body: SignUp, identity: Annotated[Identity, Depends(current_identity)], db: DbSession) -> Me:
     """Finish sign-up: choose parent or sitter. Once only; the role can't be changed by the user."""
     if not identity.email:
         raise AppError(422, "email_required", "Please sign in with an email address")
@@ -159,8 +157,6 @@ def sign_up(
         user_id=identity.user_id,
         email=identity.email,
         role=Role(body.role),
-        accepted=[legal.Accepted(kind=item.kind, version=item.version) for item in body.accepted],
-        request=request_info(request),
     )
     return me_for(db, identity.email, profile)
 

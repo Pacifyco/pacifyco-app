@@ -23,7 +23,7 @@ from app.models import (
     Role,
     Sitter,
 )
-from app.services import geocoding, legal
+from app.services import geocoding
 from app.services.service_area import require_in_service_area
 
 # Indian mobile numbers: 10 digits starting 6–9, optionally written with +91, 91 or a leading 0.
@@ -47,15 +47,12 @@ def sign_up(
     user_id: uuid.UUID,
     email: str,
     role: Role,
-    accepted: list[legal.Accepted],
-    request: legal.RequestInfo,
 ) -> Profile:
-    """Create the profile, its parent or sitter record and the terms acceptances, all or nothing.
-    Only the role and the terms are asked for here; name, mobile, pin code and address come later
-    in the person's area (CLAUDE.md 6.13). Status starts as pending (verification)."""
+    """Create the profile and its parent or sitter record, all or nothing. Only the role is asked for
+    here; the terms are accepted on the consent page, and name, mobile, pin code and address come
+    later too, in the person's area (CLAUDE.md 6.13, decided 2026-11-12). Status starts as pending."""
     if role not in SIGN_UP_ROLES:
         raise AppError(422, "role_not_allowed", "Choose parent or sitter")
-    documents = legal.check_accepted(db, role, accepted)
     if db.get(Profile, user_id) is not None:
         raise _already_signed_up()
     if db.scalar(select(Profile.id).where(Profile.email == email)) is not None:
@@ -66,7 +63,6 @@ def sign_up(
     db.flush()  # profile first: the parent or sitter row points at it
     db.add(Parent(profile_id=user_id) if role == Role.parent else Sitter(profile_id=user_id))
     db.flush()
-    legal.record_acceptances(db, user_id, documents, request)
     try:
         db.commit()
     except IntegrityError as exc:  # the same person signing up twice at once

@@ -30,13 +30,14 @@ type Step = { label: string; hint: string; to: string };
 
 export const PARENT_STEPS: Record<string, Step> = {
   details: { label: "Your details", hint: "Name, mobile, pin code and home address", to: "/parent/details" },
-  consent: { label: "Parental consent", hint: "Read and accept the consent form", to: "/parent/consent" },
+  consent: { label: "Parental consent", hint: "Read and accept the consent form and our terms", to: "/parent/consent" },
   children: { label: "Your children", hint: "Add each child with their birth certificate", to: "/parent/family" },
   emergency_contacts: { label: "Emergency contacts", hint: "Two people we can call", to: "/parent/family" },
 };
 
 export const SITTER_STEPS: Record<string, Step> = {
   details: { label: "Your details", hint: "Name, mobile, pin code and home address", to: "/sitter/details" },
+  consent: { label: "Sitter consent", hint: "Read our guidelines and accept our terms", to: "/sitter/consent" },
   profile: { label: "About you", hint: "Your profile, health disclosure and payout details", to: "/sitter/application" },
   identity_documents: { label: "ID documents", hint: "Government ID and college or work ID", to: "/sitter/application" },
   police_certificate: { label: "Police clearance certificate", hint: "Upload your certificate", to: "/sitter/application" },

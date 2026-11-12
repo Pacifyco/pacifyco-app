@@ -2,6 +2,7 @@
 theirs is finished; a sitter isn't shown to parents until her profile is finished and approved."""
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
@@ -22,6 +23,7 @@ from tests.test_documents import (  # noqa: F401  (fixtures)
 )
 from tests.test_roles import as_user, make_profile  # noqa: F401  (fixture)
 from tests.test_sign_up import auth_for, fill_details, user  # noqa: F401  (fixture)
+from tests.test_terms import published
 from tests.test_verification import (  # noqa: F401  (fixtures)
     add_references,
     approve_everything,
@@ -61,6 +63,17 @@ def test_a_new_parent_has_everything_to_do(client, parent):  # noqa: F811
     items, body = checklist(client, parent, "parent")
     assert items == {"details": "to_do", "consent": "to_do", "children": "to_do", "emergency_contacts": "to_do"}
     assert body["finished"] is False
+
+
+def test_a_new_terms_version_reopens_the_consent_step(client, db_engine, parent):  # noqa: F811
+    """The terms are ticked on the consent page, so a new version sends the parent back there."""
+    accept_consent(client, parent)
+    assert checklist(client, parent, "parent")[0]["consent"] == "done"
+    with published(db_engine, "privacy_policy", "0.2-test"):
+        assert checklist(client, parent, "parent")[0]["consent"] == "to_do"
+        new = [{"kind": "privacy_policy", "version": "0.2-test"}]
+        assert client.post("/me/terms", json={"accepted": new}, headers=auth_for(parent)).status_code == 200
+        assert checklist(client, parent, "parent")[0]["consent"] == "done"
 
 
 def test_a_parent_cannot_book_until_the_profile_is_finished(client, db_engine, storage, parent):  # noqa: F811
@@ -111,6 +124,7 @@ def test_sitter_checklist_moves_from_to_do_to_waiting(client, db_engine, storage
     items, body = checklist(client, sitter, "sitter")
     assert items == {
         "details": "done",  # the fixture fills them in
+        "consent": "to_do",
         "profile": "to_do",
         "identity_documents": "to_do",
         "police_certificate": "to_do",
@@ -139,6 +153,20 @@ def test_sitter_checklist_shows_reviews_and_going_live(client, db_engine, sitter
 
     assert review(client, reviewer, f"/admin/sitters/{sitter['id']}/decision").status_code == 200
     assert checklist(client, sitter, "sitter")[1]["live"] is True
+
+
+def test_a_sitter_who_hasnt_accepted_her_consent_cannot_be_approved(client, db_engine, sitter, reviewer):  # noqa: F811
+    """Decided 2026-11-12: the sitter consent, Sitter Terms and privacy policy are ticked on her consent
+    page, not at sign-up, so approval checks them."""
+    approve_everything(client, db_engine, sitter, reviewer)
+    client.put(f"/admin/sitters/{sitter['id']}/level", json={"level": "pause"}, headers=as_user(reviewer))
+    with db_engine.begin() as conn:  # as if she'd never ticked them
+        conn.execute(text("DELETE FROM legal_acceptances WHERE profile_id = :id"), {"id": sitter["id"]})
+    assert checklist(client, sitter, "sitter")[0]["consent"] == "to_do"
+
+    response = review(client, reviewer, f"/admin/sitters/{sitter['id']}/decision")
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "consent_missing"
 
 
 def test_a_sitter_without_her_details_cannot_be_approved(client, db_engine, sitter, reviewer):  # noqa: F811

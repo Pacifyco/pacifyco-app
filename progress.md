@@ -22,6 +22,29 @@ tests.
 - [x] Domain: pacifyco.in
 - [x] Logo SVGs: Reuben adds them to the repo as files (see Phase 0)
 
+- [x] **Sitter consent v1.0 vs the build rules** (added 2026-11-12; Reuben answered everything
+  2026-11-12, now in CLAUDE.md 6.5, 6.8, 6.9, 6.11). Built word for word from Reuben's "Sitter consent"
+  document (`web/src/content/sitter-consent-v1.0.md`, shown on `/sitter/consent`). Answers:
+  1. Only a man at home: she declines and reports it with the new Issues button (no special button);
+     parent pays the whole booking, no refund (Family Terms); no strike; flat ₹100 to the sitter.
+  2. Overtime request: the parent picks whole hours, the sitter accepts or declines; charged at check-out.
+     A parent who's late with no accepted request still pays overtime at check-out; UPI within 2 hours.
+  3. Potty training and diaper changes: agreed in the in-app chat or in person at the 1-hour first
+     booking. Pacify connects them in the app; after the first booking they may exchange numbers.
+  4. Medicine instructions go in the child's medical notes (no new field; hint added on the family page).
+  5. Wording stays; a theft report still suspends at once, and removal usually follows.
+  Original questions:
+  1. "If the only adult at home is a man ... decline the booking on the spot ... won't count as a strike,
+     and you'll still receive ₹100": no such rule in 6.5 and no way to report it in the app. Is it a flat
+     ₹100, or the show-up fee (₹100 per booked hour)? Does the parent pay for the booking?
+  2. "If you need to stay longer, request overtime in the app": 6.8 says overtime is worked out
+     automatically at check-out, with no request.
+  3. "Potty training and diaper changes are something you and the parent agree on before the booking":
+     nothing in the booking asks about it (chat opens only after a booking is confirmed, 6.11).
+  4. "Medicine only if the parent has written the instructions in the app": medicine instructions aren't
+     in the plan (see Family Terms point 10 below).
+  5. "Theft means permanent removal": 6.9 says a theft report suspends her until an admin resolves it.
+
 - [ ] **Family Terms v1.0 vs the build rules** (added 2026-11-02). The terms are final wording; these
   points differ from CLAUDE.md or from what the app does. For each: change the rules (and app), or ask
   the lawyer for a new terms version?
@@ -216,6 +239,8 @@ at home (CLAUDE.md 6.3).
   finish their profile; the checklist moved from the home pages to "Your profile" (Reuben 2026-11-09)
 - [x] Weekly availability: a week that repeats (quick fills: mornings, afternoons, evenings) plus days
   off; free times worked out for the next 14 days, the booking window (Reuben 2026-11-09)
+- [x] Terms and privacy policy ticked on the consent pages, not at sign-up; new sitter consent page with
+  Reuben's "Sitter consent" document (Reuben 2026-11-12)
 - [x] Find a sitter lists every live sitter (no plan filter); filters are day, language, sort and first
   aid only, applied straight away; intro beside "Home" (Reuben 2026-11-09)
 
@@ -237,6 +262,7 @@ at home (CLAUDE.md 6.3).
 - [ ] Parent and sitter booking lists and detail pages (sitters see only confirmed bookings)
 - [ ] Cancellations with 3-hour and 8-hour rules
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
+- [ ] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12)
 - [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit, doctor's note strike removal
 - [ ] Strikes: ladder, blocking, 6-month expiry job, admin add/remove
 - [ ] Tests for this phase
@@ -245,6 +271,8 @@ at home (CLAUDE.md 6.3).
 
 - [ ] Check-in and check-out codes (parent's app, booking day only, single use, hashed, lock after 5 wrong attempts) with location recorded
 - [ ] Overdue check-out alert job (end + 30 min) and admin manual close
+- [ ] Overtime request: parent picks whole hours, sitter accepts or declines; charged at check-out (decided 2026-11-12)
+- [ ] Issues button for parents and sitters (non-emergency: running late, only a man at home), a complaint linked to the booking (decided 2026-11-12)
 - [ ] Overtime at check-out: rounded up to the full hour at the plan price, UPI link/QR due in 2 hours, unpaid blocks new bookings
 - [ ] Emergency/Report button for parents and sitters; admin email alert; incident records
 - [ ] Chat between a parent and sitter with a confirmed booking (polling)
@@ -315,6 +343,12 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-12 — Consent pages (`consent-pages`): sign-up asks only the role; parents tick the Family Terms
+  and privacy policy on `/parent/consent` with the consents (one POST); sitters get `/sitter/consent`
+  with the sitter consent (new `legal_documents` kind `sitter_consent` v1.0, migration `a3c71e5b9d24`,
+  fingerprinted) and the Sitter Terms and privacy policy. The area-wide "accept our terms" screen is gone;
+  a new version reopens the consent step instead. Admins can't approve a sitter until she's accepted.
+  Five lines of the sitter consent differ from the rules (Open questions). 404 API, 221 web, 5 e2e tests.
 - 2026-11-10 — Reuben's UI tweaks: "← Your profile" back link on every profile form (details, consent,
   family, sitter application; screening links back to the application); small Submit on the screening,
   then an "application submitted" confirmation instead of a silent redirect; parent and sitter home tiles removed.

@@ -57,7 +57,7 @@ const PARENT_CHECKLIST = {
   finished: false,
 };
 const SITTER_CHECKLIST = {
-  items: ["details", "profile", "identity_documents", "police_certificate", "references", "psych_test"].map((key) => ({
+  items: ["details", "consent", "profile", "identity_documents", "police_certificate", "references", "psych_test"].map((key) => ({
     key,
     status: "to_do",
   })),
@@ -240,9 +240,8 @@ describe("joining after the first sign-in", () => {
     return calls;
   }
 
-  async function agreeAndCreate() {
-    fireEvent.click(await screen.findByRole("checkbox", { name: /I agree to the/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
+  async function create() {
+    fireEvent.click(await screen.findByRole("button", { name: /Yes, create my account/ }));
   }
 
   async function choose(role: RegExp) {
@@ -250,7 +249,7 @@ describe("joining after the first sign-in", () => {
     fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
   }
 
-  test("a parent chooses, confirms and lands in the parent area: only role and terms are asked", async () => {
+  test("a parent chooses, confirms and lands in the parent area: only the role is asked", async () => {
     fake.state.session = fake.session;
     const calls = joinApi({ email: "asha@example.com", profile: PARENT_PROFILE });
     const { router } = renderApp("/join");
@@ -259,18 +258,14 @@ describe("joining after the first sign-in", () => {
     expect(screen.getByRole("heading", { name: "You're joining as a parent." })).toBeTruthy();
     expect(screen.queryByLabelText("Full name")).toBeNull();
     expect(screen.queryByLabelText("Mobile number")).toBeNull();
-    await agreeAndCreate();
+    // The terms are ticked on the consent page now (decided 2026-11-12).
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    await create();
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/parent/sitters"));
     const post = calls.find((call) => call.url.endsWith("/me/profile"))!;
     expect(post.init!.method).toBe("POST");
-    expect(JSON.parse(post.init!.body as string)).toEqual({
-      role: "parent",
-      accepted: [
-        { kind: "parent_terms", version: "1.0" },
-        { kind: "privacy_policy", version: "0.1-draft" },
-      ],
-    });
+    expect(JSON.parse(post.init!.body as string)).toEqual({ role: "parent" });
     // Straight into the area; a bubble from the profile button leads to the checklist.
     expect((await screen.findByRole("link", { name: "Finish your profile" }, { timeout: 5000 })).getAttribute("href")).toBe(
       "/parent/profile",
@@ -284,7 +279,7 @@ describe("joining after the first sign-in", () => {
     const { router } = renderApp("/join");
     await choose(/I'm a sitter/);
     expect(screen.getByRole("heading", { name: "You're joining as a sitter." })).toBeTruthy();
-    await agreeAndCreate();
+    await create();
     await waitFor(() => expect(router.state.location.pathname).toBe("/sitter"));
   });
 
@@ -303,7 +298,7 @@ describe("joining after the first sign-in", () => {
     joinApi(null, { status: 422, code: "validation_error", details: [{ field: "body.role", message: "x" }] });
     renderApp("/join");
     await choose(/I'm a parent/);
-    await agreeAndCreate();
+    await create();
     expect(await screen.findByText(/Please reload the page and try again/)).toBeTruthy();
   });
 
@@ -312,7 +307,7 @@ describe("joining after the first sign-in", () => {
     joinApi(null, { status: 409, code: "email_in_use" });
     renderApp("/join");
     await choose(/I'm a parent/);
-    await agreeAndCreate();
+    await create();
     expect(await screen.findByText(/This email already has a Pacify account/)).toBeTruthy();
   });
 
@@ -571,9 +566,20 @@ describe("parental consent", () => {
 
   const NOT_ACCEPTED: Status = { version: CONSENT_VERSION, required_accepted: false, accepted_at: null, marketing: false };
 
-  function parentWithConsent(initial: Status, apiVersion = CONSENT_VERSION) {
+  const PARENT_TERMS = [
+    { kind: "parent_terms", version: "1.0" },
+    { kind: "privacy_policy", version: "0.1-draft" },
+  ];
+
+  function parentWithConsent(
+    initial: Status,
+    apiVersion = CONSENT_VERSION,
+    termsToAccept: { kind: string; version: string }[] = [],
+  ) {
     fake.state.session = fake.session;
     let current: Status = { ...initial, version: apiVersion };
+    // The Family Terms and privacy policy are ticked with the consents: outstanding until then.
+    let toAccept = initial.required_accepted ? termsToAccept : PARENT_TERMS;
     const calls: Call[] = [];
     vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
       calls.push({ url, init });
@@ -586,16 +592,26 @@ describe("parental consent", () => {
         if (init?.method === "POST") {
           const body = JSON.parse(init.body as string) as { marketing: boolean };
           current = { ...current, required_accepted: true, accepted_at: "2026-11-01T10:00:00Z", marketing: body.marketing };
+          toAccept = [];
         }
         return Promise.resolve(jsonResponse(current));
       }
       if (url.endsWith("/parent/checklist")) {
+        const done = current.required_accepted && toAccept.length === 0;
         const items = PARENT_CHECKLIST.items.map((item) =>
-          item.key === "consent" ? { ...item, status: current.required_accepted ? "done" : "to_do" } : item,
+          item.key === "consent" ? { ...item, status: done ? "done" : "to_do" } : item,
         );
         return Promise.resolve(jsonResponse({ items, finished: false }));
       }
-      if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE }));
+      if (url.endsWith("/me/terms")) {
+        toAccept = [];
+        return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE, terms_to_accept: [] }));
+      }
+      if (url.endsWith("/me")) {
+        return Promise.resolve(
+          jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE, terms_to_accept: toAccept }),
+        );
+      }
       return Promise.resolve(jsonResponse({ status: "ok", environment: "local" }));
     }) as typeof fetch);
     return calls;
@@ -626,8 +642,9 @@ describe("parental consent", () => {
       screen.getByRole("checkbox", { name: /sharing my child's care details/ }),
       screen.getByRole("checkbox", { name: /emergency authorisation/ }),
     ];
+    const terms = screen.getByRole("checkbox", { name: /I agree to the Family Terms of Use/ });
     const marketing = screen.getByRole("checkbox", { name: /offers and updates/ });
-    for (const box of [...required, marketing]) expect((box as HTMLInputElement).checked).toBe(false);
+    for (const box of [...required, terms, marketing]) expect((box as HTMLInputElement).checked).toBe(false);
 
     // Ticking only some of the required boxes isn't enough.
     fireEvent.click(required[0]);
@@ -635,13 +652,71 @@ describe("parental consent", () => {
     expect(screen.getByText("Please tick every required box to continue.")).toBeTruthy();
     expect(calls.some((call) => call.init?.method === "POST")).toBe(false);
 
+    // Every consent but not the terms: still not enough.
     for (const box of required.slice(1)) fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+    expect(screen.getByText("Please tick every required box to continue.")).toBeTruthy();
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(false);
+
+    fireEvent.click(terms);
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
     // Back to the profile checklist, where consent is now done.
     await waitFor(() => expect(router.state.location.pathname).toBe("/parent/profile"));
     expect((await consentItem()).getByText("Done")).toBeTruthy();
     const post = calls.find((call) => call.init?.method === "POST")!;
-    expect(JSON.parse(post.init!.body as string)).toEqual({ version: CONSENT_VERSION, marketing: false });
+    expect(JSON.parse(post.init!.body as string)).toEqual({
+      version: CONSENT_VERSION,
+      marketing: false,
+      accepted: PARENT_TERMS,
+    });
+  });
+
+  test("the terms box links to the Family Terms of Use and Privacy policy", async () => {
+    parentWithConsent(NOT_ACCEPTED);
+    renderApp("/parent/consent");
+    const box = await screen.findByRole("checkbox", { name: /I agree to the/ });
+    expect(box.closest("label")!.textContent).toBe("I agree to the Family Terms of Use and Privacy policy.");
+    const label = within(box.closest("label")!);
+    const termsLink = label.getByRole("link", { name: "Family Terms of Use" });
+    expect(termsLink.getAttribute("href")).toBe("/terms/parent");
+    expect(termsLink.getAttribute("target")).toBe("_blank");
+    expect(label.getByRole("link", { name: "Privacy policy" }).getAttribute("href")).toBe("/privacy");
+  });
+
+  test("after a new terms version, the consent page asks for just that and sends it", async () => {
+    const calls = parentWithConsent(
+      { version: CONSENT_VERSION, required_accepted: true, accepted_at: "2026-10-30T08:00:00Z", marketing: false },
+      CONSENT_VERSION,
+      [{ kind: "privacy_policy", version: "0.1-draft" }],
+    );
+    const { router } = renderApp("/parent/profile");
+    expect((await consentItem()).getByText("To do")).toBeTruthy();
+
+    await router.navigate("/parent/consent");
+    expect(await screen.findByText(/updated our terms since then/)).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: /use of my own data/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+    expect(screen.getByText("Please tick every required box to continue.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree to the Privacy policy/ }));
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/parent/profile"));
+    expect((await consentItem()).getByText("Done")).toBeTruthy();
+    const post = calls.find((call) => call.url.endsWith("/me/terms"))!;
+    expect(JSON.parse(post.init!.body as string)).toEqual({
+      accepted: [{ kind: "privacy_policy", version: "0.1-draft" }],
+    });
+  });
+
+  test("a terms version this copy of the app doesn't have asks for a reload", async () => {
+    parentWithConsent(
+      { version: CONSENT_VERSION, required_accepted: true, accepted_at: "2026-10-30T08:00:00Z", marketing: false },
+      CONSENT_VERSION,
+      [{ kind: "parent_terms", version: "0.2" }],
+    );
+    renderApp("/parent/consent");
+    expect(await screen.findByText(/This form has been updated. Please reload/)).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
   test("ticking the optional marketing box is sent along with the required ones", async () => {
@@ -651,12 +726,17 @@ describe("parental consent", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /use of each child's data/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /sharing my child's care details/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /emergency authorisation/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree to the Family Terms of Use/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /offers and updates/ }));
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
 
     expect((await consentItem()).getByText("Done")).toBeTruthy();
     const post = calls.find((call) => call.init?.method === "POST")!;
-    expect(JSON.parse(post.init!.body as string)).toEqual({ version: CONSENT_VERSION, marketing: true });
+    expect(JSON.parse(post.init!.body as string)).toEqual({
+      version: CONSENT_VERSION,
+      marketing: true,
+      accepted: PARENT_TERMS,
+    });
   });
 
   test("a parent who has consented sees it done on their checklist", async () => {
@@ -684,7 +764,7 @@ describe("parental consent", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
-  test("sitters don't have a consent form", async () => {
+  test("sitters don't have the parental consent form", async () => {
     fake.state.session = fake.session;
     vi.mocked(fetch).mockImplementation(meResponse({ ...PARENT_PROFILE, role: "sitter" }) as typeof fetch);
     const { router } = renderApp("/parent/consent");
@@ -692,115 +772,108 @@ describe("parental consent", () => {
   });
 });
 
-describe("terms at sign-up and after changes", () => {
-  function joinAs() {
+describe("sitter consent", () => {
+  const SITTER_DOCS = [
+    { kind: "sitter_consent", version: "1.0" },
+    { kind: "sitter_terms", version: "1.1" },
+    { kind: "privacy_policy", version: "0.1-draft" },
+  ];
+
+  // A signed-up sitter; GET /me lists `toAccept` until POST /me/terms.
+  function sitterNeeding(toAccept: { kind: string; version: string }[]) {
     fake.state.session = fake.session;
+    const profile = { ...PARENT_PROFILE, role: "sitter" };
+    let outstanding = toAccept;
     const calls: { url: string; init?: RequestInit }[] = [];
     vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
       calls.push({ url, init });
-      if (url.endsWith("/me/profile")) {
-        const body = JSON.parse(init!.body as string);
-        return Promise.resolve(
-          jsonResponse({ email: "asha@example.com", profile: { ...PARENT_PROFILE, role: body.role } }, 201),
-        );
-      }
-      if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile: null }));
-      return Promise.resolve(checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" }));
-    }) as typeof fetch);
-    return calls;
-  }
-
-  async function reachConfirmation(role: RegExp) {
-    fireEvent.click(await screen.findByRole("button", { name: role }));
-    fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
-    await screen.findByRole("heading", { name: /You're joining as/ });
-  }
-
-  test("a sitter must tick to agree to the Sitter Terms and Privacy policy", async () => {
-    const calls = joinAs();
-    const { router } = renderApp("/join");
-    await reachConfirmation(/I'm a sitter/);
-
-    const box = screen.getByRole("checkbox");
-    expect(box.closest("label")!.textContent).toBe("I agree to the Sitter Terms of Use and Privacy policy.");
-    expect((box as HTMLInputElement).checked).toBe(false);
-    const label = within(box.closest("label")!);
-    const sitterLink = label.getByRole("link", { name: "Sitter Terms of Use" });
-    expect(sitterLink.getAttribute("href")).toBe("/terms/sitter");
-    expect(sitterLink.getAttribute("target")).toBe("_blank");
-    expect(label.getByRole("link", { name: "Privacy policy" }).getAttribute("href")).toBe("/privacy");
-
-    fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
-    expect(screen.getByText("Please tick the box to agree before you continue.")).toBeTruthy();
-    expect(calls.some((call) => call.url.endsWith("/me/profile"))).toBe(false);
-
-    fireEvent.click(box);
-    fireEvent.click(screen.getByRole("button", { name: /Yes, create my account/ }));
-    await waitFor(() => expect(router.state.location.pathname).toBe("/sitter"));
-    const body = JSON.parse(calls.find((call) => call.url.endsWith("/me/profile"))!.init!.body as string);
-    expect(body.accepted).toEqual([
-      { kind: "sitter_terms", version: "1.1" },
-      { kind: "privacy_policy", version: "0.1-draft" },
-    ]);
-  });
-
-  test("a parent agrees to the Family Terms of Use and Privacy policy", async () => {
-    joinAs();
-    renderApp("/join");
-    await reachConfirmation(/I'm a parent/);
-    expect(screen.getByRole("checkbox").closest("label")!.textContent).toBe(
-      "I agree to the Family Terms of Use and Privacy policy.",
-    );
-    const label = within(screen.getByRole("checkbox").closest("label")!);
-    expect(label.getByRole("link", { name: "Family Terms of Use" }).getAttribute("href")).toBe("/terms/parent");
-  });
-
-  function signedInNeedingTerms(role: string, toAccept: { kind: string; version: string }[]) {
-    fake.state.session = fake.session;
-    const calls: { url: string; init?: RequestInit }[] = [];
-    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
-      calls.push({ url, init });
-      const profile = { ...PARENT_PROFILE, role };
       if (url.endsWith("/me/terms")) {
+        outstanding = [];
         return Promise.resolve(jsonResponse({ email: "asha@example.com", profile, terms_to_accept: [] }));
       }
       if (url.endsWith("/me")) {
-        return Promise.resolve(jsonResponse({ email: "asha@example.com", profile, terms_to_accept: toAccept }));
+        return Promise.resolve(jsonResponse({ email: "asha@example.com", profile, terms_to_accept: outstanding }));
+      }
+      if (url.endsWith("/sitter/checklist")) {
+        const items = SITTER_CHECKLIST.items.map((item) =>
+          item.key === "consent" ? { ...item, status: outstanding.length ? "to_do" : "done" } : item,
+        );
+        return Promise.resolve(jsonResponse({ ...SITTER_CHECKLIST, items }));
       }
       return Promise.resolve(checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" }));
     }) as typeof fetch);
     return calls;
   }
 
-  test("an existing sitter who hasn't accepted sees the terms right after signing in", async () => {
-    const calls = signedInNeedingTerms("sitter", [
-      { kind: "sitter_terms", version: "1.1" },
-      { kind: "privacy_policy", version: "0.1-draft" },
-    ]);
-    renderApp("/sitter");
-    expect(await screen.findByRole("heading", { name: "Please read and accept our terms." })).toBeTruthy();
-    expect(screen.queryByText("Your bookings")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
-    expect(screen.getByText("Please tick the box to agree before you continue.")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("checkbox", { name: /I agree to the Sitter Terms of Use/ }));
-    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+  test("a new sitter isn't held up by the terms: she lands in her area, and her profile lists the consent", async () => {
+    sitterNeeding(SITTER_DOCS);
+    const { router } = renderApp("/sitter");
     expect(await screen.findByRole("heading", { name: "Your bookings" })).toBeTruthy();
-    const post = calls.find((call) => call.url.endsWith("/me/terms"))!;
-    expect(JSON.parse(post.init!.body as string)).toEqual({
-      accepted: [
-        { kind: "sitter_terms", version: "1.1" },
-        { kind: "privacy_policy", version: "0.1-draft" },
-      ],
-    });
+
+    await router.navigate("/sitter/profile");
+    const link = await screen.findByRole("link", { name: /Sitter consent/ });
+    expect(link.getAttribute("href")).toBe("/sitter/consent");
+    expect(within(link).getByText("To do")).toBeTruthy();
   });
 
-  test("when a new version exists that this copy of the app doesn't have, it asks for a reload", async () => {
-    signedInNeedingTerms("parent", [{ kind: "parent_terms", version: "0.2" }]);
-    renderApp("/parent");
-    expect(await screen.findByText(/Our terms have been updated. Please reload/)).toBeTruthy();
+  test("the page shows the guidelines and needs both boxes ticked", async () => {
+    const calls = sitterNeeding(SITTER_DOCS);
+    const { router } = renderApp("/sitter/consent");
+    expect(await screen.findByRole("heading", { level: 1, name: "Sitter consent" })).toBeTruthy();
+    for (const heading of [
+      "Your safety comes first",
+      "Money and gifts",
+      "Respecting the family’s home",
+      "Showing up",
+      "Caring for the child",
+      "If something goes wrong",
+    ]) {
+      expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
+    }
+    expect(screen.getByText("Version 1.0")).toBeTruthy();
+
+    const guidelines = await screen.findByRole("checkbox", { name: "I've read these and I'll follow them." });
+    const terms = screen.getByRole("checkbox", { name: /I agree to the Sitter Terms of Use/ });
+    expect(terms.closest("label")!.textContent).toBe("I agree to the Sitter Terms of Use and Privacy policy.");
+    const label = within(terms.closest("label")!);
+    const termsLink = label.getByRole("link", { name: "Sitter Terms of Use" });
+    expect(termsLink.getAttribute("href")).toBe("/terms/sitter");
+    expect(termsLink.getAttribute("target")).toBe("_blank");
+    expect(label.getByRole("link", { name: "Privacy policy" }).getAttribute("href")).toBe("/privacy");
+
+    fireEvent.click(guidelines);
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+    expect(screen.getByText("Please tick both boxes to continue.")).toBeTruthy();
+    expect(calls.some((call) => call.url.endsWith("/me/terms"))).toBe(false);
+
+    fireEvent.click(terms);
+    fireEvent.click(screen.getByRole("button", { name: "I agree" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/sitter/profile"));
+    expect(within(await screen.findByRole("link", { name: /Sitter consent/ })).getByText("Done")).toBeTruthy();
+    const post = calls.find((call) => call.url.endsWith("/me/terms"))!;
+    expect(JSON.parse(post.init!.body as string)).toEqual({ accepted: SITTER_DOCS });
+  });
+
+  test("once accepted, the page says so and leads back", async () => {
+    sitterNeeding([]);
+    renderApp("/sitter/consent");
+    expect(await screen.findByText(/You've accepted these/)).toBeTruthy();
     expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByRole("link", { name: "Back to your profile" }).getAttribute("href")).toBe("/sitter/profile");
+  });
+
+  test("a version this copy of the app doesn't have asks for a reload", async () => {
+    sitterNeeding([{ kind: "sitter_consent", version: "2.0" }]);
+    renderApp("/sitter/consent");
+    expect(await screen.findByText(/This page has been updated. Please reload/)).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  test("parents don't have the sitter consent page", async () => {
+    fake.state.session = fake.session;
+    vi.mocked(fetch).mockImplementation(meResponse(PARENT_PROFILE) as typeof fetch);
+    const { router } = renderApp("/sitter/consent");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/parent/sitters"));
   });
 });
 

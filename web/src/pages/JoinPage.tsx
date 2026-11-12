@@ -3,23 +3,22 @@ import { useState } from "react";
 import { Navigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { AREA_PATH, useMe, type Me } from "../auth/useMe";
-import { AGREE_ERROR, TermsCheckbox, requiredTerms, shownVersions, termsReady } from "../auth/TermsAgreement";
+import { termsReady } from "../auth/TermsAgreement";
 import { AuthHero, Button, LoadingScreen, RoleChooser, type ChosenRole } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 
-type SignUp = { role: ChosenRole; accepted: ReturnType<typeof shownVersions> };
+type SignUp = { role: ChosenRole };
 
-// After the first sign-in: parent or sitter, then a confirmation with the terms, because people can't
-// change their role themselves later. Nothing else is asked here: name, mobile, pin code and address
-// are "finish your profile" prompts in the area (CLAUDE.md 6.13).
+// After the first sign-in: parent or sitter, then a confirmation, because people can't change their role
+// themselves later. Nothing else is asked here: the terms are ticked on the consent page (decided
+// 2026-11-12), and name, mobile, pin code and address are "finish your profile" prompts in the area
+// (CLAUDE.md 6.13).
 export function JoinPage() {
   const { status, userId } = useAuth();
   const me = useMe();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const [role, setRole] = useState<ChosenRole | null>(null);
-  const [agreed, setAgreed] = useState(false);
-  const [agreeError, setAgreeError] = useState<string>();
 
   const signUp = useMutation({
     mutationFn: (body: SignUp) => apiFetch<Me>("/me/profile", { method: "POST", body: JSON.stringify(body) }),
@@ -77,9 +76,9 @@ export function JoinPage() {
 
   const roleLabel = role === "parent" ? "a parent" : "a sitter";
   const failure = signUp.error instanceof ApiError ? signUp.error : null;
-  const kinds = requiredTerms(role);
 
-  // Production can't take sign-ups until every placeholder in that role's terms is filled (CLAUDE.md 7).
+  // Production can't take sign-ups until every placeholder in that role's terms is filled (CLAUDE.md 7):
+  // they'd have no terms to accept on their consent page.
   if (!termsReady(role)) {
     return (
       <section className="mx-auto max-w-[36rem] text-center">
@@ -98,36 +97,20 @@ export function JoinPage() {
   }
 
   function createAccount() {
-    if (!role) return;
-    if (!agreed) return setAgreeError(AGREE_ERROR);
-    setAgreeError(undefined);
-    signUp.mutate({ role, accepted: shownVersions(kinds) });
+    if (role) signUp.mutate({ role });
   }
 
   return (
     <section className="mx-auto max-w-[36rem] text-center">
       <h1>You're joining as {roleLabel}.</h1>
       <p className="mt-4 text-muted">Is that right? Once your account is set up, only the Pacify team can change this.</p>
-      <div className="mt-6 rounded-lg bg-surface-sunken p-5">
-        <TermsCheckbox
-          kinds={kinds}
-          checked={agreed}
-          onChange={(checked) => {
-            setAgreed(checked);
-            if (checked) setAgreeError(undefined);
-          }}
-          error={agreeError}
-        />
-      </div>
       {failure && failure.code !== "already_signed_up" && (
         <p role="alert" className="mt-4 text-small text-danger">
           {failure.code === "email_in_use"
             ? "This email already has a Pacify account. Please sign in with a different email, or contact us."
-            : failure.code === "terms_outdated"
-              ? "Our terms have been updated. Please reload the page to read the new version."
-              : failure.code === "validation_error"
-                ? "Something didn't go through. Please reload the page and try again."
-                : failure.message}
+            : failure.code === "validation_error"
+              ? "Something didn't go through. Please reload the page and try again."
+              : failure.message}
         </p>
       )}
       <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:justify-center">

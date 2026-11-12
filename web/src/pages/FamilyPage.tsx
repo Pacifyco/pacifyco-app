@@ -109,6 +109,7 @@ function ChildForm({
       <Textarea
         label="Medical notes"
         optional
+        hint="Include any medicine, with the dose and when to give it. Sitters only give medicine written here."
         value={form.medical_notes}
         onChange={(event) => setForm({ ...form, medical_notes: event.target.value })}
       />

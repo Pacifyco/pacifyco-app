@@ -14,6 +14,7 @@ class LegalKind(StrEnum):
     parent_terms = "parent_terms"
     sitter_terms = "sitter_terms"
     privacy_policy = "privacy_policy"
+    sitter_consent = "sitter_consent"  # the sitter consent page (web/src/content/sitter-consent-*.md)
 
 
 class AcceptanceMethod(StrEnum):

@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Navigate } from "react-router";
 import { LoadingScreen } from "../components/ui";
 import { useAuth } from "./AuthProvider";
-import { AcceptTermsPage } from "./TermsAgreement";
 import { AREA_PATH, useMe, type Role } from "./useMe";
 
 const BLOCKED = new Set(["suspended", "removed"]);
@@ -20,8 +19,6 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
   if (!profile) return <Navigate to="/join" replace />;
   if (BLOCKED.has(profile.status)) return <AccountOnHold removed={profile.status === "removed"} />;
   if (profile.role !== role) return <Navigate to={AREA_PATH[profile.role]} replace />;
-  const toAccept = me.data.terms_to_accept ?? [];
-  if (toAccept.length) return <AcceptTermsPage toAccept={toAccept} />;
   return <>{children}</>;
 }
 

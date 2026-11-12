@@ -26,7 +26,7 @@ from tests.test_documents import (  # noqa: F401  (fixtures)
     storage,
 )
 from tests.test_roles import as_user, make_profile  # noqa: F401  (fixture)
-from tests.test_sign_up import auth_for, user  # noqa: F401  (fixture)
+from tests.test_sign_up import accept_terms, auth_for, user  # noqa: F401  (fixture)
 
 DOCUMENT_STEPS = ("profile", "identity_documents", "police_certificate")
 
@@ -78,6 +78,7 @@ def approve_everything(client, db_engine, sitter_user, admin_id):  # noqa: F811
     for reference in add_references(client, sitter_user):
         assert review(client, admin_id, f"/admin/references/{reference['id']}/decision").status_code == 200
     psych_attempt(db_engine, sitter_id, "passed")
+    accept_terms(client, sitter_user)  # her consent page
 
 
 def audit_actions(db_engine, admin_id):

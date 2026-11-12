@@ -1,5 +1,6 @@
 """Parental consent (CLAUDE.md 7 and 9): four required consents plus optional, withdrawable
-marketing, all ticked separately at sign-up; required before any child-linked document."""
+marketing, all ticked separately, with the Family Terms and privacy policy on the same page; required
+before any child-linked document."""
 
 import re
 import uuid
@@ -15,7 +16,7 @@ from app.models import ConsentKind
 from app.services import consent
 from tests.test_auth import client  # noqa: F401  (fixture)
 from tests.test_roles import as_user, make_profile  # noqa: F401  (fixture)
-from tests.test_sign_up import PARENT, auth_for, user  # noqa: F401  (fixture)
+from tests.test_sign_up import ACCEPTED, PARENT, auth_for, user  # noqa: F401  (fixture)
 
 CONSENT_FILE = Path(__file__).resolve().parents[2] / "web" / "src" / "content" / "consent.md"
 FULL_STATUS = {
@@ -37,7 +38,9 @@ def parent(client, db_engine, user):  # noqa: F811
 
 def accept(client, user):  # noqa: F811
     return client.post(
-        "/parent/consent", json={"version": consent.CONSENT_VERSION, "marketing": False}, headers=auth_for(user)
+        "/parent/consent",
+        json={"version": consent.CONSENT_VERSION, "marketing": False, "accepted": ACCEPTED},
+        headers=auth_for(user),
     )
 
 
@@ -64,7 +67,9 @@ def test_new_parent_hasnt_consented(client, parent):  # noqa: F811
 
 def test_accepting_records_every_required_kind_and_the_marketing_choice(client, db_engine, parent):  # noqa: F811
     first = client.post(
-        "/parent/consent", json={"version": consent.CONSENT_VERSION, "marketing": True}, headers=auth_for(parent)
+        "/parent/consent",
+        json={"version": consent.CONSENT_VERSION, "marketing": True, "accepted": ACCEPTED},
+        headers=auth_for(parent),
     )
     assert first.status_code == 200
     body = first.json()
@@ -85,7 +90,9 @@ def test_accepting_records_every_required_kind_and_the_marketing_choice(client, 
     # Repeating keeps the first acceptance of each required kind, and doesn't add another marketing
     # row since the choice hasn't changed.
     again = client.post(
-        "/parent/consent", json={"version": consent.CONSENT_VERSION, "marketing": True}, headers=auth_for(parent)
+        "/parent/consent",
+        json={"version": consent.CONSENT_VERSION, "marketing": True, "accepted": ACCEPTED},
+        headers=auth_for(parent),
     )
     assert again.json()["accepted_at"] == body["accepted_at"]
     assert len(consent_rows(db_engine, parent["id"])) == 5
@@ -93,7 +100,9 @@ def test_accepting_records_every_required_kind_and_the_marketing_choice(client, 
 
 def test_marketing_can_be_withdrawn_and_reaccepted(client, db_engine, parent):  # noqa: F811
     signed_up = client.post(
-        "/parent/consent", json={"version": consent.CONSENT_VERSION, "marketing": False}, headers=auth_for(parent)
+        "/parent/consent",
+        json={"version": consent.CONSENT_VERSION, "marketing": False, "accepted": ACCEPTED},
+        headers=auth_for(parent),
     )
     assert signed_up.json()["marketing"] is False
     # Saying no at sign-up changes nothing: no marketing row at all yet.
@@ -116,7 +125,9 @@ def test_marketing_can_be_withdrawn_and_reaccepted(client, db_engine, parent):  
 
 @pytest.mark.parametrize("version", ["0.0-old", "", "9.9"])
 def test_accepting_a_version_that_isnt_current_is_refused(client, db_engine, parent, version):  # noqa: F811
-    response = client.post("/parent/consent", json={"version": version, "marketing": False}, headers=auth_for(parent))
+    response = client.post(
+        "/parent/consent", json={"version": version, "marketing": False, "accepted": ACCEPTED}, headers=auth_for(parent)
+    )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "consent_outdated"
     assert consent_rows(db_engine, parent["id"]) == []
@@ -174,7 +185,7 @@ def test_a_parent_profile_without_its_parent_record_is_refused_cleanly(client, m
     """Only happens if the database was edited outside the app; it must not crash."""
     response = client.post(
         "/parent/consent",
-        json={"version": consent.CONSENT_VERSION, "marketing": False},
+        json={"version": consent.CONSENT_VERSION, "marketing": False, "accepted": ACCEPTED},
         headers=as_user(make_profile("parent")),
     )
     assert response.status_code == 409
@@ -189,3 +200,48 @@ def test_every_consent_kind_is_a_real_enum_member():
         "emergency_authorisation",
         "marketing",
     }
+
+
+# ---------- the terms and privacy policy, ticked on this page (decided 2026-11-12) ----------
+
+
+def accepted_kinds(db_engine, parent_id) -> list[str]:
+    with db_engine.connect() as conn:
+        result = conn.execute(
+            text(
+                "SELECT d.kind FROM legal_acceptances a JOIN legal_documents d ON d.id = a.document_id "
+                "WHERE a.profile_id = :id ORDER BY d.kind"
+            ),
+            {"id": parent_id},
+        )
+        return [r.kind for r in result]
+
+
+def test_consent_without_the_terms_is_refused(client, db_engine, parent):  # noqa: F811
+    response = client.post(
+        "/parent/consent", json={"version": consent.CONSENT_VERSION, "marketing": True}, headers=auth_for(parent)
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "terms_required"
+    assert consent_rows(db_engine, parent["id"]) == []  # all or nothing
+    assert accepted_kinds(db_engine, parent["id"]) == []
+
+
+def test_consent_records_the_family_terms_and_privacy_policy(client, db_engine, parent):  # noqa: F811
+    assert accepted_kinds(db_engine, parent["id"]) == []  # nothing at sign-up any more
+    assert accept(client, parent).status_code == 200
+    assert accepted_kinds(db_engine, parent["id"]) == ["parent_terms", "privacy_policy"]
+    me = client.get("/me", headers=auth_for(parent)).json()
+    assert me["terms_to_accept"] == []
+
+
+def test_an_old_terms_version_on_the_consent_page_is_refused(client, db_engine, parent):  # noqa: F811
+    old = [{**item, "version": "0.0-old"} if item["kind"] == "parent_terms" else item for item in ACCEPTED]
+    response = client.post(
+        "/parent/consent",
+        json={"version": consent.CONSENT_VERSION, "marketing": False, "accepted": old},
+        headers=auth_for(parent),
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "terms_outdated"
+    assert consent_rows(db_engine, parent["id"]) == []
