@@ -5,15 +5,16 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 from app.auth import require_role
 from app.deps import DbSession
 from app.errors import AppError
 from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, SitterLevel, VerificationStatus
+from app.routers.auth import TermsVersion, request_info
 from app.services import availability as availability_service
-from app.services import checklists, consent, family
+from app.services import checklists, consent, family, legal
 from app.services import children as children_service
 from app.services import search as search_service
 from app.services.accounts import normalise_mobile
@@ -58,6 +59,8 @@ class ConsentStatus(BaseModel):
 class AcceptConsent(BaseModel):
     version: str  # the version the parent was shown
     marketing: bool  # whether they also ticked the optional marketing box
+    # The Family Terms and privacy policy versions shown beside the consents and ticked (CLAUDE.md 7).
+    accepted: list[TermsVersion] = Field(default_factory=list, max_length=5)
 
 
 class SetMarketing(BaseModel):
@@ -79,8 +82,9 @@ def get_consent(parent: Parent, db: DbSession) -> ConsentStatus:
 
 
 @router.post("/consent")
-def accept_consent(body: AcceptConsent, parent: Parent, db: DbSession) -> ConsentStatus:
-    return _status(consent.accept(db, parent.id, body.version, body.marketing))
+def accept_consent(body: AcceptConsent, request: Request, parent: Parent, db: DbSession) -> ConsentStatus:
+    terms = [legal.Accepted(kind=item.kind, version=item.version) for item in body.accepted]
+    return _status(consent.accept(db, parent.id, body.version, body.marketing, terms, request_info(request)))
 
 
 @router.patch("/consent/marketing")

@@ -17,7 +17,7 @@ from app.services.storage import get_storage
 from tests.test_auth import FakeKeys, make_settings
 from tests.test_migrations import alembic_config
 from tests.test_roles import as_user, make_profile  # noqa: F401  (fixture)
-from tests.test_sign_up import PARENT, auth_for, fill_details, user  # noqa: F401  (fixture)
+from tests.test_sign_up import ACCEPTED, PARENT, auth_for, fill_details, user  # noqa: F401  (fixture)
 
 PDF = b"%PDF-1.4\n%fake but starts right\n"
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 16
@@ -129,7 +129,9 @@ def request_upload(client, user, doc_type="government_id", child_id=None):  # no
 
 def accept_consent(client, user):  # noqa: F811
     return client.post(
-        "/parent/consent", json={"version": consent.CONSENT_VERSION, "marketing": False}, headers=auth_for(user)
+        "/parent/consent",
+        json={"version": consent.CONSENT_VERSION, "marketing": False, "accepted": ACCEPTED},
+        headers=auth_for(user),
     )
 
 

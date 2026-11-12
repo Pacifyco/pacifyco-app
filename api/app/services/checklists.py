@@ -25,7 +25,7 @@ from app.models import (
     Sitter,
     VerificationStatus,
 )
-from app.services import accounts, consent, psych_tests, verification
+from app.services import accounts, consent, legal, psych_tests, verification
 
 REQUIRED_EMERGENCY_CONTACTS = 2  # per family (CLAUDE.md 7)
 
@@ -103,7 +103,14 @@ def parent_checklist(db: Session, profile: Profile) -> list[Item]:
     contacts = db.scalar(select(func.count()).where(EmergencyContact.parent_id == profile.id)) or 0
     return [
         Item("details", _done(accounts.details_complete(profile))),
-        Item("consent", _done(consent.summary(db, profile.id).required_accepted)),
+        # The consents and the current Family Terms and privacy policy, ticked on the same page.
+        Item(
+            "consent",
+            _done(
+                consent.summary(db, profile.id).required_accepted
+                and not legal.outstanding(db, profile.id, profile.role)
+            ),
+        ),
         _with_reason(Item("children", _children_status(db, profile.id)), lambda: _children_reason(db, profile.id)),
         Item("emergency_contacts", _done(contacts >= REQUIRED_EMERGENCY_CONTACTS)),
     ]
@@ -156,6 +163,8 @@ def sitter_checklist(db: Session, profile: Profile, sitter: Sitter) -> list[Item
     )
     items = [
         Item("details", _done(accounts.details_complete(profile))),
+        # The sitter consent, Sitter Terms of Use and privacy policy, on one page (decided 2026-11-12).
+        Item("consent", _done(not legal.outstanding(db, profile.id, profile.role))),
         Item("profile", _reviewed(reviews["profile"], application_sent)),
         Item("identity_documents", _reviewed(reviews["identity_documents"], ids_sent)),
         Item(

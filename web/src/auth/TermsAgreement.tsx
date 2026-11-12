@@ -1,8 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link } from "react-router";
-import { Button, Checkbox } from "../components/ui";
-import { ApiError, apiFetch } from "../lib/api";
+import { Checkbox } from "../components/ui";
+import sitterConsentSource from "../content/sitter-consent-v1.0.md?raw";
 import {
   FAMILY_TERMS_VERSION,
   PRIVACY_POLICY,
@@ -10,20 +8,30 @@ import {
   fillFamilyTerms,
   fillSitterTerms,
 } from "../lib/legal";
-import { useAuth } from "./AuthProvider";
-import type { Me, Role, TermsKind, TermsVersion } from "./useMe";
+import { parseDocument } from "../lib/markdown";
+import type { Role, TermsKind, TermsVersion } from "./useMe";
 
 // Click-wrap (CLAUDE.md 7): an unticked box, links that open the full text, and the versions this copy
-// of the app shows. The API checks they're the current ones and records the acceptance.
+// of the app shows. The API checks they're the current ones and records the acceptance. The box is on
+// each role's consent page (moved from sign-up, decided 2026-11-12): /parent/consent and /sitter/consent.
+
+export const SITTER_CONSENT = parseDocument(sitterConsentSource);
 
 const DOCS: Record<TermsKind, { label: string; path: string; version: string }> = {
   parent_terms: { label: "Family Terms of Use", path: "/terms/parent", version: FAMILY_TERMS_VERSION },
   sitter_terms: { label: "Sitter Terms of Use", path: "/terms/sitter", version: SITTER_TERMS_VERSION },
   privacy_policy: { label: "Privacy policy", path: "/privacy", version: PRIVACY_POLICY.meta.version ?? "" },
+  sitter_consent: { label: "Sitter consent", path: "/sitter/consent", version: SITTER_CONSENT.meta.version ?? "" },
 };
 
+/** The terms and privacy policy in the role's "I agree to…" box. */
 export function requiredTerms(role: Exclude<Role, "admin">): TermsKind[] {
   return [role === "parent" ? "parent_terms" : "sitter_terms", "privacy_policy"];
+}
+
+/** True when the API asks for a version this copy of the app doesn't show: it needs a reload. */
+export function termsOutdated(toAccept: TermsVersion[]): boolean {
+  return toAccept.some((item) => DOCS[item.kind].version !== item.version);
 }
 
 /** What to send as `accepted`: each kind at the version this page showed. */
@@ -77,59 +85,5 @@ export function TermsCheckbox({
         </>
       }
     />
-  );
-}
-
-// Shown in place of an area when the person must accept current terms first: new versions, or accounts
-// made before click-wrap existed.
-export function AcceptTermsPage({ toAccept }: { toAccept: TermsVersion[] }) {
-  const { userId } = useAuth();
-  const queryClient = useQueryClient();
-  const [ticked, setTicked] = useState(false);
-  const [error, setError] = useState<string>();
-  const kinds = toAccept.map((item) => item.kind);
-  // This copy of the app shows older texts than the API requires: it needs a reload.
-  const outdated = toAccept.some((item) => DOCS[item.kind].version !== item.version);
-  const unavailable =
-    (kinds.includes("sitter_terms") && !termsReady("sitter")) || (kinds.includes("parent_terms") && !termsReady("parent"));
-
-  const accept = useMutation({
-    mutationFn: () =>
-      apiFetch<Me>("/me/terms", { method: "POST", body: JSON.stringify({ accepted: shownVersions(kinds) }) }),
-    onSuccess: (me) => queryClient.setQueryData(["me", userId], me),
-  });
-
-  function submit() {
-    if (!ticked) return setError(AGREE_ERROR);
-    setError(undefined);
-    accept.mutate();
-  }
-
-  return (
-    <section className="mx-auto max-w-[36rem] text-center">
-      <h1>Please read and accept our terms.</h1>
-      <p className="mt-4 text-muted">
-        Before you carry on, please read these. They open in a new tab. When we change them, we'll ask you again.
-      </p>
-      {outdated ? (
-        <p role="alert" className="mt-6 text-small text-danger">
-          Our terms have been updated. Please reload the page to read the new version.
-        </p>
-      ) : unavailable ? (
-        <p className="mt-6 text-muted">Our terms aren't available yet. Please check back soon.</p>
-      ) : (
-        <div className="mt-6 flex flex-col gap-5 rounded-lg bg-surface-sunken p-5">
-          <TermsCheckbox kinds={kinds} checked={ticked} onChange={setTicked} error={error} />
-          {accept.error instanceof ApiError && (
-            <p role="alert" className="text-small text-danger">
-              {accept.error.message}
-            </p>
-          )}
-          <Button loading={accept.isPending} onClick={submit}>
-            I agree
-          </Button>
-        </div>
-      )}
-    </section>
   );
 }

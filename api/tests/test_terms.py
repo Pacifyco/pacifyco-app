@@ -1,6 +1,7 @@
-"""Terms click-wrap (CLAUDE.md 7 and 9): sign-up can't complete without acceptance; each acceptance stores
-version, time, IP and user agent; parents see parent terms and sitters the Sitter Terms; a new version
-must be accepted before the next action that matters."""
+"""Terms click-wrap (CLAUDE.md 7 and 9): accepted on the consent pages, not at sign-up (decided
+2026-11-12); each acceptance stores version, time, IP and user agent; parents accept the parent terms,
+sitters the Sitter Terms and sitter consent; a new version must be accepted before the next action that
+matters."""
 
 import re
 from contextlib import contextmanager
@@ -20,10 +21,10 @@ from app.services import legal
 from tests.test_auth import FakeKeys, client, make_settings  # noqa: F401  (client is a fixture)
 from tests.test_migrations import alembic_config
 from tests.test_roles import as_user, make_profile  # noqa: F401  (fixture)
-from tests.test_sign_up import ACCEPTED, PARENT, auth_for, row, user  # noqa: F401  (user is a fixture)
+from tests.test_sign_up import ACCEPTED, PARENT, accept_terms, auth_for, user  # noqa: F401  (user is a fixture)
 
 CONTENT = Path(__file__).resolve().parents[2] / "web" / "src" / "content"
-SITTER_DOCS = ["privacy_policy", "sitter_terms"]
+SITTER_DOCS = ["privacy_policy", "sitter_consent", "sitter_terms"]
 PARENT_DOCS = ["parent_terms", "privacy_policy"]
 
 
@@ -74,43 +75,38 @@ def client_with_ip(db_engine):
     return TestClient(app, client=("203.0.113.9", 50000))
 
 
-# ---------- sign-up ----------
+# ---------- where they're accepted (moved from sign-up to the consent pages, decided 2026-11-12) ----------
 
 
 @pytest.mark.parametrize("role", ["parent", "sitter"])
-def test_sign_up_cant_complete_without_accepting(client, db_engine, user, role):  # noqa: F811
-    response = client.post("/me/profile", json={**PARENT, "role": role, "accepted": []}, headers=auth_for(user))
+def test_sign_up_asks_only_the_role(client, db_engine, user, role):  # noqa: F811
+    response = client.post("/me/profile", json={"role": role}, headers=auth_for(user))
+    assert response.status_code == 201
+    assert accepted_kinds(db_engine, user["id"]) == []
+    todo = sorted(item["kind"] for item in response.json()["terms_to_accept"])
+    assert todo == (PARENT_DOCS if role == "parent" else SITTER_DOCS)
+
+
+def test_sitters_must_accept_the_sitter_documents_not_the_parent_terms(client, db_engine, user):  # noqa: F811
+    assert client.post("/me/profile", json={"role": "sitter"}, headers=auth_for(user)).status_code == 201
+    parent_only = [item for item in ACCEPTED if item["kind"] not in ("sitter_terms", "sitter_consent")]
+    response = client.post("/me/terms", json={"accepted": parent_only}, headers=auth_for(user))
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "terms_required"
-    assert row(db_engine, "SELECT 1 FROM profiles WHERE id = :id", user["id"]) is None
-
-
-def test_sitters_must_accept_the_sitter_terms_not_the_parent_terms(client, db_engine, user):  # noqa: F811
-    parent_only = [item for item in ACCEPTED if item["kind"] != "sitter_terms"]
-    response = client.post(
-        "/me/profile", json={**PARENT, "role": "sitter", "accepted": parent_only}, headers=auth_for(user)
-    )
-    assert response.status_code == 422
-    assert row(db_engine, "SELECT 1 FROM profiles WHERE id = :id", user["id"]) is None
-
-
-def test_an_old_version_at_sign_up_is_refused(client, db_engine, user):  # noqa: F811
-    old = [{**item, "version": "0.0-old"} if item["kind"] == "parent_terms" else item for item in ACCEPTED]
-    response = client.post("/me/profile", json={**PARENT, "accepted": old}, headers=auth_for(user))
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "terms_outdated"
-    assert row(db_engine, "SELECT 1 FROM profiles WHERE id = :id", user["id"]) is None
+    assert accepted_kinds(db_engine, user["id"]) == []
 
 
 @pytest.mark.parametrize(("role", "kinds"), [("parent", PARENT_DOCS), ("sitter", SITTER_DOCS)])
 def test_each_role_records_its_own_documents(client, db_engine, user, role, kinds):  # noqa: F811
-    assert client.post("/me/profile", json={**PARENT, "role": role}, headers=auth_for(user)).status_code == 201
+    assert client.post("/me/profile", json={"role": role}, headers=auth_for(user)).status_code == 201
+    assert client.post("/me/terms", json={"accepted": ACCEPTED}, headers=auth_for(user)).status_code == 200
     assert accepted_kinds(db_engine, user["id"]) == kinds
 
 
 def test_acceptance_stores_version_time_ip_and_user_agent(client_with_ip, db_engine, user):  # noqa: F811
     headers = {**auth_for(user), "User-Agent": "Mozilla/5.0 (Test) " + "x" * 600}
-    assert client_with_ip.post("/me/profile", json={**PARENT, "role": "sitter"}, headers=headers).status_code == 201
+    assert client_with_ip.post("/me/profile", json={"role": "sitter"}, headers=headers).status_code == 201
+    assert client_with_ip.post("/me/terms", json={"accepted": ACCEPTED}, headers=headers).status_code == 200
     with db_engine.connect() as conn:
         rows = conn.execute(
             text(
@@ -121,13 +117,26 @@ def test_acceptance_stores_version_time_ip_and_user_agent(client_with_ip, db_eng
             {"id": user["id"]},
         ).mappings()
         rows = [dict(r) for r in rows]
-    assert [(r["kind"], r["version"]) for r in rows] == [("privacy_policy", "0.1-draft"), ("sitter_terms", "1.1")]
+    assert [(r["kind"], r["version"]) for r in rows] == [
+        ("privacy_policy", "0.1-draft"),
+        ("sitter_consent", "1.0"),
+        ("sitter_terms", "1.1"),
+    ]
     for r in rows:
         assert r["method"] == "clickwrap"
         assert r["accepted_at"] is not None
         assert r["ip"] == "203.0.113.9"
         assert r["user_agent"].startswith("Mozilla/5.0 (Test) ")
         assert len(r["user_agent"]) == legal.USER_AGENT_MAX
+
+
+def test_an_old_version_is_refused(client, db_engine, user):  # noqa: F811
+    assert client.post("/me/profile", json={"role": "sitter"}, headers=auth_for(user)).status_code == 201
+    old = [{**item, "version": "0.0-old"} if item["kind"] == "sitter_consent" else item for item in ACCEPTED]
+    response = client.post("/me/terms", json={"accepted": old}, headers=auth_for(user))
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "terms_outdated"
+    assert accepted_kinds(db_engine, user["id"]) == []
 
 
 # ---------- re-acceptance ----------
@@ -141,6 +150,7 @@ def test_accounts_without_acceptances_are_asked(client, make_profile, role, kind
 
 def test_a_new_version_must_be_accepted_again(client, db_engine, user):  # noqa: F811
     assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    accept_terms(client, user)
     with published(db_engine, "parent_terms", "0.2-test"):
         me = client.get("/me", headers=auth_for(user)).json()
         assert me["terms_to_accept"] == [{"kind": "parent_terms", "version": "0.2-test"}]
@@ -166,6 +176,7 @@ def test_a_new_version_must_be_accepted_again(client, db_engine, user):  # noqa:
 def test_after_one_document_changes_only_that_one_is_needed(client, db_engine, user):  # noqa: F811
     """What the web app sends: just the outstanding document (reported on staging)."""
     assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    accept_terms(client, user)
     with published(db_engine, "parent_terms", "0.2-test"):
         only_new = [{"kind": "parent_terms", "version": "0.2-test"}]
         response = client.post("/me/terms", json={"accepted": only_new}, headers=auth_for(user))
@@ -183,6 +194,7 @@ def test_after_one_document_changes_only_that_one_is_needed(client, db_engine, u
 def test_a_version_announced_for_later_isnt_required_yet(client, db_engine, user):  # noqa: F811
     """Changes affecting pay or rights take effect 14 days after they're announced."""
     assert client.post("/me/profile", json={**PARENT, "role": "sitter"}, headers=auth_for(user)).status_code == 201
+    accept_terms(client, user)
     with published(db_engine, "sitter_terms", "1.2-test", effective="now() + interval '14 days'"):
         assert client.get("/me", headers=auth_for(user)).json()["terms_to_accept"] == []
 
@@ -213,3 +225,5 @@ def test_web_texts_match_the_current_versions(db_engine):
     # Final terms are one file per version, named by it.
     assert (CONTENT / f"sitter-terms-v{current['sitter_terms']}.md").exists()
     assert (CONTENT / f"family-terms-v{current['parent_terms']}.md").exists()
+    sitter_consent = CONTENT / f"sitter-consent-v{current['sitter_consent']}.md"
+    assert front_matter_version(sitter_consent) == current["sitter_consent"]

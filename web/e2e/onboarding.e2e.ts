@@ -59,7 +59,7 @@ async function join(page: Page, role: "parent" | "sitter") {
   await page.getByRole("button", { name: new RegExp(`I'm a ${role}`) }).click();
   await page.getByRole("button", { name: /Continue/ }).click();
   await expect(page.getByRole("heading", { name: `You're joining as a ${role}.` })).toBeVisible();
-  await page.getByRole("checkbox", { name: /I agree to the/ }).check();
+  await expect(page.getByRole("checkbox")).toHaveCount(0); // the terms are on the consent page
   await page.getByRole("button", { name: /Yes, create my account/ }).click();
   // Parents land on Find a sitter; sitters on their bookings.
   await expect(page).toHaveURL(role === "parent" ? /\/parent\/sitters$/ : /\/sitter$/);
@@ -96,6 +96,7 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   for (const name of [/use of my own data/, /use of each child's data/, /sharing my child's care details/, /emergency authorisation/]) {
     await page.getByRole("checkbox", { name }).check();
   }
+  await page.getByRole("checkbox", { name: /I agree to the Family Terms of Use/ }).check();
   await page.getByRole("button", { name: "I agree" }).click();
   await expect(page.getByRole("link", { name: /Parental consent/ }).getByText("Done")).toBeVisible();
 
@@ -134,6 +135,13 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   const page = sitter.page;
   await join(page, "sitter");
   await fillDetails(page, "Lakshmi Nair");
+
+  await page.getByRole("link", { name: /Sitter consent/ }).click();
+  await expect(page.getByRole("heading", { name: "Your safety comes first" })).toBeVisible();
+  await page.getByRole("checkbox", { name: "I've read these and I'll follow them." }).check();
+  await page.getByRole("checkbox", { name: /I agree to the Sitter Terms of Use/ }).check();
+  await page.getByRole("button", { name: "I agree" }).click();
+  await expect(page.getByRole("link", { name: /Sitter consent/ }).getByText("Done")).toBeVisible();
 
   await page.getByRole("link", { name: /About you/ }).click();
   await page.getByLabel("Date of birth").fill("1996-04-02");

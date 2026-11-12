@@ -9,14 +9,16 @@ from app import cli
 from app.services.accounts import normalise_mobile
 from tests.test_auth import bearer, client, token  # noqa: F401  (client is a fixture)
 
-# Ticked at sign-up. Covers both roles (each role's required documents are checked; others are ignored).
+# Ticked on the consent pages. Covers both roles (each role's required documents are checked; others
+# are ignored).
 ACCEPTED = [
     {"kind": "parent_terms", "version": "1.0"},
     {"kind": "sitter_terms", "version": "1.1"},
     {"kind": "privacy_policy", "version": "0.1-draft"},
+    {"kind": "sitter_consent", "version": "1.0"},
 ]
-# Sign-up asks only the role and the terms (CLAUDE.md 6.13); the details come later, in the area.
-PARENT = {"role": "parent", "accepted": ACCEPTED}
+# Sign-up asks only the role (CLAUDE.md 6.13); the terms and details come later, in the area.
+PARENT = {"role": "parent"}
 DETAILS = {
     "full_name": "  Meera   Rao ",
     "phone": "+91 98765-43210",
@@ -39,6 +41,13 @@ def user(db_engine):
 
 def auth_for(user, **claims) -> dict[str, str]:
     return bearer(token(**{"sub": str(user["id"]), "email": user["email"], **claims}))
+
+
+def accept_terms(client, user):  # noqa: F811
+    """What a sitter's consent page sends (and a parent's, after a new terms version)."""
+    response = client.post("/me/terms", json={"accepted": ACCEPTED}, headers=auth_for(user))
+    assert response.status_code == 200
+    return response
 
 
 def fill_details(client, user, **changes):  # noqa: F811
@@ -64,7 +73,11 @@ def test_parent_sign_up_creates_profile_and_parent(client, db_engine, user):  # 
             "address": None,
             "details_complete": False,
         },
-        "terms_to_accept": [],  # accepted at sign-up
+        # Ticked on the parental consent page, not at sign-up (decided 2026-11-12).
+        "terms_to_accept": [
+            {"kind": "parent_terms", "version": "1.0"},
+            {"kind": "privacy_policy", "version": "0.1-draft"},
+        ],
     }
     profile = row(db_engine, "SELECT role, email, status, full_name FROM profiles WHERE id = :id", user["id"])
     assert dict(profile) == {"role": "parent", "email": user["email"], "status": "pending", "full_name": None}
@@ -74,7 +87,7 @@ def test_parent_sign_up_creates_profile_and_parent(client, db_engine, user):  # 
 
 
 def test_sign_up_ignores_details(client, db_engine, user):  # noqa: F811
-    """Only the role and the terms are taken at sign-up."""
+    """Only the role is taken at sign-up."""
     response = client.post("/me/profile", json={**PARENT, **DETAILS}, headers=auth_for(user))
     assert response.status_code == 201
     assert response.json()["profile"]["full_name"] is None

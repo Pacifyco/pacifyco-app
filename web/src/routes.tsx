@@ -20,6 +20,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { PsychTestPage } from "./pages/PsychTestPage";
 import { AuthCallbackPage, SignInPage } from "./pages/SignInPage";
 import { SitterApplicationPage } from "./pages/SitterApplicationPage";
+import { SitterConsentPage } from "./pages/SitterConsentPage";
 import { SitterProfilePage } from "./pages/SitterProfilePage";
 
 // One app, three role areas (CLAUDE.md section 3), each open only to its own role.
@@ -93,6 +94,14 @@ export const routes: RouteObject[] = [
         element: (
           <RequireRole role="sitter">
             <SitterApplicationPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: "sitter/consent",
+        element: (
+          <RequireRole role="sitter">
+            <SitterConsentPage />
           </RequireRole>
         ),
       },
