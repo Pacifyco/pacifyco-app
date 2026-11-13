@@ -96,6 +96,7 @@ def test_loads_the_profile_and_role(client, db_engine):
             "phone": None,
             "pin_code": None,
             "address": None,
+            "relationship_to_child": None,
             "details_complete": False,
         }
     finally:

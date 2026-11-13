@@ -18,9 +18,9 @@ describe("legal pages", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Privacy policy" })).toBeTruthy();
     // Desktop: a sticky contents list. Phones: "Jump to section".
     const contents = screen.getByRole("navigation", { name: "Contents" });
-    const link = within(contents).getByRole("link", { name: "Who we are" });
-    expect(link.getAttribute("href")).toBe("#who-we-are");
-    expect(document.getElementById("who-we-are")!.textContent).toBe("Who we are");
+    const link = within(contents).getByRole("link", { name: "1. Who we are" });
+    expect(link.getAttribute("href")).toBe("#1-who-we-are");
+    expect(document.getElementById("1-who-we-are")!.textContent).toBe("1. Who we are");
     expect(screen.getByText("Jump to section")).toBeTruthy();
   });
 

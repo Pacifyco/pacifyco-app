@@ -6,12 +6,9 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 const FILLED: Record<string, string> = {
   VITE_ENVIRONMENT: "production",
-  VITE_PACIFY_LLPIN: "AAA-1234",
-  VITE_PACIFY_REGISTERED_ADDRESS: "12 MG Road, Bengaluru 560001",
   VITE_GRIEVANCE_OFFICER_NAME: "Priya Rao",
   VITE_GRIEVANCE_OFFICER_EMAIL: "grievance@example.com",
   VITE_GRIEVANCE_OFFICER_PHONE: "+91 90000 00001",
-  VITE_EMERGENCY_LINE: "+91 90000 00002",
   VITE_FAMILY_INTRO_FEE: "15,000",
 };
 const SITTER_VARS = Object.keys(FILLED).filter((name) => !/ENVIRONMENT|FAMILY/.test(name));

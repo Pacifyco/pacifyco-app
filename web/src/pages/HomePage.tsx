@@ -20,7 +20,6 @@ export function HomePage() {
   return (
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>A little help for you. A little more fun for them.</h1>
-      <p className="mt-4 text-body-lg text-muted">Pacifyco is getting ready for families in Bengaluru.</p>
 
       {/* "Sign in or join" sits in the first screen, above the photos (UX review 2026-11-13). Once
           pressed, the sign-in box opens below the photos (Reuben, 2026-11-13). */}

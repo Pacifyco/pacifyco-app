@@ -50,6 +50,8 @@ class Sitter(Base):
     date_of_birth: Mapped[date | None]
     # Encrypted by the API before storage (phase 3); admin-only, never shown to parents (CLAUDE.md 7).
     health_disclosure_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
+    # When she last saved her health disclosure, even empty ("nothing to declare"): the step is done.
+    health_disclosure_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     payout_method: Mapped[PayoutMethod | None] = mapped_column(enum_column(PayoutMethod, "sitter_payout_method"))
     bank_details_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
     upi_id: Mapped[str | None] = mapped_column(Text)

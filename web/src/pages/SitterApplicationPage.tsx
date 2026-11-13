@@ -2,18 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { useMe } from "../auth/useMe";
-import { DocumentUpload } from "../components/documents/DocumentUpload";
+import { DocumentUpload, useMyDocuments, type DocumentType } from "../components/documents/DocumentUpload";
 import {
   BackLink,
   Button,
-  ButtonLink,
   Card,
   Checkbox,
   Select,
   StepActions,
   StepBackContext,
-  StepProgress,
   TextInput,
   Textarea,
   ToggleChip,
@@ -29,6 +26,8 @@ import {
 } from "../lib/fieldErrors";
 import { formatMobile } from "../lib/format";
 import { AGE_GROUPS, LANGUAGES } from "../lib/sitterLists";
+import { firstToDo, useChecklist, type SitterChecklist } from "./ProfileChecklist";
+import { SitterGate, SitterProgress } from "./SitterSteps";
 
 // ---------- shared bits ----------
 
@@ -175,6 +174,8 @@ function ProfileForm({
   const [form, setForm] = useState(initial);
   const [fields, setFields] = useState<FieldErrors>({});
   const [error, setError] = useState<string>();
+  const photo = useMyDocuments("photo");
+  const hasPhoto = !!photo.data?.some((document) => document.status === "uploaded");
 
   const save = useMutation({
     mutationFn: () =>
@@ -194,6 +195,7 @@ function ProfileForm({
 
   function submit() {
     const found = checkProfile(form);
+    if (!hasPhoto) found.photo = "Please add your photo.";
     setFields(found);
     setError(undefined);
     if (!Object.keys(found).length) save.mutate();
@@ -251,6 +253,12 @@ function ProfileForm({
         checked={form.first_aid}
         onChange={(event) => setForm({ ...form, first_aid: event.target.checked })}
       />
+      <DocumentUpload
+        type="photo"
+        label="Profile photo"
+        hint="Parents see it once your profile is live. JPG or PNG. Your face clearly, in good light, on a plain background. No sunglasses, pets or other people in front of you."
+      />
+      <ErrorLine message={fields.photo} />
       <ErrorLine message={error} />
       <StepActions>
         <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={submit}>
@@ -405,6 +413,20 @@ function PayoutDetailsForm({ initial, onContinue }: { initial: PayoutInput; onCo
     },
   });
 
+  function submit() {
+    const found: FieldErrors = {};
+    if (form.method === "bank") {
+      if (!form.account_holder_name.trim()) found.account_holder_name = "Please enter the account holder's name.";
+      if (!/^\d{6,18}$/.test(form.account_number.trim())) found.account_number = "Please enter the account number.";
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.ifsc_code.trim())) found.ifsc_code = "Please enter the 11-character IFSC code.";
+    } else if (!/^[\w.-]+@[\w.-]+$/.test(form.upi_id.trim())) {
+      found.upi_id = "Please enter your UPI ID, like name@okbank.";
+    }
+    setFields(found);
+    setError(undefined);
+    if (!Object.keys(found).length) save.mutate();
+  }
+
   return (
     <>
       <Select
@@ -449,7 +471,7 @@ function PayoutDetailsForm({ initial, onContinue }: { initial: PayoutInput; onCo
       )}
       <ErrorLine message={error} />
       <StepActions>
-        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
+        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={submit}>
           Continue to the psychology screening
         </Button>
       </StepActions>
@@ -462,7 +484,7 @@ function PayoutDetailsSection({ onContinue }: { onContinue: () => void }) {
   return (
     <Card as="section" className="flex flex-col gap-5">
       <div>
-        <h2 className="text-h3">Payout details</h2>
+        <h2 className="text-h3">Payment details</h2>
         <p className="mt-1 text-small text-muted">How Pacifyco pays you, within 12 hours of each booking.</p>
       </div>
       {details.isPending && <p className="text-small text-muted">Loading…</p>}
@@ -529,6 +551,13 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
   });
 
   const count = references.data?.length ?? 0;
+  const [continueError, setContinueError] = useState<string>();
+
+  function next() {
+    if (count < MAX_REFERENCES) return setContinueError("Please add two references to continue.");
+    setContinueError(undefined);
+    onContinue();
+  }
 
   return (
     <Card as="section" className="flex flex-col gap-5">
@@ -597,8 +626,9 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
           </Button>
         </div>
       )}
+      <ErrorLine message={continueError} />
       <StepActions>
-        <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+        <Button type="button" fullWidthOnPhone={false} onClick={next}>
           Continue
         </Button>
       </StepActions>
@@ -608,24 +638,53 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
 
 // ---------- documents (CLAUDE.md section 7 steps 2-3; generic documents API, no new backend needed) ----------
 
+function useUploaded(type: DocumentType) {
+  const documents = useMyDocuments(type);
+  return !!documents.data?.some((document) => document.status === "uploaded");
+}
+
 function DocumentsSection({ onContinue }: { onContinue: () => void }) {
+  const profile = useSitterProfile();
+  const firstAid = !!profile.data?.first_aid;
+  const government = useUploaded("government_id");
+  const collegeOrWork = useUploaded("college_or_work_id");
+  const firstAidCertificate = useUploaded("first_aid_certificate");
+  const [error, setError] = useState<string>();
+
+  function next() {
+    const missing = [
+      !government && "your government ID",
+      !collegeOrWork && "a college or work ID",
+      firstAid && !firstAidCertificate && "your first-aid certificate",
+    ].filter(Boolean);
+    if (missing.length) return setError(`Please add ${missing.join(" and ")} to continue.`);
+    setError(undefined);
+    onContinue();
+  }
+
   return (
     <Card as="section" className="flex flex-col gap-5">
       <div>
-        <h2 className="text-h3">Documents</h2>
+        <h2 className="text-h3">ID verification</h2>
         <p className="mt-1 text-small text-muted">Only Pacifyco admins view these, and every view is logged.</p>
       </div>
-      <DocumentUpload
-        type="photo"
-        label="Profile photo"
-        hint="Parents see it once your profile is live. JPG or PNG. Your face clearly, in good light, on a plain background. No sunglasses, pets or other people in front of you."
-      />
       <DocumentUpload type="government_id" label="Government ID" />
       <DocumentUpload type="college_or_work_id" label="College or work ID" />
-      <DocumentUpload type="police_certificate" label="Police clearance certificate" />
-      <DocumentUpload type="first_aid_certificate" label="First-aid certificate" />
+      {firstAid && (
+        <DocumentUpload
+          type="first_aid_certificate"
+          label="First-aid certificate"
+          hint="You said you're first-aid certified."
+        />
+      )}
+      <DocumentUpload
+        type="police_certificate"
+        label="Police clearance certificate (optional for now)"
+        hint="You can add it later, but Pacifyco needs it before your profile goes live."
+      />
+      <ErrorLine message={error} />
       <StepActions>
-        <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+        <Button type="button" fullWidthOnPhone={false} onClick={next}>
           Continue
         </Button>
       </StepActions>
@@ -638,30 +697,38 @@ function DocumentsSection({ onContinue }: { onContinue: () => void }) {
 
 const STEPS = ["profile", "documents", "health", "references", "payout"] as const;
 type Step = (typeof STEPS)[number];
-const STEP_LABEL: Record<Step, string> = {
-  profile: "About you",
-  documents: "Documents",
-  health: "Health disclosure",
-  references: "References",
-  payout: "Payout details",
+/** Each part of this page is one of her eight onboarding steps (Reuben, 2026-11-13). */
+const CHECKLIST_KEY: Record<Step, string> = {
+  profile: "profile",
+  documents: "identity_documents",
+  health: "health_disclosure",
+  references: "references",
+  payout: "payout",
 };
 
 export function SitterApplicationPage() {
   const navigate = useNavigate();
-  const me = useMe();
-  // The checklist opens the exact step to finish, e.g. ?step=references (UX review 2026-11-13).
+  const queryClient = useQueryClient();
+  const checklist = useChecklist<SitterChecklist>("sitter");
+  // The checklist opens the exact step to finish, e.g. ?step=references (UX review 2026-11-13). Without
+  // one, she starts at the first step still to do.
   const [params] = useSearchParams();
-  const [stepIndex, setStepIndex] = useState(() => Math.max(0, STEPS.indexOf(params.get("step") as Step)));
+  const asked = STEPS.indexOf(params.get("step") as Step);
+  const open = checklist.isSuccess ? firstToDo(checklist.data.items) : null;
+  const firstOpen = Math.max(0, STEPS.findIndex((item) => CHECKLIST_KEY[item] === open));
+  // Null until she moves on or back; until then, the step asked for or the first one still to do.
+  const [moved, setStepIndex] = useState<number | null>(null);
+  const stepIndex = moved ?? (asked >= 0 ? asked : firstOpen);
   const step = STEPS[stepIndex];
-  // The sitter consent comes first, as on the parent side (UX review 2026-11-13).
-  const consentFirst = me.isSuccess && (me.data.terms_to_accept ?? []).length > 0;
 
-  function goNext() {
+  async function goNext() {
+    // The next step opens once this one counts as done, so refresh where she stands first.
+    await queryClient.invalidateQueries({ queryKey: ["checklist"] });
     if (stepIndex === STEPS.length - 1) {
       navigate("/sitter/psych-test"); // the next onboarding step, on its own page
       return;
     }
-    setStepIndex((index) => index + 1);
+    setStepIndex(stepIndex + 1);
   }
 
   // From the first step, Back goes to "Your profile", where the form was opened.
@@ -670,7 +737,7 @@ export function SitterApplicationPage() {
       navigate("/sitter/profile");
       return;
     }
-    setStepIndex((index) => index - 1);
+    setStepIndex(stepIndex - 1);
   }
 
   return (
@@ -687,32 +754,19 @@ export function SitterApplicationPage() {
       </div>
 
       <div className="mx-auto mt-7 max-w-[40rem]">
-        {me.isLoading ? (
-          <p className="text-center text-muted">Loading…</p>
-        ) : consentFirst ? (
-          <Card as="section" className="flex flex-col items-start gap-3">
-            <h2 className="text-h3">Your consent comes first</h2>
-            <p className="text-small text-muted">
-              Before you send your application, please read our sitter guidelines and accept our terms.
-            </p>
-            <ButtonLink to="/sitter/consent" arrow>
-              Read the sitter consent
-            </ButtonLink>
-          </Card>
-        ) : (
-          <>
-            <StepProgress step={stepIndex + 1} of={STEPS.length} label={STEP_LABEL[step]} />
-            <StepBackContext.Provider value={goBack}>
-              <div className="mt-4 flex flex-col gap-4">
-                {step === "profile" && <ProfileSection onContinue={goNext} />}
-                {step === "documents" && <DocumentsSection onContinue={goNext} />}
-                {step === "health" && <HealthDisclosureSection onContinue={goNext} />}
-                {step === "references" && <ReferencesSection onContinue={goNext} />}
-                {step === "payout" && <PayoutDetailsSection onContinue={goNext} />}
-              </div>
-            </StepBackContext.Provider>
-          </>
-        )}
+        <SitterProgress step={CHECKLIST_KEY[step]} />
+        <StepBackContext.Provider value={goBack}>
+          <div className="mt-4 flex flex-col gap-4">
+            {/* Steps open in order: an earlier step still to do (the consent too) is shown instead. */}
+            <SitterGate step={CHECKLIST_KEY[step]}>
+              {step === "profile" && <ProfileSection onContinue={goNext} />}
+              {step === "documents" && <DocumentsSection onContinue={goNext} />}
+              {step === "health" && <HealthDisclosureSection onContinue={goNext} />}
+              {step === "references" && <ReferencesSection onContinue={goNext} />}
+              {step === "payout" && <PayoutDetailsSection onContinue={goNext} />}
+            </SitterGate>
+          </div>
+        </StepBackContext.Provider>
       </div>
     </article>
   );

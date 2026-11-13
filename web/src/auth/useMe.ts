@@ -20,6 +20,8 @@ export type MeProfile = {
   phone?: string | null;
   pin_code?: string | null;
   address?: string | null;
+  /** Parents only: Mother, Father or Legal guardian (Reuben, 2026-11-13). */
+  relationship_to_child?: string | null;
   details_complete?: boolean;
 };
 

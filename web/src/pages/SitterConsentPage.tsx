@@ -13,6 +13,7 @@ import {
 import { useMe, type Me, type TermsKind } from "../auth/useMe";
 import { BackLink, Button, ButtonLink, Checkbox } from "../components/ui";
 import { apiFetch } from "../lib/api";
+import { SitterProgress } from "./SitterSteps";
 import { Markdown } from "../lib/markdown";
 
 // Everything a sitter accepts, on one page (decided 2026-11-12): the sitter consent
@@ -57,6 +58,9 @@ export function SitterConsentPage() {
     <article className="mx-auto max-w-[62ch]">
       <div className="mb-4">
         <BackLink to="/sitter/profile" label="Your profile" />
+      </div>
+      <div className="mb-5">
+        <SitterProgress step="consent" />
       </div>
       <h1>Sitter consent</h1>
       <Markdown body={SITTER_CONSENT.body} />

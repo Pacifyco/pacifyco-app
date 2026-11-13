@@ -22,6 +22,7 @@ class MeProfile(BaseModel):
     phone: str | None
     pin_code: str | None
     address: str | None
+    relationship_to_child: str | None  # parents only
     details_complete: bool
 
     @classmethod
@@ -33,6 +34,7 @@ class MeProfile(BaseModel):
             phone=profile.phone,
             pin_code=profile.pin_code,
             address=profile.address,
+            relationship_to_child=profile.relationship_to_child,
             details_complete=accounts.details_complete(profile),
         )
 
@@ -120,6 +122,8 @@ class Details(BaseModel):
     # Home pin code; must be one of the service-area pin codes (CLAUDE.md 1).
     pin_code: str = Field(pattern=r"^[0-9]{6}$")
     address: str = Field(min_length=1, max_length=300)
+    # Parents must give it; sitters leave it out (Reuben, 2026-11-13).
+    relationship_to_child: Literal["Mother", "Father", "Legal guardian"] | None = None
 
     @field_validator("full_name")
     @classmethod
@@ -171,6 +175,13 @@ def put_details(
 ) -> Me:
     """Name, mobile, home pin code and address, filled in from the person's area (CLAUDE.md 6.13)."""
     accounts.update_details(
-        db, profile, geocoder, full_name=body.full_name, phone=body.phone, pin_code=body.pin_code, address=body.address
+        db,
+        profile,
+        geocoder,
+        full_name=body.full_name,
+        phone=body.phone,
+        pin_code=body.pin_code,
+        address=body.address,
+        relationship_to_child=body.relationship_to_child,
     )
     return me_for(db, user.identity.email, profile)

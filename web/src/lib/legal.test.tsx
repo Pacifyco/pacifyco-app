@@ -8,9 +8,9 @@ import { fillFamilyTerms, fillSitterTerms } from "./legal";
 
 // Fingerprint of the Sitter Terms of Use v1.1 (CLAUDE.md 7). Until the first release to main, Reuben's changes
 // go in place and this is updated; after that, if this fails, undo the edit: a new version is a new file.
-const SITTER_TERMS_SHA256 = "bc5592a1703a1076a9194f1ed70c18a4b6636e56b3ec3704eaa0ca7810e0ac60";
+const SITTER_TERMS_SHA256 = "57691377826cbd7e47fc0cd805acdd8ccd35cc91ef46b130cb34d4d5898a52f4";
 // The same for the Family Terms of Use v1.0 (from Reuben's .docx, brought in line with CLAUDE.md 2026-11-13).
-const FAMILY_TERMS_SHA256 = "2f80f71726f0f7e0865ee8f8d1afc2b416b78cf508fe90792300d8929054829e";
+const FAMILY_TERMS_SHA256 = "a1c103f3c382b3a91cb24c9b4abf28e886467dad8a5471d3038a0027852467b6";
 // The sitter consent v1.0 (converted word for word from Reuben's "Sitter consent" .docx, 2026-11-12).
 const SITTER_CONSENT_SHA256 = "66196167b2bd055705e3fb417cef19803b1aa417b7757ac3ae53f724d7655433";
 
@@ -20,17 +20,16 @@ async function sha256(source: string): Promise<string> {
 }
 
 const VALUES = {
-  llpin: "AAA-1234",
-  address: "12 MG Road, Bengaluru 560001",
   grievanceName: "Priya Rao",
   grievanceEmail: "grievance@example.com",
   grievancePhone: "+91 90000 00001",
-  emergencyLine: "+91 90000 00002",
   familyIntroFee: "15,000",
 };
 const EMPTY = Object.fromEntries(Object.keys(VALUES).map((key) => [key, ""])) as typeof VALUES;
 // A placeholder as written in the terms: \[UPPER CASE\]
 const PLACEHOLDER = /\\\[[A-Z ]+\\\]/;
+// Taken out of both terms (Reuben, 2026-11-13): no LLPIN, registered office or emergency/safety line.
+const REMOVED = /LLPIN|registered office|REGISTERED ADDRESS|Emergency line|safety line/i;
 
 describe("Sitter Terms of Use v1.1", () => {
   test("wording is unchanged", async () => {
@@ -41,42 +40,36 @@ describe("Sitter Terms of Use v1.1", () => {
     const { body, missing } = fillSitterTerms(VALUES, "https://pacify.example/privacy", true);
     expect(missing).toEqual([]);
     expect(body).not.toMatch(PLACEHOLDER);
+    expect(body).not.toMatch(REMOVED);
     for (const expected of [
       "Last updated: 13 Nov 2026",
-      "(LLPIN AAA-1234, registered office at 12 MG Road, Bengaluru 560001)",
+      "between you and **Pacifyco** (",
       "Priya Rao · grievance@example.com · +91 90000 00001",
       "Privacy Policy at https://pacify.example/privacy.",
-      "Emergency line during bookings: +91 90000 00002",
-      "Pacifyco · 12 MG Road, Bengaluru 560001",
+      "founders@pacifyco.in · +91 8848873841",
     ]) {
       expect(body).toContain(expected);
     }
     // Put the placeholders back and it's the original text again.
     const restored = body
-      .replace("AAA-1234", "\\[INSERT\\]")
-      .replace("12 MG Road, Bengaluru 560001", "\\[INSERT ADDRESS\\]")
-      .replace("12 MG Road, Bengaluru 560001", "\\[REGISTERED ADDRESS\\]")
       .replace("Priya Rao", "\\[NAME\\]")
       .replace("grievance@example.com", "\\[EMAIL\\]")
       .replace("+91 90000 00001", "\\[PHONE\\]")
-      .replace("https://pacify.example/privacy", "\\[LINK\\]")
-      .replace("+91 90000 00002", "\\[NUMBER\\]");
+      .replace("https://pacify.example/privacy", "\\[LINK\\]");
     expect(restored).toBe(sitterTermsSource.replace(/\r\n/g, "\n"));
   });
 
   test("outside production, empty values show as test markers", () => {
     const { body, missing } = fillSitterTerms(EMPTY, "https://pacify.example/privacy", false);
     expect(missing).toEqual([]);
-    expect(body).toContain("LLPIN TEST LLPIN");
     expect(body).toContain("TEST GRIEVANCE OFFICER NAME");
     expect(body).not.toMatch(PLACEHOLDER);
   });
 
   test("production refuses while any value is empty", () => {
-    expect(fillSitterTerms({ ...VALUES, emergencyLine: "" }, "x", true).missing).toEqual(["emergency line"]);
-    // 6 values (the address fills two placeholders; the privacy link is always set). The "Last updated"
-    // date is written in the terms (13 Nov 2026), with no version shown (Reuben, 2026-11-13).
-    expect(fillSitterTerms(EMPTY, "x", true).missing).toHaveLength(6);
+    expect(fillSitterTerms({ ...VALUES, grievancePhone: "" }, "x", true).missing).toEqual(["Grievance Officer phone"]);
+    // The Grievance Officer's name, email and phone (the privacy link is always set).
+    expect(fillSitterTerms(EMPTY, "x", true).missing).toHaveLength(3);
   });
 });
 
@@ -91,33 +84,31 @@ describe("Family Terms of Use v1.0", () => {
     expect(await sha256(familyTermsSource)).toBe(FAMILY_TERMS_SHA256);
   });
 
-  test("placeholders are filled, and the introduction fee isn't mistaken for the LLPIN", () => {
+  test("placeholders are filled", () => {
     const { body, missing } = fillFamilyTerms(VALUES, "https://pacify.example/privacy", true);
     expect(missing).toEqual([]);
     expect(body).not.toMatch(PLACEHOLDER);
+    expect(body).not.toMatch(REMOVED);
     for (const expected of [
       "Last updated: 13 Nov 2026",
-      "(LLPIN AAA-1234, registered office at 12 MG Road, Bengaluru 560001)",
       "one-time introduction fee of **₹15,000**",
-      "Priya Rao · grievance@example.com · +91 90000 00001",
-      "24-hour safety line during bookings: +91 90000 00002.",
+      "Priya Rao · grievance@example.com · +91 90000 00001 · Monday to Saturday, 10 am to 6 pm.",
       "Privacy Policy at https://pacify.example/privacy.",
-      "Safety line during bookings: +91 90000 00002",
+      "Add one emergency contact",
     ]) {
       expect(body).toContain(expected);
     }
-    expect(body).not.toContain("₹AAA-1234");
+    expect(body).not.toMatch(/authorised adult/i); // removed (Reuben, 2026-11-13)
   });
 
-  test("production refuses while any of its 7 values is empty", () => {
+  test("production refuses while any of its 4 values is empty", () => {
     expect(fillFamilyTerms({ ...VALUES, familyIntroFee: "" }, "x", true).missing).toEqual(["introduction fee"]);
-    expect(fillFamilyTerms(EMPTY, "x", true).missing).toHaveLength(7);
+    expect(fillFamilyTerms(EMPTY, "x", true).missing).toHaveLength(4);
   });
 
   test("outside production, empty values show as test markers", () => {
     const { body } = fillFamilyTerms(EMPTY, "x", false);
     expect(body).toContain("introduction fee of **TEST INTRODUCTION FEE**");
-    expect(body).toContain("LLPIN TEST LLPIN");
     expect(body).not.toMatch(PLACEHOLDER);
   });
 });
@@ -128,7 +119,7 @@ describe("legal pages", () => {
     expect(await screen.findByText("Pacifyco Sitter Terms of Use")).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Topic" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "1. Joining Pacifyco" })).toBeTruthy();
-    expect(screen.getAllByText(/TEST LLPIN/).length).toBeGreaterThan(0); // local: test markers
+    expect(screen.getAllByText(/TEST GRIEVANCE OFFICER/).length).toBeGreaterThan(0); // local: test markers
     // No Markdown syntax leaks into what people read.
     const article = document.querySelector("article")!.textContent!;
     expect(article).not.toMatch(/\*\*|\\|^\s*\|/m);
@@ -147,11 +138,14 @@ describe("legal pages", () => {
     expect(article).not.toMatch(/\*\*|\\|^\s*\|/m);
   });
 
-  test("the privacy policy is a marked draft with a version", async () => {
+  test("the privacy policy is a generic policy with a date and no version", async () => {
     renderApp("/privacy");
     expect(await screen.findByRole("heading", { level: 1, name: "Privacy policy" })).toBeTruthy();
-    expect(screen.getByText("DRAFT — NOT LEGALLY REVIEWED.")).toBeTruthy();
-    expect(screen.getByText("Version 0.1-draft")).toBeTruthy();
+    // A generic policy (Reuben, 2026-11-13): no draft marker, a "Last updated" date and no version.
+    expect(screen.queryByText(/DRAFT/)).toBeNull();
+    expect(screen.getByText("Last updated: 13 Nov 2026")).toBeTruthy();
+    expect(screen.queryByText(/^Version /)).toBeNull();
+    expect(screen.getByRole("heading", { name: "4. Children's data" })).toBeTruthy();
   });
 
   test("every page's footer links only to the privacy policy", async () => {

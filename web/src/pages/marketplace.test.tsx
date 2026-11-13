@@ -81,7 +81,7 @@ describe("a sitter's weekly availability", () => {
     days_off: ["2026-11-15"],
   };
 
-  test("shows her week, one row per day, and her days off", async () => {
+  test("shows her week, one row per day", async () => {
     mockApi({ "GET /sitter/availability": () => jsonResponse(SAVED) });
     renderAt("/sitter/availability");
     expect(await screen.findByRole("checkbox", { name: "Free on Mondays" })).toHaveProperty("checked", true);
@@ -89,7 +89,7 @@ describe("a sitter's weekly availability", () => {
     expect(screen.getByLabelText("Monday from")).toHaveProperty("value", "9");
     expect(screen.getByLabelText("Saturday until")).toHaveProperty("value", "22");
     expect(screen.getAllByText("Not free")).toHaveLength(5);
-    expect(within(screen.getByRole("list", { name: "Your days off" })).getByText("Sun 15 Nov")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Mark day off" })).toBeNull(); // no days off (Reuben, 2026-11-13)
     // Nothing changed yet, so there's nothing to save.
     expect(screen.getByRole("button", { name: "Save my week" })).toHaveProperty("disabled", true);
   });
@@ -162,27 +162,6 @@ describe("a sitter's weekly availability", () => {
     fireEvent.change(screen.getByLabelText("Monday until"), { target: { value: "14" } });
     fireEvent.click(screen.getByRole("button", { name: "Save my week" }));
     expect(await screen.findByText("Two times on the same day overlap")).toBeTruthy();
-  });
-
-  test("days off are marked and removed", async () => {
-    const calls = mockApi({
-      "GET /sitter/availability": () => jsonResponse(SAVED),
-      "POST /sitter/availability/days-off": () => jsonResponse({ ...SAVED, days_off: ["2026-11-15", "2026-11-20"] }, 201),
-      "DELETE /sitter/availability/days-off/2026-11-15": () => new Response(null, { status: 204 }),
-    });
-    renderAt("/sitter/availability");
-    fireEvent.click(await screen.findByRole("button", { name: "Mark day off" }));
-    expect(screen.getByText("Please choose a day.")).toBeTruthy();
-
-    fireEvent.change(screen.getByLabelText("Day"), { target: { value: "2026-11-20" } });
-    fireEvent.click(screen.getByRole("button", { name: "Mark day off" }));
-    expect(await screen.findByText("Fri 20 Nov")).toBeTruthy();
-    expect(calls).toContainEqual({ method: "POST", path: "/sitter/availability/days-off", body: { day: "2026-11-20" } });
-
-    fireEvent.click(screen.getByRole("button", { name: "Remove day off Sun 15 Nov" }));
-    await waitFor(() =>
-      expect(calls).toContainEqual({ method: "DELETE", path: "/sitter/availability/days-off/2026-11-15", body: null }),
-    );
   });
 });
 

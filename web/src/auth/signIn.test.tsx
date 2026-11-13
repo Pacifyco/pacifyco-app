@@ -57,7 +57,17 @@ const PARENT_CHECKLIST = {
   finished: false,
 };
 const SITTER_CHECKLIST = {
-  items: ["details", "consent", "profile", "identity_documents", "police_certificate", "references", "psych_test"].map((key) => ({
+  // Her eight steps, in order (Reuben, 2026-11-13).
+  items: [
+    "consent",
+    "details",
+    "profile",
+    "identity_documents",
+    "health_disclosure",
+    "references",
+    "payout",
+    "psych_test",
+  ].map((key) => ({
     key,
     status: "to_do",
   })),
@@ -365,6 +375,11 @@ describe("finishing a profile after sign-up", () => {
       }
       if (url.endsWith("/me")) return Promise.resolve(jsonResponse({ email: "asha@example.com", profile }));
       if (url.endsWith("/service-area")) return Promise.resolve(jsonResponse({ pin_codes: ["560001", "560034"] }));
+      // A sitter has done her consent, so "Your details" (her second step) is open.
+      if (url.endsWith("/sitter/checklist")) {
+        const items = SITTER_CHECKLIST.items.map((item) => (item.key === "consent" ? { ...item, status: "done" } : item));
+        return Promise.resolve(jsonResponse({ ...SITTER_CHECKLIST, items }));
+      }
       return Promise.resolve(checklistFor(url) ?? jsonResponse({ status: "ok", environment: "local" }));
     }) as typeof fetch);
     return calls;
@@ -375,6 +390,9 @@ describe("finishing a profile after sign-up", () => {
     fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: phone } });
     fireEvent.change(screen.getByLabelText("Home pin code"), { target: { value: pinCode } });
     fireEvent.change(screen.getByLabelText("Home address"), { target: { value: address } });
+    // Parents also say how they're related to their children (Reuben, 2026-11-13).
+    const relationship = screen.queryByLabelText("Your relationship to your child");
+    if (relationship) fireEvent.change(relationship, { target: { value: "Mother" } });
     fireEvent.click(screen.getByRole("button", { name: /Save my details/ }));
   }
 
@@ -386,7 +404,7 @@ describe("finishing a profile after sign-up", () => {
       "Your details": "/parent/details",
       "Parental consent": "/parent/consent",
       "Your children": "/parent/family",
-      "Emergency contacts": "/parent/family?step=emergency",
+      "Emergency contact": "/parent/family?step=emergency",
     };
     for (const [name, href] of Object.entries(links)) {
       expect(screen.getByRole("link", { name: new RegExp(name) }).getAttribute("href")).toBe(href);
@@ -433,15 +451,14 @@ describe("finishing a profile after sign-up", () => {
     detailsApi("sitter");
     renderApp("/sitter/profile");
     expect(await screen.findByText(/once every step passes and Pacifyco approves your profile/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Sitter consent/ }).getAttribute("href")).toBe("/sitter/consent");
     expect(screen.getByRole("link", { name: /Your details/ }).getAttribute("href")).toBe("/sitter/details");
-    // Each row opens the exact step (UX review 2026-11-13).
-    expect(screen.getByRole("link", { name: /Police clearance certificate/ }).getAttribute("href")).toBe(
-      "/sitter/application?step=documents",
-    );
-    expect(screen.getByRole("link", { name: /References/ }).getAttribute("href")).toBe(
-      "/sitter/application?step=references",
-    );
-    expect(screen.getByRole("link", { name: /Psychology screening/ }).getAttribute("href")).toBe("/sitter/psych-test");
+    // The eight steps, in order; those after the next one to do are locked (Reuben, 2026-11-13).
+    for (const label of ["About you", "ID verification", "Health disclosure", "References", "Payment details"]) {
+      expect(screen.getByText(label)).toBeTruthy();
+      expect(screen.queryByRole("link", { name: new RegExp(label) })).toBeNull();
+    }
+    expect(screen.queryByRole("link", { name: /Psychology screening/ })).toBeNull();
   });
 
   test("details are saved and the person goes back to their profile checklist", async () => {
@@ -457,7 +474,33 @@ describe("finishing a profile after sign-up", () => {
       phone: "9876543210", // typed after a fixed +91 (UX review 2026-11-13)
       pin_code: "560034",
       address: "12, 4th Cross, Koramangala",
+      relationship_to_child: "Mother",
     });
+  });
+
+  test("parents must say their relationship to their child; sitters aren't asked", async () => {
+    const calls = detailsApi();
+    renderApp("/parent/details");
+    const relationship = await screen.findByLabelText("Your relationship to your child");
+    expect([...relationship.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
+      "Choose one",
+      "Mother",
+      "Father",
+      "Legal guardian",
+    ]);
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Asha K" } });
+    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "9876543210" } });
+    fireEvent.change(screen.getByLabelText("Home pin code"), { target: { value: "560034" } });
+    fireEvent.change(screen.getByLabelText("Home address"), { target: { value: "12, 4th Cross" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save my details/ }));
+    expect(await screen.findByText("Please choose your relationship to your child.")).toBeTruthy();
+    expect(calls.some((call) => call.url.endsWith("/me/details"))).toBe(false);
+
+    cleanup();
+    detailsApi("sitter");
+    renderApp("/sitter/details");
+    await screen.findByLabelText("Full name");
+    expect(screen.queryByLabelText("Your relationship to your child")).toBeNull();
   });
 
   test("a name, an Indian mobile number and an address are needed", async () => {
@@ -537,7 +580,7 @@ describe("role-gated areas", () => {
     signedInAs("sitter");
     renderApp("/sitter");
     expect(await screen.findByRole("heading", { name: "Finish your application" })).toBeTruthy();
-    expect(screen.getByText(/0 of 7 steps done/)).toBeTruthy();
+    expect(screen.getByText(/0 of 8 steps done/)).toBeTruthy();
     expect(screen.getByRole("link", { name: /Continue your application/ }).getAttribute("href")).toBe("/sitter/profile");
     expect(screen.queryByText(/No bookings yet/)).toBeNull();
   });

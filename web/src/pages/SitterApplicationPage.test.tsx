@@ -24,13 +24,27 @@ function renderPage(path = "/sitter/application") {
 
 type Call = { url: string; init?: RequestInit };
 
+const FILLED_PROFILE = {
+  date_of_birth: "1995-06-15",
+  bio: "I love storytime.",
+  years_experience: 5,
+  age_groups: ["Toddler"],
+  languages: ["English"],
+  first_aid: false,
+  reference_shared_consent: false,
+  onboarding_status: "in_progress",
+};
+
+/** Everything before References is done, so References and Payment details can be opened. */
+const UP_TO_REFERENCES = { profile: FILLED_PROFILE, healthSaved: true };
+
 function mockApi(overrides: Record<string, unknown> = {}) {
   const calls: Call[] = [];
   const state = {
     profile: {
-      date_of_birth: null,
-      bio: null,
-      years_experience: null,
+      date_of_birth: null as string | null,
+      bio: null as string | null,
+      years_experience: null as number | null,
       age_groups: [] as string[],
       languages: [] as string[],
       first_aid: false,
@@ -38,6 +52,7 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       onboarding_status: "in_progress",
     },
     "health-disclosure": { disclosure: null as string | null },
+    healthSaved: false,
     "payout-details": {
       method: null as string | null,
       account_holder_name: null as string | null,
@@ -46,8 +61,30 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       upi_id: null as string | null,
     },
     references: [] as unknown[],
+    // Uploaded so far (the upload itself is tested in DocumentUpload.test.tsx).
+    documents: ["photo", "government_id", "college_or_work_id"] as string[],
     ...overrides,
   };
+  // Her eight steps, worked out from what's saved, like the API (app/services/checklists.py).
+  function checklist() {
+    const p = state.profile;
+    const has = (type: string) => state.documents.includes(type);
+    const status = (done: boolean, finished = "waiting") => (done ? finished : "to_do");
+    const items = [
+      { key: "consent", status: "done" },
+      { key: "details", status: "done" },
+      {
+        key: "profile",
+        status: status(!!(p.date_of_birth && p.bio && p.years_experience !== null && p.age_groups.length && p.languages.length && has("photo"))),
+      },
+      { key: "identity_documents", status: status(has("government_id") && has("college_or_work_id")) },
+      { key: "health_disclosure", status: status(state.healthSaved, "done") },
+      { key: "references", status: status(state.references.length >= 2) },
+      { key: "payout", status: status(!!state["payout-details"].method, "done") },
+      { key: "psych_test", status: "to_do" },
+    ];
+    return { items, live: false };
+  }
   vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
     calls.push({ url, init });
     const path = url.replace(/^https?:\/\/[^/]+/, "");
@@ -57,6 +94,7 @@ function mockApi(overrides: Record<string, unknown> = {}) {
     }
     if (path === "/sitter/health-disclosure" && init?.method === "PUT") {
       state["health-disclosure"] = JSON.parse(init.body as string);
+      state.healthSaved = true;
       return Promise.resolve(jsonResponse(state["health-disclosure"]));
     }
     if (path === "/sitter/payout-details" && init?.method === "PUT") {
@@ -86,9 +124,12 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       state.references = state.references.filter((r) => (r as { id: string }).id !== id);
       return Promise.resolve(new Response(null, { status: 204 }));
     }
-    if (path === "/documents/mine" || path.startsWith("/documents/mine?")) {
-      return Promise.resolve(jsonResponse([]));
+    if (path.startsWith("/documents/mine")) {
+      const type = new URLSearchParams(path.split("?")[1]).get("type") ?? "";
+      const uploaded = state.documents.includes(type) ? [{ id: `doc-${type}`, type, child_id: null, status: "uploaded" }] : [];
+      return Promise.resolve(jsonResponse(uploaded));
     }
+    if (path.endsWith("/sitter/checklist")) return Promise.resolve(jsonResponse(checklist()));
     if (path.endsWith("/sitter/profile")) return Promise.resolve(jsonResponse(state.profile));
     if (path.endsWith("/sitter/health-disclosure")) return Promise.resolve(jsonResponse(state["health-disclosure"]));
     if (path.endsWith("/sitter/payout-details")) return Promise.resolve(jsonResponse(state["payout-details"]));
@@ -109,7 +150,20 @@ async function fillProfileAndContinue() {
   fireEvent.click(screen.getByRole("button", { name: /Toddler/ }));
   fireEvent.click(screen.getByRole("button", { name: "English" }));
   await clickContinue();
-  await screen.findByRole("heading", { name: "Documents" });
+  await screen.findByRole("heading", { name: "ID verification" });
+}
+
+async function addTwoReferences() {
+  const section = (await screen.findByRole("heading", { name: "References" })).closest("section")!;
+  const scope = within(section);
+  for (const name of ["Priya Rao", "Vikram Rao"]) {
+    fireEvent.change(scope.getByLabelText("Name"), { target: { value: name } });
+    fireEvent.change(scope.getByLabelText("Relationship"), { target: { value: "Neighbour" } });
+    fireEvent.change(scope.getByLabelText("Mobile number"), { target: { value: "9876543210" } });
+    fireEvent.click(scope.getByRole("button", { name: "Add this reference" }));
+    await waitFor(() => expect(scope.queryByText(name)).toBeTruthy());
+  }
+  return scope;
 }
 
 beforeEach(() => {
@@ -117,21 +171,21 @@ beforeEach(() => {
 });
 
 describe("the sitter application page", () => {
-  test("starts on step 1 (about you) and shows nothing else yet", async () => {
+  test("starts at About you, step 3 of her 8, with a bar of how many are done", async () => {
     mockApi();
     renderPage();
     expect(await screen.findByRole("heading", { level: 1, name: "Your application" })).toBeTruthy();
-    expect(await screen.findByText(/Step 1 of 5/)).toBeTruthy();
+    expect(await screen.findByText(/Step 3 of 8/)).toBeTruthy();
+    expect(screen.getByRole("progressbar", { name: "Steps done" }).getAttribute("aria-valuetext")).toBe(
+      "3 of 8 steps done", // consent, details and (from the mock's uploads) ID verification
+    );
     expect(await screen.findByRole("heading", { name: "Your profile" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Documents" })).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Health disclosure" })).toBeNull();
-    expect(screen.queryByRole("heading", { name: "References" })).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Payout details" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "ID verification" })).toBeNull();
     // Back is there from the first step too: it goes to "Your profile".
     expect(await screen.findByRole("button", { name: "← Back" })).toBeTruthy();
   });
 
-  test("completing the profile step sends the right body and advances to documents", async () => {
+  test("completing About you sends the right body and advances to ID verification", async () => {
     const calls = mockApi();
     renderPage();
     await fillProfileAndContinue();
@@ -146,7 +200,7 @@ describe("the sitter application page", () => {
       first_aid: false,
       reference_shared_consent: false,
     });
-    expect(await screen.findByText(/Step 2 of 5/)).toBeTruthy();
+    expect(await screen.findByText(/Step 4 of 8/)).toBeTruthy();
   });
 
   test("ages and languages are picked from fixed lists, and every field says what's missing", async () => {
@@ -165,11 +219,47 @@ describe("the sitter application page", () => {
     expect(calls.some((call) => call.init?.method === "PUT")).toBe(false);
   });
 
-  test("the checklist can open a step directly", async () => {
+  test("her photo is part of About you, JPG or PNG only, and required", async () => {
+    const calls = mockApi({ documents: ["government_id", "college_or_work_id"] });
+    renderPage();
+    const label = await screen.findByText("Profile photo");
+    const input = document.getElementById(label.getAttribute("for")!) as HTMLInputElement;
+    expect(input.accept).toBe(".jpg,.jpeg,.png,image/jpeg,image/png");
+    fireEvent.change(screen.getByLabelText("Date of birth"), { target: { value: "1995-06-15" } });
+    fireEvent.change(screen.getByLabelText("Years of experience"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText(/About you/), { target: { value: "I love storytime." } });
+    fireEvent.click(screen.getByRole("button", { name: /Toddler/ }));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await clickContinue();
+    expect(await screen.findByText("Please add your photo.")).toBeTruthy();
+    expect(calls.some((call) => call.init?.method === "PUT")).toBe(false);
+  });
+
+  test("ID verification needs both IDs; the police certificate can come later", async () => {
+    mockApi({ profile: FILLED_PROFILE, documents: ["photo"] });
+    renderPage("/sitter/application?step=documents");
+    expect(await screen.findByRole("heading", { name: "ID verification" })).toBeTruthy();
+    expect(screen.getByText(/Police clearance certificate \(optional for now\)/)).toBeTruthy();
+    expect(screen.queryByText("First-aid certificate")).toBeNull(); // only if she's first-aid certified
+    await clickContinue();
+    expect(await screen.findByText("Please add your government ID and a college or work ID to continue.")).toBeTruthy();
+  });
+
+  test("a step after one still to do is locked, and leads to the one to do", async () => {
     mockApi();
+    renderPage("/sitter/application?step=payout");
+    expect(await screen.findByRole("heading", { name: 'Finish "About you" first' })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Go to About you/ }).getAttribute("href")).toBe(
+      "/sitter/application?step=profile",
+    );
+    expect(screen.queryByLabelText("UPI ID")).toBeNull();
+  });
+
+  test("the checklist can open a step directly", async () => {
+    mockApi(UP_TO_REFERENCES);
     renderPage("/sitter/application?step=references");
     expect(await screen.findByRole("heading", { name: "References" })).toBeTruthy();
-    expect(screen.getByText(/Step 4 of 5/)).toBeTruthy();
+    expect(screen.getByText(/Step 6 of 8/)).toBeTruthy();
   });
 
   test("there is no reference-sharing tick under first aid (Reuben, 2026-11-13)", async () => {
@@ -179,15 +269,6 @@ describe("the sitter application page", () => {
     expect(screen.queryByRole("checkbox", { name: /references/ })).toBeNull();
   });
 
-  test("the documents step asks for a profile photo, JPG or PNG only", async () => {
-    mockApi();
-    renderPage();
-    await fillProfileAndContinue();
-    expect(screen.getByText("Profile photo")).toBeTruthy();
-    const input = document.getElementById(screen.getByText("Profile photo").getAttribute("for")!) as HTMLInputElement;
-    expect(input.accept).toBe(".jpg,.jpeg,.png,image/jpeg,image/png");
-  });
-
   test("the back button returns to the previous step", async () => {
     mockApi();
     renderPage();
@@ -195,7 +276,7 @@ describe("the sitter application page", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "← Back" }));
     expect(await screen.findByRole("heading", { name: "Your profile" })).toBeTruthy();
-    expect(await screen.findByText(/Step 1 of 5/)).toBeTruthy();
+    expect(await screen.findByText(/Step 3 of 8/)).toBeTruthy();
   });
 
   test("walking through every step reaches the psychology screening page", async () => {
@@ -217,41 +298,44 @@ describe("the sitter application page", () => {
     );
 
     await fillProfileAndContinue();
-
-    await clickContinue(); // documents, nothing required
-    await screen.findByText(/Step 3 of 5/);
-
-    await clickContinue(); // health disclosure, blank is valid
-    await screen.findByText(/Step 4 of 5/);
-
-    await clickContinue(); // references, none required
-    await screen.findByText(/Step 5 of 5/);
-
+    await clickContinue(); // ID verification: both IDs are in (the mock)
+    await screen.findByText(/Step 5 of 8/);
+    await clickContinue(); // health disclosure: nothing to declare is fine
+    await screen.findByText(/Step 6 of 8/);
+    await addTwoReferences();
+    await clickContinue(); // references: two added
+    await screen.findByText(/Step 7 of 8/);
     fireEvent.change(await screen.findByLabelText("UPI ID"), { target: { value: "asha@upi" } });
     await clickContinue("Continue to the psychology screening");
 
     expect(await screen.findByText("Psychology screening page")).toBeTruthy();
   });
 
-  test("the payout step defaults to UPI and switches to bank fields", async () => {
-    mockApi();
-    renderPage();
-    await fillProfileAndContinue();
-    await clickContinue(); // documents
-    await screen.findByText(/Step 3 of 5/);
-    await clickContinue(); // health disclosure
-    await screen.findByText(/Step 4 of 5/);
-    await clickContinue(); // references
-    await screen.findByRole("heading", { name: "Payout details" });
+  test("references need two before moving on", async () => {
+    mockApi(UP_TO_REFERENCES);
+    renderPage("/sitter/application?step=references");
+    await screen.findByRole("heading", { name: "References" });
+    await clickContinue();
+    expect(await screen.findByText("Please add two references to continue.")).toBeTruthy();
+  });
 
+  test("payment details: UPI by default, bank fields on request, every field required", async () => {
+    mockApi({ ...UP_TO_REFERENCES, references: [{ id: "r1" }, { id: "r2" }] });
+    renderPage("/sitter/application?step=payout");
+    await screen.findByRole("heading", { name: "Payment details" });
     expect(await screen.findByLabelText("UPI ID")).toBeTruthy();
+    await clickContinue("Continue to the psychology screening");
+    expect(await screen.findByText("Please enter your UPI ID, like name@okbank.")).toBeTruthy();
+
     fireEvent.change(screen.getByLabelText("Payout method"), { target: { value: "bank" } });
     expect(screen.queryByLabelText("UPI ID")).toBeNull();
-    expect(screen.getByLabelText("Account holder name")).toBeTruthy();
+    await clickContinue("Continue to the psychology screening");
+    expect(await screen.findByText("Please enter the account holder's name.")).toBeTruthy();
+    expect(screen.getByText("Please enter the 11-character IFSC code.")).toBeTruthy();
   });
 
   test("a reference's problems are shown under each field", async () => {
-    const calls = mockApi();
+    const calls = mockApi(UP_TO_REFERENCES);
     renderPage("/sitter/application?step=references");
     const section = (await screen.findByRole("heading", { name: "References" })).closest("section")!;
     const scope = within(section);
@@ -264,22 +348,9 @@ describe("the sitter application page", () => {
   });
 
   test("a third reference is refused", async () => {
-    mockApi();
-    renderPage();
-    await fillProfileAndContinue();
-    await clickContinue(); // documents
-    await screen.findByText(/Step 3 of 5/);
-    await clickContinue(); // health disclosure
-    const section = (await screen.findByRole("heading", { name: "References" })).closest("section")!;
-    const scope = within(section);
-
-    for (const name of ["Priya Rao", "Vikram Rao"]) {
-      fireEvent.change(scope.getByLabelText("Name"), { target: { value: name } });
-      fireEvent.change(scope.getByLabelText("Relationship"), { target: { value: "Neighbour" } });
-      fireEvent.change(scope.getByLabelText("Mobile number"), { target: { value: "9876543210" } });
-      fireEvent.click(scope.getByRole("button", { name: "Add this reference" }));
-      await waitFor(() => expect(scope.queryByText(name)).toBeTruthy());
-    }
+    mockApi(UP_TO_REFERENCES);
+    renderPage("/sitter/application?step=references");
+    const scope = await addTwoReferences();
     expect(scope.queryByLabelText("Name")).toBeNull(); // the add form hides once two are added
     expect(scope.getByRole("button", { name: "Continue" })).toBeTruthy();
   });

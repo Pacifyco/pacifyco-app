@@ -116,6 +116,10 @@ describe("the psychology screening page", () => {
     });
     expect(await screen.findByText("Your application is submitted.")).toBeTruthy();
     expect(screen.queryByText("Pick one")).toBeNull();
+    // Only the confirmation: no heading, intro or links around it (Reuben, 2026-11-13).
+    expect(screen.queryByRole("heading", { name: "Psychology screening" })).toBeNull();
+    expect(screen.queryByText(/A few questions so we can get to know/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Back to your application" })).toBeNull();
   });
 
   test("an already-submitted attempt shows the awaiting-review state, not the form", async () => {

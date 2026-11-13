@@ -25,7 +25,7 @@ import {
   isIndianMobile,
   type FieldErrors,
 } from "../lib/fieldErrors";
-import { formatDate, formatMobile, localMobile } from "../lib/format";
+import { formatDate, localMobile } from "../lib/format";
 import { useConsent } from "./ConsentPage";
 
 // ---------- shared bits ----------
@@ -409,7 +409,7 @@ function ChildrenSection({ onContinue }: { onContinue: () => void }) {
   );
 }
 
-// ---------- emergency contacts ----------
+// ---------- emergency contact (one per family, Reuben 2026-11-13) ----------
 
 type Contact = { id: string; name: string; relationship: string; phone: string };
 type ContactInput = { name: string; relationship: string; phone: string };
@@ -433,7 +433,7 @@ function checkContact(contact: ContactInput, ownPhone: string | null | undefined
   return problems;
 }
 
-function EmergencyContactsSection({ onContinue }: { onContinue: () => void }) {
+function EmergencyContactSection({ onContinue }: { onContinue: () => void }) {
   const contacts = useQuery({
     queryKey: ["emergency-contacts"],
     queryFn: () => apiFetch<Contact[]>("/parent/emergency-contacts"),
@@ -442,115 +442,82 @@ function EmergencyContactsSection({ onContinue }: { onContinue: () => void }) {
   return (
     <Card as="section" padding="tight" className="flex flex-col gap-5">
       <div>
-        <h2 className="text-h3">Emergency contacts</h2>
+        <h2 className="text-h3">Emergency contact</h2>
         <p className="mt-1 text-small text-muted">
-          Two people Pacifyco can reach if you and your authorised adults can't be. Both are required. Please get their
-          permission before adding their details.
+          Someone Pacifyco can call if we can't reach you. Please get their permission before adding their details.
         </p>
       </div>
-      {/* Wait for the server's contacts before showing editable fields at all: mounting the form only
-      once, seeded from real data, means there's never a window where typing can race a background
-      load and get overwritten. */}
+      {/* Wait for the saved contact before showing editable fields, so typing can't race the load. */}
       {contacts.isPending && <p className="text-small text-muted">Loading…</p>}
-      {contacts.data && (
-        <EmergencyContactsForm
-          initial={[contactInput(contacts.data[0]), contactInput(contacts.data[1])]}
-          onContinue={onContinue}
-        />
-      )}
+      {contacts.data && <EmergencyContactForm initial={contactInput(contacts.data[0])} onContinue={onContinue} />}
     </Card>
   );
 }
 
-function EmergencyContactsForm({
-  initial,
-  onContinue,
-}: {
-  initial: [ContactInput, ContactInput];
-  onContinue: () => void;
-}) {
+function EmergencyContactForm({ initial, onContinue }: { initial: ContactInput; onContinue: () => void }) {
   const queryClient = useQueryClient();
   const me = useMe();
-  const [form, setForm] = useState<[ContactInput, ContactInput]>(initial);
-  const [problems, setProblems] = useState<[Partial<ContactInput>, Partial<ContactInput>]>([{}, {}]);
+  const [form, setForm] = useState<ContactInput>(initial);
+  const [problems, setProblems] = useState<Partial<ContactInput>>({});
   const [error, setError] = useState<string>();
 
   const save = useMutation({
-    mutationFn: (pair: [ContactInput, ContactInput]) =>
-      apiFetch<Contact[]>("/parent/emergency-contacts", { method: "PUT", body: JSON.stringify({ contacts: pair }) }),
+    mutationFn: (contact: ContactInput) =>
+      apiFetch<Contact[]>("/parent/emergency-contacts", {
+        method: "PUT",
+        body: JSON.stringify({ contacts: [contact] }),
+      }),
     onSuccess: () => {
       setError(undefined);
       queryClient.invalidateQueries({ queryKey: ["emergency-contacts"] });
-      showToast("Emergency contacts saved");
+      showToast("Emergency contact saved");
       onContinue();
     },
     onError: (err) => {
       const byField = fieldErrorsFrom(err);
-      const phoneProblem =
-        err instanceof ApiError && err.code === "emergency_contact_is_you"
-          ? "That's your own number. Please give someone else's."
-          : undefined;
-      const at = (index: number): Partial<ContactInput> => ({
-        name: byField[`contacts.${index}.name`],
-        relationship: byField[`contacts.${index}.relationship`],
-        phone: byField[`contacts.${index}.phone`] ?? phoneProblem,
+      const isYou = err instanceof ApiError && err.code === "emergency_contact_is_you";
+      setProblems({
+        name: byField["contacts.0.name"],
+        relationship: byField["contacts.0.relationship"],
+        phone: byField["contacts.0.phone"] ?? (isYou ? "That's your own number. Please give someone else's." : undefined),
       });
-      setProblems([at(0), at(1)]);
-      setError(phoneProblem ? undefined : (byField.contacts ?? formErrorFrom(err, byField)));
+      setError(isYou ? undefined : (byField.contacts ?? formErrorFrom(err, byField)));
     },
   });
 
-  function setAt(index: 0 | 1, patch: Partial<ContactInput>) {
-    const next = [...form] as [ContactInput, ContactInput];
-    next[index] = { ...next[index], ...patch };
-    setForm(next);
-  }
-
   function submit() {
-    const ownPhone = me.data?.profile?.phone;
-    const found: [Partial<ContactInput>, Partial<ContactInput>] = [
-      checkContact(form[0], ownPhone),
-      checkContact(form[1], ownPhone),
-    ];
-    if (!found[1].phone && isIndianMobile(form[1].phone) && localMobile(form[0].phone) === localMobile(form[1].phone)) {
-      found[1].phone = "Please give two different numbers.";
-    }
+    const found = checkContact(form, me.data?.profile?.phone);
     setProblems(found);
     setError(undefined);
-    if (found.some((problem) => Object.keys(problem).length)) return;
+    if (Object.keys(found).length) return;
     save.mutate(form);
   }
 
   return (
     <>
-      {([0, 1] as const).map((index) => (
-        <div key={index} className="flex flex-col gap-3 border-t border-line pt-4 first:border-t-0 first:pt-0">
-          <p className="text-eyebrow text-muted uppercase">Contact {index + 1} · Required</p>
-          <TextInput
-            label="Name"
-            value={form[index].name}
-            error={problems[index].name}
-            onChange={(event) => setAt(index, { name: event.target.value })}
-          />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <RelationshipSelect
-              value={form[index].relationship}
-              error={problems[index].relationship}
-              onChange={(relationship) => setAt(index, { relationship })}
-            />
-            <TextInput
-              label="Mobile number"
-              type="tel"
-              inputMode="numeric"
-              prefix="+91"
-              maxLength={10}
-              value={form[index].phone}
-              error={problems[index].phone}
-              onChange={(event) => setAt(index, { phone: event.target.value.replace(/\D/g, "") })}
-            />
-          </div>
-        </div>
-      ))}
+      <TextInput
+        label="Name"
+        value={form.name}
+        error={problems.name}
+        onChange={(event) => setForm({ ...form, name: event.target.value })}
+      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <RelationshipSelect
+          value={form.relationship}
+          error={problems.relationship}
+          onChange={(relationship) => setForm({ ...form, relationship })}
+        />
+        <TextInput
+          label="Mobile number"
+          type="tel"
+          inputMode="numeric"
+          prefix="+91"
+          maxLength={10}
+          value={form.phone}
+          error={problems.phone}
+          onChange={(event) => setForm({ ...form, phone: event.target.value.replace(/\D/g, "") })}
+        />
+      </div>
       <ErrorLine message={error} />
       <StepActions>
         <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={submit}>
@@ -561,124 +528,13 @@ function EmergencyContactsForm({
   );
 }
 
-// ---------- authorised adults ----------
+// ---------- the page: one step at a time (Your children, Emergency contact) ----------
 
-function AuthorisedAdultsSection({ onContinue }: { onContinue: () => void }) {
-  const queryClient = useQueryClient();
-  const adults = useQuery({
-    queryKey: ["authorised-adults"],
-    queryFn: () => apiFetch<Contact[]>("/parent/authorised-adults"),
-  });
-  const [form, setForm] = useState<ContactInput>(EMPTY_CONTACT);
-  const [problems, setProblems] = useState<Partial<ContactInput>>({});
-  const [error, setError] = useState<string>();
-
-  const add = useMutation({
-    mutationFn: (input: ContactInput) =>
-      apiFetch<Contact>("/parent/authorised-adults", { method: "POST", body: JSON.stringify(input) }),
-    onSuccess: (adult) => {
-      queryClient.invalidateQueries({ queryKey: ["authorised-adults"] });
-      setForm(EMPTY_CONTACT);
-      showToast(`${adult.name} added`);
-    },
-    onError: (err) => {
-      const byField = fieldErrorsFrom(err);
-      setProblems({ name: byField.name, relationship: byField.relationship, phone: byField.phone });
-      setError(formErrorFrom(err, byField));
-    },
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: string) => apiFetch<void>(`/parent/authorised-adults/${id}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["authorised-adults"] }),
-  });
-
-  function submit() {
-    const found = checkContact(form, null);
-    setProblems(found);
-    setError(undefined);
-    if (Object.keys(found).length) return;
-    add.mutate(form);
-  }
-
-  return (
-    <Card as="section" padding="tight" className="flex flex-col gap-5">
-      <div>
-        <h2 className="text-h3">Authorised adults</h2>
-        <p className="mt-1 text-small text-muted">
-          Anyone else who may hand over or receive your child during a booking. Optional. Please get their permission
-          first.
-        </p>
-      </div>
-      {adults.isSuccess && adults.data.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {adults.data.map((adult) => (
-            <li key={adult.id} className="flex items-center gap-3 rounded-md bg-surface-sunken px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-ui break-words text-ink">{adult.name}</p>
-                <p className="text-small text-muted">
-                  {adult.relationship} · {formatMobile(adult.phone)}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="tertiary"
-                aria-label={`Remove ${adult.name}`}
-                onClick={() => remove.mutate(adult.id)}
-              >
-                <Trash2 aria-hidden="true" size={18} strokeWidth={1.75} />
-                Remove
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="flex flex-col gap-3 border-t border-line pt-4">
-        <TextInput
-          label="Name"
-          value={form.name}
-          error={problems.name}
-          onChange={(event) => setForm({ ...form, name: event.target.value })}
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <RelationshipSelect
-            value={form.relationship}
-            error={problems.relationship}
-            onChange={(relationship) => setForm({ ...form, relationship })}
-          />
-          <TextInput
-            label="Mobile number"
-            type="tel"
-            inputMode="numeric"
-            prefix="+91"
-            maxLength={10}
-            value={form.phone}
-            error={problems.phone}
-            onChange={(event) => setForm({ ...form, phone: event.target.value.replace(/\D/g, "") })}
-          />
-        </div>
-        <ErrorLine message={error} />
-        <Button type="button" variant="secondary" fullWidthOnPhone={false} loading={add.isPending} onClick={submit}>
-          Add this person
-        </Button>
-      </div>
-      <StepActions>
-        <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
-          Continue
-        </Button>
-      </StepActions>
-    </Card>
-  );
-}
-
-// ---------- the page: one step at a time (Your children, Emergency contacts, Authorised adults) ----------
-
-const STEPS = ["children", "emergency", "authorised"] as const;
+const STEPS = ["children", "emergency"] as const;
 type Step = (typeof STEPS)[number];
 const STEP_LABEL: Record<Step, string> = {
   children: "Your children",
-  emergency: "Emergency contacts",
-  authorised: "Authorised adults",
+  emergency: "Emergency contact",
 };
 
 export function FamilyPage() {
@@ -714,7 +570,7 @@ export function FamilyPage() {
       <div className="mx-auto max-w-[62ch] text-center">
         <h1>My family</h1>
         <p className="mt-2 text-muted">
-          Add your children, two emergency contacts and anyone else authorised to hand over or receive them.
+          Add your children and an emergency contact.
         </p>
       </div>
 
@@ -738,8 +594,7 @@ export function FamilyPage() {
             <StepBackContext.Provider value={goBack}>
               <div className="mt-4 flex flex-col gap-4">
                 {step === "children" && <ChildrenSection onContinue={goNext} />}
-                {step === "emergency" && <EmergencyContactsSection onContinue={goNext} />}
-                {step === "authorised" && <AuthorisedAdultsSection onContinue={goNext} />}
+                {step === "emergency" && <EmergencyContactSection onContinue={goNext} />}
               </div>
             </StepBackContext.Provider>
           </>

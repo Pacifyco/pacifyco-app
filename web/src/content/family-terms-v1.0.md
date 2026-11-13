@@ -2,7 +2,7 @@
 
 *Last updated: 13 Nov 2026*
 
-These Terms are a **legally binding agreement** between you and **Pacifyco** (LLPIN \[INSERT\], registered office at \[INSERT ADDRESS\]) ("**Pacifyco**", "**we**", "**us**"). "**You**" means the parent or legal guardian who registers. You accept these Terms when you tick "I agree" in the app. That is the same as signing a contract.
+These Terms are a **legally binding agreement** between you and **Pacifyco** ("**Pacifyco**", "**we**", "**us**"). "**You**" means the parent or legal guardian who registers. You accept these Terms when you tick "I agree" in the app. That is the same as signing a contract.
 
 The summary below is part of these Terms. If anything in it differs from the full sections that follow, the full sections apply.
 
@@ -42,7 +42,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 2.4 **Custody.** If a court order or agreement limits who may care for your child, consent for them or have contact with them, tell us before booking, and do not use Pacifyco in breach of it. We do not decide custody disputes, and we may pause bookings if we believe a child's safety or a court order is at risk.
 
-2.5 **Emergency contacts and authorised adults.** Add two emergency contacts, and name any adult who may hand over or receive your child during a booking. Get their permission before sharing their details with us.
+2.5 **Emergency contact.** Add one emergency contact we can call if we cannot reach you. Get their permission before sharing their details with us.
 
 2.6 Keep your login and sign-in codes private. You are responsible for activity on your account until you tell us it has been compromised.
 
@@ -54,7 +54,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 3.3 **Bookings.** All bookings are scheduled in advance, up to 14 days ahead, inside the sitter's free times, and are counted in whole hours. Each booking is on one plan (Section 4) and must end by that plan's latest time, overtime included. A booking is confirmed once we have confirmed your payment and every child on it is verified.
 
-3.4 **Handover.** When the sitter arrives, check that they match the photo and name in the app. Give them your 4-digit check-in code (shown in your app on the day of the booking) only once you are satisfied; they need it to check in. If anything does not match, do not hand over your child and contact us at once. At the end of the booking, give the sitter your check-out code only once you or an authorised adult are with your child.
+3.4 **Handover.** When the sitter arrives, check that they match the photo and name in the app. Give them your 4-digit check-in code (shown in your app on the day of the booking) only once you are satisfied; they need it to check in. If anything does not match, do not hand over your child and contact us at once. At the end of the booking, give the sitter your check-out code only once you are with your child.
 
 3.5 **Instructions.** You may give reasonable instructions about your child's care. You must not ask the sitter to do anything unlawful, unsafe, humiliating or outside the booking. The sitter may refuse any such instruction.
 
@@ -156,7 +156,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 9.2 If you report an issue after 24 hours, we will still look at it, but it may be harder to investigate or to make a refund.
 
-9.3 **Grievance Officer:** \[NAME\] · \[EMAIL\] · \[PHONE\] · Monday to Saturday, 10 am to 6 pm. 24-hour safety line during bookings: \[NUMBER\].
+9.3 **Grievance Officer:** \[NAME\] · \[EMAIL\] · \[PHONE\] · Monday to Saturday, 10 am to 6 pm.
 
 ## **10. Breaking these Terms: what Pacifyco can do**
 
@@ -201,7 +201,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 - **Required:** sharing your child's care details with the booked sitter;
 
-- **Required:** emergency authorisation: if you and your emergency contacts cannot be reached, the sitter may call 112, take your child to the nearest hospital or doctor, and Pacifyco may share your child's health details with treating doctors;
+- **Required:** emergency authorisation: if you and your emergency contact cannot be reached, the sitter may call 112, take your child to the nearest hospital or doctor, and Pacifyco may share your child's health details with treating doctors;
 
 - **Optional:** offers and updates from Pacifyco. Saying no will not affect your service.
 
@@ -221,6 +221,4 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 ## **12. Contact us**
 
-Pacifyco · \[REGISTERED ADDRESS\]
-
-founders@pacifyco.in · +91 8848873841 · Safety line during bookings: \[NUMBER\]
+founders@pacifyco.in · +91 8848873841

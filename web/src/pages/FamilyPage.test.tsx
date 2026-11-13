@@ -103,14 +103,14 @@ describe("the family page", () => {
     expect(await screen.findByRole("heading", { name: "Your consent comes first" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Read the consent form/ }).getAttribute("href")).toBe("/parent/consent");
     expect(screen.queryByLabelText("Child's name")).toBeNull();
-    expect(screen.queryByText(/Step 1 of 3/)).toBeNull();
+    expect(screen.queryByText(/Step 1 of 2/)).toBeNull();
   });
 
   test("starts on step 1 (your children) and shows nothing else yet", async () => {
     mockApi();
     renderFamilyPage();
     expect(await screen.findByRole("heading", { level: 1, name: "My family" })).toBeTruthy();
-    expect(await screen.findByText(/Step 1 of 3/)).toBeTruthy();
+    expect(await screen.findByText(/Step 1 of 2/)).toBeTruthy();
     expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("1");
     expect(await screen.findByText("You haven't added a child yet.")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Emergency contacts" })).toBeNull();
@@ -190,109 +190,54 @@ describe("the family page", () => {
     expect(screen.getAllByRole("button", { name: /Choose file/ })).toHaveLength(1);
   });
 
-  test("continuing from step 1 advances to emergency contacts", async () => {
+  test("continuing from step 1 advances to the emergency contact", async () => {
     mockApi({ children: [ASHA] });
     renderFamilyPage();
-    await screen.findByText(/Step 1 of 3/);
+    await screen.findByText(/Step 1 of 2/);
     await clickContinue();
-    expect(await screen.findByText(/Step 2 of 3/)).toBeTruthy();
-    expect(screen.getByText("Emergency contacts", { selector: "span" })).toBeTruthy();
+    expect(await screen.findByText(/Step 2 of 2/)).toBeTruthy();
+    expect(screen.getByText("Emergency contact", { selector: "span" })).toBeTruthy();
   });
 
   test("the back button returns to the previous step", async () => {
     mockApi({ children: [ASHA] });
     renderFamilyPage();
-    await screen.findByText(/Step 1 of 3/);
+    await screen.findByText(/Step 1 of 2/);
     await clickContinue();
-    await screen.findByText(/Step 2 of 3/);
+    await screen.findByText(/Step 2 of 2/);
 
     fireEvent.click(await screen.findByRole("button", { name: "← Back" }));
-    expect(await screen.findByText(/Step 1 of 3/)).toBeTruthy();
+    expect(await screen.findByText(/Step 1 of 2/)).toBeTruthy();
   });
 
   async function emergencyFields() {
-    const section = (await screen.findByRole("heading", { name: "Emergency contacts" })).closest("section")!;
+    const section = (await screen.findByRole("heading", { name: "Emergency contact" })).closest("section")!;
     const scope = within(section);
-    await scope.findAllByLabelText("Name"); // wait for the contacts to load before the form is seeded
-    return { scope, names: scope.getAllByLabelText("Name"), relationships: scope.getAllByLabelText("Relationship"), phones: scope.getAllByLabelText("Mobile number") };
+    await scope.findByLabelText("Name"); // wait for the saved contact before the form is seeded
+    return {
+      scope,
+      name: scope.getByLabelText("Name"),
+      relationship: scope.getByLabelText("Relationship"),
+      phone: scope.getByLabelText("Mobile number"),
+    };
   }
 
-  test("emergency contacts say which field is wrong, and need two different numbers", async () => {
+  test("the emergency contact says which field is wrong", async () => {
     const calls = mockApi({ children: [ASHA] });
     renderFamilyPage();
     await clickContinue(); // children
-    const { scope, names, relationships, phones } = await emergencyFields();
-    fireEvent.change(names[0]!, { target: { value: "Priya Rao" } });
-    fireEvent.change(relationships[0]!, { target: { value: "Parent" } });
-    fireEvent.change(phones[0]!, { target: { value: "9876543210" } });
-    fireEvent.change(names[1]!, { target: { value: "Vikram Rao" } });
-    fireEvent.change(phones[1]!, { target: { value: "98765 43210" } });
+    const { scope, name, phone } = await emergencyFields();
+    fireEvent.change(name, { target: { value: "Priya Rao" } });
+    fireEvent.change(phone, { target: { value: "12345" } });
     fireEvent.click(scope.getByRole("button", { name: "Continue" }));
 
     expect(await scope.findByText("Please choose how you know them.")).toBeTruthy();
-    expect(scope.getByText("Please give two different numbers.")).toBeTruthy();
+    expect(scope.getByText("Please enter a 10-digit mobile number.")).toBeTruthy();
     expect(calls.some((call) => call.init?.method === "PUT")).toBe(false);
   });
 
-  test("saving emergency contacts sends exactly two and advances", async () => {
+  test("one emergency contact is saved, and there are no authorised adults (Reuben, 2026-11-13)", async () => {
     const calls = mockApi({ children: [ASHA] });
-    renderFamilyPage();
-    await clickContinue(); // children
-
-    const { scope, names, relationships, phones } = await emergencyFields();
-    expect(scope.getAllByText(/Required/).length).toBeGreaterThanOrEqual(2);
-    fireEvent.change(names[0]!, { target: { value: "Priya Rao" } });
-    fireEvent.change(relationships[0]!, { target: { value: "Parent" } });
-    fireEvent.change(phones[0]!, { target: { value: "9876543210" } });
-    fireEvent.change(names[1]!, { target: { value: "Vikram Rao" } });
-    fireEvent.change(relationships[1]!, { target: { value: "Spouse" } });
-    fireEvent.change(phones[1]!, { target: { value: "9876500000" } });
-
-    fireEvent.click(scope.getByRole("button", { name: "Continue" }));
-
-    await waitFor(() =>
-      expect(calls.some((call) => call.url.endsWith("/parent/emergency-contacts") && call.init?.method === "PUT")).toBe(
-        true,
-      ),
-    );
-    const put = calls.find((call) => call.url.endsWith("/parent/emergency-contacts") && call.init?.method === "PUT")!;
-    const body = JSON.parse(put.init!.body as string);
-    expect(body.contacts).toHaveLength(2);
-    expect(body.contacts[0]).toEqual({ name: "Priya Rao", relationship: "Parent", phone: "9876543210" });
-    expect(body.contacts[1].name).toBe("Vikram Rao");
-
-    expect(await screen.findByText(/Step 3 of 3/)).toBeTruthy();
-  });
-
-  const SAVED_CONTACTS = [
-    { id: "c-0", name: "Priya Rao", relationship: "Parent", phone: "+919876543210" },
-    { id: "c-1", name: "Vikram Rao", relationship: "Spouse", phone: "+919876500000" },
-  ];
-
-  test("adding and removing an authorised adult", async () => {
-    mockApi({ children: [ASHA], "emergency-contacts": SAVED_CONTACTS });
-    renderFamilyPage();
-    await clickContinue(); // children
-    await screen.findByDisplayValue("Priya Rao");
-    await clickContinue(); // emergency contacts, already saved
-
-    const heading = await screen.findByRole("heading", { name: "Authorised adults" });
-    const section = heading.closest("section")!;
-
-    fireEvent.change(within(section).getByLabelText("Name"), { target: { value: "Ravi K" } });
-    fireEvent.change(within(section).getByLabelText("Relationship"), { target: { value: "Friend / Neighbour" } });
-    fireEvent.change(within(section).getByLabelText("Mobile number"), { target: { value: "9876511111" } });
-    fireEvent.click(within(section).getByRole("button", { name: "Add this person" }));
-
-    expect(await within(section).findByText("Ravi K")).toBeTruthy();
-    expect(within(section).getByText("Friend / Neighbour · +91 98765 11111")).toBeTruthy();
-
-    fireEvent.click(within(section).getByRole("button", { name: "Remove Ravi K" }));
-    await waitFor(() => expect(within(section).queryByText("Ravi K")).toBeNull());
-  });
-
-  test("finishing the last step goes back to the parent's profile checklist", async () => {
-    mockApi({ children: [ASHA], "emergency-contacts": SAVED_CONTACTS });
     const router = createMemoryRouter(
       [
         { path: "/", element: <FamilyPage /> },
@@ -308,14 +253,22 @@ describe("the family page", () => {
         </AuthProvider>
       </QueryClientProvider>,
     );
-
     await clickContinue(); // children
-    await screen.findByDisplayValue("Priya Rao");
-    await clickContinue(); // emergency contacts
-    await screen.findByText(/Step 3 of 3/);
-    await clickContinue(); // authorised adults, none required
 
+    const { scope, name, relationship, phone } = await emergencyFields();
+    expect(scope.getAllByLabelText("Name")).toHaveLength(1);
+    fireEvent.change(name, { target: { value: "Priya Rao" } });
+    fireEvent.change(relationship, { target: { value: "Parent" } });
+    fireEvent.change(phone, { target: { value: "9876543210" } });
+    fireEvent.click(scope.getByRole("button", { name: "Continue" }));
+
+    // It's the last step: back to the profile checklist.
     expect(await screen.findByText("Parent profile page")).toBeTruthy();
+    const put = calls.find((call) => call.url.endsWith("/parent/emergency-contacts") && call.init?.method === "PUT")!;
+    expect(JSON.parse(put.init!.body as string)).toEqual({
+      contacts: [{ name: "Priya Rao", relationship: "Parent", phone: "9876543210" }],
+    });
+    expect(calls.some((call) => call.url.includes("authorised-adults"))).toBe(false);
   });
 
   test("the checklist can open a step directly", async () => {
@@ -330,7 +283,7 @@ describe("the family page", () => {
         </AuthProvider>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText(/Step 2 of 3/)).toBeTruthy();
+    expect(await screen.findByText(/Step 2 of 2/)).toBeTruthy();
   });
 });
 

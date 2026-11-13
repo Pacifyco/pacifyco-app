@@ -44,6 +44,8 @@ async function signIn(browser: Browser, label: string): Promise<Person> {
   return { id, email, page: await context.newPage() };
 }
 
+const POLICE = "Police clearance certificate (optional for now)";
+
 /** The section (a step card) that holds this label's form. */
 function sectionOf(page: Page, label: string | RegExp): Locator {
   return page.getByLabel(label).locator("xpath=ancestor::section[1]");
@@ -76,6 +78,9 @@ async function fillDetails(page: Page, name: string) {
   await page.getByLabel("Mobile number").fill("9876543210"); // after a fixed +91
   await page.getByLabel("Home pin code").fill("560034");
   await page.getByLabel("Home address").fill("12, 4th Cross, Koramangala");
+  // Parents also say how they're related to their children (Reuben, 2026-11-13).
+  const relationship = page.getByLabel("Your relationship to your child");
+  if (await relationship.count()) await relationship.selectOption("Mother");
   await page.getByRole("button", { name: /Save my details/ }).click();
   await expect(page.getByRole("link", { name: /Your details/ }).getByText("Done")).toBeVisible();
 }
@@ -112,21 +117,12 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   await page.getByRole("button", { name: "Continue" }).click();
 
   const contacts = sectionOf(page, "Name").first();
-  await expect(contacts.getByRole("heading", { name: "Emergency contacts" })).toBeVisible();
-  const [names, relationships, phones] = [
-    contacts.getByLabel("Name"),
-    contacts.getByLabel("Relationship"),
-    contacts.getByLabel("Mobile number"),
-  ];
-  await names.nth(0).fill("Meera Rao");
-  await relationships.nth(0).selectOption("Grandparent");
-  await phones.nth(0).fill("9876500001");
-  await names.nth(1).fill("Vikram Rao");
-  await relationships.nth(1).selectOption("Spouse");
-  await phones.nth(1).fill("9876500002");
+  // One emergency contact, and no authorised adults (Reuben, 2026-11-13); it's the last step.
+  await expect(contacts.getByRole("heading", { name: "Emergency contact" })).toBeVisible();
+  await contacts.getByLabel("Name").fill("Meera Rao");
+  await contacts.getByLabel("Relationship").selectOption("Grandparent");
+  await contacts.getByLabel("Mobile number").fill("9876500001");
   await contacts.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText(/Step 3 of 3/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page).toHaveURL(/\/parent\/profile$/);
   await expect(page.getByText(/Your profile is finished, so you can book/)).toBeVisible();
@@ -140,16 +136,19 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   sitter = await signIn(browser, "sitter");
   const page = sitter.page;
   await join(page, "sitter");
-  await fillDetails(page, "Lakshmi Nair");
 
+  // Her eight steps open in order (Reuben, 2026-11-13): the sitter consent first, then her details.
   await page.getByRole("link", { name: /Sitter consent/ }).click();
+  await expect(page.getByText(/Step 1 of 8/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Your safety comes first" })).toBeVisible();
   await page.getByRole("checkbox", { name: "I've read these and I'll follow them." }).check();
   await page.getByRole("checkbox", { name: /I agree to the Sitter Terms of Use/ }).check();
   await page.getByRole("button", { name: "I agree" }).click();
   await expect(page.getByRole("link", { name: /Sitter consent/ }).getByText("Done")).toBeVisible();
+  await fillDetails(page, "Lakshmi Nair");
 
   await page.getByRole("link", { name: /About you/ }).click();
+  await expect(page.getByText(/Step 3 of 8/)).toBeVisible();
   await page.getByLabel("Date of birth").fill("1996-04-02");
   await page.getByLabel("Years of experience").fill("4");
   await page.getByLabel(/About you/).fill("I love storytime and long walks.");
@@ -157,19 +156,19 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   await page.getByRole("button", { name: /Toddler/ }).click();
   await page.getByRole("button", { name: "English", exact: true }).click();
   await page.getByRole("button", { name: "Kannada", exact: true }).click();
+  await upload(page, "Profile photo", PNG); // part of About you now
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByText(/Step 2 of 5/)).toBeVisible();
-  await upload(page, "Profile photo", PNG);
+  await expect(page.getByText(/Step 4 of 8/)).toBeVisible();
   await upload(page, "Government ID", PDF);
   await upload(page, "College or work ID", PDF);
-  await upload(page, "Police clearance certificate", PDF);
+  await upload(page, POLICE, PDF);
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByText(/Step 3 of 5/)).toBeVisible();
+  await expect(page.getByText(/Step 5 of 8/)).toBeVisible(); // health disclosure: nothing to declare
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByText(/Step 4 of 5/)).toBeVisible();
+  await expect(page.getByText(/Step 6 of 8/)).toBeVisible();
   for (const [name, phone] of [["Asha Iyer", "9876511111"], ["Ravi Kumar", "9876522222"]]) {
     await page.getByLabel("Name").fill(name);
     await page.getByLabel("Relationship").fill("Former employer");
@@ -179,12 +178,13 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   }
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
-  await expect(page.getByText(/Step 5 of 5/)).toBeVisible();
+  await expect(page.getByText(/Step 7 of 8/)).toBeVisible();
   await page.getByLabel("Payout method").selectOption("upi");
   await page.getByLabel("UPI ID").fill("lakshmi@okaxis");
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page).toHaveURL(/\/sitter\/psych-test$/);
+  await expect(page.getByText(/Step 8 of 8/)).toBeVisible();
   // One question at a time: answer it (first option, or a short answer), then Next; Submit on the last.
   const progress = page.getByText(/^Question \d+ of \d+$/);
   for (;;) {
@@ -204,20 +204,20 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   await expect(page).toHaveURL(/\/sitter\/profile$/);
   await expect(page.getByRole("link", { name: /Psychology screening/ }).getByText("In review")).toBeVisible();
 
-  // Her usual week: Monday 9 am - 1 pm and 1 - 4 pm, plus a day off.
+  // Her usual week: Monday 9 am - 1 pm and 1 - 4 pm (no days off, Reuben 2026-11-13).
   await page.goto("/sitter/availability");
   await page.getByRole("checkbox", { name: "Free on Mondays" }).check();
   await page.getByRole("button", { name: "Add a time on Monday" }).click();
   await page.getByRole("button", { name: "Save my week" }).click();
   await expect(page.getByText("Saved. It repeats every week until you change it.")).toBeVisible();
-  const inAWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  await page.getByLabel("Day", { exact: true }).fill(inAWeek);
-  await page.getByRole("button", { name: "Mark day off" }).click();
-  await expect(page.getByRole("button", { name: /^Remove day off / })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mark day off" })).toHaveCount(0);
 
   await page.goto("/sitter/profile");
-  for (const step of ["About you", "ID documents", "Police clearance certificate", "References", "Psychology screening"]) {
+  for (const step of ["About you", "ID verification", "References", "Psychology screening"]) {
     await expect(page.getByRole("link", { name: new RegExp(step) }).getByText("In review")).toBeVisible();
+  }
+  for (const step of ["Health disclosure", "Payment details"]) {
+    await expect(page.getByRole("link", { name: new RegExp(step) }).getByText("Done")).toBeVisible();
   }
 });
 
@@ -239,15 +239,16 @@ test("an admin rejects a step with a reason; the sitter sees it and uploads agai
 
   const sitterPage = sitter.page;
   await sitterPage.goto("/sitter/profile");
-  const item = sitterPage.getByRole("link", { name: /Police clearance certificate/ });
+  // The police certificate shows on "ID verification" (2026-11-13).
+  const item = sitterPage.getByRole("link", { name: /ID verification/ });
   await expect(item.getByText("Needs another look")).toBeVisible();
   await expect(item.getByText("Reason: It's older than six months.")).toBeVisible();
 
   // The row opens the documents step directly.
   await item.click();
-  await upload(sitterPage, "Police clearance certificate", PDF);
+  await upload(sitterPage, POLICE, PDF);
   await sitterPage.goto("/sitter/profile");
-  await expect(sitterPage.getByRole("link", { name: /Police clearance certificate/ }).getByText("In review")).toBeVisible();
+  await expect(sitterPage.getByRole("link", { name: /ID verification/ }).getByText("In review")).toBeVisible();
 
   await page.reload();
   await expect(sectionOf(page, "Notes on the police certificate").getByText("Waiting")).toBeVisible();
@@ -300,7 +301,6 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
   // Her week as a grid: Monday morning free, Sunday not available.
   await expect(page.getByRole("rowheader", { name: "Mon" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Sun/ }).getByText("Not available")).toBeVisible();
-  await expect(page.getByText(/^Not free on /)).toBeVisible();
   await expect(page.getByText(/Start with a 1-hour booking while you're at home/)).toBeVisible();
   await expect(page.locator("body")).not.toContainText("₹");
 });

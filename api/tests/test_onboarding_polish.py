@@ -143,12 +143,9 @@ def test_approving_clears_the_reason(client, sitter, reviewer):  # noqa: F811
     review(client, reviewer, path, False, reason="Too old")
     review(client, reviewer, path)
     items, _ = checklist(client, sitter, "sitter")
-    assert items["police_certificate"] == {
-        "key": "police_certificate",
-        "status": "approved",
-        "reason": None,
-        "note": None,
-    }
+    # The police certificate shows on "ID verification" since 2026-11-13; its rejection reason is gone.
+    assert items["identity_documents"]["reason"] is None
+    assert items["identity_documents"]["status"] != "rejected"
 
 
 # ---------- profile photos ----------

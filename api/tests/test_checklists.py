@@ -33,10 +33,7 @@ from tests.test_verification import (  # noqa: F401  (fixtures)
     upload,
 )
 
-CONTACTS = [
-    {"name": "Priya Rao", "relationship": "Mother", "phone": "9876511111"},
-    {"name": "Vikram Rao", "relationship": "Father", "phone": "9876500000"},
-]
+CONTACTS = [{"name": "Priya Rao", "relationship": "Parent", "phone": "9876511111"}]  # one per family
 
 
 def checklist(client, who, area):  # noqa: F811
@@ -135,29 +132,59 @@ def test_sitters_cannot_see_the_parent_checklist(client, sitter):  # noqa: F811
 
 def test_sitter_checklist_moves_from_to_do_to_waiting(client, db_engine, storage, sitter):  # noqa: F811
     items, body = checklist(client, sitter, "sitter")
-    assert items == {
-        "details": "done",  # the fixture fills them in
-        "consent": "to_do",
-        "profile": "to_do",
-        "identity_documents": "to_do",
-        "police_certificate": "to_do",
-        "references": "to_do",
-        "psych_test": "to_do",
-    }
+    # Her eight steps, in order (Reuben, 2026-11-13).
+    assert [item["key"] for item in body["items"]] == [
+        "consent",
+        "details",
+        "profile",
+        "identity_documents",
+        "health_disclosure",
+        "references",
+        "payout",
+        "psych_test",
+    ]
+    assert items["details"] == "done"  # the fixture fills them in
+    assert {key for key, status in items.items() if status == "to_do"} == set(items) - {"details"}
     assert body["live"] is False
-    assert [item["key"] for item in body["items"]][:2] == ["consent", "details"]
     profile = next(item for item in body["items"] if item["key"] == "profile")
-    assert profile["note"] == "Add your date of birth and a few words about you"  # the exact next action
+    assert profile["note"] == "Add your date of birth, experience and a few words about you"  # the next action
 
     upload(client, storage, sitter, "government_id")
     assert checklist(client, sitter, "sitter")[0]["identity_documents"] == "to_do"  # both IDs are needed
     upload(client, storage, sitter, "college_or_work_id")
+    # The police certificate can come later; she's told it's still needed.
+    _, body = checklist(client, sitter, "sitter")
+    ids = next(item for item in body["items"] if item["key"] == "identity_documents")
+    assert ids["status"] == "waiting"
+    assert ids["note"] == "Your police clearance certificate is still needed before your profile goes live"
     upload(client, storage, sitter, "police_certificate")
+    client.put("/sitter/health-disclosure", json={"disclosure": None}, headers=auth_for(sitter))  # nothing to declare
+    client.put("/sitter/payout-details", json={"method": "upi", "upi_id": "asha@okaxis"}, headers=auth_for(sitter))
     add_references(client, sitter)
     psych_attempt(db_engine, sitter["id"], "submitted")
     items, _ = checklist(client, sitter, "sitter")
-    assert items["identity_documents"] == items["police_certificate"] == "waiting"
-    assert items["references"] == items["psych_test"] == "waiting"
+    assert items["identity_documents"] == items["references"] == items["psych_test"] == "waiting"
+    assert items["health_disclosure"] == items["payout"] == "done"
+
+
+def test_a_rejected_police_certificate_shows_on_id_verification(client, sitter, reviewer):  # noqa: F811
+    path = f"/admin/sitters/{sitter['id']}/steps/police_certificate"
+    review(client, reviewer, path, False, reason="Too old")
+    _, body = checklist(client, sitter, "sitter")
+    ids = next(item for item in body["items"] if item["key"] == "identity_documents")
+    assert (ids["status"], ids["reason"]) == ("rejected", "Too old")
+
+
+def test_a_sitter_without_payout_details_cannot_be_approved(client, db_engine, sitter, reviewer):  # noqa: F811
+    approve_everything(client, db_engine, sitter, reviewer)
+    client.put(f"/admin/sitters/{sitter['id']}/level", json={"level": "pause"}, headers=as_user(reviewer))
+    with db_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE sitters SET payout_method = NULL, upi_id = NULL WHERE profile_id = :id"), {"id": sitter["id"]}
+        )
+    response = review(client, reviewer, f"/admin/sitters/{sitter['id']}/decision")
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "payout_missing"
 
 
 def test_sitter_checklist_shows_reviews_and_going_live(client, db_engine, sitter, reviewer):  # noqa: F811

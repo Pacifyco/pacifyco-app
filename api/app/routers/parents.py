@@ -120,15 +120,8 @@ class ContactIn(BaseModel):
 
 
 class SetEmergencyContacts(BaseModel):
-    # Exactly two per family (Family Terms 2.5), not per child.
-    contacts: list[ContactIn] = Field(min_length=2, max_length=2)
-
-    @field_validator("contacts")
-    @classmethod
-    def _two_different_people(cls, value: list[ContactIn]) -> list[ContactIn]:
-        if len(value) == 2 and value[0].phone == value[1].phone:
-            raise ValueError("Please give two different mobile numbers")
-        return value
+    # One per family (Reuben, 2026-11-13; was two), not per child. Kept as a list so the API can grow.
+    contacts: list[ContactIn] = Field(min_length=1, max_length=1)
 
 
 class ContactOut(BaseModel):

@@ -1,18 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { BackLink, Button, TextInput } from "../components/ui";
-import { cx } from "../components/ui/cx";
+import { BackLink, Button } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import {
   END_HOURS,
   START_HOURS,
   WEEKDAYS,
   WEEKDAYS_SHORT,
-  dayLabel,
   hoursLabel,
   shortHour,
-  todayInKolkata,
   type WeekHours,
 } from "../lib/times";
 
@@ -227,84 +224,6 @@ function WeekCard({ saved }: { saved: WeekHours[] }) {
   );
 }
 
-function DaysOffCard({ daysOff }: { daysOff: string[] }) {
-  const queryClient = useQueryClient();
-  const [day, setDay] = useState("");
-  const [dayError, setDayError] = useState<string>();
-  const add = useMutation({
-    mutationFn: (value: string) =>
-      apiFetch<Availability>("/sitter/availability/days-off", { method: "POST", body: JSON.stringify({ day: value }) }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(KEY, data);
-      setDay("");
-    },
-  });
-  const remove = useMutation({
-    mutationFn: (value: string) => apiFetch<void>(`/sitter/availability/days-off/${value}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY }),
-  });
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!day) return setDayError("Please choose a day.");
-    setDayError(undefined);
-    add.mutate(day);
-  }
-
-  return (
-    <section aria-labelledby="off-heading" className="rounded-lg bg-surface-raised p-4 shadow-soft sm:p-5">
-      <h2 id="off-heading" className="text-ui font-semibold">
-        Days off
-      </h2>
-      <p className="text-small text-muted">A day you can't work, whatever your week says.</p>
-      <form onSubmit={submit} noValidate className="mt-2 flex items-end gap-2">
-        <div className="min-w-0 flex-1">
-          <TextInput
-            compact
-            label="Day"
-            type="date"
-            min={todayInKolkata()}
-            value={day}
-            error={dayError}
-            onChange={(event) => setDay(event.target.value)}
-          />
-        </div>
-        <Button
-          type="submit"
-          variant="secondary"
-          loading={add.isPending}
-          fullWidthOnPhone={false}
-          className={cx(dayError && "mb-[30px]")}
-        >
-          Mark day off
-        </Button>
-      </form>
-      {(add.isError || remove.isError) && (
-        <p role="alert" className="mt-2 text-small text-danger">
-          {errorText(add.error ?? remove.error)}
-        </p>
-      )}
-      {daysOff.length > 0 && (
-        <ul aria-label="Your days off" className="mt-3 flex flex-wrap gap-2">
-          {daysOff.map((value) => (
-            <li key={value} className="flex items-center gap-1 rounded-pill bg-surface-sunken py-1 pr-1 pl-3 text-small">
-              {dayLabel(value)}
-              <button
-                type="button"
-                aria-label={`Remove day off ${dayLabel(value)}`}
-                onClick={() => remove.mutate(value)}
-                className="flex size-[24px] items-center justify-center rounded-pill text-muted hover:text-ink"
-              >
-                <X aria-hidden="true" size={14} strokeWidth={1.75} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 export function AvailabilityPage() {
   const availability = useQuery({ queryKey: KEY, queryFn: () => apiFetch<Availability>("/sitter/availability") });
 
@@ -328,12 +247,8 @@ export function AvailabilityPage() {
           {errorText(availability.error)}
         </p>
       )}
-      {availability.isSuccess && (
-        <>
-          <WeekCard saved={availability.data.week} />
-          <DaysOffCard daysOff={availability.data.days_off} />
-        </>
-      )}
+      {/* Her usual week only: days off were taken out (Reuben, 2026-11-13). */}
+      {availability.isSuccess && <WeekCard saved={availability.data.week} />}
     </section>
   );
 }
