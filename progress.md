@@ -431,6 +431,8 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-13 — Home page: the sign-in box opens below the photos (Reuben); "Sign in or join" stays
+  above them. Web 240 passed.
 - 2026-11-13 — UX review fixes (`ux-review-fixes`), from Reuben's staging review: consent first (API
   refuses family data before it), no referee phones, fixed age/language lists, one parts-of-the-day
   model (`part` search filter), field-level errors, real checklist steps, Find a sitter "When?" filters
