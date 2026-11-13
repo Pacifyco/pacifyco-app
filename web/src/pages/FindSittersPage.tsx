@@ -1,6 +1,9 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
-import { ButtonLink, EmptyState, Select, SitterCard, TextInput, ToggleChip } from "../components/ui";
+import { ButtonLink, Checkbox, EmptyState, Select, SitterCard, TextInput, ToggleChip } from "../components/ui";
+import { cx } from "../components/ui/cx";
 import type { VerifiedCheck } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { plural } from "../lib/format";
@@ -63,7 +66,7 @@ export function languagesOf(sitters: SitterSummary[]): string[] {
 // ---------- the search, kept in the address ----------
 
 type Sort = "distance" | "rating" | "experience";
-type Search = { day: string; part: PartOfDay | ""; language: string; firstAid: boolean; sort: Sort };
+type Search = { day: string; part: PartOfDay | ""; languages: string[]; firstAid: boolean; sort: Sort };
 
 function readSearch(params: URLSearchParams): Search {
   const part = params.get("time") ?? "";
@@ -71,7 +74,7 @@ function readSearch(params: URLSearchParams): Search {
   return {
     day: params.get("day") ?? "",
     part: PARTS_OF_DAY.some((item) => item.key === part) ? (part as PartOfDay) : "",
-    language: params.get("language") ?? "",
+    languages: LANGUAGES.filter((language) => params.getAll("language").includes(language)),
     firstAid: params.get("firstaid") === "1",
     sort: ["distance", "rating", "experience"].includes(sort) ? (sort as Sort) : "distance",
   };
@@ -81,7 +84,7 @@ function toParams(search: Search): URLSearchParams {
   const params = new URLSearchParams();
   if (search.day) params.set("day", search.day);
   if (search.part && search.day) params.set("time", search.part);
-  if (search.language) params.set("language", search.language);
+  for (const language of search.languages) params.append("language", language);
   if (search.firstAid) params.set("firstaid", "1");
   if (search.sort !== "distance") params.set("sort", search.sort);
   return params;
@@ -91,7 +94,7 @@ function apiQuery(search: Search): string {
   const params = new URLSearchParams({ sort: search.sort });
   if (search.day) params.set("day", search.day);
   if (search.day && search.part) params.set("part", search.part);
-  if (search.language) params.set("language", search.language);
+  for (const language of search.languages) params.append("language", language);
   if (search.firstAid) params.set("first_aid", "true");
   return params.toString();
 }
@@ -106,7 +109,7 @@ function sitterSearch(search: Search) {
   };
 }
 
-const NONE: Search = { day: "", part: "", language: "", firstAid: false, sort: "distance" };
+const NONE: Search = { day: "", part: "", languages: [], firstAid: false, sort: "distance" };
 
 /** "2026-11-14" plus days, as "2026-11-16". */
 function addDays(day: string, days: number): string {
@@ -124,41 +127,84 @@ function whenText(search: Search, today: string): string {
 
 // ---------- the parts of the page ----------
 
-function WhenFilter({ search, set }: { search: Search; set: (patch: Partial<Search>) => void }) {
+const OTHER_DAY = "other";
+const DATE_INPUT_ID = "find-a-sitter-date";
+
+/** "Pick a day": Today, Tomorrow, the day after, or any other day in the next two weeks. A day picked
+from the calendar shows in the dropdown itself (Reuben, 2026-11-13). */
+function DayFilter({ search, set }: { search: Search; set: (patch: Partial<Search>) => void }) {
   const today = todayInKolkata();
-  const quickDays = [0, 1, 2, 3].map((offset) => addDays(today, offset));
-  const pickedOther = search.day && !quickDays.includes(search.day);
+  const quickDays = [today, addDays(today, 1), addDays(today, 2)];
+  const [choosing, setChoosing] = useState(false);
+  const custom = search.day && !quickDays.includes(search.day) ? search.day : "";
+  useEffect(() => {
+    if (!choosing) return;
+    const input = document.getElementById(DATE_INPUT_ID) as HTMLInputElement | null;
+    input?.focus();
+    try {
+      input?.showPicker?.(); // opens the calendar straight away where the browser allows it
+    } catch {
+      // Some browsers only open it on a click; the field is focused and ready.
+    }
+  }, [choosing]);
+
   return (
-    <fieldset className="flex flex-col gap-3">
-      <legend className="mb-2 text-ui text-ink">When?</legend>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Day">
-        {quickDays.map((day, index) => (
-          <ToggleChip key={day} on={search.day === day} onToggle={() => set({ day: search.day === day ? "" : day })}>
-            {index === 0 ? "Today" : index === 1 ? "Tomorrow" : dayLabel(day)}
-          </ToggleChip>
-        ))}
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="w-[13rem]">
+        <Select
+          compact
+          label="Pick a day"
+          value={choosing ? OTHER_DAY : search.day}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (value === OTHER_DAY) return setChoosing(true);
+            setChoosing(false);
+            set(value ? { day: value } : { day: "", part: "" });
+          }}
+        >
+          <option value="">Any day</option>
+          <option value={quickDays[0]}>Today</option>
+          <option value={quickDays[1]}>Tomorrow</option>
+          <option value={quickDays[2]}>{dayLabel(quickDays[2]!)}</option>
+          {custom && <option value={custom}>{dayLabel(custom)}</option>}
+          <option value={OTHER_DAY}>Another date…</option>
+        </Select>
+      </div>
+      {choosing && (
         <div className="w-[11rem]">
           <TextInput
-            label="Pick a day"
+            id={DATE_INPUT_ID}
+            label="Choose a date"
             compact
             optional
             type="date"
             min={today}
             max={addDays(today, 13)}
-            value={pickedOther ? search.day : ""}
-            onChange={(event) => set({ day: event.target.value })}
+            value={custom}
+            onChange={(event) => {
+              if (!event.target.value) return;
+              set({ day: event.target.value });
+              setChoosing(false);
+            }}
           />
         </div>
-      </div>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Time of day">
+      )}
+    </div>
+  );
+}
+
+function WhenFilter({ search, set }: { search: Search; set: (patch: Partial<Search>) => void }) {
+  const today = todayInKolkata();
+  return (
+    <fieldset>
+      <legend className="mb-2 text-small font-medium text-ink">When?</legend>
+      <div className="flex flex-wrap gap-2">
         {PARTS_OF_DAY.map((part) => (
           <ToggleChip
             key={part.key}
             on={search.part === part.key && !!search.day}
             // A time of day needs a day: today, unless they've picked one.
-            onToggle={() =>
-              set({ part: search.part === part.key ? "" : part.key, day: search.day || today })
-            }
+            onToggle={() => set({ part: search.part === part.key ? "" : part.key, day: search.day || today })}
           >
             {part.label}
           </ToggleChip>
@@ -168,21 +214,79 @@ function WhenFilter({ search, set }: { search: Search; set: (patch: Partial<Sear
   );
 }
 
-function MoreFilters({ search, set }: { search: Search; set: (patch: Partial<Search>) => void }) {
+/** A dropdown of languages to tick, several at once (Reuben, 2026-11-13). */
+function LanguagesFilter({ search, set }: { search: Search; set: (patch: Partial<Search>) => void }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    function onClick(event: MouseEvent) {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const chosen = search.languages;
+  const summary = !chosen.length ? "Any" : chosen.length <= 2 ? chosen.join(", ") : `${chosen.length} languages`;
+  function toggle(language: string) {
+    set({
+      languages: chosen.includes(language)
+        ? chosen.filter((item) => item !== language)
+        : LANGUAGES.filter((item) => item === language || chosen.includes(item)),
+    });
+  }
+
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label="More filters">
-      <ToggleChip on={search.firstAid} onToggle={() => set({ firstAid: !search.firstAid })}>
-        First aid
-      </ToggleChip>
-      {LANGUAGES.map((language) => (
-        <ToggleChip
-          key={language}
-          on={search.language === language}
-          onToggle={() => set({ language: search.language === language ? "" : language })}
-        >
-          {language}
-        </ToggleChip>
-      ))}
+    <div ref={box} className="relative flex flex-col gap-1">
+      <span id="languages-label" className="text-small font-medium text-ink">
+        Languages
+      </span>
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-labelledby="languages-label languages-summary"
+        onClick={() => setOpen(!open)}
+        className={cx(
+          "flex min-h-[44px] w-[13rem] items-center justify-between gap-2 rounded-pill border bg-surface-raised px-[14px] text-small text-ink",
+          chosen.length ? "border-ink" : "border-strong",
+        )}
+      >
+        <span id="languages-summary" className="truncate">
+          {summary}
+        </span>
+        <ChevronDown aria-hidden="true" size={18} strokeWidth={1.75} />
+      </button>
+      {open && (
+        <fieldset className="absolute top-full left-0 z-20 mt-2 flex w-[13rem] flex-col gap-3 rounded-md bg-surface-raised p-4 shadow-lift">
+          <legend className="sr-only">Languages</legend>
+          {LANGUAGES.map((language) => (
+            <Checkbox
+              key={language}
+              label={<span className="text-small">{language}</span>}
+              checked={chosen.includes(language)}
+              onChange={() => toggle(language)}
+            />
+          ))}
+          {chosen.length > 0 && (
+            <button
+              type="button"
+              className="self-start text-small text-coral-deep underline-offset-4 hover:underline"
+              onClick={() => set({ languages: [] })}
+            >
+              Any language
+            </button>
+          )}
+        </fieldset>
+      )}
     </div>
   );
 }
@@ -191,7 +295,7 @@ function MoreFilters({ search, set }: { search: Search; set: (patch: Partial<Sea
 function Suggestions({ search, set }: { search: Search; set: (patch: Partial<Search>) => void }) {
   const options: { label: string; patch: Partial<Search> }[] = [];
   if (search.firstAid) options.push({ label: "Remove First aid", patch: { firstAid: false } });
-  if (search.language) options.push({ label: `Remove ${search.language}`, patch: { language: "" } });
+  if (search.languages.length) options.push({ label: "Any language", patch: { languages: [] } });
   if (search.part) options.push({ label: "Any time that day", patch: { part: "" } });
   if (search.day) options.push({ label: "Any day", patch: { day: "", part: "" } });
   const counts = useQueries({ queries: options.map((option) => sitterSearch({ ...search, ...option.patch })) });
@@ -330,8 +434,14 @@ export function FindSittersPage() {
       ) : (
         <>
           <section aria-label="Filters" className="flex flex-col gap-4 rounded-lg bg-surface-raised p-4 shadow-soft md:p-5">
+            <DayFilter search={search} set={set} />
             <WhenFilter search={search} set={set} />
-            <MoreFilters search={search} set={set} />
+            <div className="flex flex-wrap items-end gap-3">
+              <LanguagesFilter search={search} set={set} />
+              <ToggleChip on={search.firstAid} onToggle={() => set({ firstAid: !search.firstAid })}>
+                First aid
+              </ToggleChip>
+            </div>
           </section>
           <Results search={search} set={set} />
         </>

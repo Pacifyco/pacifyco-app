@@ -431,6 +431,11 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-13 — Availability (`availability-slots`): quick fills removed; ticking a day adds 9–1 and each "+"
+  adds the next of 1–4, 4–7, 7–10, 10–12, then stops (Reuben). Find a sitter (Reuben): "Pick a day"
+  dropdown first (Today, Tomorrow, the day after, another date from a calendar, shown in the dropdown),
+  then "When?" (Morning to Night), a multi-select Languages dropdown (API takes several, any of them)
+  and the First aid chip. API 420, web 241, e2e 5 passed.
 - 2026-11-13 — UX review fixes (`ux-review-fixes`), from Reuben's staging review: consent first (API
   refuses family data before it), no referee phones, fixed age/language lists, one parts-of-the-day
   model (`part` search filter), field-level errors, real checklist steps, Find a sitter "When?" filters

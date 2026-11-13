@@ -345,7 +345,8 @@ def search_sitters(
     ends_at: Annotated[AwareDatetime | None, Query()] = None,
     min_rating: Annotated[Decimal | None, Query(ge=1, le=5)] = None,
     min_years: Annotated[int | None, Query(ge=0, le=60)] = None,
-    language: Annotated[str | None, Query(max_length=40)] = None,
+    # Repeat it for several: ?language=English&language=Tamil finds sitters who speak any of them.
+    language: Annotated[list[str], Query(max_length=10)] = [],  # noqa: B006 (FastAPI copies defaults)
     first_aid: bool = False,
     part: Annotated[Literal["morning", "afternoon", "evening", "night"] | None, Query()] = None,
     sort: search_service.SortBy = search_service.SortBy.distance,
@@ -365,7 +366,7 @@ def search_sitters(
         ends_at=ends_at,
         min_rating=min_rating,
         min_years=min_years,
-        language=language,
+        languages=tuple(item[:40] for item in language),
         part=part,
         first_aid=first_aid,
         sort=sort,

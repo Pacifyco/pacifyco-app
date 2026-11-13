@@ -1,5 +1,5 @@
 // The fixed lists a sitter picks from (UX review 2026-11-13; same lists as api/app/services/sitters.py),
-// and the one set of parts of the day used everywhere (api/app/services/availability.py PARTS_OF_DAY).
+// and the parts of the day parents filter by (api/app/services/availability.py PARTS_OF_DAY).
 
 /** Pacify takes children from 18 months (CLAUDE.md 6.4), so there's no infant group. Ages in months. */
 export const AGE_GROUPS = [

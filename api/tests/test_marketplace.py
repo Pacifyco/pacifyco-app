@@ -293,6 +293,15 @@ def test_sort_by_rating_and_experience(client, finished_parent, make_sitter):  #
     assert names(find(client, finished_parent, sort="experience")) == ["Rated Five", "Rated Four", "New"]
 
 
+def test_several_languages_find_sitters_who_speak_any_of_them(client, finished_parent, make_sitter):  # noqa: F811
+    # The language filter takes several (Reuben, 2026-11-13).
+    make_sitter("Kannada Speaker", languages=["English", "Kannada"])
+    make_sitter("Tamil Speaker", languages=["Tamil"])
+    make_sitter("Hindi Speaker", languages=["Hindi"])
+    found = find(client, finished_parent, language=["Kannada", "Tamil"])
+    assert sorted(names(found)) == ["Kannada Speaker", "Tamil Speaker"]
+
+
 @pytest.mark.parametrize(
     ("params", "expected"),
     [

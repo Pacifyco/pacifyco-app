@@ -252,10 +252,12 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   still approved by the parent during the booking (above).
 - **Sitter availability (decided 2026-11-09):** a sitter sets her usual week once (whole-hour times per
   weekday, India time) and it repeats every week until she changes it; she marks single **days off**.
-  **One set of parts of the day everywhere** (UX review 2026-11-13): Morning 9 am–1 pm, Afternoon
-  1–6 pm, Evening 6–10 pm, Night 10 pm–12 am (India time). Her quick fills add these to her week (never
-  replacing a time already there), parents filter by them, and her profile shows her week as a grid of
-  them. `PARTS_OF_DAY` in `api/app/services/availability.py` and `web/src/lib/sitterLists.ts`.
+  **Adding her times (Reuben, 2026-11-13):** no quick fills. Ticking a day adds 9 am–1 pm; each "+" adds
+  the next time after her latest one on that day: 1–4 pm, 4–7 pm, 7–10 pm, 10 pm–12 am, then nothing
+  more (it never starts again at 9 am). She can change any time with the selects (`SLOTS` in
+  `web/src/pages/AvailabilityPage.tsx`). **Parents** filter by, and see her week as a grid of, Morning
+  9 am–1 pm, Afternoon 1–6 pm, Evening 6–10 pm and Night 10 pm–12 am (`PARTS_OF_DAY` in
+  `api/app/services/availability.py` and `web/src/lib/sitterLists.ts`, UX review 2026-11-13).
   Her free times are worked out from these for the next **14 days**, which is also how far ahead
   parents can book.
 - A booking can be made if the slot is inside the sitter's availability, the sitter's level matches
