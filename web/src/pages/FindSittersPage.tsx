@@ -421,10 +421,6 @@ export function FindSittersPage() {
       {/* The parent's home page: signed-in parents land here (AREA_PATH), so there's no back link. */}
       <div>
         <h1 className="text-h3">Find a sitter</h1>
-        <p className="mt-1 text-small text-muted">
-          Every sitter here is ID and police verified and referenced by Pacifyco. With someone new, start with a 1-hour
-          booking while you're at home.
-        </p>
       </div>
 
       {checklist.isPending ? (

@@ -139,6 +139,21 @@ tests.
 
 - [x] Parent late and declines overtime: answered 2026-11-03, overtime is worked out automatically at check-out and the sitter is paid for it (CLAUDE.md 6.8).
 
+- [ ] **Parent consent document vs the build rules** (added 2026-11-13). Built word for word from Reuben's
+  "Parent consent" document on `/parent/consent`; these points differ from CLAUDE.md. Change the rules
+  (and app), or the document?
+  1. "Be at home for the first **2** bookings with a new sitter": CLAUDE.md 6.3 suggests a **1-hour first
+     booking** at home, as a nudge only.
+  2. "If you're running late, your sitter can only stay on if they're available and you approve the
+     overtime": CLAUDE.md 6.8 says the sitter can't leave the child, and overtime is worked out at
+     check-out whether or not it was approved.
+  3. "Outings and travel: let them know beforehand": CLAUDE.md 6.4 has outings on Recharge only, asked by
+     the sitter and approved by the parent in the app during the booking; travel isn't in the plan.
+  4. "Potty training and diaper changes ... agree on before the booking": chat opens only once a booking
+     is confirmed (6.11), so that's in chat after booking, or in person.
+  Also: are the screening questions (Screening_Questions.docx) from a licensed psychologist? Until
+  confirmed, parents don't see a "Psychology screening passed" chip.
+
 - [ ] **UX review (staging) items that need Reuben** (added 2026-11-13, from "Pacifyco web app — UXUI
   review (staging)"). Everything else in the review is built (see "UX review fixes" below). These
   clash with a rule in CLAUDE.md or design.md, need something only Reuben has, or are a new feature:
@@ -431,6 +446,11 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-13 — Reuben's parent list (`parent-steps-and-screening`): Parent consent document on the consent
+  page; no subheadings on parent pages; four parent steps with a "Step N of 4" bar; the birth
+  certificate is the add-child form's last field; the checklist's children link opens that step; the
+  psych test is his 15 screening statements rated 1-5 (migration `b8d2e4f6a1c3`). Terms placeholders
+  were already gone (PR #82). API 432, web 239, e2e 5 passed.
 - 2026-11-13 — Sitter onboarding (Reuben): eight steps in order, each locked until the ones before are done
   (consent, details, about you with her photo, ID verification, health disclosure, references, payment
   details, psych test), a "Step N of 8" bar on each; all fields required except the police certificate

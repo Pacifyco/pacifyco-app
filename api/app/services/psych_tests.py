@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import PsychAnswer, PsychAttempt, PsychAttemptStatus, PsychQuestion, PsychTest
+from app.models import PsychAnswer, PsychAttempt, PsychAttemptStatus, PsychQuestion, PsychQuestionKind, PsychTest
 from app.services import audit
 
 
@@ -75,15 +75,22 @@ class AnswerIn:
     answer_text: str
 
 
+SCALE = ("1", "2", "3", "4", "5")
+
+
 def save_my_answers(db: Session, sitter_id: uuid.UUID, answers: list[AnswerIn]) -> PsychAttempt:
     attempt = start_or_resume_attempt(db, sitter_id)
     if attempt.status != PsychAttemptStatus.in_progress:
         raise AppError(409, "attempt_not_open", "This attempt has already been submitted")
 
-    question_ids = {question.id for question in list_questions(db, attempt.test_id)}
+    questions = {question.id: question for question in list_questions(db, attempt.test_id)}
     for answer in answers:
-        if answer.question_id not in question_ids:
+        question = questions.get(answer.question_id)
+        if question is None:
             raise AppError(422, "invalid_question", "That question isn't part of this test")
+        cleaned = answer.answer_text.strip()
+        if question.kind == PsychQuestionKind.scale and cleaned and cleaned not in SCALE:
+            raise AppError(422, "invalid_answer", "Please choose a number from 1 to 5")
 
     existing = {
         row.question_id: row for row in db.scalars(select(PsychAnswer).where(PsychAnswer.attempt_id == attempt.id))

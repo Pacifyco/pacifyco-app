@@ -6,7 +6,7 @@ import { PROFILE_PATH, useMe, type Me } from "../auth/useMe";
 import { BackLink, Button, LoadingScreen, Select, TextInput, Textarea, showToast } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { localMobile } from "../lib/format";
-import { SitterGate, SitterProgress } from "./SitterSteps";
+import { ParentProgress, SitterGate, SitterProgress } from "./SitterSteps";
 import { areaList } from "../lib/serviceArea";
 
 // "Your details" (CLAUDE.md 6.13): name, mobile, home pin code and address. Sign-up only asks the role
@@ -229,11 +229,8 @@ export function DetailsPage() {
         <BackLink to={PROFILE_PATH[profile.role as "parent" | "sitter"]} label="Your profile" />
       </div>
       <h1>Your details.</h1>
-      <p className="mt-4 text-muted">
-        {profile.role === "parent"
-          ? "So your sitter knows where to come, and Pacifyco can reach you."
-          : "So Pacifyco can reach you about your work."}
-      </p>
+      {/* No subheading for parents (Reuben, 2026-11-13). */}
+      {profile.role === "sitter" && <p className="mt-4 text-muted">So Pacifyco can reach you about your work.</p>}
       {profile.role === "sitter" ? (
         // Her second of eight steps: it opens once the sitter consent is done (Reuben, 2026-11-13).
         <div className="mt-6 flex flex-col gap-4 text-left">
@@ -243,7 +240,10 @@ export function DetailsPage() {
           </SitterGate>
         </div>
       ) : (
-        <DetailsForm initial={initial} role="parent" home={PROFILE_PATH.parent} />
+        <div className="mt-6 flex flex-col gap-4 text-left">
+          <ParentProgress step="details" />
+          <DetailsForm initial={initial} role="parent" home={PROFILE_PATH.parent} />
+        </div>
       )}
     </section>
   );

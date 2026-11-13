@@ -7,6 +7,7 @@ import { useMe, type Me } from "../auth/useMe";
 import { BackLink, Button, ButtonLink, Checkbox } from "../components/ui";
 import consentSource from "../content/consent.md?raw";
 import { apiFetch } from "../lib/api";
+import { ParentProgress } from "./SitterSteps";
 import { formatDate } from "../lib/format";
 import { Markdown, parseDocument } from "../lib/markdown";
 
@@ -125,6 +126,9 @@ export function ConsentPage() {
     <article className="mx-auto max-w-[62ch]">
       <div className="mb-4">
         <BackLink to="/parent/profile" label="Your profile" />
+      </div>
+      <div className="mb-5">
+        <ParentProgress step="consent" />
       </div>
       <Markdown body={CONSENT.body} />
 

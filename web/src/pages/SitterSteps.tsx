@@ -1,31 +1,42 @@
 import type { ReactNode } from "react";
 import { ButtonLink, Card } from "../components/ui";
 import {
-  SITTER_ORDER,
+  PARENT_STEPS,
   SITTER_STEPS,
   firstToDo,
   isLocked,
   stepHref,
   useChecklist,
+  type ParentChecklist,
   type SitterChecklist,
 } from "./ProfileChecklist";
 
-// The sitter's eight onboarding steps (Reuben, 2026-11-13): every step page shows where she is and how
-// much is done, and a step can't be opened until the ones before it are filled in.
+// The onboarding steps (Reuben, 2026-11-13): every step page shows where the person is and how much is
+// done. A sitter's eight steps also open only in order (SitterGate); a parent's four don't need to.
 
 const FINISHED = new Set(["done", "waiting", "approved"]);
 
 /** "Step 3 of 8 · About you" with a bar for how many of the eight are done. */
 export function SitterProgress({ step }: { step: string }) {
-  const checklist = useChecklist<SitterChecklist>("sitter");
+  return <OnboardingProgress role="sitter" step={step} />;
+}
+
+/** The same for parents' four steps: consent, details, children, emergency contact (Reuben, 2026-11-13). */
+export function ParentProgress({ step }: { step: string }) {
+  return <OnboardingProgress role="parent" step={step} />;
+}
+
+function OnboardingProgress({ role, step }: { role: "parent" | "sitter"; step: string }) {
+  const checklist = useChecklist<SitterChecklist | ParentChecklist>(role);
+  const steps = role === "sitter" ? SITTER_STEPS : PARENT_STEPS;
+  const order = Object.keys(steps);
   const items = checklist.data?.items ?? [];
   const done = items.filter((item) => FINISHED.has(item.status)).length;
-  const total = SITTER_ORDER.length;
+  const total = order.length;
   return (
     <div className="flex flex-col gap-2">
       <p className="text-center text-small text-muted">
-        Step {SITTER_ORDER.indexOf(step) + 1} of {total} ·{" "}
-        <span className="text-ink">{SITTER_STEPS[step]?.label}</span>
+        Step {order.indexOf(step) + 1} of {total} · <span className="text-ink">{steps[step]?.label}</span>
       </p>
       <div
         role="progressbar"
