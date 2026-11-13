@@ -126,10 +126,11 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   await contacts.getByLabel("Mobile number").fill("9876500001");
   await contacts.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page).toHaveURL(/\/parent\/profile$/);
-  await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible(); // finished: no subheading
+  // The last step: only "your profile is under review" (Reuben, 2026-11-13), leading to Find a sitter.
+  await expect(page.getByText("Your profile is under review.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My family" })).toHaveCount(0);
   // Nothing left to do, so the home (Find a sitter) has no bubble.
-  await page.getByRole("main").getByRole("link", { name: "Home", exact: true }).click();
+  await page.getByRole("link", { name: "Find a sitter" }).click();
   await expect(page.getByRole("heading", { name: "Find a sitter" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Finish your profile" })).toHaveCount(0);
 });
@@ -171,13 +172,12 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByText(/Step 6 of 8/)).toBeVisible();
-  for (const [name, phone] of [["Asha Iyer", "9876511111"], ["Ravi Kumar", "9876522222"]]) {
-    await page.getByLabel("Name").fill(name);
-    await page.getByLabel("Relationship").fill("Former employer");
-    await page.getByLabel("Mobile number").fill(phone);
-    await page.getByRole("button", { name: "Add this reference" }).click();
-    await expect(page.getByText(name, { exact: true })).toBeVisible();
-  }
+  // One reference, optional but good to have (Reuben, 2026-11-13).
+  await page.getByLabel("Name").fill("Asha Iyer");
+  await page.getByLabel("Relationship").fill("Former employer");
+  await page.getByLabel("Mobile number").fill("9876511111");
+  await page.getByRole("button", { name: "Add this reference" }).click();
+  await expect(page.getByText("Asha Iyer", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
   await expect(page.getByText(/Step 7 of 8/)).toBeVisible();
@@ -259,7 +259,7 @@ test("an admin rejects a step with a reason; the sitter sees it and uploads agai
 
 test("the admin approves the sitter and the family", async () => {
   const page = admin.page;
-  for (const subject of ["the profile", "the ID documents", "the police certificate", "Asha Iyer's reference", "Ravi Kumar's reference"]) {
+  for (const subject of ["the profile", "the ID documents", "the police certificate", "Asha Iyer's reference"]) {
     // Each decision form: the nearest box around this notes field that has buttons.
     const form = page.getByLabel(`Notes on ${subject}`).locator("xpath=ancestor::div[.//button][1]");
     await Promise.all([

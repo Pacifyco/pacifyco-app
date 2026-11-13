@@ -48,9 +48,9 @@ def upload(client, storage, owner, doc_type, child_id=None):  # noqa: F811
 
 
 def add_references(client, sitter_user):  # noqa: F811
-    for name in ("Asha Rao", "Meera Iyer"):
-        body = {"name": name, "phone": "9876543210", "relationship": "Former employer"}
-        assert client.post("/sitter/references", json=body, headers=auth_for(sitter_user)).status_code == 201
+    # One reference, optional (Reuben, 2026-11-13); never the sitter's own number.
+    body = {"name": "Asha Rao", "phone": "9876511111", "relationship": "Former employer"}
+    assert client.post("/sitter/references", json=body, headers=auth_for(sitter_user)).status_code == 201
     return client.get("/sitter/references", headers=auth_for(sitter_user)).json()
 
 
@@ -105,7 +105,7 @@ def test_queue(client, db_engine, storage, parent, other_parent, sitter, reviewe
     queue = client.get("/admin/verifications", headers=as_user(reviewer)).json()
 
     sitter_item = next(item for item in queue["sitters"] if item["id"] == str(sitter["id"]))
-    assert sitter_item["steps_approved"] == 0
+    assert sitter_item["steps_approved"] == 1  # references: none given, and they're optional
     assert sitter_item["steps_total"] == 5
     assert sitter_item["level"] is None
     family_ids = {item["id"]: item for item in queue["families"]}
@@ -150,7 +150,7 @@ def test_a_new_sitter_has_every_step_pending(client, sitter, reviewer):  # noqa:
         "profile": "pending",
         "identity_documents": "pending",
         "police_certificate": "pending",
-        "references": "pending",
+        "references": "approved",  # optional: none given passes (2026-11-13)
         "psych_test": "pending",
     }
     assert body["onboarding_status"] == "in_progress"
@@ -180,17 +180,16 @@ def test_an_unknown_step_is_refused(client, sitter, reviewer):  # noqa: F811
     assert review(client, reviewer, f"/admin/sitters/{sitter['id']}/steps/interview").status_code == 422
 
 
-def test_references_pass_only_when_both_are_approved(client, sitter, reviewer):  # noqa: F811
-    first, second = add_references(client, sitter)
-
+def test_a_reference_she_gives_must_pass(client, sitter, reviewer):  # noqa: F811
     def references_step():
         return client.get(f"/admin/sitters/{sitter['id']}", headers=as_user(reviewer)).json()["steps"]["references"]
 
-    review(client, reviewer, f"/admin/references/{first['id']}/decision")
+    assert references_step() == "approved"  # none given: optional
+    [reference] = add_references(client, sitter)
     assert references_step() == "pending"
-    review(client, reviewer, f"/admin/references/{second['id']}/decision", False, "Didn't answer")
+    review(client, reviewer, f"/admin/references/{reference['id']}/decision", False, "Didn't answer")
     assert references_step() == "rejected"
-    review(client, reviewer, f"/admin/references/{second['id']}/decision")
+    review(client, reviewer, f"/admin/references/{reference['id']}/decision")
     assert references_step() == "approved"
 
 
@@ -226,7 +225,8 @@ def test_approval_is_refused_until_every_step_passes(client, sitter, reviewer): 
     assert response.status_code == 409
     error = response.json()["error"]
     assert error["code"] == "steps_not_approved"
-    assert error["details"]["steps"] == ["identity_documents", "police_certificate", "references", "psych_test"]
+    # References are optional (2026-11-13): none given is no obstacle.
+    assert error["details"]["steps"] == ["identity_documents", "police_certificate", "psych_test"]
 
 
 def test_approval_is_refused_without_a_level(client, db_engine, sitter, reviewer):  # noqa: F811
@@ -279,7 +279,7 @@ def test_a_rejected_step_emails_her_the_reason(client, sitter, reviewer, mailbox
 
 
 def test_a_rejected_reference_emails_her(client, sitter, reviewer, mailbox):  # noqa: F811
-    [reference, _] = add_references(client, sitter)
+    [reference] = add_references(client, sitter)
     path = f"/admin/references/{reference['id']}/decision"
     assert review(client, reviewer, path, False, reason="Couldn't reach them").status_code == 200
     [email] = mailbox.sent

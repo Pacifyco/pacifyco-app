@@ -122,6 +122,21 @@ def live_sitter(db: Session, parent: Profile, sitter_id: uuid.UUID) -> Found:
     return Found(profile, sitter, geocoding.distance_km(_position(parent), _position(profile)))
 
 
+def has_approved_reference(db: Session, sitter_id: uuid.UUID) -> bool:
+    return (
+        db.scalar(
+            select(Reference.id)
+            .where(
+                Reference.sitter_id == sitter_id,
+                Reference.outcome == VerificationStatus.approved,
+                Reference.removed_at.is_(None),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def shared_reference(db: Session, sitter: Sitter) -> Reference | None:
     """At Recharge level, with her consent, one reference an admin approved is shown to parents
     (CLAUDE.md 6.2). Nothing otherwise."""
@@ -129,7 +144,11 @@ def shared_reference(db: Session, sitter: Sitter) -> Reference | None:
         return None
     return db.scalar(
         select(Reference)
-        .where(Reference.sitter_id == sitter.profile_id, Reference.outcome == VerificationStatus.approved)
+        .where(
+            Reference.sitter_id == sitter.profile_id,
+            Reference.outcome == VerificationStatus.approved,
+            Reference.removed_at.is_(None),
+        )
         .order_by(Reference.name)
         .limit(1)
     )

@@ -500,3 +500,13 @@ def test_the_search_list_never_shows_references(client, db_engine, finished_pare
     set_consent(db_engine, recharge["id"])
     [summary] = find(client, finished_parent, plan="recharge")
     assert "reference" not in summary
+
+
+def test_references_checked_only_with_an_approved_reference(client, db_engine, finished_parent, make_sitter):  # noqa: F811
+    # References are optional (Reuben, 2026-11-13), so parents see "References checked" only when true.
+    found = make_sitter("No Reference")
+    assert detail(client, finished_parent, found)["references_checked"] is False
+    add_reference(db_engine, found["id"], outcome="pending")
+    assert detail(client, finished_parent, found)["references_checked"] is False
+    add_reference(db_engine, found["id"], name="Ravi Kumar")
+    assert detail(client, finished_parent, found)["references_checked"] is True

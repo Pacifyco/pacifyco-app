@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
+import { useMe } from "../auth/useMe";
 import { DocumentUpload, useMyDocuments, type DocumentType } from "../components/documents/DocumentUpload";
 import {
   BackLink,
@@ -24,7 +25,7 @@ import {
   isIndianMobile,
   type FieldErrors,
 } from "../lib/fieldErrors";
-import { formatMobile } from "../lib/format";
+import { formatMobile, localMobile } from "../lib/format";
 import { AGE_GROUPS, LANGUAGES } from "../lib/sitterLists";
 import { firstToDo, useChecklist, type SitterChecklist } from "./ProfileChecklist";
 import { SitterGate, SitterProgress } from "./SitterSteps";
@@ -507,10 +508,16 @@ type Reference = {
 };
 type ReferenceInput = { name: string; relationship: string; phone: string };
 const EMPTY_REFERENCE: ReferenceInput = { name: "", relationship: "", phone: "" };
-const MAX_REFERENCES = 2;
+const MAX_REFERENCES = 1; // one, and optional but good to have (Reuben, 2026-11-13)
+
+const REFERENCE_NUMBER_MESSAGES = {
+  reference_is_you: "That's your own number. Please give your reference's.",
+  reference_number_used: "You've already given that number. Please give a different one.",
+};
 
 function ReferencesSection({ onContinue }: { onContinue: () => void }) {
   const queryClient = useQueryClient();
+  const me = useMe();
   const references = useQuery({ queryKey: ["references"], queryFn: () => apiFetch<Reference[]>("/sitter/references") });
   const [form, setForm] = useState<ReferenceInput>(EMPTY_REFERENCE);
   const [fields, setFields] = useState<FieldErrors>({});
@@ -529,6 +536,12 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
       showToast(`${reference.name} added`);
     },
     onError: (err) => {
+      // Her own number, or one she has given before: shown on the number field.
+      if (err instanceof ApiError && (err.code === "reference_is_you" || err.code === "reference_number_used")) {
+        setFields({ phone: REFERENCE_NUMBER_MESSAGES[err.code] });
+        setError(undefined);
+        return;
+      }
       const byField = fieldErrorsFrom(err);
       setFields(byField);
       setError(formErrorFrom(err, byField));
@@ -540,6 +553,11 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
     if (!form.name.trim()) found.name = "Please enter their name.";
     if (!form.relationship.trim()) found.relationship = "Please say how they know you, e.g. Former employer.";
     if (!isIndianMobile(form.phone)) found.phone = MOBILE_ERROR;
+    else if (me.data?.profile?.phone && localMobile(form.phone) === localMobile(me.data.profile.phone)) {
+      found.phone = REFERENCE_NUMBER_MESSAGES.reference_is_you;
+    } else if ((references.data ?? []).some((reference) => localMobile(reference.phone) === localMobile(form.phone))) {
+      found.phone = REFERENCE_NUMBER_MESSAGES.reference_number_used;
+    }
     setFields(found);
     setError(undefined);
     if (!Object.keys(found).length) add.mutate(form);
@@ -553,8 +571,8 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
   const count = references.data?.length ?? 0;
   const [continueError, setContinueError] = useState<string>();
 
+  // Optional: she can continue without one.
   function next() {
-    if (count < MAX_REFERENCES) return setContinueError("Please add two references to continue.");
     setContinueError(undefined);
     onContinue();
   }
@@ -563,7 +581,9 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
     <Card as="section" className="flex flex-col gap-5">
       <div>
         <h2 className="text-h3">References</h2>
-        <p className="mt-1 text-small text-muted">Two people who can vouch for you. Pacifyco will contact them.</p>
+        <p className="mt-1 text-small text-muted">
+          1 person who can vouch for you. Optional, but it helps families trust you. Pacifyco will contact them.
+        </p>
       </div>
       {references.isSuccess && references.data.length > 0 && (
         <ul className="flex flex-col gap-2">

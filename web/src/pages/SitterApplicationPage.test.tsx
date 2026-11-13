@@ -79,7 +79,8 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       },
       { key: "identity_documents", status: status(has("government_id") && has("college_or_work_id")) },
       { key: "health_disclosure", status: status(state.healthSaved, "done") },
-      { key: "references", status: status(state.references.length >= 2) },
+      // Optional (2026-11-13): none given counts as done.
+      { key: "references", status: state.references.length ? "waiting" : "done" },
       { key: "payout", status: status(!!state["payout-details"].method, "done") },
       { key: "psych_test", status: "to_do" },
     ];
@@ -110,7 +111,12 @@ function mockApi(overrides: Record<string, unknown> = {}) {
     }
     if (path === "/sitter/references" && init?.method === "POST") {
       const body = JSON.parse(init.body as string);
-      if (state.references.length >= 2) {
+      if (body.phone === "9876500000") {
+        return Promise.resolve(
+          jsonResponse({ error: { code: "reference_number_used", message: "You've already given that number" } }, 422),
+        );
+      }
+      if (state.references.length >= 1) {
         return Promise.resolve(
           jsonResponse({ error: { code: "too_many_references", message: "Only two references are needed" } }, 409),
         );
@@ -153,16 +159,14 @@ async function fillProfileAndContinue() {
   await screen.findByRole("heading", { name: "ID verification" });
 }
 
-async function addTwoReferences() {
+async function addAReference() {
   const section = (await screen.findByRole("heading", { name: "References" })).closest("section")!;
   const scope = within(section);
-  for (const name of ["Priya Rao", "Vikram Rao"]) {
-    fireEvent.change(scope.getByLabelText("Name"), { target: { value: name } });
-    fireEvent.change(scope.getByLabelText("Relationship"), { target: { value: "Neighbour" } });
-    fireEvent.change(scope.getByLabelText("Mobile number"), { target: { value: "9876543210" } });
-    fireEvent.click(scope.getByRole("button", { name: "Add this reference" }));
-    await waitFor(() => expect(scope.queryByText(name)).toBeTruthy());
-  }
+  fireEvent.change(scope.getByLabelText("Name"), { target: { value: "Priya Rao" } });
+  fireEvent.change(scope.getByLabelText("Relationship"), { target: { value: "Neighbour" } });
+  fireEvent.change(scope.getByLabelText("Mobile number"), { target: { value: "9876543210" } });
+  fireEvent.click(scope.getByRole("button", { name: "Add this reference" }));
+  await waitFor(() => expect(scope.queryByText("Priya Rao")).toBeTruthy());
   return scope;
 }
 
@@ -177,7 +181,7 @@ describe("the sitter application page", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Your application" })).toBeTruthy();
     expect(await screen.findByText(/Step 3 of 8/)).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Steps done" }).getAttribute("aria-valuetext")).toBe(
-      "3 of 8 steps done", // consent, details and (from the mock's uploads) ID verification
+      "4 of 8 steps done", // consent, details, ID verification (the mock's uploads) and references (optional)
     );
     expect(await screen.findByRole("heading", { name: "Your profile" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "ID verification" })).toBeNull();
@@ -302,8 +306,7 @@ describe("the sitter application page", () => {
     await screen.findByText(/Step 5 of 8/);
     await clickContinue(); // health disclosure: nothing to declare is fine
     await screen.findByText(/Step 6 of 8/);
-    await addTwoReferences();
-    await clickContinue(); // references: two added
+    await clickContinue(); // references: optional, none added
     await screen.findByText(/Step 7 of 8/);
     fireEvent.change(await screen.findByLabelText("UPI ID"), { target: { value: "asha@upi" } });
     await clickContinue("Continue to the psychology screening");
@@ -311,47 +314,33 @@ describe("the sitter application page", () => {
     expect(await screen.findByText("Psychology screening page")).toBeTruthy();
   });
 
-  test("references need two before moving on", async () => {
+  test("a reference is optional: 1 person, and she can continue without one", async () => {
+    // Reuben, 2026-11-13: optional but good to have.
     mockApi(UP_TO_REFERENCES);
     renderPage("/sitter/application?step=references");
     await screen.findByRole("heading", { name: "References" });
+    expect(screen.getByText(/1 person who can vouch for you. Optional/)).toBeTruthy();
     await clickContinue();
-    expect(await screen.findByText("Please add two references to continue.")).toBeTruthy();
+    expect(await screen.findByText(/Step 7 of 8/)).toBeTruthy();
   });
 
-  test("payment details: UPI by default, bank fields on request, every field required", async () => {
-    mockApi({ ...UP_TO_REFERENCES, references: [{ id: "r1" }, { id: "r2" }] });
-    renderPage("/sitter/application?step=payout");
-    await screen.findByRole("heading", { name: "Payment details" });
-    expect(await screen.findByLabelText("UPI ID")).toBeTruthy();
-    await clickContinue("Continue to the psychology screening");
-    expect(await screen.findByText("Please enter your UPI ID, like name@okbank.")).toBeTruthy();
-
-    fireEvent.change(screen.getByLabelText("Payout method"), { target: { value: "bank" } });
-    expect(screen.queryByLabelText("UPI ID")).toBeNull();
-    await clickContinue("Continue to the psychology screening");
-    expect(await screen.findByText("Please enter the account holder's name.")).toBeTruthy();
-    expect(screen.getByText("Please enter the 11-character IFSC code.")).toBeTruthy();
-  });
-
-  test("a reference's problems are shown under each field", async () => {
-    const calls = mockApi(UP_TO_REFERENCES);
+  test("a number she has given before is refused, on the number field", async () => {
+    mockApi(UP_TO_REFERENCES);
     renderPage("/sitter/application?step=references");
     const section = (await screen.findByRole("heading", { name: "References" })).closest("section")!;
     const scope = within(section);
     fireEvent.change(scope.getByLabelText("Name"), { target: { value: "Priya Rao" } });
-    fireEvent.change(scope.getByLabelText("Mobile number"), { target: { value: "12345" } });
+    fireEvent.change(scope.getByLabelText("Relationship"), { target: { value: "Neighbour" } });
+    fireEvent.change(scope.getByLabelText("Mobile number"), { target: { value: "9876500000" } });
     fireEvent.click(scope.getByRole("button", { name: "Add this reference" }));
-    expect(await scope.findByText(/Please say how they know you/)).toBeTruthy();
-    expect(scope.getByText("Please enter a 10-digit mobile number.")).toBeTruthy();
-    expect(calls.some((call) => call.init?.method === "POST")).toBe(false);
+    expect(await scope.findByText("You've already given that number. Please give a different one.")).toBeTruthy();
   });
 
-  test("a third reference is refused", async () => {
+  test("a second reference isn't asked for", async () => {
     mockApi(UP_TO_REFERENCES);
     renderPage("/sitter/application?step=references");
-    const scope = await addTwoReferences();
-    expect(scope.queryByLabelText("Name")).toBeNull(); // the add form hides once two are added
+    const scope = await addAReference();
+    expect(scope.queryByLabelText("Name")).toBeNull(); // the add form hides once one is added
     expect(scope.getByRole("button", { name: "Continue" })).toBeTruthy();
   });
 });

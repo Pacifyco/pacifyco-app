@@ -29,7 +29,7 @@ type Child = { id: string; name: string; date_of_birth: string };
 const CHECK_DETAILS: Record<VerifiedCheck, string> = {
   id_police:
     "Pacifyco checked her government ID, a college or work ID and her police clearance certificate before her profile went live.",
-  references: "Pacifyco spoke to two people who know her work before her profile went live.",
+  references: "Pacifyco spoke to someone who knows her work before her profile went live.",
   psychology: "She took Pacifyco's psychology screening, and a Pacifyco admin reviewed her answers.",
   first_aid: "She has a first-aid certificate and sent it to Pacifyco with her application.",
 };

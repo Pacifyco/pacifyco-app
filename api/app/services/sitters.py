@@ -12,10 +12,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import PayoutMethod, Reference, Sitter
+from app.models import PayoutMethod, Profile, Reference, Sitter
 from app.services import encryption
 
-MAX_REFERENCES = 2
+MAX_REFERENCES = 1  # one, and optional (Reuben, 2026-11-13)
 
 # Fixed lists the sitter picks from (UX review 2026-11-13). Pacifyco takes children from 18 months
 # (CLAUDE.md 6.4), so there's no infant group.
@@ -118,13 +118,32 @@ def get_payout_bank(db: Session, sitter_id: uuid.UUID, encryption_key: str) -> B
 
 
 def list_references(db: Session, sitter_id: uuid.UUID) -> list[Reference]:
-    return list(db.scalars(select(Reference).where(Reference.sitter_id == sitter_id).order_by(Reference.id)))
+    return list(
+        db.scalars(
+            select(Reference)
+            .where(Reference.sitter_id == sitter_id, Reference.removed_at.is_(None))
+            .order_by(Reference.id)
+        )
+    )
 
 
 def add_reference(db: Session, sitter_id: uuid.UUID, name: str, phone: str, relationship: str) -> Reference:
-    count = db.scalar(select(func.count()).select_from(Reference).where(Reference.sitter_id == sitter_id))
+    count = db.scalar(
+        select(func.count())
+        .select_from(Reference)
+        .where(Reference.sitter_id == sitter_id, Reference.removed_at.is_(None))
+    )
     if count is not None and count >= MAX_REFERENCES:
-        raise AppError(409, "too_many_references", "Only two references are needed")
+        raise AppError(409, "too_many_references", "Only one reference is needed")
+    # Someone else's number: never her own, nor one she has already given (Reuben, 2026-11-13).
+    profile = db.get(Profile, sitter_id)
+    if profile is not None and profile.phone == phone:
+        raise AppError(
+            422, "reference_is_you", "That's your own number. Please give your reference's", {"field": "phone"}
+        )
+    used = db.scalars(select(Reference.phone).where(Reference.sitter_id == sitter_id))  # removed ones too
+    if phone in set(used):
+        raise AppError(422, "reference_number_used", "You've already given that number", {"field": "phone"})
     reference = Reference(sitter_id=sitter_id, name=name, phone=phone, relationship=relationship)
     db.add(reference)
     db.commit()
@@ -133,9 +152,9 @@ def add_reference(db: Session, sitter_id: uuid.UUID, name: str, phone: str, rela
 
 def remove_reference(db: Session, sitter_id: uuid.UUID, reference_id: uuid.UUID) -> None:
     reference = db.get(Reference, reference_id)
-    if reference is None:
+    if reference is None or reference.removed_at is not None:
         raise AppError(404, "not_found", "That reference isn't on your list")
     if reference.sitter_id != sitter_id:  # no IDOR: can't remove another sitter's reference
         raise AppError(403, "forbidden", "That reference isn't on your list")
-    db.delete(reference)
+    reference.removed_at = datetime.now(UTC)  # kept, so its number can't be given again
     db.commit()

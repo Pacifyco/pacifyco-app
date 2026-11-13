@@ -59,7 +59,11 @@ export const SITTER_STEPS: Record<string, Step> = {
     hint: "Anything that could affect safe care, or nothing to declare",
     to: `${APPLICATION}?step=health`,
   },
-  references: { label: "References", hint: "Two people who know your work", to: `${APPLICATION}?step=references` },
+  references: {
+    label: "References",
+    hint: "Optional: one person who knows your work",
+    to: `${APPLICATION}?step=references`,
+  },
   payout: { label: "Payment details", hint: "Your bank account or UPI ID", to: `${APPLICATION}?step=payout` },
   psych_test: { label: "Psychology screening", hint: "Questions to answer in the app", to: "/sitter/psych-test" },
 };

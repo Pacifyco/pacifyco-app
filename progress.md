@@ -446,6 +446,10 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-13 — Reuben: after the emergency contact, parents see only "Your profile is under review";
+  a sitter's reference is optional, one only, never her own number or one she gave before (removed
+  references kept: migration `c1f3a5b7d9e2`); "References checked" shows only with an approved one.
+  API 434, web 238, e2e 5 passed.
 - 2026-11-13 — Reuben's parent list (`parent-steps-and-screening`): Parent consent document on the consent
   page; no subheadings on parent pages; four parent steps with a "Step N of 4" bar; the birth
   certificate is the add-child form's last field; the checklist's children link opens that step; the

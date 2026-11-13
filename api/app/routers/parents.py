@@ -275,6 +275,8 @@ class SitterSummary(BaseModel):
     distance_km: float | None  # straight line from the parent's home, to 0.1 km
     photo_url: str | None  # short-lived signed URL; live sitters only
     plan: SitterLevel  # the plan she works (her level), shown as a label; its price only when booking
+    # References are optional (2026-11-13): "References checked" only when one has been approved.
+    references_checked: bool
 
 
 class WeekHours(BaseModel):
@@ -310,7 +312,7 @@ def _photo_url(db: DbSession, storage: StorageClient, sitter_id: uuid.UUID) -> s
         return None
 
 
-def _summary_fields(found: search_service.Found, photo_url: str | None) -> dict:
+def _summary_fields(db: DbSession, found: search_service.Found, photo_url: str | None) -> dict:
     profile, sitter = found.profile, found.sitter
     return {
         "id": profile.id,
@@ -324,6 +326,7 @@ def _summary_fields(found: search_service.Found, photo_url: str | None) -> dict:
         "distance_km": round(found.distance_km, 1) if found.distance_km is not None else None,
         "photo_url": photo_url,
         "plan": sitter.level,
+        "references_checked": search_service.has_approved_reference(db, sitter.profile_id),
     }
 
 
@@ -365,7 +368,7 @@ def search_sitters(
         sort=sort,
     )
     return [
-        SitterSummary(**_summary_fields(found, _photo_url(db, storage, found.profile.id)))
+        SitterSummary(**_summary_fields(db, found, _photo_url(db, storage, found.profile.id)))
         for found in search_service.search(db, parent, filters, datetime.now(UTC))
     ]
 
@@ -379,7 +382,7 @@ def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Sto
     last_day = today + timedelta(days=availability_service.BOOK_AHEAD_DAYS - 1)
     shared = search_service.shared_reference(db, found.sitter)
     return SitterDetail(
-        **_summary_fields(found, _photo_url(db, storage, sitter_id)),
+        **_summary_fields(db, found, _photo_url(db, storage, sitter_id)),
         bio=found.sitter.bio,
         week=[WeekHours(**vars(hours)) for hours in availability_service.week(db, sitter_id)],
         days_off=[day for day in availability_service.days_off(db, sitter_id, today) if day <= last_day],
