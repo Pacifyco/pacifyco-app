@@ -162,11 +162,24 @@ class PsychAttemptDecisionOut(BaseModel):
 
 @router.post("/psych-attempts/{attempt_id}/decision")
 def decide_psych_attempt(
-    attempt_id: uuid.UUID, body: PsychAttemptDecisionIn, admin: Admin, db: DbSession
+    attempt_id: uuid.UUID,
+    body: PsychAttemptDecisionIn,
+    admin: Admin,
+    db: DbSession,
+    mailer: Mailer,
+    settings: AppSettings,
 ) -> PsychAttemptDecisionOut:
     attempt = psych_tests_service.record_decision(
         db, admin.id, attempt_id, body.passed, body.notes, body.rejection_reason
     )
+    if not body.passed:  # rejection emails (Reuben, 2026-11-13)
+        profile = db.get(Profile, attempt.sitter_id)
+        if profile is not None:
+            mailer.send(
+                email_service.psych_test_failed(
+                    profile.email, profile.full_name, attempt.rejection_reason, _web_url(settings)
+                )
+            )
     return PsychAttemptDecisionOut(id=attempt.id, status=attempt.status)
 
 
@@ -363,17 +376,39 @@ class StatusOut(BaseModel):
 
 @router.post("/sitters/{sitter_id}/steps/{step}")
 def review_onboarding_step(
-    sitter_id: uuid.UUID, step: OnboardingStepName, body: Decision, admin: Admin, db: DbSession
+    sitter_id: uuid.UUID,
+    step: OnboardingStepName,
+    body: Decision,
+    admin: Admin,
+    db: DbSession,
+    mailer: Mailer,
+    settings: AppSettings,
 ) -> StatusOut:
     row = verification.record_step(db, admin.id, sitter_id, step, body.approved, body.notes, body.rejection_reason)
+    if not body.approved:
+        profile, _ = verification.get_sitter(db, sitter_id)
+        mailer.send(
+            email_service.sitter_step_rejected(
+                profile.email, profile.full_name, step.value, body.rejection_reason, _web_url(settings)
+            )
+        )
     return StatusOut(status=row.status)
 
 
 @router.post("/references/{reference_id}/decision")
-def review_reference(reference_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession) -> StatusOut:
+def review_reference(
+    reference_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> StatusOut:
     reference = verification.record_reference_outcome(
         db, admin.id, reference_id, body.approved, body.notes, body.rejection_reason
     )
+    if not body.approved:
+        profile, _ = verification.get_sitter(db, reference.sitter_id)
+        mailer.send(
+            email_service.reference_rejected(
+                profile.email, profile.full_name, reference.name, body.rejection_reason, _web_url(settings)
+            )
+        )
     return StatusOut(status=reference.outcome)
 
 
@@ -396,9 +431,15 @@ def decide_sitter(
     sitter_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
 ) -> OnboardingStatusOut:
     sitter = verification.decide_sitter(db, admin.id, sitter_id, body.approved, body.notes, body.rejection_reason)
+    profile, _ = verification.get_sitter(db, sitter_id)
     if body.approved:  # she hears that she's live (approval emails brought forward, 2026-11-13)
-        profile, _ = verification.get_sitter(db, sitter_id)
         mailer.send(email_service.sitter_approved(profile.email, profile.full_name, _web_url(settings)))
+    else:  # and why, if not (rejection emails, 2026-11-13)
+        mailer.send(
+            email_service.sitter_application_rejected(
+                profile.email, profile.full_name, body.rejection_reason, _web_url(settings)
+            )
+        )
     return OnboardingStatusOut(onboarding_status=sitter.onboarding_status)
 
 
@@ -467,12 +508,18 @@ def decide_child(
     settings: AppSettings,
 ) -> StatusOut:
     child = verification.decide_child(db, storage, admin.id, child_id, body.approved, body.notes, body.rejection_reason)
+    profile, parent = verification.get_parent(db, child.parent_id)
     if body.approved:  # the parent hears their child is verified (brought forward, 2026-11-13)
-        profile, parent = verification.get_parent(db, child.parent_id)
         family_verified = parent.verification_status == VerificationStatus.approved
         mailer.send(
             email_service.child_verified(
                 profile.email, profile.full_name, child.name, family_verified, _web_url(settings)
+            )
+        )
+    else:  # and why the certificate couldn't be accepted (rejection emails, 2026-11-13)
+        mailer.send(
+            email_service.child_rejected(
+                profile.email, profile.full_name, child.name, child.rejection_reason, _web_url(settings)
             )
         )
     return StatusOut(status=child.verification_status)

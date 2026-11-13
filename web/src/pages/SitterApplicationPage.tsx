@@ -251,11 +251,6 @@ function ProfileForm({
         checked={form.first_aid}
         onChange={(event) => setForm({ ...form, first_aid: event.target.checked })}
       />
-      <Checkbox
-        label="When I reach the most experienced level, Pacifyco may show parents one of my references (their name and how they know me, never their phone number)."
-        checked={form.reference_shared_consent}
-        onChange={(event) => setForm({ ...form, reference_shared_consent: event.target.checked })}
-      />
       <ErrorLine message={error} />
       <StepActions>
         <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={submit}>

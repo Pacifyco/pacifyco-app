@@ -127,7 +127,6 @@ export function ConsentPage() {
         <BackLink to="/parent/profile" label="Your profile" />
       </div>
       <Markdown body={CONSENT.body} />
-      <p className="mt-4 text-small text-muted">Version {CONSENT_VERSION}</p>
 
       <div className="mt-6 flex flex-col gap-5 rounded-lg bg-surface-sunken p-5">
         {consent.isPending || me.isPending ? (

@@ -12,8 +12,6 @@ const FILLED: Record<string, string> = {
   VITE_GRIEVANCE_OFFICER_EMAIL: "grievance@example.com",
   VITE_GRIEVANCE_OFFICER_PHONE: "+91 90000 00001",
   VITE_EMERGENCY_LINE: "+91 90000 00002",
-  VITE_SITTER_TERMS_DATE: "2026-11-15",
-  VITE_FAMILY_TERMS_DATE: "2026-11-20",
   VITE_FAMILY_INTRO_FEE: "15,000",
 };
 const SITTER_VARS = Object.keys(FILLED).filter((name) => !/ENVIRONMENT|FAMILY/.test(name));
@@ -47,7 +45,7 @@ describe("Sitter Terms in production", () => {
     const { SitterTermsPage, termsReady } = await loadWith(FILLED);
     render(<SitterTermsPage />);
     expect(screen.getByText("Pacifyco Sitter Terms of Use")).toBeTruthy();
-    expect(screen.getByText(/Last updated: 15 Nov 2026/)).toBeTruthy();
+    expect(screen.getByText(/Last updated: 13 Nov 2026/)).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/TEST /);
     expect(termsReady("sitter")).toBe(true);
   });

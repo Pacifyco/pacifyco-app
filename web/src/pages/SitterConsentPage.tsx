@@ -60,7 +60,6 @@ export function SitterConsentPage() {
       </div>
       <h1>Sitter consent</h1>
       <Markdown body={SITTER_CONSENT.body} />
-      <p className="mt-4 text-small text-muted">Version {SITTER_CONSENT.meta.version}</p>
 
       <div className="mt-6 flex flex-col gap-5 rounded-lg bg-surface-sunken p-5">
         {me.isPending ? (

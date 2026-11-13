@@ -2,7 +2,6 @@ import { config } from "../config";
 import familyTermsSource from "../content/family-terms-v1.0.md?raw";
 import privacySource from "../content/privacy-policy.md?raw";
 import sitterTermsSource from "../content/sitter-terms-v1.1.md?raw";
-import { formatDate } from "./format";
 import { parseDocument } from "./markdown";
 
 // Legal documents (CLAUDE.md 7). The Sitter Terms of Use v1.1 and the Family Terms of Use v1.0 are final:
@@ -29,23 +28,14 @@ const SHARED: Placeholder[] = [
   { token: "\\[LINK\\]", label: "privacy policy link", value: (_, url) => url },
 ];
 
-const SITTER: Placeholder[] = [
-  { token: "\\[DATE\\]", label: "date", value: (v) => termsDate(v.sitterTermsDate) },
-  ...SHARED,
-];
+// The "Last updated" date is written in the documents (13 Nov 2026, Reuben 2026-11-13), not a setting.
+const SITTER: Placeholder[] = SHARED;
 
 const FAMILY: Placeholder[] = [
   // Section 7.2's "₹[INSERT]" is the introduction fee, not the LLPIN: fill it before the shared ones.
   { token: "₹\\[INSERT\\]", label: "introduction fee", value: (v) => (v.familyIntroFee ? `₹${v.familyIntroFee}` : "") },
-  { token: "\\[DATE\\]", label: "date", value: (v) => termsDate(v.familyTermsDate) },
   ...SHARED,
 ];
-
-function termsDate(isoDate: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return "";
-  const date = new Date(`${isoDate}T00:00:00+05:30`);
-  return Number.isNaN(date.getTime()) ? "" : formatDate(date);
-}
 
 export type FilledTerms = { body: string; missing: string[] };
 

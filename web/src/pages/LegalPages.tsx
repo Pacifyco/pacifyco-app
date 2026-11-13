@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import { useHeaderBack } from "../layouts/headerBack";
 import { PRIVACY_POLICY, fillFamilyTerms, fillSitterTerms, type FilledTerms } from "../lib/legal";
 import { Markdown, sections } from "../lib/markdown";
 
@@ -77,8 +78,10 @@ export function ParentTermsPage() {
 policy directly, e.g. from a bookmark (Reuben, 2026-11-13). */
 function BackToPrevious() {
   const navigate = useNavigate();
+  const goBack = useCallback(() => navigate(-1), [navigate]);
   const location = useLocation();
   const cameFromApp = location.key !== "default";
+  useHeaderBack(cameFromApp ? { label: "Back", onBack: goBack } : { label: "Back", to: "/" });
   const content = (
     <>
       <ArrowLeft aria-hidden="true" size={18} strokeWidth={1.75} />
@@ -87,7 +90,7 @@ function BackToPrevious() {
   );
   const className = "mb-4 inline-flex items-center gap-2 text-small text-coral-deep underline-offset-4 hover:underline";
   return cameFromApp ? (
-    <button type="button" onClick={() => navigate(-1)} className={className}>
+    <button type="button" onClick={goBack} className={className}>
       {content}
     </button>
   ) : (

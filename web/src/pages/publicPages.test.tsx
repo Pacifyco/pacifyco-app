@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { renderApp } from "../test/renderApp";
 import { MemoryRouter } from "react-router";
 import { describe, expect, test } from "vitest";
@@ -46,6 +46,33 @@ describe("the privacy policy's Back button", () => {
   test("opened directly, it leads home", async () => {
     renderApp("/privacy");
     expect((await screen.findByRole("link", { name: "Back" })).getAttribute("href")).toBe("/");
+  });
+});
+
+describe("the pinned header", () => {
+  function scrollTo(y: number) {
+    act(() => {
+      Object.defineProperty(window, "scrollY", { value: y, configurable: true });
+      window.dispatchEvent(new Event("scroll"));
+    });
+  }
+
+  test("stays at the top, hides while scrolling down, and comes back with Back when scrolling up", async () => {
+    const { router } = renderApp("/terms/sitter");
+    fireEvent.click(await screen.findByRole("link", { name: "Privacy policy" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/privacy"));
+    const header = screen.getByRole("banner");
+    expect(header.className).toContain("sticky");
+    // At the top: only the page's own Back, not a second one in the header.
+    expect(within(header).queryByRole("button", { name: "Back" })).toBeNull();
+
+    scrollTo(400); // down: the header slides away
+    expect(header.className).toContain("-translate-y-full");
+    scrollTo(300); // up: it comes back, with Back
+    expect(header.className).not.toContain("-translate-y-full");
+    fireEvent.click(within(header).getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/terms/sitter"));
+    scrollTo(0);
   });
 });
 

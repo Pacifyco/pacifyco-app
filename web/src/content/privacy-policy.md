@@ -8,7 +8,7 @@ version: 0.1-draft
 
 ## Who we are
 
-Pacifyco is run by Pacifyco LLP. Contact us at founders@pacifyco.in or +91 8848873841.
+Pacifyco is run by Pacifyco. Contact us at founders@pacifyco.in or +91 8848873841.
 
 ## What this policy will cover
 

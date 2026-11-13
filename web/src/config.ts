@@ -16,9 +16,6 @@ export const config = {
     grievanceEmail: (import.meta.env.VITE_GRIEVANCE_OFFICER_EMAIL || "").trim(),
     grievancePhone: (import.meta.env.VITE_GRIEVANCE_OFFICER_PHONE || "").trim(),
     emergencyLine: (import.meta.env.VITE_EMERGENCY_LINE || "").trim(),
-    // yyyy-mm-dd: the date each version takes effect.
-    sitterTermsDate: (import.meta.env.VITE_SITTER_TERMS_DATE || "").trim(),
-    familyTermsDate: (import.meta.env.VITE_FAMILY_TERMS_DATE || "").trim(),
     // Family Terms 7.2: the one-time fee to hire a sitter directly, e.g. "15,000" (shown as ₹15,000).
     familyIntroFee: (import.meta.env.VITE_FAMILY_INTRO_FEE || "").trim(),
   },

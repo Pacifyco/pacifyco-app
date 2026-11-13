@@ -131,7 +131,7 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   await expect(page).toHaveURL(/\/parent\/profile$/);
   await expect(page.getByText(/Your profile is finished, so you can book/)).toBeVisible();
   // Nothing left to do, so the home (Find a sitter) has no bubble.
-  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await page.getByRole("main").getByRole("link", { name: "Home", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Find a sitter" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Finish your profile" })).toHaveCount(0);
 });
@@ -283,7 +283,7 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
   await page.goto("/parent/profile");
   await expect(page.getByRole("link", { name: /Your children/ }).getByText("Approved")).toBeVisible();
   // Home is Find a sitter.
-  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await page.getByRole("main").getByRole("link", { name: "Home", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Find a sitter" })).toBeVisible();
 
   const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Lakshmi Nair" }) });
