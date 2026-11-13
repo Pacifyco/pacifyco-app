@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { BackLink, Button, ButtonLink, Card, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
+import { cx } from "../components/ui/cx";
 import { formatDate } from "../lib/format";
 import { SitterGate, SitterProgress } from "./SitterSteps";
 
@@ -10,7 +11,7 @@ import { SitterGate, SitterProgress } from "./SitterSteps";
 // questions. Not auto-scored -- an admin reads the answers later, so this page only has to collect
 // them and show where the sitter stands.
 
-type QuestionKind = "multiple_choice" | "short_answer";
+type QuestionKind = "multiple_choice" | "short_answer" | "scale";
 
 type Question = {
   id: string;
@@ -52,6 +53,39 @@ function QuestionField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  // Reuben's screening statements (2026-11-13): pick a number from 1 (least relevant) to 5 (most relevant).
+  if (question.kind === "scale") {
+    return (
+      <fieldset className="flex flex-col gap-3">
+        <legend className="mb-2 text-ui text-ink">{question.prompt}</legend>
+        <div className="grid grid-cols-5 gap-2">
+          {["1", "2", "3", "4", "5"].map((number) => (
+            <label
+              key={number}
+              className={cx(
+                "flex min-h-[44px] cursor-pointer items-center justify-center rounded-pill border text-ui transition-colors duration-200 ease-calm",
+                value === number ? "border-ink bg-ink text-surface-default" : "border-strong bg-surface-raised text-ink",
+              )}
+            >
+              <input
+                type="radio"
+                name={`question-${question.id}`}
+                value={number}
+                checked={value === number}
+                onChange={() => onChange(number)}
+                className="sr-only"
+              />
+              {number}
+            </label>
+          ))}
+        </div>
+        <p className="flex justify-between text-caption text-muted">
+          <span>1 = least relevant</span>
+          <span>5 = most relevant</span>
+        </p>
+      </fieldset>
+    );
+  }
   if (question.kind === "short_answer") {
     return (
       <Textarea label={question.prompt} value={value} onChange={(event) => onChange(event.target.value)} rows={3} />

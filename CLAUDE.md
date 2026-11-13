@@ -435,7 +435,10 @@ Emergency button instead.
    admin reads them and records pass or fail. After a fail, she can take it again only once an admin
    allows a retake (decided 2026-11-08; audit logged). Questions come from a licensed psychologist and are stored as
    data (`psych_tests`, `psych_questions`); ship with clearly marked placeholder questions until then.
-   Admin reviews and records pass/fail.
+   Admin reviews and records pass/fail. **Since 2026-11-13** the active test is Reuben's
+   Screening_Questions.docx (`screening-v1`): 15 statements, each rated from 1 (least relevant) to 5 (most
+   relevant), question kind `scale`; the placeholder test stays for old attempts. Whether these come from
+   a licensed psychologist is an open question, so the "Psychology screening passed" chip stays hidden.
 6. Admin approval, with the sitter's level set (6.2). (The onboarding interview was dropped
    2026-11-08.) Only then is she live: shown to parents and bookable.
 
@@ -467,6 +470,13 @@ step, a reference, the psychology test or a whole application) must give a rejec
 the parent or sitter sees; admin notes stay internal. A new upload or change after a rejection sends
 that item back for review (birth certificates and sitter steps 1-4). The psychology test is the
 exception: after a fail, an admin decides when she can retake it.
+
+**Parental consent page (2026-11-13):** shows Reuben's "Parent consent" document word for word
+(`web/src/content/consent.md`, "Before you book: a few things to know"), then the consent boxes below.
+
+**Parent steps (Reuben, 2026-11-13):** four, each page showing "Step N of 4" and a bar of how many are
+done: Parental consent, Your details, Your children, Emergency contact. A new child's birth certificate is
+the last field of the add-child form, sent with it. Parent pages have no subheadings.
 
 **Consent (decided 2026-11-02, follow Family Terms 11.2):** at parent sign-up, separate unticked boxes,
 nothing pre-ticked, each recorded with its version and time:

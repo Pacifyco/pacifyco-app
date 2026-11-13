@@ -399,11 +399,11 @@ describe("finishing a profile after sign-up", () => {
   test("the parent's profile page lists what's left, each linking to where it's done", async () => {
     detailsApi();
     renderApp("/parent/profile");
-    expect(await screen.findByText("Finish these to book a sitter.")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Finish your profile" })).toBeTruthy();
     const links = {
       "Your details": "/parent/details",
       "Parental consent": "/parent/consent",
-      "Your children": "/parent/family",
+      "Your children": "/parent/family?step=children",
       "Emergency contact": "/parent/family?step=emergency",
     };
     for (const [name, href] of Object.entries(links)) {
@@ -428,7 +428,7 @@ describe("finishing a profile after sign-up", () => {
     expect(row.getByText("1 child · certificate needed")).toBeTruthy();
   });
 
-  test("a finished parent profile says booking waits for the birth certificates", async () => {
+  test("a finished parent profile shows the certificates in review, with no subheading", async () => {
     detailsApi();
     vi.mocked(fetch).mockImplementation(((url: string) =>
       Promise.resolve(
@@ -443,8 +443,8 @@ describe("finishing a profile after sign-up", () => {
           : jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE }),
       )) as typeof fetch);
     renderApp("/parent/profile");
-    expect(await screen.findByText(/a booking is confirmed once Pacifyco has checked/i)).toBeTruthy();
-    expect(within(screen.getByRole("link", { name: /Your children/ })).getByText("In review")).toBeTruthy();
+    expect(within(await screen.findByRole("link", { name: /Your children/ })).getByText("In review")).toBeTruthy();
+    expect(screen.queryByText(/Your profile is finished/)).toBeNull(); // no subheadings (Reuben, 2026-11-13)
   });
 
   test("the sitter's profile page lists every onboarding step", async () => {
@@ -739,8 +739,10 @@ describe("parental consent", () => {
   test("the form shows the draft text and needs every required box ticked before agreeing", async () => {
     const calls = parentWithConsent(NOT_ACCEPTED);
     const { router } = renderApp("/parent/consent");
-    expect(await screen.findByRole("heading", { level: 1, name: "Parental consent form" })).toBeTruthy();
-    expect(screen.getByText("DRAFT — NOT LEGALLY REVIEWED.")).toBeTruthy();
+    // Reuben's "Parent consent" document (2026-11-13), above the consent boxes.
+    expect(await screen.findByRole("heading", { level: 1, name: "Before you book: a few things to know" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Treating your sitter well" })).toBeTruthy();
+    expect(screen.queryByText(/DRAFT/)).toBeNull();
     expect(screen.queryByText(/^Version /)).toBeNull(); // no version details (Reuben, 2026-11-13)
 
     const required = [

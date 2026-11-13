@@ -33,7 +33,7 @@ type Step = { label: string; hint: string; to: string | ((note?: string | null) 
 export const PARENT_STEPS: Record<string, Step> = {
   consent: { label: "Parental consent", hint: "Read and accept the consent form and our terms", to: "/parent/consent" },
   details: { label: "Your details", hint: "Name, mobile, pin code and home address", to: "/parent/details" },
-  children: { label: "Your children", hint: "Add each child with their birth certificate", to: "/parent/family" },
+  children: { label: "Your children", hint: "Add each child with their birth certificate", to: "/parent/family?step=children" },
   emergency_contacts: { label: "Emergency contact", hint: "Someone we can call", to: "/parent/family?step=emergency" },
 };
 
@@ -99,7 +99,8 @@ export function ChecklistCard({
   inOrder = false,
 }: {
   heading: string;
-  intro: string;
+  /** Left out for parents (no subheadings, Reuben 2026-11-13). */
+  intro?: string;
   items: Item[];
   steps: Record<string, Step>;
   /** Sitters: steps open one after another; later ones are shown locked. */
@@ -110,7 +111,7 @@ export function ChecklistCard({
       <h1 id="checklist-heading" className="text-h3">
         {heading}
       </h1>
-      <p className="mt-2 text-small text-muted">{intro}</p>
+      {intro && <p className="mt-2 text-small text-muted">{intro}</p>}
       <ul className="mt-2">
         {items.map(({ key, status, reason, note }) => {
           const step = steps[key];

@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { CircleCheck, Pencil, Trash2, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useMe } from "../auth/useMe";
-import { DocumentUpload } from "../components/documents/DocumentUpload";
+import { DocumentUpload, clientCheck, documentsKey, uploadOne } from "../components/documents/DocumentUpload";
 import {
   BackLink,
   Button,
@@ -12,7 +12,6 @@ import {
   Select,
   StepActions,
   StepBackContext,
-  StepProgress,
   TextInput,
   Textarea,
   showToast,
@@ -27,6 +26,7 @@ import {
 } from "../lib/fieldErrors";
 import { formatDate, localMobile } from "../lib/format";
 import { useConsent } from "./ConsentPage";
+import { ParentProgress } from "./SitterSteps";
 
 // ---------- shared bits ----------
 
@@ -173,28 +173,44 @@ function ChildForm({
   initial,
   onSaved,
   onCancel,
+  askCertificate = false,
 }: {
   initial: ChildInput;
-  onSaved: (child: ChildInput) => Promise<unknown>;
+  onSaved: (child: ChildInput, certificate?: File) => Promise<unknown>;
   onCancel?: () => void;
+  /** A new child: the birth certificate is the form's last field, sent with it (Reuben, 2026-11-13). */
+  askCertificate?: boolean;
 }) {
   const [form, setForm] = useState(initial);
   const [fields, setFields] = useState<FieldErrors>({});
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [certificate, setCertificate] = useState<File>();
+  const certificateInput = useRef<HTMLInputElement>(null);
+
+  function pickCertificate(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const problem = clientCheck(file, "birth_certificate");
+    setFields((current) => ({ ...current, certificate: problem ?? "" }));
+    setCertificate(problem ? undefined : file);
+  }
 
   async function submit() {
     const missing: FieldErrors = {};
     if (!form.name.trim()) missing.name = "Please enter your child's name.";
     if (!form.date_of_birth) missing.date_of_birth = "Please choose the day, month and year.";
+    if (askCertificate && !certificate) missing.certificate = "Please add their birth certificate.";
     setFields(missing);
     setError(undefined);
     if (Object.keys(missing).length) return;
     setBusy(true);
     try {
-      await onSaved(form);
+      await onSaved(form, certificate);
       showToast(`${form.name.trim()} saved`);
       setForm(EMPTY_CHILD);
+      setCertificate(undefined);
     } catch (err) {
       const byField = fieldErrorsFrom(err);
       setFields(byField);
@@ -241,6 +257,37 @@ function ChildForm({
         error={fields.routines}
         onChange={(event) => setForm({ ...form, routines: event.target.value })}
       />
+      {askCertificate && (
+        <div className="flex flex-col gap-2">
+          <label htmlFor="new-child-certificate" className="text-ui text-ink">
+            Birth certificate
+          </label>
+          <p className="-mt-1 text-small text-muted">
+            PDF, JPG or PNG. Used once to check their age, then deleted — we keep only the result.
+          </p>
+          <input
+            ref={certificateInput}
+            id="new-child-certificate"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+            className="hidden"
+            onChange={pickCertificate}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidthOnPhone={false}
+              onClick={() => certificateInput.current?.click()}
+            >
+              <Upload aria-hidden="true" size={18} strokeWidth={1.75} />
+              {certificate ? "Choose another file" : "Choose file"}
+            </Button>
+            {certificate && <span className="min-w-0 break-all text-small text-muted">{certificate.name}</span>}
+          </div>
+          <ErrorLine message={fields.certificate || undefined} />
+        </div>
+      )}
       <ErrorLine message={error} />
       <div className="flex flex-wrap gap-3">
         <Button type="button" loading={busy} onClick={submit}>
@@ -329,17 +376,6 @@ function ChildCard({ child }: { child: Child }) {
       {child.allergies && <p className="text-small text-ink">Allergies: {child.allergies}</p>}
       <ChildStatus child={child} />
       <ErrorLine message={error} />
-      {/* A verified child's certificate is deleted: nothing to upload. */}
-      {!verified && (
-        <div className="border-t border-line pt-3">
-          <DocumentUpload
-            type="birth_certificate"
-            childId={child.id}
-            label="Birth certificate"
-            hint="Used once to check their age, then deleted — we keep only the result."
-          />
-        </div>
-      )}
       <div className="flex flex-wrap gap-4 border-t border-line pt-3">
         <Button type="button" variant="tertiary" onClick={() => setEditing(true)}>
           <Pencil aria-hidden="true" size={18} strokeWidth={1.75} />
@@ -356,6 +392,17 @@ function ChildCard({ child }: { child: Child }) {
           Remove
         </Button>
       </div>
+      {/* A verified child's certificate is deleted: nothing to upload. */}
+      {!verified && (
+        <div className="border-t border-line pt-3">
+          <DocumentUpload
+            type="birth_certificate"
+            childId={child.id}
+            label="Birth certificate"
+            hint="Used once to check their age, then deleted — we keep only the result."
+          />
+        </div>
+      )}
     </li>
   );
 }
@@ -365,9 +412,21 @@ function ChildrenSection({ onContinue }: { onContinue: () => void }) {
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
 
+  // The child first, then their birth certificate, in one Save (a certificate belongs to a child).
   const add = useMutation({
-    mutationFn: (input: ChildInput) =>
-      apiFetch<Child>("/parent/children", { method: "POST", body: JSON.stringify(toBody(input)) }),
+    mutationFn: async ({ input, certificate }: { input: ChildInput; certificate?: File }) => {
+      const child = await apiFetch<Child>("/parent/children", { method: "POST", body: JSON.stringify(toBody(input)) });
+      if (certificate) {
+        try {
+          await uploadOne("birth_certificate", child.id, certificate);
+        } catch {
+          // The child is saved; the certificate can be added again from their card.
+          showToast(`${child.name} saved. Please add the birth certificate again below.`);
+        }
+        await queryClient.invalidateQueries({ queryKey: documentsKey("birth_certificate", child.id) });
+      }
+      return child;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["children"] });
       setAdding(false);
@@ -391,7 +450,8 @@ function ChildrenSection({ onContinue }: { onContinue: () => void }) {
       {adding || none ? (
         <ChildForm
           initial={EMPTY_CHILD}
-          onSaved={(input) => add.mutateAsync(input)}
+          askCertificate
+          onSaved={(input, certificate) => add.mutateAsync({ input, certificate })}
           onCancel={none ? undefined : () => setAdding(false)}
         />
       ) : (
@@ -532,10 +592,6 @@ function EmergencyContactForm({ initial, onContinue }: { initial: ContactInput; 
 
 const STEPS = ["children", "emergency"] as const;
 type Step = (typeof STEPS)[number];
-const STEP_LABEL: Record<Step, string> = {
-  children: "Your children",
-  emergency: "Emergency contact",
-};
 
 export function FamilyPage() {
   const navigate = useNavigate();
@@ -569,9 +625,6 @@ export function FamilyPage() {
       </div>
       <div className="mx-auto max-w-[62ch] text-center">
         <h1>My family</h1>
-        <p className="mt-2 text-muted">
-          Add your children and an emergency contact.
-        </p>
       </div>
 
       <div className="mx-auto mt-7 max-w-[40rem]">
@@ -590,7 +643,8 @@ export function FamilyPage() {
           </Card>
         ) : (
           <>
-            <StepProgress step={stepIndex + 1} of={STEPS.length} label={STEP_LABEL[step]} />
+            {/* The parent's four steps: this page holds the third and fourth (Reuben, 2026-11-13). */}
+            <ParentProgress step={step === "children" ? "children" : "emergency_contacts"} />
             <StepBackContext.Provider value={goBack}>
               <div className="mt-4 flex flex-col gap-4">
                 {step === "children" && <ChildrenSection onContinue={goNext} />}

@@ -28,7 +28,7 @@ const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 // Parents see sitters' photos in the browser, so a photo must be an image (the API checks too).
 const PHOTO_TYPES = ["image/jpeg", "image/png"];
 
-function clientCheck(file: File, type: DocumentType): string | undefined {
+export function clientCheck(file: File, type: DocumentType): string | undefined {
   if (type === "photo" && !PHOTO_TYPES.includes(file.type)) return "Please choose a JPG or PNG photo.";
   if (!ALLOWED_TYPES.includes(file.type)) return "Please choose a PDF, JPG or PNG file.";
   if (file.size > MAX_FILE_BYTES) return "That file is larger than 5 MB.";
@@ -46,7 +46,11 @@ export function useMyDocuments(type: DocumentType, childId?: string) {
   });
 }
 
-async function uploadOne(type: DocumentType, childId: string | undefined, file: File): Promise<DocumentStatus> {
+export async function uploadOne(
+  type: DocumentType,
+  childId: string | undefined,
+  file: File,
+): Promise<DocumentStatus> {
   const ticket = await apiFetch<{ document_id: string; upload_url: string }>("/documents/upload-url", {
     method: "POST",
     body: JSON.stringify({ type, child_id: childId ?? null }),

@@ -58,6 +58,25 @@ beforeEach(() => {
 });
 
 describe("the psychology screening page", () => {
+  test("a screening statement is rated from 1 (least relevant) to 5 (most relevant)", async () => {
+    // Reuben's screening questions (2026-11-13).
+    const scale = [{ id: "s1", order_index: 1, kind: "scale", prompt: "I stay calm even when work piles up suddenly.", options: null }];
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      Promise.resolve(
+        String(url).endsWith("/sitter/psych-test")
+          ? jsonResponse({ test_id: "t", is_placeholder: false, questions: scale, attempt: null })
+          : jsonResponse({}, 404),
+      )) as typeof fetch);
+    renderPage();
+    const group = await screen.findByRole("group", { name: "I stay calm even when work piles up suddenly." });
+    expect(group).toBeTruthy();
+    for (const number of ["1", "2", "3", "4", "5"]) expect(screen.getByRole("radio", { name: number })).toBeTruthy();
+    expect(screen.getByText("1 = least relevant")).toBeTruthy();
+    expect(screen.getByText("5 = most relevant")).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "4" }));
+    expect((screen.getByRole("radio", { name: "4" }) as HTMLInputElement).checked).toBe(true);
+  });
+
   test("shows one question at a time, starting with the first", async () => {
     mockApi(null);
     renderPage();

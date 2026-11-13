@@ -160,7 +160,7 @@ function PsychTest({ sitter, invalidate }: { sitter: SitterReview; invalidate: u
           {detail.data.answers.map((answer) => (
             <li key={answer.question_id}>
               <p className="text-ui text-ink">{answer.prompt}</p>
-              <p className="mt-1 whitespace-pre-wrap text-body text-ink">{answer.answer_text ?? "No answer"}</p>
+              <p className="mt-1 whitespace-pre-wrap text-body text-ink">{answer.answer_text === null ? "No answer" : answer.kind === "scale" ? `${answer.answer_text} of 5` : answer.answer_text}</p>
             </li>
           ))}
         </ol>

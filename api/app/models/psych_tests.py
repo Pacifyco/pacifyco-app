@@ -12,6 +12,8 @@ from app.models.common import created_at, enum_column, uuid_pk
 class PsychQuestionKind(StrEnum):
     multiple_choice = "multiple_choice"
     short_answer = "short_answer"
+    # A statement rated from 1 (least relevant) to 5 (most relevant) (Reuben's screening questions, 2026-11-13).
+    scale = "scale"
 
 
 class PsychAttemptStatus(StrEnum):

@@ -76,6 +76,12 @@ function mockApi(overrides: Record<string, unknown> = {}) {
     if (path === "/documents/mine" || path.startsWith("/documents/mine?")) {
       return Promise.resolve(jsonResponse([]));
     }
+    // A birth certificate sent with a new child: upload URL, the file itself, then confirm.
+    if (path === "/documents/upload-url") {
+      return Promise.resolve(jsonResponse({ document_id: "doc-1", upload_url: "https://fake.storage/upload/doc-1" }));
+    }
+    if (url === "https://fake.storage/upload/doc-1") return Promise.resolve(new Response(null, { status: 200 }));
+    if (path === "/documents/doc-1/confirm") return Promise.resolve(jsonResponse({ status: "uploaded" }));
     if (path === "/parent/consent") return Promise.resolve(jsonResponse(state.consent));
     if (path.endsWith("/parent/children")) return Promise.resolve(jsonResponse(state.children));
     if (path.endsWith("/parent/emergency-contacts")) return Promise.resolve(jsonResponse(state["emergency-contacts"]));
@@ -103,15 +109,15 @@ describe("the family page", () => {
     expect(await screen.findByRole("heading", { name: "Your consent comes first" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Read the consent form/ }).getAttribute("href")).toBe("/parent/consent");
     expect(screen.queryByLabelText("Child's name")).toBeNull();
-    expect(screen.queryByText(/Step 1 of 2/)).toBeNull();
+    expect(screen.queryByText(/Step 3 of 4/)).toBeNull();
   });
 
   test("starts on step 1 (your children) and shows nothing else yet", async () => {
     mockApi();
     renderFamilyPage();
     expect(await screen.findByRole("heading", { level: 1, name: "My family" })).toBeTruthy();
-    expect(await screen.findByText(/Step 1 of 2/)).toBeTruthy();
-    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("1");
+    expect(await screen.findByText(/Step 3 of 4/)).toBeTruthy();
+    expect(screen.getByText("Your children", { selector: "span" })).toBeTruthy(); // step 3 of the parent's four
     expect(await screen.findByText("You haven't added a child yet.")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Emergency contacts" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Authorised adults" })).toBeNull();
@@ -143,9 +149,17 @@ describe("the family page", () => {
     fireEvent.change(await screen.findByLabelText("Child's name"), { target: { value: "Asha" } });
     chooseBirthday("01", "05", "2023");
     fireEvent.change(screen.getByLabelText(/Allergies/), { target: { value: "Peanuts" } });
+    // The birth certificate is the last field of the form, sent with it (Reuben, 2026-11-13).
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Please add their birth certificate.")).toBeTruthy();
+    const certificate = new File([new Uint8Array(100)], "asha.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("Birth certificate"), { target: { files: [certificate] } });
+    expect(screen.getByText("asha.pdf")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByRole("heading", { level: 3, name: "Asha" })).toBeTruthy();
+    const upload = calls.find((call) => call.url.endsWith("/documents/upload-url"))!;
+    expect(JSON.parse(upload.init!.body as string)).toEqual({ type: "birth_certificate", child_id: "child-0" });
     const post = calls.find((call) => call.url.endsWith("/parent/children") && call.init?.method === "POST")!;
     expect(JSON.parse(post.init!.body as string)).toEqual({
       name: "Asha",
@@ -193,21 +207,21 @@ describe("the family page", () => {
   test("continuing from step 1 advances to the emergency contact", async () => {
     mockApi({ children: [ASHA] });
     renderFamilyPage();
-    await screen.findByText(/Step 1 of 2/);
+    await screen.findByText(/Step 3 of 4/);
     await clickContinue();
-    expect(await screen.findByText(/Step 2 of 2/)).toBeTruthy();
+    expect(await screen.findByText(/Step 4 of 4/)).toBeTruthy();
     expect(screen.getByText("Emergency contact", { selector: "span" })).toBeTruthy();
   });
 
   test("the back button returns to the previous step", async () => {
     mockApi({ children: [ASHA] });
     renderFamilyPage();
-    await screen.findByText(/Step 1 of 2/);
+    await screen.findByText(/Step 3 of 4/);
     await clickContinue();
-    await screen.findByText(/Step 2 of 2/);
+    await screen.findByText(/Step 4 of 4/);
 
     fireEvent.click(await screen.findByRole("button", { name: "← Back" }));
-    expect(await screen.findByText(/Step 1 of 2/)).toBeTruthy();
+    expect(await screen.findByText(/Step 3 of 4/)).toBeTruthy();
   });
 
   async function emergencyFields() {
@@ -283,7 +297,7 @@ describe("the family page", () => {
         </AuthProvider>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText(/Step 2 of 2/)).toBeTruthy();
+    expect(await screen.findByText(/Step 4 of 4/)).toBeTruthy();
   });
 });
 

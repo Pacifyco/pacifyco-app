@@ -111,9 +111,11 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   await page.getByLabel("Day", { exact: true }).selectOption("01");
   await page.getByLabel("Month", { exact: true }).selectOption("03");
   await page.getByLabel("Year", { exact: true }).selectOption("2022");
+  // The birth certificate is the add-child form's last field, sent with it (Reuben, 2026-11-13).
+  await page.getByLabel("Birth certificate", { exact: true }).setInputFiles(PDF);
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("heading", { name: "Asha" })).toBeVisible();
-  await upload(page, "Birth certificate", PDF);
+  await expect(page.getByText("Birth certificate", { exact: true }).locator("..").getByText("Uploaded")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
   const contacts = sectionOf(page, "Name").first();
@@ -125,7 +127,7 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   await contacts.getByRole("button", { name: "Continue" }).click();
 
   await expect(page).toHaveURL(/\/parent\/profile$/);
-  await expect(page.getByText(/Your profile is finished, so you can book/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible(); // finished: no subheading
   // Nothing left to do, so the home (Find a sitter) has no bubble.
   await page.getByRole("main").getByRole("link", { name: "Home", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Find a sitter" })).toBeVisible();
@@ -190,7 +192,8 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   for (;;) {
     const [current, total] = ((await progress.textContent()) ?? "").match(/\d+/g)!.map(Number);
     const radio = page.locator('input[type="radio"]').first();
-    if (await radio.count()) await radio.check();
+    // The screening is rated 1-5 on buttons (the radios themselves are visually hidden).
+    if (await radio.count()) await radio.check({ force: true });
     else await page.locator("textarea").fill("I stay calm and keep the child safe.");
     if (current === total) break;
     await page.getByRole("button", { name: "Next" }).click();

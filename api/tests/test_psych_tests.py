@@ -47,7 +47,11 @@ def admin(client, db_engine):  # noqa: F811
 
 
 def answer_every_question(test_client, sitter, questions):
-    answers = [{"question_id": q["id"], "answer_text": "A thoughtful answer."} for q in questions]
+    # Reuben's screening statements are rated 1-5; any other kind gets a written answer.
+    answers = [
+        {"question_id": q["id"], "answer_text": "3" if q["kind"] == "scale" else "A thoughtful answer."}
+        for q in questions
+    ]
     response = test_client.put("/sitter/psych-test/answers", json={"answers": answers}, headers=auth_for(sitter))
     assert response.status_code == 200
     return response.json()
@@ -56,14 +60,25 @@ def answer_every_question(test_client, sitter, questions):
 # ---------- sitter: taking the test ----------
 
 
-def test_the_active_test_is_the_seeded_placeholder(client, sitter):  # noqa: F811
+def test_the_active_test_is_reubens_screening(client, sitter):  # noqa: F811
+    # Screening_Questions.docx (2026-11-13): 15 statements, each rated from 1 to 5.
     response = client.get("/sitter/psych-test", headers=auth_for(sitter))
     assert response.status_code == 200
     body = response.json()
-    assert body["is_placeholder"] is True
-    assert len(body["questions"]) == 5
-    assert {q["kind"] for q in body["questions"]} == {"multiple_choice", "short_answer"}
+    assert body["is_placeholder"] is False
+    assert len(body["questions"]) == 15
+    assert {q["kind"] for q in body["questions"]} == {"scale"}
+    assert body["questions"][0]["prompt"] == "I stay calm even when work piles up suddenly."
+    assert body["questions"][-1]["prompt"] == "I am open to feedback that changes how I work."
     assert body["attempt"] is None  # nothing started yet
+
+
+def test_a_rating_must_be_from_1_to_5(client, sitter):  # noqa: F811
+    [question, *_] = client.get("/sitter/psych-test", headers=auth_for(sitter)).json()["questions"]
+    answers = [{"question_id": question["id"], "answer_text": "6"}]
+    response = client.put("/sitter/psych-test/answers", json={"answers": answers}, headers=auth_for(sitter))
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_answer"
 
 
 def test_saving_answers_starts_an_attempt_in_progress(client, sitter):  # noqa: F811
@@ -139,7 +154,7 @@ def test_admin_sees_the_full_answers(client, sitter, admin):  # noqa: F811
     attempt_id = client.get("/admin/psych-attempts", headers=auth_for(admin)).json()[0]["id"]
     detail = client.get(f"/admin/psych-attempts/{attempt_id}", headers=auth_for(admin)).json()
     assert len(detail["answers"]) == len(questions)
-    assert all(a["answer_text"] == "A thoughtful answer." for a in detail["answers"])
+    assert all(a["answer_text"] == "3" and a["kind"] == "scale" for a in detail["answers"])  # the ratings
 
 
 def test_admin_records_pass_and_it_is_audit_logged(client, db_engine, sitter, admin):  # noqa: F811
@@ -186,7 +201,7 @@ def test_after_a_fail_a_retake_needs_an_admin(client, db_engine, sitter, admin):
     mine = client.get("/sitter/psych-test", headers=auth_for(sitter)).json()
     assert mine["attempt"]["status"] == "failed"
     assert mine["attempt"]["retake_allowed"] is False
-    answer = {"answers": [{"question_id": questions[0]["id"], "answer_text": "Trying again."}]}
+    answer = {"answers": [{"question_id": questions[0]["id"], "answer_text": "4"}]}
     refused = client.put("/sitter/psych-test/answers", json=answer, headers=auth_for(sitter))
     assert refused.status_code == 409
     assert refused.json()["error"]["code"] == "retake_not_allowed"

@@ -18,17 +18,10 @@ function ParentProfile() {
   const checklist = useChecklist<ParentChecklistData>("parent");
   if (!checklist.isSuccess) return <p className="text-center text-muted">Loading your profile…</p>;
   const { items, finished } = checklist.data;
-  const childrenVerified = items.find((item) => item.key === "children")?.status === "approved";
-  // Parents can book before the birth certificates are checked; the booking waits (CLAUDE.md 6.4).
-  const intro = !finished
-    ? "Finish these to book a sitter."
-    : childrenVerified
-      ? "Your profile is finished."
-      : "Your profile is finished, so you can book. A booking is confirmed once Pacifyco has checked your children's birth certificates.";
+  // No subheading on the parent's pages (Reuben, 2026-11-13).
   return (
     <ChecklistCard
       heading={finished ? "Your profile" : "Finish your profile"}
-      intro={intro}
       items={items}
       steps={PARENT_STEPS}
     />
