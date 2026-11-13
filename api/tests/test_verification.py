@@ -241,18 +241,59 @@ def test_approving_makes_her_live(client, db_engine, sitter, reviewer):  # noqa:
     assert str(sitter["id"]) not in {item["id"] for item in queue["sitters"]}
 
 
-def test_approving_emails_her_and_rejecting_does_not(client, db_engine, sitter, reviewer, mailbox):  # noqa: F811
-    # Approval emails, brought forward from phase 11 (Reuben, 2026-11-13).
+def test_the_application_decision_emails_her_either_way(client, db_engine, sitter, reviewer, mailbox):  # noqa: F811
+    # Approval emails (brought forward from phase 11) and rejection emails (Reuben, 2026-11-13).
     approve_everything(client, db_engine, sitter, reviewer)
     client.put(f"/admin/sitters/{sitter['id']}/level", json={"level": "pause"}, headers=as_user(reviewer))
+    address = scalar(db_engine, "SELECT email FROM profiles WHERE id = :id", id=sitter["id"])
+    mailbox.sent.clear()  # the step reviews above were approvals: no emails, but start clean
+
     assert review(client, reviewer, f"/admin/sitters/{sitter['id']}/decision", False, "Not yet").status_code == 200
-    assert mailbox.sent == []
+    [rejected] = mailbox.sent
+    assert rejected.to == address
+    assert rejected.subject == "About your Pacifyco application"
+    assert "The reason: Not yet" in rejected.body
 
     assert review(client, reviewer, f"/admin/sitters/{sitter['id']}/decision").status_code == 200
+    approved = mailbox.sent[-1]
+    assert approved.to == address
+    assert approved.subject == "You're approved on Pacifyco"
+    assert approved.button_url.endswith("/sitter")
+
+
+def test_a_rejected_step_emails_her_the_reason(client, sitter, reviewer, mailbox):  # noqa: F811
+    path = f"/admin/sitters/{sitter['id']}/steps/police_certificate"
+    assert review(client, reviewer, path, False, reason="It's older than six months").status_code == 200
     [email] = mailbox.sent
-    assert email.to == scalar(db_engine, "SELECT email FROM profiles WHERE id = :id", id=sitter["id"])
-    assert email.subject == "You're approved on Pacifyco"
-    assert email.button_url.endswith("/sitter")
+    assert email.subject == "Something needs another look on Pacifyco"
+    assert email.heading == "Your police clearance certificate needs another look."
+    assert "The reason: It's older than six months" in email.body
+    assert email.button_url.endswith("/sitter/profile")
+
+
+def test_a_rejected_reference_emails_her(client, sitter, reviewer, mailbox):  # noqa: F811
+    [reference, _] = add_references(client, sitter)
+    path = f"/admin/references/{reference['id']}/decision"
+    assert review(client, reviewer, path, False, reason="Couldn't reach them").status_code == 200
+    [email] = mailbox.sent
+    assert f"your reference from {reference['name']}" in email.body
+    assert "The reason: Couldn't reach them" in email.body
+
+
+def test_a_failed_psych_test_emails_her(client, db_engine, sitter, reviewer, mailbox):  # noqa: F811
+    psych_attempt(db_engine, sitter["id"], "submitted")
+    attempt_id = scalar(db_engine, "SELECT id FROM psych_attempts WHERE sitter_id = :id", id=sitter["id"])
+    body = {"passed": False, "notes": None, "rejection_reason": "Too brief"}
+    response = client.post(f"/admin/psych-attempts/{attempt_id}/decision", json=body, headers=as_user(reviewer))
+    assert response.status_code == 200
+    [email] = mailbox.sent
+    assert email.heading == "Your psychology screening needs another look."
+    assert "The reason: Too brief" in email.body
+
+
+def test_approvals_of_steps_send_no_email(client, sitter, reviewer, mailbox):  # noqa: F811
+    assert review(client, reviewer, f"/admin/sitters/{sitter['id']}/steps/profile").status_code == 200
+    assert mailbox.sent == []
 
 
 def test_approving_never_reinstates_a_suspended_account(client, db_engine, sitter, reviewer):  # noqa: F811
@@ -365,6 +406,16 @@ def test_approving_a_child_emails_the_parent(client, db_engine, storage, parent,
     assert "Every child on your account is now verified" in email.body
     # Only a first name and a link: never a date of birth.
     assert "2023" not in email.body
+
+
+def test_a_rejected_birth_certificate_emails_the_parent_why(client, db_engine, storage, parent, reviewer, mailbox):  # noqa: F811
+    child_id, _ = family_with_certificate(client, db_engine, storage, parent)
+    review(client, reviewer, f"/admin/children/{child_id}/decision", False, reason="The name doesn't match")
+    [email] = mailbox.sent
+    assert email.to == scalar(db_engine, "SELECT email FROM profiles WHERE id = :id", id=parent["id"])
+    assert email.heading == "Asha's birth certificate needs another look."
+    assert "The reason: The name doesn't match" in email.body
+    assert email.button_url.endswith("/parent/family")
 
 
 def test_a_family_is_verified_only_once_every_child_is_approved(client, db_engine, storage, parent, reviewer):  # noqa: F811

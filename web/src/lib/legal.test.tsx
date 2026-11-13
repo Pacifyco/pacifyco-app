@@ -8,9 +8,9 @@ import { fillFamilyTerms, fillSitterTerms } from "./legal";
 
 // Fingerprint of the Sitter Terms of Use v1.1 (CLAUDE.md 7). Until the first release to main, Reuben's changes
 // go in place and this is updated; after that, if this fails, undo the edit: a new version is a new file.
-const SITTER_TERMS_SHA256 = "19bb38495ed9cb430d0479e4d41780a4a8139e7b62ed707c5e3fa9d4d3f881df";
+const SITTER_TERMS_SHA256 = "bc5592a1703a1076a9194f1ed70c18a4b6636e56b3ec3704eaa0ca7810e0ac60";
 // The same for the Family Terms of Use v1.0 (from Reuben's .docx, brought in line with CLAUDE.md 2026-11-13).
-const FAMILY_TERMS_SHA256 = "f9f4dda2fefdbba88074b84f043a349873acee3e826a8a4270129d6608adbf29";
+const FAMILY_TERMS_SHA256 = "2f80f71726f0f7e0865ee8f8d1afc2b416b78cf508fe90792300d8929054829e";
 // The sitter consent v1.0 (converted word for word from Reuben's "Sitter consent" .docx, 2026-11-12).
 const SITTER_CONSENT_SHA256 = "66196167b2bd055705e3fb417cef19803b1aa417b7757ac3ae53f724d7655433";
 
@@ -26,8 +26,6 @@ const VALUES = {
   grievanceEmail: "grievance@example.com",
   grievancePhone: "+91 90000 00001",
   emergencyLine: "+91 90000 00002",
-  sitterTermsDate: "2026-11-15",
-  familyTermsDate: "2026-11-20",
   familyIntroFee: "15,000",
 };
 const EMPTY = Object.fromEntries(Object.keys(VALUES).map((key) => [key, ""])) as typeof VALUES;
@@ -44,18 +42,17 @@ describe("Sitter Terms of Use v1.1", () => {
     expect(missing).toEqual([]);
     expect(body).not.toMatch(PLACEHOLDER);
     for (const expected of [
-      "Last updated: 15 Nov 2026 · Version 1.1",
+      "Last updated: 13 Nov 2026",
       "(LLPIN AAA-1234, registered office at 12 MG Road, Bengaluru 560001)",
       "Priya Rao · grievance@example.com · +91 90000 00001",
       "Privacy Policy at https://pacify.example/privacy.",
       "Emergency line during bookings: +91 90000 00002",
-      "Pacifyco LLP · 12 MG Road, Bengaluru 560001",
+      "Pacifyco · 12 MG Road, Bengaluru 560001",
     ]) {
       expect(body).toContain(expected);
     }
     // Put the placeholders back and it's the original text again.
     const restored = body
-      .replace("15 Nov 2026", "\\[DATE\\]")
       .replace("AAA-1234", "\\[INSERT\\]")
       .replace("12 MG Road, Bengaluru 560001", "\\[INSERT ADDRESS\\]")
       .replace("12 MG Road, Bengaluru 560001", "\\[REGISTERED ADDRESS\\]")
@@ -77,9 +74,9 @@ describe("Sitter Terms of Use v1.1", () => {
 
   test("production refuses while any value is empty", () => {
     expect(fillSitterTerms({ ...VALUES, emergencyLine: "" }, "x", true).missing).toEqual(["emergency line"]);
-    expect(fillSitterTerms({ ...VALUES, sitterTermsDate: "15/11/2026" }, "x", true).missing).toEqual(["date"]);
-    // 7 values (the address fills two placeholders; the privacy link is always set).
-    expect(fillSitterTerms(EMPTY, "x", true).missing).toHaveLength(7);
+    // 6 values (the address fills two placeholders; the privacy link is always set). The "Last updated"
+    // date is written in the terms (13 Nov 2026), with no version shown (Reuben, 2026-11-13).
+    expect(fillSitterTerms(EMPTY, "x", true).missing).toHaveLength(6);
   });
 });
 
@@ -99,7 +96,7 @@ describe("Family Terms of Use v1.0", () => {
     expect(missing).toEqual([]);
     expect(body).not.toMatch(PLACEHOLDER);
     for (const expected of [
-      "Last updated: 20 Nov 2026 · Version 1.0",
+      "Last updated: 13 Nov 2026",
       "(LLPIN AAA-1234, registered office at 12 MG Road, Bengaluru 560001)",
       "one-time introduction fee of **₹15,000**",
       "Priya Rao · grievance@example.com · +91 90000 00001",
@@ -112,10 +109,9 @@ describe("Family Terms of Use v1.0", () => {
     expect(body).not.toContain("₹AAA-1234");
   });
 
-  test("production refuses while any of its 8 values is empty", () => {
+  test("production refuses while any of its 7 values is empty", () => {
     expect(fillFamilyTerms({ ...VALUES, familyIntroFee: "" }, "x", true).missing).toEqual(["introduction fee"]);
-    expect(fillFamilyTerms({ ...VALUES, familyTermsDate: "" }, "x", true).missing).toEqual(["date"]);
-    expect(fillFamilyTerms(EMPTY, "x", true).missing).toHaveLength(8);
+    expect(fillFamilyTerms(EMPTY, "x", true).missing).toHaveLength(7);
   });
 
   test("outside production, empty values show as test markers", () => {

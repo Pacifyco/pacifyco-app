@@ -209,6 +209,8 @@ UX review 2026-11-13: the bubble shows only on the home page (Find a sitter, the
 over the profile pages; the dot on the button stays. Header controls are 44px. On phones the header
 holds only the logo and the profile button: the theme switch and Sign out are in a "Settings" card on
 "Your profile". Saves confirm with a toast at the bottom ("Details saved").
+The header is pinned (Reuben, 2026-11-13): it slides away while scrolling down and comes back on
+scrolling up, showing the page's Back link once the page is scrolled (layouts/headerBack.ts).
 
 ---
 

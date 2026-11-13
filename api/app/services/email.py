@@ -138,3 +138,85 @@ def child_verified(to: str, full_name: str | None, child_name: str, family_verif
         button_label="Find a sitter",
         button_url=f"{web_url.rstrip('/')}/parent/sitters",
     )
+
+
+# ---------- rejections (Reuben, 2026-11-13) ----------
+# The admin's reason is the one the person also sees in the app (CLAUDE.md 7, "Rejections").
+
+STEP_NAMES = {
+    "profile": "your profile",
+    "identity_documents": "your ID documents",
+    "police_certificate": "your police clearance certificate",
+}
+
+
+def _needs_another_look(to: str, full_name: str | None, what: str, reason: str | None, after: str, url: str) -> Email:
+    because = f"The reason: {reason}" if reason else "Please open the app to see what to change."
+    return Email(
+        to=to,
+        subject="Something needs another look on Pacifyco",
+        heading=f"{what[0].upper()}{what[1:]} needs another look.",
+        body=f"Hi {_first_name(full_name)}, Pacifyco couldn't accept {what}.\n{because}\n{after}",
+        button_label="Open Pacifyco",
+        button_url=url,
+    )
+
+
+def child_rejected(to: str, full_name: str | None, child_name: str, reason: str | None, web_url: str) -> Email:
+    child = child_name.strip().split(" ")[0]
+    return _needs_another_look(
+        to,
+        full_name,
+        f"{child}'s birth certificate",
+        reason,
+        "Please upload a new one from My family.",
+        f"{web_url.rstrip('/')}/parent/family",
+    )
+
+
+def sitter_step_rejected(to: str, full_name: str | None, step: str, reason: str | None, web_url: str) -> Email:
+    return _needs_another_look(
+        to,
+        full_name,
+        STEP_NAMES.get(step, "a step of your application"),
+        reason,
+        "Please fix it from Your profile, and Pacifyco will check it again.",
+        f"{web_url.rstrip('/')}/sitter/profile",
+    )
+
+
+def reference_rejected(to: str, full_name: str | None, referee: str, reason: str | None, web_url: str) -> Email:
+    return _needs_another_look(
+        to,
+        full_name,
+        f"your reference from {referee}",
+        reason,
+        "Please remove it and add someone else from Your profile.",
+        f"{web_url.rstrip('/')}/sitter/profile",
+    )
+
+
+def psych_test_failed(to: str, full_name: str | None, reason: str | None, web_url: str) -> Email:
+    return _needs_another_look(
+        to,
+        full_name,
+        "your psychology screening",
+        reason,
+        "Pacifyco will let you know if you can take it again.",
+        f"{web_url.rstrip('/')}/sitter/profile",
+    )
+
+
+def sitter_application_rejected(to: str, full_name: str | None, reason: str | None, web_url: str) -> Email:
+    because = f"The reason: {reason}" if reason else "Please open the app to see why."
+    return Email(
+        to=to,
+        subject="About your Pacifyco application",
+        heading="We couldn't approve your application.",
+        body=(
+            f"Hi {_first_name(full_name)}, thank you for applying to Pacifyco. We couldn't approve your "
+            f"application this time.\n{because}\nIf you'd like to talk about it, reply to this email."
+        ),
+        button_label="Open Pacifyco",
+        button_url=f"{web_url.rstrip('/')}/sitter/profile",
+    )

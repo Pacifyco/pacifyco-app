@@ -53,7 +53,6 @@ export function JoinPage() {
           />
           <div className="mx-auto w-full max-w-[44rem] text-center lg:mx-0 lg:max-w-none lg:text-left">
             <h1>How will you use Pacifyco?</h1>
-            <p className="mt-4 text-muted">Choose one. Each account is either a parent or a sitter.</p>
             <div className="mt-6">
               <RoleChooser value={role} onChange={setRole} />
             </div>

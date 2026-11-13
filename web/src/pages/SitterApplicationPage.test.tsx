@@ -172,17 +172,11 @@ describe("the sitter application page", () => {
     expect(screen.getByText(/Step 4 of 5/)).toBeTruthy();
   });
 
-  test("sharing a reference with parents is unticked unless she ticks it", async () => {
-    const calls = mockApi();
+  test("there is no reference-sharing tick under first aid (Reuben, 2026-11-13)", async () => {
+    mockApi();
     renderPage();
-    const tick = await screen.findByRole("checkbox", { name: /Pacifyco may show parents one of my references/ });
-    expect((tick as HTMLInputElement).checked).toBe(false);
-    // Parents never see a referee's phone number (UX review 2026-11-13).
-    expect(tick.closest("label")!.textContent).toContain("never their phone number");
-    fireEvent.click(tick);
-    await fillProfileAndContinue();
-    const put = calls.find((call) => call.url.endsWith("/sitter/profile") && call.init?.method === "PUT")!;
-    expect(JSON.parse(put.init!.body as string).reference_shared_consent).toBe(true);
+    expect(await screen.findByRole("checkbox", { name: /first-aid certified/ })).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: /references/ })).toBeNull();
   });
 
   test("the documents step asks for a profile photo, JPG or PNG only", async () => {

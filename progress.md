@@ -287,8 +287,8 @@ at home (CLAUDE.md 6.3).
 - [x] Sitter profile photo (JPG/PNG) in the application; parents see live sitters' photos
 - [x] Rejection reason required from admins and shown to parents and sitters
 - [x] Changes after a rejection go back for review (sitter steps 1-4; psych retakes stay admin-allowed)
-- [x] Approval emails (sitter live, child verified), brought forward 2026-11-13; rejection emails still
-  with phase 11
+- [x] Approval and rejection emails, brought forward 2026-11-13: sitter live or application rejected,
+  child verified or certificate rejected, each sitter step, reference and psych test rejected (with the reason)
 - [ ] [Reuben] Real psychology test questions (phase 15)
 - [x] End-to-end tests (Playwright) for parent and sitter onboarding, admin review and finding a sitter;
   run in CI on every pull request (README "End-to-end tests")
@@ -431,6 +431,15 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-13 — Rejection emails (Reuben): a parent when a birth certificate is rejected; a sitter when a
+  step, a reference, the psych test or her application is rejected; each with the admin's reason.
+- 2026-11-13 — Reuben's tidy-ups (with the pinned header): no subheading on the join page; the terms say
+  "Last updated: 13 Nov 2026" with no version (the `VITE_*_TERMS_DATE` variables are gone), and no
+  version line on the consent pages; "Pacifyco" instead of "Pacifyco LLP"; the reference-sharing tick
+  under first aid is removed, so parents see no Recharge reference for now. Web 242 passed.
+- 2026-11-13 — Pinned header (`sticky-header`): stays at the top, hides while scrolling down, comes back on
+  scrolling up with the page's Back link (iPhone 17 in the Google app hid the logo and Back, Reuben).
+  Web 244, e2e 5 passed. Needs checking on Reuben's iPhone on staging.
 - 2026-11-13 — The brand is "Pacifyco" in all copy, emails and messages (was "Pacify"); migration
   `c4e8b2a6d1f3` updates the placeholder psych questions. Privacy policy has a Back button to the page
   before (home if opened directly). API 425, web 243, e2e 5 passed.

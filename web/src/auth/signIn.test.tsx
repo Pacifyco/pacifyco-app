@@ -698,7 +698,7 @@ describe("parental consent", () => {
     const { router } = renderApp("/parent/consent");
     expect(await screen.findByRole("heading", { level: 1, name: "Parental consent form" })).toBeTruthy();
     expect(screen.getByText("DRAFT — NOT LEGALLY REVIEWED.")).toBeTruthy();
-    expect(screen.getByText(`Version ${CONSENT_VERSION}`)).toBeTruthy();
+    expect(screen.queryByText(/^Version /)).toBeNull(); // no version details (Reuben, 2026-11-13)
 
     const required = [
       await screen.findByRole("checkbox", { name: /use of my own data/ }),
@@ -901,7 +901,7 @@ describe("sitter consent", () => {
     ]) {
       expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
     }
-    expect(screen.getByText("Version 1.0")).toBeTruthy();
+    expect(screen.queryByText(/^Version /)).toBeNull();
 
     const guidelines = await screen.findByRole("checkbox", { name: "I've read these and I'll follow them." });
     const terms = screen.getByRole("checkbox", { name: /I agree to the Sitter Terms of Use/ });

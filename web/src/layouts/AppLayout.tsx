@@ -1,3 +1,5 @@
+import { ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { SIGN_IN_PATH } from "../pages/SignInPage";
 import wordmarkReversedUrl from "../assets/brand/wordmark-reversed.png";
@@ -7,13 +9,66 @@ import { useMe } from "../auth/useMe";
 import { Toaster } from "../components/ui";
 import { cx } from "../components/ui/cx";
 import { ThemeToggle } from "../theme/ThemeToggle";
+import { HeaderBackContext, type BackTarget } from "./headerBack";
 import { ProfileButton } from "./ProfileButton";
 
+const PINNED_AFTER = 64; // px scrolled before the header's own Back link shows
+const MOVE = 8; // px of scroll in one direction before the header hides or comes back
+
+/** Where the page is scrolled: `scrolled` once past the top, `hidden` while scrolling down. */
+function useHeaderScroll() {
+  const [state, setState] = useState({ scrolled: false, hidden: false });
+  useEffect(() => {
+    let last = window.scrollY;
+    function onScroll() {
+      const y = Math.max(window.scrollY, 0);
+      if (Math.abs(y - last) < MOVE) return;
+      setState({ scrolled: y > PINNED_AFTER, hidden: y > last && y > PINNED_AFTER });
+      last = y;
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return state;
+}
+
+function HeaderBack({ target }: { target: BackTarget }) {
+  const content = (
+    <>
+      <ArrowLeft aria-hidden="true" size={18} strokeWidth={1.75} />
+      <span className="max-w-[9rem] truncate">{target.label}</span>
+    </>
+  );
+  const className = "inline-flex min-h-[44px] shrink-0 items-center gap-1 text-small text-coral-deep no-underline";
+  return target.to ? (
+    <Link to={target.to} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <button type="button" onClick={target.onBack} className={className}>
+      {content}
+    </button>
+  );
+}
+
+// The header stays pinned to the top: it slides away while you scroll down and comes back as soon as you
+// scroll up, with the page's Back link once you're past the top (Reuben, 2026-11-13: on an iPhone in the
+// Google app, the app's search bar covered the logo and Back after scrolling).
 export function AppLayout() {
+  const [back, setBack] = useState<BackTarget | null>(null);
+  const { scrolled, hidden } = useHeaderScroll();
+
   return (
+    <HeaderBackContext.Provider value={setBack}>
     <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-line bg-surface-raised">
+      <header
+        className={cx(
+          "sticky top-0 z-30 border-b border-line bg-surface-raised transition-transform duration-200 ease-calm motion-reduce:transition-none",
+          hidden && "-translate-y-full",
+        )}
+      >
         <div className="mx-auto flex max-w-content items-center justify-between gap-3 px-4 py-2 sm:px-5 sm:py-3">
+          {scrolled && back && <HeaderBack target={back} />}
           {/* Wordmark: 24px tall on phones, 28px on desktop; reversed version in dark mode (design.md
               section 6). PNG copies of the supplied files (sources in /assets); swap for SVGs when supplied. */}
           <Link to="/" aria-label="Pacifyco home" className="inline-flex shrink-0 py-1 no-underline">
@@ -43,6 +98,7 @@ export function AppLayout() {
       </footer>
       <Toaster />
     </div>
+    </HeaderBackContext.Provider>
   );
 }
 

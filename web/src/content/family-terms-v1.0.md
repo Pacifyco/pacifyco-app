@@ -1,8 +1,8 @@
 **Pacifyco Family Terms of Use**
 
-*Last updated: \[DATE\] · Version 1.0*
+*Last updated: 13 Nov 2026*
 
-These Terms are a **legally binding agreement** between you and **Pacifyco LLP** (LLPIN \[INSERT\], registered office at \[INSERT ADDRESS\]) ("**Pacifyco**", "**we**", "**us**"). "**You**" means the parent or legal guardian who registers. You accept these Terms when you tick "I agree" in the app. That is the same as signing a contract.
+These Terms are a **legally binding agreement** between you and **Pacifyco** (LLPIN \[INSERT\], registered office at \[INSERT ADDRESS\]) ("**Pacifyco**", "**we**", "**us**"). "**You**" means the parent or legal guardian who registers. You accept these Terms when you tick "I agree" in the app. That is the same as signing a contract.
 
 The summary below is part of these Terms. If anything in it differs from the full sections that follow, the full sections apply.
 
@@ -221,6 +221,6 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 ## **12. Contact us**
 
-Pacifyco LLP · \[REGISTERED ADDRESS\]
+Pacifyco · \[REGISTERED ADDRESS\]
 
 founders@pacifyco.in · +91 8848873841 · Safety line during bookings: \[NUMBER\]

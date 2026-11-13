@@ -124,7 +124,8 @@ from `SUPABASE_URL`), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM
 Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY_DSN`,
 `VITE_ENVIRONMENT`, and the Sitter Terms values `VITE_PACIFY_LLPIN`, `VITE_PACIFY_REGISTERED_ADDRESS`,
 `VITE_GRIEVANCE_OFFICER_NAME`, `VITE_GRIEVANCE_OFFICER_EMAIL`, `VITE_GRIEVANCE_OFFICER_PHONE`,
-`VITE_EMERGENCY_LINE`, `VITE_SITTER_TERMS_DATE`, `VITE_FAMILY_TERMS_DATE`, `VITE_FAMILY_INTRO_FEE`.
+`VITE_EMERGENCY_LINE`, `VITE_FAMILY_INTRO_FEE`. (The terms' "Last updated" date is written in the documents, not a
+variable, since 2026-11-13.)
 
 ---
 
@@ -218,7 +219,7 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   | --- | --- | --- | --- |
   | Pause (Level 1) | Pause bookings | ₹200 | 0–1 families; can be new to babysitting |
   | Unwind (Level 2) | Unwind bookings | ₹300 | 2 families |
-  | Recharge (Level 3) | Recharge bookings | ₹400 | 3+ families; her reference (name and relationship, **never the phone number**, UX review 2026-11-13) is shown to parents, with her consent — a tick in her sitter application (decided 2026-11-03) |
+  | Recharge (Level 3) | Recharge bookings | ₹400 | 3+ families; her reference (name and relationship, **never the phone number**, UX review 2026-11-13) was to be shown to parents with her consent, a tick in her application (decided 2026-11-03). **The tick was removed 2026-11-13 (Reuben)**, so no reference is shown to parents for now; see `progress.md` |
 
 - Pay is per hour, **the same whatever the number of children**. Sitters aren't told the plan name. The
   app tells them: "Based on the experience we understand you have, you'll be paid ₹[pay] an hour. As
@@ -485,14 +486,15 @@ not its name).
   `/web/src/content/`.
 - **Sitter Terms of Use v1.1 is final:** `web/src/content/sitter-terms-v1.1.md` (a test checks its
   wording against a fingerprint). Placeholders are filled in `web/src/lib/legal.ts` from the
-  `VITE_PACIFY_*`, `VITE_GRIEVANCE_OFFICER_*`, `VITE_EMERGENCY_LINE` and `VITE_SITTER_TERMS_DATE`
-  variables. **Never change its wording.** Only fill its bracketed placeholders ([DATE],
-  LLPIN, registered address, Grievance Officer, Privacy Policy link, emergency line) from config. Don't
+  `VITE_PACIFY_*`, `VITE_GRIEVANCE_OFFICER_*` and `VITE_EMERGENCY_LINE` variables. **Never change its
+  wording** (after the first release to `main`). Only fill its bracketed placeholders
+  (LLPIN, registered address, Grievance Officer, Privacy Policy link, emergency line) from config. Don't
   serve it in production while any placeholder is empty.
 - **Family Terms of Use v1.0 is final** (the parent terms): `web/src/content/family-terms-v1.0.md`,
   converted word for word from Reuben's .docx and fingerprinted the same way. Same placeholders as the
-  sitter terms plus its own date (`VITE_FAMILY_TERMS_DATE`) and the introduction fee in 7.2
-  (`VITE_FAMILY_INTRO_FEE`). Brought in line with this file on 2026-11-13 (Reuben): plans instead of
+  sitter terms plus the introduction fee in 7.2
+  (`VITE_FAMILY_INTRO_FEE`). Both terms show "Last updated: 13 Nov 2026" and no version number, and
+  name the company "Pacifyco" (Reuben, 2026-11-13). Brought in line with this file on 2026-11-13 (Reuben): plans instead of
   hour packs, 18 months, no interviews or Aadhaar, tick-only acceptance, overtime at check-out, refunds
   in money, chat and phone numbers (6.11), medicine in the medical notes. If a rule here changes, change
   the terms to match (in place until the first release to `main`).
