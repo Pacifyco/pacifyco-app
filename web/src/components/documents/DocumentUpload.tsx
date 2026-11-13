@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, FileCheck2, Upload } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, apiFetch } from "../../lib/api";
 import { Button } from "../ui";
 
@@ -100,12 +100,25 @@ function UploadSlot({
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string>();
+  // The file just sent, shown by name (and as a thumbnail if it's a picture) so people can see what
+  // they uploaded (UX review 2026-11-13). Only in this browser: stored files are for Pacify's eyes.
+  const [sent, setSent] = useState<{ name: string; preview?: string }>();
+  useEffect(() => () => {
+    if (sent?.preview) URL.revokeObjectURL(sent.preview);
+  }, [sent]);
 
   const upload = useMutation({
     mutationFn: (file: File) => uploadOne(type, childId, file),
-    onSuccess: (status) => {
+    onSuccess: (status, file) => {
       onUploaded();
       setError(status === "invalid" ? "That file isn't a PDF, JPG or PNG, or it's larger than 5 MB." : undefined);
+      if (status !== "invalid") {
+        const preview =
+          file.type.startsWith("image/") && typeof URL.createObjectURL === "function"
+            ? URL.createObjectURL(file)
+            : undefined;
+        setSent({ name: file.name, preview });
+      }
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
   });
@@ -127,7 +140,15 @@ function UploadSlot({
       </label>
       {hint && <p className="-mt-1 text-small text-muted">{hint}</p>}
       <div className="flex flex-wrap items-center gap-3">
+        {sent?.preview && !upload.isPending && (
+          <img
+            src={sent.preview}
+            alt=""
+            className={type === "photo" ? "size-[64px] rounded-pill object-cover" : "size-[48px] rounded-sm object-cover"}
+          />
+        )}
         {current && !upload.isPending && <StatusPill status={current.status} />}
+        {sent && !upload.isPending && <span className="min-w-0 break-all text-small text-muted">{sent.name}</span>}
         <input
           ref={inputRef}
           id={inputId}

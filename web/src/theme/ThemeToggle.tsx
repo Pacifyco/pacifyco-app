@@ -23,7 +23,7 @@ export function ThemeToggle() {
             aria-label={option.label}
             title={option.label}
             onClick={() => setPreference(option.value)}
-            className={`flex size-[32px] items-center justify-center rounded-pill text-[1.05rem] leading-none transition-[background-color,opacity] duration-200 ease-calm ${
+            className={`flex size-[44px] items-center justify-center rounded-pill text-[1.15rem] leading-none transition-[background-color,opacity] duration-200 ease-calm ${
               selected ? "bg-surface-tint" : "opacity-50 hover:opacity-100"
             }`}
           >

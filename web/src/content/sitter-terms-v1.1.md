@@ -196,4 +196,4 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 Pacifyco LLP · \[REGISTERED ADDRESS\]
 
-query.pacifyco@gmail.com · +91 8848873841 · Emergency line during bookings: \[NUMBER\]
+founders@pacifyco.in · +91 8848873841 · Emergency line during bookings: \[NUMBER\]

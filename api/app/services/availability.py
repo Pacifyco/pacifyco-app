@@ -21,6 +21,11 @@ INDIA = ZoneInfo("Asia/Kolkata")
 BOOK_AHEAD_DAYS = 14  # parents see and book free times up to two weeks ahead (decided 2026-11-09)
 MAX_DAYS_OFF_AHEAD = 365
 
+# One set of parts of the day everywhere (UX review 2026-11-13): the sitter's quick fills, the parent's
+# "When?" filter and the week on her profile. India time, whole hours; night ends at midnight, the
+# latest any plan runs (CLAUDE.md 6.1). web/src/lib/times.ts has the same list.
+PARTS_OF_DAY = {"morning": (9, 13), "afternoon": (13, 18), "evening": (18, 22), "night": (22, 24)}
+
 
 @dataclass(frozen=True)
 class Hours:
@@ -157,6 +162,15 @@ def free_times(db: Session, sitter_id: uuid.UUID, now: datetime) -> list[FreeTim
 def is_free(times: list[FreeTime], starts_at: datetime, ends_at: datetime) -> bool:
     """Whether one free time covers the whole of this time (for search now, bookings in phase 7)."""
     return any(item.starts_at <= starts_at and item.ends_at >= ends_at for item in times)
+
+
+def has_time_in_part(times: list[FreeTime], day: date, part: str, now: datetime) -> bool:
+    """Whether any free time is left in this part of this India day (e.g. Saturday evening)."""
+    start_hour, end_hour = PARTS_OF_DAY[part]
+    midnight = datetime.combine(day, time(), INDIA)
+    start = max(midnight + timedelta(hours=start_hour), now)
+    end = midnight + timedelta(hours=end_hour)
+    return any(item.starts_at < end and item.ends_at > start for item in times)
 
 
 def has_time_on(times: list[FreeTime], day: date, now: datetime) -> bool:

@@ -15,7 +15,7 @@ PROFILE_BODY = {
     "date_of_birth": "1995-06-15",
     "bio": "I love looking after kids.",
     "years_experience": 5,
-    "age_groups": ["toddler", "preschool"],
+    "age_groups": ["Preschool", "Toddler"],
     "languages": ["English", "Kannada"],
     "first_aid": True,
 }
@@ -58,7 +58,7 @@ def test_saving_a_profile(client, db_engine, sitter):  # noqa: F811
     body = response.json()
     assert body["date_of_birth"] == "1995-06-15"
     assert body["bio"] == "I love looking after kids."
-    assert body["age_groups"] == ["toddler", "preschool"]
+    assert body["age_groups"] == ["Toddler", "Preschool"]  # in the list's order
 
     stored = row(db_engine, "SELECT years_experience FROM sitters WHERE profile_id = :id", id=sitter["id"])
     assert stored["years_experience"] == 5
@@ -85,6 +85,13 @@ def test_sitter_under_18_rejected(client, sitter):  # noqa: F811
 def test_birthday_in_the_future_rejected(client, sitter):  # noqa: F811
     future = (date.today() + timedelta(days=1)).isoformat()
     response = client.put("/sitter/profile", json={**PROFILE_BODY, "date_of_birth": future}, headers=auth_for(sitter))
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("field", ["age_groups", "languages"])
+def test_age_groups_and_languages_come_from_a_fixed_list(client, sitter, field):  # noqa: F811
+    # UX review 2026-11-13: free text showed parents typos like "dsfghjkl".
+    response = client.put("/sitter/profile", json={**PROFILE_BODY, field: ["dsfghjkl"]}, headers=auth_for(sitter))
     assert response.status_code == 422
 
 

@@ -218,7 +218,7 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   | --- | --- | --- | --- |
   | Pause (Level 1) | Pause bookings | ₹200 | 0–1 families; can be new to babysitting |
   | Unwind (Level 2) | Unwind bookings | ₹300 | 2 families |
-  | Recharge (Level 3) | Recharge bookings | ₹400 | 3+ families; her reference (name, phone, relationship) is shown to parents, with her consent — a tick in her sitter application (decided 2026-11-03) |
+  | Recharge (Level 3) | Recharge bookings | ₹400 | 3+ families; her reference (name and relationship, **never the phone number**, UX review 2026-11-13) is shown to parents, with her consent — a tick in her sitter application (decided 2026-11-03) |
 
 - Pay is per hour, **the same whatever the number of children**. Sitters aren't told the plan name. The
   app tells them: "Based on the experience we understand you have, you'll be paid ₹[pay] an hour. As
@@ -252,6 +252,10 @@ Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY
   still approved by the parent during the booking (above).
 - **Sitter availability (decided 2026-11-09):** a sitter sets her usual week once (whole-hour times per
   weekday, India time) and it repeats every week until she changes it; she marks single **days off**.
+  **One set of parts of the day everywhere** (UX review 2026-11-13): Morning 9 am–1 pm, Afternoon
+  1–6 pm, Evening 6–10 pm, Night 10 pm–12 am (India time). Her quick fills add these to her week (never
+  replacing a time already there), parents filter by them, and her profile shows her week as a grid of
+  them. `PARTS_OF_DAY` in `api/app/services/availability.py` and `web/src/lib/sitterLists.ts`.
   Her free times are worked out from these for the next **14 days**, which is also how far ahead
   parents can book.
 - A booking can be made if the slot is inside the sitter's availability, the sitter's level matches
@@ -486,8 +490,17 @@ not its name).
 - **Family Terms of Use v1.0 is final** (the parent terms): `web/src/content/family-terms-v1.0.md`,
   converted word for word from Reuben's .docx and fingerprinted the same way. Same placeholders as the
   sitter terms plus its own date (`VITE_FAMILY_TERMS_DATE`) and the introduction fee in 7.2
-  (`VITE_FAMILY_INTRO_FEE`). Where it differs from the rules in this file, the "Open questions" in
-  `progress.md` list each difference; don't change either side until Reuben decides.
+  (`VITE_FAMILY_INTRO_FEE`). Brought in line with this file on 2026-11-13 (Reuben): plans instead of
+  hour packs, 18 months, no interviews or Aadhaar, tick-only acceptance, overtime at check-out, refunds
+  in money, chat and phone numbers (6.11), medicine in the medical notes. If a rule here changes, change
+  the terms to match (in place until the first release to `main`).
+- **Versioning starts at the first release to `main` (Reuben, 2026-11-13).** Until the terms, the
+  sitter consent and the privacy policy have reached production, Reuben's changes go into the existing
+  version in place (update the fingerprint in `web/src/lib/legal.test.tsx`), because no one has accepted
+  them yet. After that, the "never change its wording" rule applies and any change is a new version.
+  Changed in place on 2026-11-13: founders@pacifyco.in in all three documents, and in the Family Terms
+  (6.2 and the Section 5 table) that a sitter may decline when the only adult at home is a man, with the
+  full booking charged (6.5).
 - The Privacy policy is still a placeholder marked "DRAFT — NOT LEGALLY REVIEWED".
 - Changes to the sitter terms that affect pay or rights must be announced in the app at least **14 days**
   before they take effect (`effective_at`); urgent safety or legal changes can take effect at once.
@@ -499,6 +512,10 @@ not its name).
   like the terms) with its own tick ("I've read these and I'll follow them"). The sitter consent is a
   versioned legal document (`sitter_consent`) accepted the same way. Nothing in the area is blocked until
   then, but the profile isn't finished: parents can't book, and admins can't approve a sitter.
+- **Consent comes first (UX review 2026-11-13):** it's step 1 of both checklists. A parent's children,
+  emergency contacts and authorised adults can't be saved until the required consents are given (API
+  403 `consent_required`; the family page shows "Your consent comes first"). A sitter's application page
+  waits for her sitter consent the same way (web only; the API still refuses approval without it).
 - Record each acceptance: user, document, version, accepted_at, IP address, user agent.
 - When a document's version changes, users must accept the new version before their next action that
   matters: parents before booking or buying hours, sitters before taking new bookings. Existing bookings
@@ -512,7 +529,7 @@ and psychology test. Don't claim an interview or a meeting before the first book
 2026-11-08). Do not claim address verification or
 "Pacify Plus" until they exist.
 
-**Company:** Pacifyco LLP. Contact shown in the app: query.pacifyco@gmail.com, +91 8848873841.
+**Company:** Pacifyco LLP. Contact shown in the app and in the terms: founders@pacifyco.in, +91 8848873841 (was query.pacifyco@gmail.com until 2026-11-13).
 
 ---
 
@@ -528,7 +545,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status, verified_by, verified_at, verification_notes) — name and date of birth locked once verified
 - `emergency_contacts` **(created)** (id, parent_id, name, relationship, phone) — exactly two per family
 - `authorised_adults` **(created)** (id, parent_id, name, relationship, phone)
-- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), reference_shared_consent, avg_rating, review_count) — no rate column (dropped 2026-11-03)
+- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), reference_shared_consent, avg_rating, review_count) — no rate column (dropped 2026-11-03). Age groups (Toddler, Preschool, School age) and languages (English, Kannada, Hindi, Tamil, Malayalam, Telugu) come from fixed lists (`AGE_GROUPS`, `LANGUAGES` in `app/services/sitters.py`, UX review 2026-11-13); older free text is never shown to parents
 - `onboarding_steps` **(created)** (sitter_id, step: `profile|identity_documents|police_certificate`, status, notes, reviewed_by, reviewed_at) — admin reviews of steps 1-3; references and the psych test keep their own outcomes; `app/services/verification.py` combines them. Health disclosure views are logged in `audit_log` (`health_disclosure_viewed`)
 - `documents` **(created)** (id, owner_profile_id, child_id null, type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)
 - `document_access_log` **(created)** (id, document_id, admin_id, accessed_at)

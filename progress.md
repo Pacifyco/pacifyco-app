@@ -45,7 +45,13 @@ tests.
      in the plan (see Family Terms point 10 below).
   5. "Theft means permanent removal": 6.9 says a theft report suspends her until an admin resolves it.
 
-- [ ] **Family Terms v1.0 vs the build rules** (added 2026-11-02). The terms are final wording; these
+- [x] **Family Terms v1.0 vs the build rules** (added 2026-11-02; done 2026-11-13: Reuben asked to bring
+  the terms in line with CLAUDE.md in place, no new version). Now in the terms: 18 months (1, 2, 4, 8),
+  tick-only acceptance (3), overtime at check-out at the plan price (5), no rate on profiles (6), plans
+  instead of packs (7, 8), no Aadhaar (13), no interviews. Kept from the terms: the full booking charged
+  when a sitter leaves feeling unsafe (9), and the per-booking "who's at home", camera audio, introduction
+  fee and marketing consent (10). For the lawyer at launch: "we store data in India" (12). The original
+  list, for reference:
   points differ from CLAUDE.md or from what the app does. For each: change the rules (and app), or ask
   the lawyer for a new terms version?
   1. Minimum child age: terms say **2 years**; CLAUDE.md 6.4 and the Sitter Terms say **18 months**.
@@ -114,7 +120,9 @@ tests.
 - [x] **When does chat open?** (added 2026-11-08; answered 2026-11-08: "once there is a booking").
   Chat opens once the parent has a confirmed booking with the sitter (CLAUDE.md 6.11); no messaging
   before booking.
-- [ ] **Family Terms and introductions** (added 2026-11-08): the Family Terms may still describe a
+- [x] **Family Terms and introductions** (added 2026-11-08; done 2026-11-13): interviews removed; 3.2 now
+  suggests a short first booking at home.
+  Original note: the Family Terms may still describe a
   free introduction before the first booking; check and add to the v1.1 list for the lawyer.
   Reuben 2026-11-08: keep documenting the differences; the T&C will be changed later.
 
@@ -130,6 +138,54 @@ tests.
   page (`POST /admin/psych-attempts/{id}/allow-retake`, audit `psych_retake_allowed`).
 
 - [x] Parent late and declines overtime: answered 2026-11-03, overtime is worked out automatically at check-out and the sitter is paid for it (CLAUDE.md 6.8).
+
+- [ ] **UX review (staging) items that need Reuben** (added 2026-11-13, from "Pacifyco web app — UXUI
+  review (staging)"). Everything else in the review is built (see "UX review fixes" below). These
+  clash with a rule in CLAUDE.md or design.md, need something only Reuben has, or are a new feature:
+  1. **Booking as a request the sitter accepts within 30 minutes** (review #4, 07): CLAUDE.md 6.4 and
+     design.md 12 say bookings confirm automatically once paid. Which wins? Booking is phase 7, so
+     nothing is built either way yet.
+  2. **Weekly availability confirmation with a Sunday WhatsApp check-in** (#5): a new rule, and
+     WhatsApp is out of scope for v1 (CLAUDE.md 10).
+  3. [x] **Notifications** (#6, 02.4, 05, 06.13, 07.1): answered 2026-11-13, approval emails now
+     (Resend, `app/services/email.py`): a sitter when she goes live, a parent when a child is verified.
+     WhatsApp stays out of v1. Rejection emails and an in-app bell weren't asked for.
+     **[Reuben]** set `RESEND_API_KEY`, `EMAIL_FROM` and `PUBLIC_WEB_URL` on both Render services; until
+     then nothing is sent (logged, never an error).
+  4. [x] **Contact address** (01.3): answered 2026-11-13, founders@pacifyco.in everywhere, including the
+     Family Terms, Sitter Terms and privacy policy (changed in place: no versions until the first
+     release to main, Reuben 2026-11-13). Placeholders (TEST DATE, LLPIN) stay on the launch checklist.
+  5. **Photos with emoji stickers over faces** (01.10): the review asks to *replace* them with photos
+     whose faces are turned away, cropped or softly blurred; Reuben provides the photos. Swap the files
+     in `web/src/assets/photos/` (design.md 8).
+  6. **"Recharge" badge reads as jargon** (03.4): marked "Need to discuss". The badge is unchanged; the
+     profile now explains the plan in plain words.
+  7. **End of the sitter profile** (04.3): "Request a meet-and-greet" would claim a meeting before the
+     first booking (dropped 2026-11-08, CLAUDE.md 7), and "Save to shortlist" is a new feature. Booking
+     comes in phase 7; the 1-hour nudge stays until then.
+  8. [x] **"Interviewed by the Pacify team"** (04.6): agreed 2026-11-13, "Joined Nov 2026" only.
+  9. [x] **Child date of birth "age 2+" and "Infant"** (02.15, 06.1): agreed 2026-11-13, left out
+     (Pacify books from 18 months).
+  10. [x] **"If the only adult at home is a man" note in the Family Terms** (06.12): added in place
+      2026-11-13 to 6.2 and the Section 5 table (sitter may decline, full booking charged). For the
+      lawyer's launch review: lawful wording of a gender-based decline, and the fairness of charging the
+      full booking.
+  11. [x] **Area names for the pin codes** (02.14): done 2026-11-13 from the launch list, checked against
+      OpenStreetMap (`web/src/lib/serviceArea.ts`): MG Road 560001, Koramangala 560034, Indiranagar
+      560038, JP Nagar 560078, Lingarajapuram 560084, Koramangala 6th–8th Block 560095, Bellandur 560103.
+      HSR Layout (560102) isn't a launch pin code. Reuben to correct any name.
+  12. [x] **Reference quote** (04.1, 04.14): answered 2026-11-13, no.
+  13. **More profile details** (04.9: skills, "Why I love working with kids") and **allergy against
+      first aid** (04.10): new fields. Wanted?
+  14. **Parent profile as a home base** (05) and the **sitter "today" screen** (07: tab bar,
+      Accepting/Paused, pending requests, preview my profile): bigger redesigns that depend on 1 and 3.
+      "Download or delete my data" is phase 10.
+  15. **Find a sitter**: ages defaulting to the family's children and a "Filters · 1" bottom sheet
+      (03 proposal) aren't built (there's no ages filter yet; one chip row instead of a sheet).
+  16. **Parts of the day** (#9): picked Morning 9–1, Afternoon 1–6, Evening 6–10, Night 10–12, so they
+      line up with the plans' latest ends (6 pm, 10:30 pm, midnight). OK?
+  17. **"Fill ticked days" wiping slots** (#8, "Need to discuss"): now adds to the day and joins
+      touching times (Mornings + Afternoons on Monday = 9 am–6 pm). OK?
 
 ---
 
@@ -231,7 +287,8 @@ at home (CLAUDE.md 6.3).
 - [x] Sitter profile photo (JPG/PNG) in the application; parents see live sitters' photos
 - [x] Rejection reason required from admins and shown to parents and sitters
 - [x] Changes after a rejection go back for review (sitter steps 1-4; psych retakes stay admin-allowed)
-- [ ] Emails for approvals and rejections: held until phase 11 (Reuben 2026-11-09)
+- [x] Approval emails (sitter live, child verified), brought forward 2026-11-13; rejection emails still
+  with phase 11
 - [ ] [Reuben] Real psychology test questions (phase 15)
 - [x] End-to-end tests (Playwright) for parent and sitter onboarding, admin review and finding a sitter;
   run in CI on every pull request (README "End-to-end tests")
@@ -243,6 +300,37 @@ at home (CLAUDE.md 6.3).
   Reuben's "Sitter consent" document (Reuben 2026-11-12)
 - [x] Find a sitter lists every live sitter (no plan filter); filters are day, language, sort and first
   aid only, applied straight away; intro beside "Home" (Reuben 2026-11-09)
+
+## UX review fixes (added 2026-11-13, from Reuben's staging review)
+
+- [x] Consent first: step 1 on both checklists; children, emergency contacts and authorised adults
+  refused before it (API + "Your consent comes first"); the sitter application waits for her consent
+- [x] Referee phone numbers never shown to parents (API and copy)
+- [x] Age groups and languages from fixed tap-chip lists (API validates; old free text hidden)
+- [x] One parts-of-the-day model: availability quick fills (add, never wipe), "When?" filter, week grid
+- [x] Errors name the field: sign-in email (checked on press, announced), consent boxes (outlined,
+  focus moves), references, family and application forms
+- [x] Checklists: one row per real step with the exact next action, status pill under the name, links
+  to the exact step (`?step=`), "1 child · certificate needed"
+- [x] Long text wraps on the sitter profile; dev link removed (`/dev/*` local and staging only)
+- [x] Public pages: Google mark and "or" rules, no "Sign in" link on sign-in, phone headline, home CTA
+  in the first screen, photos fade in once loaded, legal pages with an H1 and contents, 404 links
+- [x] Parent: Required/Optional labels and an Optional divider, verified child "Verified 13 Nov" with
+  no upload, Continue waits for a child, filters hidden until the profile is finished ("2 of 4 done"),
+  bubble only on the home page, "Details saved" toast, +91 field and "+91 98450 12345", relationship
+  dropdown, emergency contacts required, different from each other and from the parent's own number,
+  pin codes listed, day/month/year date of birth, flatter child cards with actions in the footer,
+  Sign out and theme in "Settings" on phones, progress bars
+- [x] Find a sitter: "When?" chips (days and parts of the day), one chip row (First aid, languages),
+  live count, sort beside it, filters in the address, empty results with "Remove First aid · 4 sitters",
+  "Clear all filters" and "Ask the Pacify team"; shorter cards ("4 yrs · <1 km · Ages 1½–5")
+- [x] Sitter profile: "Comfortable with ages 3–5", plan in plain words, "Joined Nov 2026", expandable
+  trust badges, week grid with "Not available", languages, "Suits Diya (4)", photo left on desktop
+- [x] Sitter: required "About you" with prompts, photo rules, file name and thumbnail after upload,
+  "Add this reference", sitter wording on the details page, compact role cards with a tick, toasts
+- [x] Sitter home: "Hi Asha.", application progress while not live, one-time "You're approved" card,
+  "Get your first booking"
+- [ ] The items in "Open questions" above, once Reuben decides
 
 ## Phase 6 — Plans and payments (was hour packs and ledger; changed 2026-11-03)
 
@@ -343,6 +431,16 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-13 — UX review fixes (`ux-review-fixes`), from Reuben's staging review: consent first (API
+  refuses family data before it), no referee phones, fixed age/language lists, one parts-of-the-day
+  model (`part` search filter), field-level errors, real checklist steps, Find a sitter "When?" filters
+  in the URL, sitter profile and home reworked; 17 review items listed in Open questions for Reuben.
+  API 414 passed, web 240 passed, e2e 5 passed. Then Reuben's answers: approval emails (Resend),
+  founders@pacifyco.in, area names beside pin codes (API 419, web 240, e2e 5). Family Terms brought in
+  line with CLAUDE.md in place (no versions until the first release to main).
+  Sign-in is now a box on the home page ("Sign in or join" opens it); `/sign-in` redirects to `/?signin`.
+  The footer links only to the privacy policy (the terms are linked from the consent pages), and the
+  staging "Environment · API" line is gone. Final: API 419, web 240, e2e 5.
 - 2026-11-12 — Consent pages (`consent-pages`): sign-up asks only the role; parents tick the Family Terms
   and privacy policy on `/parent/consent` with the consents (one POST); sitters get `/sitter/consent`
   with the sitter consent (new `legal_documents` kind `sitter_consent` v1.0, migration `a3c71e5b9d24`,

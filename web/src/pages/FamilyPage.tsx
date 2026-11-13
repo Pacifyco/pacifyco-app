@@ -1,11 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { CircleCheck, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
+import { useMe } from "../auth/useMe";
 import { DocumentUpload } from "../components/documents/DocumentUpload";
-import { BackLink, Button, Card, StepActions, StepBackContext, TextInput, Textarea } from "../components/ui";
+import {
+  BackLink,
+  Button,
+  ButtonLink,
+  Card,
+  Select,
+  StepActions,
+  StepBackContext,
+  StepProgress,
+  TextInput,
+  Textarea,
+  showToast,
+} from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
-import { formatDate } from "../lib/format";
+import {
+  MOBILE_ERROR,
+  fieldErrorsFrom,
+  formErrorFrom,
+  isIndianMobile,
+  type FieldErrors,
+} from "../lib/fieldErrors";
+import { formatDate, formatMobile, localMobile } from "../lib/format";
+import { useConsent } from "./ConsentPage";
 
 // ---------- shared bits ----------
 
@@ -17,6 +38,31 @@ function ErrorLine({ message }: { message?: string }) {
     <p role="alert" className="text-small text-danger">
       {message}
     </p>
+  );
+}
+
+// A fixed list instead of free text (UX review 2026-11-13). An older free-text answer stays selectable.
+export const RELATIONSHIPS = ["Spouse", "Parent", "Grandparent", "Sibling", "Friend / Neighbour", "Other"];
+
+function RelationshipSelect({
+  value,
+  onChange,
+  error,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+}) {
+  const options = value && !RELATIONSHIPS.includes(value) ? [value, ...RELATIONSHIPS] : RELATIONSHIPS;
+  return (
+    <Select label="Relationship" value={value} onChange={(event) => onChange(event.target.value)} error={error}>
+      <option value="">Choose one</option>
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </Select>
   );
 }
 
@@ -32,6 +78,8 @@ type Child = {
   verification_status: VerificationStatus;
   /** Why Pacify couldn't accept the birth certificate, if it was rejected. */
   rejection_reason: string | null;
+  /** When Pacify verified the child. */
+  verified_at: string | null;
 };
 
 type ChildInput = {
@@ -58,6 +106,69 @@ function useChildren() {
   return useQuery({ queryKey: ["children"], queryFn: () => apiFetch<Child[]>("/parent/children") });
 }
 
+/** "4 years old", or "20 months old" under two. */
+export function ageText(dateOfBirth: string, today: Date = new Date()): string {
+  const born = new Date(`${dateOfBirth}T00:00:00`);
+  let months = (today.getFullYear() - born.getFullYear()) * 12 + today.getMonth() - born.getMonth();
+  if (today.getDate() < born.getDate()) months -= 1;
+  if (months < 24) return `${Math.max(months, 0)} ${months === 1 ? "month" : "months"} old`;
+  const years = Math.floor(months / 12);
+  return `${years} years old`;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Day, month and year selects instead of the slow native date picker (UX review 2026-11-13). */
+function DateOfBirth({ value, onChange, error }: { value: string; onChange: (value: string) => void; error?: string }) {
+  const [year = "", month = "", day = ""] = value ? value.split("-") : [];
+  const [parts, setParts] = useState({ day, month, year });
+  const thisYear = new Date().getFullYear();
+  const years = Array.from({ length: 18 }, (_, index) => String(thisYear - index));
+
+  function set(part: "day" | "month" | "year", next: string) {
+    const updated = { ...parts, [part]: next };
+    setParts(updated);
+    onChange(updated.day && updated.month && updated.year ? `${updated.year}-${updated.month}-${updated.day}` : "");
+  }
+
+  return (
+    <fieldset className="flex min-w-0 flex-col gap-2">
+      <legend className="mb-2 text-ui text-ink">Date of birth</legend>
+      <div className="grid grid-cols-[1fr_1.2fr_1.3fr] gap-2">
+        <Select label="Day" compact value={parts.day} onChange={(event) => set("day", event.target.value)}>
+          <option value="">Day</option>
+          {Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(2, "0")).map((d) => (
+            <option key={d} value={d}>
+              {Number(d)}
+            </option>
+          ))}
+        </Select>
+        <Select label="Month" compact value={parts.month} onChange={(event) => set("month", event.target.value)}>
+          <option value="">Month</option>
+          {MONTHS.map((name, index) => (
+            <option key={name} value={String(index + 1).padStart(2, "0")}>
+              {name}
+            </option>
+          ))}
+        </Select>
+        <Select label="Year" compact value={parts.year} onChange={(event) => set("year", event.target.value)}>
+          <option value="">Year</option>
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {error && (
+        <p role="alert" className="text-small text-danger">
+          {error}
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
 function ChildForm({
   initial,
   onSaved,
@@ -68,42 +179,50 @@ function ChildForm({
   onCancel?: () => void;
 }) {
   const [form, setForm] = useState(initial);
+  const [fields, setFields] = useState<FieldErrors>({});
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
   async function submit() {
-    setBusy(true);
+    const missing: FieldErrors = {};
+    if (!form.name.trim()) missing.name = "Please enter your child's name.";
+    if (!form.date_of_birth) missing.date_of_birth = "Please choose the day, month and year.";
+    setFields(missing);
     setError(undefined);
+    if (Object.keys(missing).length) return;
+    setBusy(true);
     try {
       await onSaved(form);
+      showToast(`${form.name.trim()} saved`);
       setForm(EMPTY_CHILD);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      const byField = fieldErrorsFrom(err);
+      setFields(byField);
+      setError(formErrorFrom(err, byField));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg bg-surface-sunken p-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <TextInput
-          label="Child's name"
-          value={form.name}
-          onChange={(event) => setForm({ ...form, name: event.target.value })}
-        />
-        <TextInput
-          label="Date of birth"
-          type="date"
-          value={form.date_of_birth}
-          onChange={(event) => setForm({ ...form, date_of_birth: event.target.value })}
-        />
-      </div>
+    <div className="flex flex-col gap-4 rounded-lg bg-surface-sunken p-4 sm:p-5">
+      <TextInput
+        label="Child's name"
+        value={form.name}
+        error={fields.name}
+        onChange={(event) => setForm({ ...form, name: event.target.value })}
+      />
+      <DateOfBirth
+        value={form.date_of_birth}
+        error={fields.date_of_birth}
+        onChange={(value) => setForm({ ...form, date_of_birth: value })}
+      />
       <TextInput
         label="Allergies"
         optional
         hint="Anything that could affect their safety, e.g. a food or medicine allergy."
         value={form.allergies}
+        error={fields.allergies}
         onChange={(event) => setForm({ ...form, allergies: event.target.value })}
       />
       <Textarea
@@ -111,6 +230,7 @@ function ChildForm({
         optional
         hint="Include any medicine, with the dose and when to give it. Sitters only give medicine written here."
         value={form.medical_notes}
+        error={fields.medical_notes}
         onChange={(event) => setForm({ ...form, medical_notes: event.target.value })}
       />
       <Textarea
@@ -118,6 +238,7 @@ function ChildForm({
         optional
         hint="Naps, meals, favourite stories — whatever helps a sitter settle in."
         value={form.routines}
+        error={fields.routines}
         onChange={(event) => setForm({ ...form, routines: event.target.value })}
       />
       <ErrorLine message={error} />
@@ -138,7 +259,15 @@ function ChildForm({
 // Where the birth certificate check stands, and why it was turned down (decided 2026-11-09).
 function ChildStatus({ child }: { child: Child }) {
   if (child.verification_status === "approved") {
-    return <p className="text-small text-trust">Verified. The birth certificate has been deleted.</p>;
+    return (
+      <p className="flex items-center gap-2 text-small text-trust">
+        <CircleCheck aria-hidden="true" size={20} strokeWidth={1.75} />
+        <span>
+          Verified{child.verified_at ? ` ${formatDate(new Date(child.verified_at)).replace(/ \d{4}$/, "")}` : ""}. The
+          birth certificate has been deleted.
+        </span>
+      </p>
+    );
   }
   if (child.verification_status === "rejected") {
     return (
@@ -187,40 +316,47 @@ function ChildCard({ child }: { child: Child }) {
     );
   }
 
+  const verified = child.verification_status === "approved";
+  // A flat, bordered row rather than a card inside a card, so it keeps its width on a phone.
   return (
-    <Card as="li" className="flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-h3">{child.name}</h3>
-          <p className="text-small text-muted">Born {formatDate(new Date(child.date_of_birth))}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="tertiary" onClick={() => setEditing(true)}>
-            Edit
-          </Button>
-          <button
-            type="button"
-            aria-label={`Remove ${child.name}`}
-            onClick={() => remove.mutate()}
-            disabled={remove.isPending}
-            className="inline-flex size-9 items-center justify-center rounded-pill text-muted hover:bg-surface-sunken hover:text-danger disabled:opacity-50"
-          >
-            <Trash2 aria-hidden="true" size={18} strokeWidth={1.75} />
-          </button>
-        </div>
+    <li className="flex flex-col gap-3 rounded-lg border border-line p-4 sm:p-5">
+      <div>
+        <h3 className="text-h3 break-words">{child.name}</h3>
+        <p className="text-small text-muted">
+          {ageText(child.date_of_birth)} · born {formatDate(new Date(child.date_of_birth))}
+        </p>
       </div>
       {child.allergies && <p className="text-small text-ink">Allergies: {child.allergies}</p>}
       <ChildStatus child={child} />
       <ErrorLine message={error} />
-      <div className="border-t border-line pt-3">
-        <DocumentUpload
-          type="birth_certificate"
-          childId={child.id}
-          label="Birth certificate"
-          hint="Used once to check their age, then deleted — we keep only the result."
-        />
+      {/* A verified child's certificate is deleted: nothing to upload. */}
+      {!verified && (
+        <div className="border-t border-line pt-3">
+          <DocumentUpload
+            type="birth_certificate"
+            childId={child.id}
+            label="Birth certificate"
+            hint="Used once to check their age, then deleted — we keep only the result."
+          />
+        </div>
+      )}
+      <div className="flex flex-wrap gap-4 border-t border-line pt-3">
+        <Button type="button" variant="tertiary" onClick={() => setEditing(true)}>
+          <Pencil aria-hidden="true" size={18} strokeWidth={1.75} />
+          Edit
+        </Button>
+        <Button
+          type="button"
+          variant="tertiary"
+          aria-label={`Remove ${child.name}`}
+          onClick={() => remove.mutate()}
+          disabled={remove.isPending}
+        >
+          <Trash2 aria-hidden="true" size={18} strokeWidth={1.75} />
+          Remove
+        </Button>
       </div>
-    </Card>
+    </li>
   );
 }
 
@@ -238,13 +374,13 @@ function ChildrenSection({ onContinue }: { onContinue: () => void }) {
     },
   });
 
+  const none = children.isSuccess && children.data.length === 0;
+
   return (
-    <Card as="section" padding="roomy" className="flex flex-col gap-5">
+    <Card as="section" padding="tight" className="flex flex-col gap-5">
       <h2 className="text-h3">Your children</h2>
       {children.isPending && <p className="text-muted">Loading…</p>}
-      {children.isSuccess && children.data.length === 0 && !adding && (
-        <p className="text-muted">You haven't added a child yet.</p>
-      )}
+      {none && !adding && <p className="text-muted">You haven't added a child yet.</p>}
       {children.isSuccess && children.data.length > 0 && (
         <ul className="flex flex-col gap-4">
           {children.data.map((child) => (
@@ -252,18 +388,23 @@ function ChildrenSection({ onContinue }: { onContinue: () => void }) {
           ))}
         </ul>
       )}
-      {adding ? (
-        <ChildForm initial={EMPTY_CHILD} onSaved={(input) => add.mutateAsync(input)} onCancel={() => setAdding(false)} />
+      {adding || none ? (
+        <ChildForm
+          initial={EMPTY_CHILD}
+          onSaved={(input) => add.mutateAsync(input)}
+          onCancel={none ? undefined : () => setAdding(false)}
+        />
       ) : (
         <Button type="button" variant="secondary" fullWidthOnPhone={false} onClick={() => setAdding(true)}>
           Add a child
         </Button>
       )}
       <StepActions>
-        <Button type="button" fullWidthOnPhone={false} onClick={onContinue}>
+        <Button type="button" fullWidthOnPhone={false} onClick={onContinue} disabled={none}>
           Continue
         </Button>
       </StepActions>
+      {none && <p className="-mt-3 text-small text-muted">Add a child to continue.</p>}
     </Card>
   );
 }
@@ -275,7 +416,21 @@ type ContactInput = { name: string; relationship: string; phone: string };
 const EMPTY_CONTACT: ContactInput = { name: "", relationship: "", phone: "" };
 
 function contactInput(contact: Contact | undefined): ContactInput {
-  return contact ? { name: contact.name, relationship: contact.relationship, phone: contact.phone } : EMPTY_CONTACT;
+  return contact
+    ? { name: contact.name, relationship: contact.relationship, phone: localMobile(contact.phone) }
+    : EMPTY_CONTACT;
+}
+
+/** Problems Pacify can spot before sending: empty fields, a wrong number, the parent's own number. */
+function checkContact(contact: ContactInput, ownPhone: string | null | undefined): Partial<ContactInput> {
+  const problems: Partial<ContactInput> = {};
+  if (!contact.name.trim()) problems.name = "Please enter their name.";
+  if (!contact.relationship) problems.relationship = "Please choose how you know them.";
+  if (!isIndianMobile(contact.phone)) problems.phone = MOBILE_ERROR;
+  else if (ownPhone && localMobile(contact.phone) === localMobile(ownPhone)) {
+    problems.phone = "That's your own number. Please give someone else's.";
+  }
+  return problems;
 }
 
 function EmergencyContactsSection({ onContinue }: { onContinue: () => void }) {
@@ -285,12 +440,12 @@ function EmergencyContactsSection({ onContinue }: { onContinue: () => void }) {
   });
 
   return (
-    <Card as="section" className="flex flex-col gap-5">
+    <Card as="section" padding="tight" className="flex flex-col gap-5">
       <div>
         <h2 className="text-h3">Emergency contacts</h2>
         <p className="mt-1 text-small text-muted">
-          Two people Pacify can reach if you and your authorised adults can't be. Please get their permission before
-          adding their details.
+          Two people Pacify can reach if you and your authorised adults can't be. Both are required. Please get their
+          permission before adding their details.
         </p>
       </div>
       {/* Wait for the server's contacts before showing editable fields at all: mounting the form only
@@ -315,7 +470,9 @@ function EmergencyContactsForm({
   onContinue: () => void;
 }) {
   const queryClient = useQueryClient();
+  const me = useMe();
   const [form, setForm] = useState<[ContactInput, ContactInput]>(initial);
+  const [problems, setProblems] = useState<[Partial<ContactInput>, Partial<ContactInput>]>([{}, {}]);
   const [error, setError] = useState<string>();
 
   const save = useMutation({
@@ -324,9 +481,23 @@ function EmergencyContactsForm({
     onSuccess: () => {
       setError(undefined);
       queryClient.invalidateQueries({ queryKey: ["emergency-contacts"] });
+      showToast("Emergency contacts saved");
       onContinue();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
+    onError: (err) => {
+      const byField = fieldErrorsFrom(err);
+      const phoneProblem =
+        err instanceof ApiError && err.code === "emergency_contact_is_you"
+          ? "That's your own number. Please give someone else's."
+          : undefined;
+      const at = (index: number): Partial<ContactInput> => ({
+        name: byField[`contacts.${index}.name`],
+        relationship: byField[`contacts.${index}.relationship`],
+        phone: byField[`contacts.${index}.phone`] ?? phoneProblem,
+      });
+      setProblems([at(0), at(1)]);
+      setError(phoneProblem ? undefined : (byField.contacts ?? formErrorFrom(err, byField)));
+    },
   });
 
   function setAt(index: 0 | 1, patch: Partial<ContactInput>) {
@@ -335,34 +506,54 @@ function EmergencyContactsForm({
     setForm(next);
   }
 
+  function submit() {
+    const ownPhone = me.data?.profile?.phone;
+    const found: [Partial<ContactInput>, Partial<ContactInput>] = [
+      checkContact(form[0], ownPhone),
+      checkContact(form[1], ownPhone),
+    ];
+    if (!found[1].phone && isIndianMobile(form[1].phone) && localMobile(form[0].phone) === localMobile(form[1].phone)) {
+      found[1].phone = "Please give two different numbers.";
+    }
+    setProblems(found);
+    setError(undefined);
+    if (found.some((problem) => Object.keys(problem).length)) return;
+    save.mutate(form);
+  }
+
   return (
     <>
       {([0, 1] as const).map((index) => (
         <div key={index} className="flex flex-col gap-3 border-t border-line pt-4 first:border-t-0 first:pt-0">
-          <p className="text-eyebrow text-muted uppercase">Contact {index + 1}</p>
+          <p className="text-eyebrow text-muted uppercase">Contact {index + 1} · Required</p>
           <TextInput
             label="Name"
             value={form[index].name}
+            error={problems[index].name}
             onChange={(event) => setAt(index, { name: event.target.value })}
           />
           <div className="grid gap-3 sm:grid-cols-2">
-            <TextInput
-              label="Relationship"
+            <RelationshipSelect
               value={form[index].relationship}
-              onChange={(event) => setAt(index, { relationship: event.target.value })}
+              error={problems[index].relationship}
+              onChange={(relationship) => setAt(index, { relationship })}
             />
             <TextInput
-              label="Phone"
+              label="Mobile number"
               type="tel"
+              inputMode="numeric"
+              prefix="+91"
+              maxLength={10}
               value={form[index].phone}
-              onChange={(event) => setAt(index, { phone: event.target.value })}
+              error={problems[index].phone}
+              onChange={(event) => setAt(index, { phone: event.target.value.replace(/\D/g, "") })}
             />
           </div>
         </div>
       ))}
       <ErrorLine message={error} />
       <StepActions>
-        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate(form)}>
+        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={submit}>
           Continue
         </Button>
       </StepActions>
@@ -379,16 +570,22 @@ function AuthorisedAdultsSection({ onContinue }: { onContinue: () => void }) {
     queryFn: () => apiFetch<Contact[]>("/parent/authorised-adults"),
   });
   const [form, setForm] = useState<ContactInput>(EMPTY_CONTACT);
+  const [problems, setProblems] = useState<Partial<ContactInput>>({});
   const [error, setError] = useState<string>();
 
   const add = useMutation({
     mutationFn: (input: ContactInput) =>
       apiFetch<Contact>("/parent/authorised-adults", { method: "POST", body: JSON.stringify(input) }),
-    onSuccess: () => {
+    onSuccess: (adult) => {
       queryClient.invalidateQueries({ queryKey: ["authorised-adults"] });
       setForm(EMPTY_CONTACT);
+      showToast(`${adult.name} added`);
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
+    onError: (err) => {
+      const byField = fieldErrorsFrom(err);
+      setProblems({ name: byField.name, relationship: byField.relationship, phone: byField.phone });
+      setError(formErrorFrom(err, byField));
+    },
   });
 
   const remove = useMutation({
@@ -396,12 +593,21 @@ function AuthorisedAdultsSection({ onContinue }: { onContinue: () => void }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["authorised-adults"] }),
   });
 
+  function submit() {
+    const found = checkContact(form, null);
+    setProblems(found);
+    setError(undefined);
+    if (Object.keys(found).length) return;
+    add.mutate(form);
+  }
+
   return (
-    <Card as="section" className="flex flex-col gap-5">
+    <Card as="section" padding="tight" className="flex flex-col gap-5">
       <div>
         <h2 className="text-h3">Authorised adults</h2>
         <p className="mt-1 text-small text-muted">
-          Anyone else who may hand over or receive your child during a booking. Please get their permission first.
+          Anyone else who may hand over or receive your child during a booking. Optional. Please get their permission
+          first.
         </p>
       </div>
       {adults.isSuccess && adults.data.length > 0 && (
@@ -409,41 +615,51 @@ function AuthorisedAdultsSection({ onContinue }: { onContinue: () => void }) {
           {adults.data.map((adult) => (
             <li key={adult.id} className="flex items-center gap-3 rounded-md bg-surface-sunken px-4 py-3">
               <div className="min-w-0 flex-1">
-                <p className="text-ui text-ink">{adult.name}</p>
+                <p className="text-ui break-words text-ink">{adult.name}</p>
                 <p className="text-small text-muted">
-                  {adult.relationship} · {adult.phone}
+                  {adult.relationship} · {formatMobile(adult.phone)}
                 </p>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="tertiary"
                 aria-label={`Remove ${adult.name}`}
                 onClick={() => remove.mutate(adult.id)}
-                className="inline-flex size-9 shrink-0 items-center justify-center rounded-pill text-muted hover:text-danger"
               >
                 <Trash2 aria-hidden="true" size={18} strokeWidth={1.75} />
-              </button>
+                Remove
+              </Button>
             </li>
           ))}
         </ul>
       )}
       <div className="flex flex-col gap-3 border-t border-line pt-4">
-        <TextInput label="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <TextInput
+          label="Name"
+          value={form.name}
+          error={problems.name}
+          onChange={(event) => setForm({ ...form, name: event.target.value })}
+        />
         <div className="grid gap-3 sm:grid-cols-2">
-          <TextInput
-            label="Relationship"
+          <RelationshipSelect
             value={form.relationship}
-            onChange={(event) => setForm({ ...form, relationship: event.target.value })}
+            error={problems.relationship}
+            onChange={(relationship) => setForm({ ...form, relationship })}
           />
           <TextInput
-            label="Phone"
+            label="Mobile number"
             type="tel"
+            inputMode="numeric"
+            prefix="+91"
+            maxLength={10}
             value={form.phone}
-            onChange={(event) => setForm({ ...form, phone: event.target.value })}
+            error={problems.phone}
+            onChange={(event) => setForm({ ...form, phone: event.target.value.replace(/\D/g, "") })}
           />
         </div>
         <ErrorLine message={error} />
-        <Button type="button" variant="secondary" fullWidthOnPhone={false} loading={add.isPending} onClick={() => add.mutate(form)}>
-          Add
+        <Button type="button" variant="secondary" fullWidthOnPhone={false} loading={add.isPending} onClick={submit}>
+          Add this person
         </Button>
       </div>
       <StepActions>
@@ -467,7 +683,10 @@ const STEP_LABEL: Record<Step, string> = {
 
 export function FamilyPage() {
   const navigate = useNavigate();
-  const [stepIndex, setStepIndex] = useState(0);
+  const consent = useConsent();
+  // The checklist can open a step directly, e.g. ?step=emergency.
+  const [params] = useSearchParams();
+  const [stepIndex, setStepIndex] = useState(() => Math.max(0, STEPS.indexOf(params.get("step") as Step)));
   const step = STEPS[stepIndex];
 
   function goNext() {
@@ -500,16 +719,31 @@ export function FamilyPage() {
       </div>
 
       <div className="mx-auto mt-7 max-w-[40rem]">
-        <p className="text-center text-small text-muted">
-          Step {stepIndex + 1} of {STEPS.length} · {STEP_LABEL[step]}
-        </p>
-        <StepBackContext.Provider value={goBack}>
-          <div className="mt-4 flex flex-col gap-4">
-            {step === "children" && <ChildrenSection onContinue={goNext} />}
-            {step === "emergency" && <EmergencyContactsSection onContinue={goNext} />}
-            {step === "authorised" && <AuthorisedAdultsSection onContinue={goNext} />}
-          </div>
-        </StepBackContext.Provider>
+        {consent.isPending ? (
+          <p className="text-center text-muted">Loading…</p>
+        ) : consent.isSuccess && !consent.data.required_accepted ? (
+          // Nothing about the family is saved before the consent (UX review 2026-11-13).
+          <Card as="section" className="flex flex-col items-start gap-3">
+            <h2 className="text-h3">Your consent comes first</h2>
+            <p className="text-small text-muted">
+              Before you add your children and contacts, please read and accept the parental consent form.
+            </p>
+            <ButtonLink to="/parent/consent" arrow>
+              Read the consent form
+            </ButtonLink>
+          </Card>
+        ) : (
+          <>
+            <StepProgress step={stepIndex + 1} of={STEPS.length} label={STEP_LABEL[step]} />
+            <StepBackContext.Provider value={goBack}>
+              <div className="mt-4 flex flex-col gap-4">
+                {step === "children" && <ChildrenSection onContinue={goNext} />}
+                {step === "emergency" && <EmergencyContactsSection onContinue={goNext} />}
+                {step === "authorised" && <AuthorisedAdultsSection onContinue={goNext} />}
+              </div>
+            </StepBackContext.Provider>
+          </>
+        )}
       </div>
     </article>
   );

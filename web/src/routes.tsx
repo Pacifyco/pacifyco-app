@@ -18,7 +18,7 @@ import { JoinPage } from "./pages/JoinPage";
 import { ParentTermsPage, PrivacyPolicyPage, SitterTermsPage } from "./pages/LegalPages";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PsychTestPage } from "./pages/PsychTestPage";
-import { AuthCallbackPage, SignInPage } from "./pages/SignInPage";
+import { AuthCallbackPage, SIGN_IN_PATH } from "./pages/SignInPage";
 import { SitterApplicationPage } from "./pages/SitterApplicationPage";
 import { SitterConsentPage } from "./pages/SitterConsentPage";
 import { SitterProfilePage } from "./pages/SitterProfilePage";
@@ -128,14 +128,17 @@ export const routes: RouteObject[] = [
           ["admin/parents/:parentId", <FamilyReviewPage />],
         ] as const
       ).map(([path, page]) => ({ path, element: <RequireRole role="admin">{page}</RequireRole> })),
-      { path: "sign-in", element: <SignInPage /> },
+      // Signing in is a box on the home page; old /sign-in links land there with it open.
+      { path: "sign-in", element: <Navigate to={SIGN_IN_PATH} replace /> },
       { path: "auth/callback", element: <AuthCallbackPage /> },
       { path: "join", element: <JoinPage /> },
       { path: "terms/parent", element: <ParentTermsPage /> },
       { path: "terms/sitter", element: <SitterTermsPage /> },
       { path: "privacy", element: <PrivacyPolicyPage /> },
-      // Component preview for development and staging; never in production.
-      ...(config.environment !== "production" ? [{ path: "dev/components", element: <ComponentsPage /> }] : []),
+      // Component preview for local development and staging only, not linked from anywhere.
+      ...(["local", "staging"].includes(config.environment)
+        ? [{ path: "dev/components", element: <ComponentsPage /> }]
+        : []),
       { path: "*", element: <NotFoundPage /> },
     ],
   },

@@ -2,9 +2,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { dayLabel, hourLabel, hoursLabel, kolkataTime, shortHour } from "../lib/times";
+import { ageRange } from "../lib/sitterLists";
+import { dayLabel, hourLabel, hoursLabel, kolkataTime, shortHour, todayInKolkata } from "../lib/times";
 import { jsonResponse } from "../test/renderApp";
-import { AvailabilityPage } from "./AvailabilityPage";
+import { AvailabilityPage, addRange } from "./AvailabilityPage";
 import { FindSittersPage } from "./FindSittersPage";
 import { SitterProfilePage } from "./SitterProfilePage";
 
@@ -117,13 +118,31 @@ describe("a sitter's weekly availability", () => {
     expect(await screen.findByText("Saved. It repeats every week until you change it.")).toBeTruthy();
   });
 
-  test("a quick fill only changes the days already ticked", async () => {
+  test("a quick fill adds to the days already ticked, never wiping a time", async () => {
+    // UX review 2026-11-13: "Afternoons" used to replace Monday's morning.
     mockApi({ "GET /sitter/availability": () => jsonResponse(SAVED) });
     renderAt("/sitter/availability");
-    fireEvent.click(await screen.findByRole("button", { name: "Mornings" }));
-    expect(screen.getByLabelText("Saturday from")).toHaveProperty("value", "9");
-    expect(screen.getByLabelText("Saturday until")).toHaveProperty("value", "13");
+    fireEvent.click(await screen.findByRole("button", { name: "Afternoons" }));
+    // Monday 9-1 and the new 1-6 touch, so they join: 9 am to 6 pm.
+    expect(screen.getByLabelText("Monday from")).toHaveProperty("value", "9");
+    expect(screen.getByLabelText("Monday until")).toHaveProperty("value", "18");
+    // Saturday keeps its evening and gains the afternoon before it: 1 pm to 10 pm.
+    expect(screen.getByLabelText("Saturday from")).toHaveProperty("value", "13");
+    expect(screen.getByLabelText("Saturday until")).toHaveProperty("value", "22");
     expect(screen.getByRole("checkbox", { name: "Free on Tuesdays" })).toHaveProperty("checked", false);
+  });
+
+  test("the quick fills are the four parts of the day parents filter by", async () => {
+    mockApi({ "GET /sitter/availability": () => jsonResponse(SAVED) });
+    renderAt("/sitter/availability");
+    for (const name of ["Mornings", "Afternoons", "Evenings", "Nights"]) {
+      expect(await screen.findByRole("button", { name })).toBeTruthy();
+    }
+    expect(addRange([{ start: 9, end: 13 }], { start: 18, end: 22 })).toEqual([
+      { start: 9, end: 13 },
+      { start: 18, end: 22 },
+    ]);
+    expect(addRange([{ start: 9, end: 14 }], { start: 13, end: 18 })).toEqual([{ start: 9, end: 18 }]);
   });
 
   test("unticking a day or removing its time clears it", async () => {
@@ -176,7 +195,7 @@ describe("finding a sitter", () => {
     id: "s1",
     full_name: "Lakshmi Nair",
     years_experience: 4,
-    age_groups: ["Ages 2–5"],
+    age_groups: ["Toddler", "Preschool"],
     languages: ["English", "Kannada"],
     first_aid: true,
     avg_rating: null,
@@ -185,9 +204,11 @@ describe("finding a sitter", () => {
     photo_url: "https://storage.example/photo/s1?token=x",
     plan: "pause",
   };
+  const FINISHED = { items: [], finished: true };
 
   test("each card shows the plan the sitter works, as a small label with no price", async () => {
     mockApi({
+      "GET /parent/checklist": () => jsonResponse(FINISHED),
       "GET /parent/sitters": () =>
         jsonResponse([LAKSHMI, { ...LAKSHMI, id: "s2", full_name: "Meena Rao", plan: "recharge" }]),
     });
@@ -199,69 +220,104 @@ describe("finding a sitter", () => {
     expect(meena.getByText("Recharge").textContent).toBe("Works the Recharge plan");
   });
 
-  test("lists every live sitter (no plan filter) with no prices, as the parent's home", async () => {
-    const calls = mockApi({ "GET /parent/sitters": () => jsonResponse([LAKSHMI]) });
+  test("lists every live sitter with no prices, as the parent's home, on a short card", async () => {
+    const calls = mockApi({
+      "GET /parent/checklist": () => jsonResponse(FINISHED),
+      "GET /parent/sitters": () => jsonResponse([LAKSHMI]),
+    });
     const { container } = renderAt("/parent/sitters");
     const card = within((await screen.findByRole("heading", { name: "Lakshmi Nair" })).closest("article")!);
-    expect(card.getByText("4 years' experience · 2.4 km away")).toBeTruthy();
+    expect(card.getByText("4 yrs · 2.4 km · Ages 1½–5")).toBeTruthy();
     expect(card.getByRole("img", { name: "Lakshmi Nair" }).getAttribute("src")).toBe(
       "https://storage.example/photo/s1?token=x",
     );
     expect(card.getByText("First-aid certified")).toBeTruthy();
     expect(card.queryByText("Psychology screening passed")).toBeNull(); // placeholder questions for now
+    expect(card.queryByText("Kannada")).toBeNull(); // the card stays short (UX review 2026-11-13)
     expect(card.getByRole("link", { name: "See Lakshmi's profile" }).getAttribute("href")).toBe("/parent/sitters/s1");
     expect(container.textContent).not.toMatch(/₹|per hour|\/hour/);
-    expect(calls[0]!.path).toBe("/parent/sitters?sort=distance");
-    // Only day, language, sort and first aid: no plan, time, experience or rating filters, no search button.
-    for (const gone of ["Plan", "From", "Until", "Experience", "Rating"]) expect(screen.queryByLabelText(gone)).toBeNull();
-    expect(screen.queryByRole("button", { name: /Show sitters/ })).toBeNull();
+    expect(calls.find((call) => call.path.startsWith("/parent/sitters"))!.path).toBe("/parent/sitters?sort=distance");
+    expect(screen.getByText("1 sitter")).toBeTruthy(); // a live count
     // It's the parent's home page, so there's no back link to a home.
     expect(screen.getByRole("heading", { level: 1, name: "Find a sitter" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
   });
 
-  test("language options come from the sitters' own languages", async () => {
-    mockApi({
-      "GET /parent/sitters": () =>
-        jsonResponse([LAKSHMI, { ...LAKSHMI, id: "s2", full_name: "Meena", languages: ["kannada", "Tamil "] }]),
+  test("filters start with when, and every filter applies straight away", async () => {
+    const calls = mockApi({
+      "GET /parent/checklist": () => jsonResponse(FINISHED),
+      "GET /parent/sitters": () => jsonResponse([LAKSHMI]),
     });
     renderAt("/parent/sitters");
-    await screen.findByRole("heading", { name: "Meena" });
-    const options = within(screen.getByLabelText("Speaks")).getAllByRole("option").map((option) => option.textContent);
-    expect(options).toEqual(["Any", "English", "Kannada", "Tamil"]);
-  });
-
-  test("each filter applies straight away", async () => {
-    const calls = mockApi({ "GET /parent/sitters": () => jsonResponse([LAKSHMI]) });
-    renderAt("/parent/sitters");
     await screen.findByRole("heading", { name: "Lakshmi Nair" });
+    expect(screen.getByRole("group", { name: "When?" })).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText(/Day/), { target: { value: "2026-11-10" } });
-    fireEvent.change(screen.getByLabelText("Speaks"), { target: { value: "Kannada" } });
-    fireEvent.click(screen.getByLabelText("First-aid certified only"));
+    fireEvent.click(screen.getByRole("button", { name: "Evening" })); // no day yet: today
+    fireEvent.click(screen.getByRole("button", { name: "Kannada" }));
+    fireEvent.click(screen.getByRole("button", { name: "First aid" }));
     fireEvent.change(screen.getByLabelText("Sort by"), { target: { value: "rating" } });
 
     await waitFor(() => expect(calls.at(-1)!.path).toContain("sort=rating"));
     const params = new URLSearchParams(calls.at(-1)!.path.split("?")[1]);
     expect(Object.fromEntries(params)).toEqual({
       sort: "rating",
-      day: "2026-11-10",
+      day: todayInKolkata(),
+      part: "evening",
       language: "Kannada",
       first_aid: "true",
     });
+    expect(screen.getByRole("button", { name: "Evening" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("1 sitter free today evening")).toBeTruthy();
   });
 
-  test("no match says so", async () => {
-    mockApi({ "GET /parent/sitters": () => jsonResponse([]) });
-    renderAt("/parent/sitters");
-    expect(await screen.findByText("No sitters match. Try another day or fewer filters.")).toBeTruthy();
+  test("filters are read from the address, so Back and refresh keep them", async () => {
+    const calls = mockApi({
+      "GET /parent/checklist": () => jsonResponse(FINISHED),
+      "GET /parent/sitters": () => jsonResponse([LAKSHMI]),
+    });
+    renderAt("/parent/sitters?day=2026-11-20&time=morning&firstaid=1");
+    await screen.findByRole("heading", { name: "Lakshmi Nair" });
+    const params = new URLSearchParams(calls.find((call) => call.path.startsWith("/parent/sitters"))!.path.split("?")[1]);
+    expect(Object.fromEntries(params)).toEqual({ sort: "distance", day: "2026-11-20", part: "morning", first_aid: "true" });
+    expect(screen.getByRole("button", { name: "First aid" }).getAttribute("aria-pressed")).toBe("true");
   });
 
-  test("a parent who hasn't finished their profile is sent to finish it", async () => {
-    mockApi({ "GET /parent/sitters": () => error("profile_unfinished", "Please finish your profile", 409) });
+  test("an empty result offers a way out, with how many each would show", async () => {
+    mockApi({
+      "GET /parent/checklist": () => jsonResponse(FINISHED),
+      "GET /parent/sitters?sort=distance&first_aid=true": () => jsonResponse([]),
+      "GET /parent/sitters?sort=distance": () => jsonResponse([LAKSHMI, { ...LAKSHMI, id: "s2" }]),
+    });
+    renderAt("/parent/sitters?firstaid=1");
+    expect(await screen.findByText("No sitters match all of these.")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Remove First aid · 2 sitters" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all filters" }));
+    expect(await screen.findByText("2 sitters")).toBeTruthy();
+  });
+
+  test("until the profile is finished, there are no filters, just what's left", async () => {
+    mockApi({
+      "GET /parent/checklist": () =>
+        jsonResponse({
+          items: [
+            { key: "consent", status: "done" },
+            { key: "details", status: "done" },
+            { key: "children", status: "to_do" },
+            { key: "emergency_contacts", status: "to_do" },
+          ],
+          finished: false,
+        }),
+    });
     renderAt("/parent/sitters");
-    expect(await screen.findByText(/Finish your profile first/)).toBeTruthy();
+    expect(await screen.findByText(/Finish your profile first.*2 of 4 done/)).toBeTruthy();
     expect(screen.getByRole("link", { name: /Finish your profile/ }).getAttribute("href")).toBe("/parent/profile");
+    expect(screen.queryByRole("group", { name: "When?" })).toBeNull();
+  });
+
+  test("ages read as one range", () => {
+    expect(ageRange(["Toddler", "Preschool"])).toBe("Ages 1½–5");
+    expect(ageRange(["School age"])).toBe("Ages 6–12");
+    expect(ageRange(["2 3 4"])).toBeNull(); // old free text isn't shown
   });
 });
 
@@ -270,7 +326,7 @@ describe("a sitter's profile page", () => {
     id: "s1",
     full_name: "Lakshmi Nair",
     years_experience: 4,
-    age_groups: ["Ages 2–5"],
+    age_groups: ["Preschool"],
     languages: ["English", "Tamil"],
     first_aid: false,
     avg_rating: 4.8,
@@ -286,35 +342,54 @@ describe("a sitter's profile page", () => {
     ],
     days_off: ["2026-11-15"],
     reference: null,
+    joined_at: "2026-11-02T10:00:00Z",
   };
+  const CHILDREN = () => jsonResponse([{ id: "c1", name: "Diya", date_of_birth: "2022-05-01" }]);
 
   test("shows who she is, when she's free and the 1-hour nudge, with no price", async () => {
-    mockApi({ "GET /parent/sitters/s1": () => jsonResponse(DETAIL) });
+    mockApi({ "GET /parent/sitters/s1": () => jsonResponse(DETAIL), "GET /parent/children": CHILDREN });
     const { container } = renderAt("/parent/sitters/s1");
     expect(await screen.findByRole("heading", { level: 1, name: "Lakshmi Nair" })).toBeTruthy();
-    expect(screen.getByText("4 years' experience · under 1 km away · Speaks English, Tamil")).toBeTruthy();
+    expect(screen.getByText("4 years' experience · under 1 km away · Joined Nov 2026")).toBeTruthy();
+    expect(screen.queryByText("New to Pacify")).toBeNull();
     expect(screen.getByText("I love storytime.")).toBeTruthy();
+    expect(screen.getByText("Comfortable with ages 3–5")).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Languages" })).getByText("Tamil")).toBeTruthy();
+    expect(await screen.findByText(/Suits Diya \(4\)/)).toBeTruthy();
+    expect(screen.getByText(/works the Pause plan: one child, until 6 pm/)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "When Lakshmi is usually free" })).toBeTruthy();
-    expect(screen.getByText("Mon").nextElementSibling!.textContent).toBe("9 am – 1 pm, 6 pm – 10 pm");
-    expect(screen.getByText("Sat").nextElementSibling!.textContent).toBe("10 am – 2 pm");
-    expect(screen.queryByText("Tue")).toBeNull();
+    // A week grid: every day, with "Not available" where she isn't free.
+    const monday = screen.getByRole("rowheader", { name: "Mon" }).closest("tr")!;
+    expect(within(monday).getAllByText("Free")).toHaveLength(2); // morning and evening
+    const tuesday = screen.getByRole("rowheader", { name: "Tue" }).closest("tr")!;
+    expect(within(tuesday).getByText("Not available")).toBeTruthy();
     expect(screen.getByText("Not free on Sun 15 Nov.")).toBeTruthy();
     expect(screen.getByText(/Start with a 1-hour booking while you're at home/)).toBeTruthy();
     expect(screen.queryByText("First-aid certified")).toBeNull();
     expect(container.textContent).not.toMatch(/₹|per hour|\/hour/);
   });
 
-  test("a Recharge sitter's shared reference is shown; others have none", async () => {
-    const reference = { name: "Asha Rao", phone: "+919876500000", relationship: "Former employer" };
-    mockApi({ "GET /parent/sitters/s1": () => jsonResponse({ ...DETAIL, plan: "recharge", reference }) });
+  test("each check opens to say what Pacify checked", async () => {
+    mockApi({ "GET /parent/sitters/s1": () => jsonResponse(DETAIL), "GET /parent/children": CHILDREN });
     renderAt("/parent/sitters/s1");
+    const badge = (await screen.findByText("ID & police verified")).closest("details")!;
+    expect(within(badge).getByText(/police clearance certificate/)).toBeTruthy();
+  });
+
+  test("a Recharge sitter's shared reference is shown, never with a phone number", async () => {
+    const reference = { name: "Asha Rao", relationship: "Former employer" };
+    mockApi({
+      "GET /parent/sitters/s1": () => jsonResponse({ ...DETAIL, plan: "recharge", reference }),
+      "GET /parent/children": CHILDREN,
+    });
+    const { container } = renderAt("/parent/sitters/s1");
     expect(await screen.findByRole("heading", { name: "A reference for Lakshmi" })).toBeTruthy();
     expect(screen.getByText("Asha Rao · Former employer")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "+919876500000" }).getAttribute("href")).toBe("tel:+919876500000");
+    expect(container.querySelector('a[href^="tel:"]')).toBeNull();
   });
 
   test("no reference card without a shared reference", async () => {
-    mockApi({ "GET /parent/sitters/s1": () => jsonResponse(DETAIL) });
+    mockApi({ "GET /parent/sitters/s1": () => jsonResponse(DETAIL), "GET /parent/children": CHILDREN });
     renderAt("/parent/sitters/s1");
     await screen.findByRole("heading", { level: 1, name: "Lakshmi Nair" });
     expect(screen.queryByRole("heading", { name: /A reference for/ })).toBeNull();

@@ -354,6 +354,26 @@ def test_day_filter_finds_sitters_free_that_day(client, finished_parent, make_si
     assert names(response.json()) == ["Free That Weekday"]
 
 
+def test_time_of_day_filter_finds_sitters_free_then(client, finished_parent, make_sitter):  # noqa: F811
+    # One set of parts of the day everywhere (UX review 2026-11-13): evening is 6 pm to 10 pm.
+    day = india_day(3)
+    evening = make_sitter("Free Evenings")
+    late = make_sitter("Free From Nine")
+    morning = make_sitter("Free Mornings")
+    set_week(client, evening, (day.weekday(), 18, 22))
+    set_week(client, late, (day.weekday(), 21, 24))
+    set_week(client, morning, (day.weekday(), 9, 13))
+    found = find(client, finished_parent, day=day.isoformat(), part="evening")
+    assert sorted(names(found)) == ["Free Evenings", "Free From Nine"]
+    assert names(find(client, finished_parent, day=day.isoformat(), part="morning")) == ["Free Mornings"]
+
+
+def test_a_time_of_day_needs_a_day(client, finished_parent):  # noqa: F811
+    response = client.get("/parent/sitters", params={"part": "evening"}, headers=auth_for(finished_parent))
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "day_needed"
+
+
 def test_nobody_is_free_beyond_two_weeks(client, finished_parent, make_sitter):  # noqa: F811
     make_sitter("Every Day")
     every_day = make_sitter("Every Day Too")
@@ -404,6 +424,7 @@ def test_profile_page_shows_her_week_and_days_off(client, finished_parent, make_
     assert body["bio"] == "Loves stories"
     assert body["plan"] == "pause"
     assert body["languages"] == ["English", "Tamil"]
+    assert body["joined_at"]  # "Joined Nov 2026" on her profile
     assert body["week"] == [
         {"weekday": 0, "start_hour": 9, "end_hour": 13},
         {"weekday": 5, "start_hour": 18, "end_hour": 22},
@@ -452,8 +473,7 @@ def test_a_recharge_sitters_reference_is_shown_with_her_consent(client, db_engin
 
     set_consent(db_engine, recharge["id"])
     assert detail(client, finished_parent, recharge)["reference"] == {
-        "name": "Asha Rao",  # only an approved reference
-        "phone": "+919876500000",
+        "name": "Asha Rao",  # only an approved reference, and never the referee's phone (UX review)
         "relationship": "Former employer",
     }
 

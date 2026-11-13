@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
@@ -17,6 +17,7 @@ from app.services import availability as availability_service
 from app.services import checklists, consent, family, legal
 from app.services import children as children_service
 from app.services import search as search_service
+from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
 from app.services.storage import StorageClient, get_storage
 
@@ -30,6 +31,7 @@ class ChecklistItem(BaseModel):
     key: str
     status: checklists.ItemStatus
     reason: str | None = None  # when rejected: why, in the admin's words
+    note: str | None = None  # the exact next action, e.g. "1 child · certificate needed"
 
 
 class Checklist(BaseModel):
@@ -39,7 +41,7 @@ class Checklist(BaseModel):
 
 
 def checklist_out(items: list[checklists.Item]) -> list[ChecklistItem]:
-    return [ChecklistItem(key=item.key, status=item.status, reason=item.reason) for item in items]
+    return [ChecklistItem(key=item.key, status=item.status, reason=item.reason, note=item.note) for item in items]
 
 
 @router.get("/checklist")
@@ -121,6 +123,13 @@ class SetEmergencyContacts(BaseModel):
     # Exactly two per family (Family Terms 2.5), not per child.
     contacts: list[ContactIn] = Field(min_length=2, max_length=2)
 
+    @field_validator("contacts")
+    @classmethod
+    def _two_different_people(cls, value: list[ContactIn]) -> list[ContactIn]:
+        if len(value) == 2 and value[0].phone == value[1].phone:
+            raise ValueError("Please give two different mobile numbers")
+        return value
+
 
 class ContactOut(BaseModel):
     id: uuid.UUID
@@ -140,6 +149,16 @@ def get_emergency_contacts(parent: Parent, db: DbSession) -> list[ContactOut]:
 
 @router.put("/emergency-contacts")
 def put_emergency_contacts(body: SetEmergencyContacts, parent: Parent, db: DbSession) -> list[ContactOut]:
+    # Family data only after the parental consent (UX review 2026-11-13).
+    consent.require_current_consent(db, parent.id)
+    # An emergency contact is someone else to call: never the parent's own number.
+    if parent.phone and any(contact.phone == parent.phone for contact in body.contacts):
+        raise AppError(
+            422,
+            "emergency_contact_is_you",
+            "An emergency contact needs a different number from yours",
+            {"field": "phone"},
+        )
     contacts = [(c.name, c.relationship, c.phone) for c in body.contacts]
     return [_contact_out(row) for row in family.set_emergency_contacts(db, parent.id, contacts)]
 
@@ -151,6 +170,7 @@ def get_authorised_adults(parent: Parent, db: DbSession) -> list[ContactOut]:
 
 @router.post("/authorised-adults", status_code=201)
 def post_authorised_adult(body: ContactIn, parent: Parent, db: DbSession) -> ContactOut:
+    consent.require_current_consent(db, parent.id)
     adult = family.add_authorised_adult(db, parent.id, body.name, body.relationship, body.phone)
     return _contact_out(adult)
 
@@ -200,6 +220,7 @@ class ChildOut(BaseModel):
     routines: str | None
     verification_status: VerificationStatus
     rejection_reason: str | None  # why Pacify couldn't accept the birth certificate
+    verified_at: datetime | None  # shown as "Verified 13 Nov" (UX review 2026-11-13)
 
 
 def _child_out(child: Child) -> ChildOut:
@@ -212,6 +233,7 @@ def _child_out(child: Child) -> ChildOut:
         routines=child.routines,
         verification_status=child.verification_status,
         rejection_reason=child.rejection_reason,
+        verified_at=child.verified_at if child.verification_status == VerificationStatus.approved else None,
     )
 
 
@@ -222,6 +244,7 @@ def get_children(parent: Parent, db: DbSession) -> list[ChildOut]:
 
 @router.post("/children", status_code=201)
 def post_child(body: ChildIn, parent: Parent, db: DbSession) -> ChildOut:
+    consent.require_current_consent(db, parent.id)  # children's data only after consent
     child = children_service.add_child(
         db, parent.id, body.name, body.date_of_birth, body.allergies, body.medical_notes, body.routines
     )
@@ -230,6 +253,7 @@ def post_child(body: ChildIn, parent: Parent, db: DbSession) -> ChildOut:
 
 @router.put("/children/{child_id}")
 def put_child(child_id: uuid.UUID, body: ChildIn, parent: Parent, db: DbSession) -> ChildOut:
+    consent.require_current_consent(db, parent.id)
     child = children_service.update_child(
         db, parent.id, child_id, body.name, body.date_of_birth, body.allergies, body.medical_notes, body.routines
     )
@@ -269,8 +293,8 @@ class WeekHours(BaseModel):
 
 
 class SharedReference(BaseModel):
+    # Never the referee's phone number (UX review 2026-11-13): parents contact sitters through Pacify.
     name: str
-    phone: str
     relationship: str
 
 
@@ -280,6 +304,7 @@ class SitterDetail(SitterSummary):
     days_off: list[date]  # days she isn't free within the booking window (the next two weeks)
     # Recharge sitters only, with her consent (CLAUDE.md 6.2).
     reference: SharedReference | None
+    joined_at: datetime  # shown as "Joined Nov 2026" (UX review 2026-11-13)
 
 
 def _photo_url(db: DbSession, storage: StorageClient, sitter_id: uuid.UUID) -> str | None:
@@ -298,8 +323,8 @@ def _summary_fields(found: search_service.Found, photo_url: str | None) -> dict:
         "id": profile.id,
         "full_name": profile.full_name,
         "years_experience": sitter.years_experience,
-        "age_groups": sitter.age_groups,
-        "languages": sitter.languages,
+        "age_groups": sitters_service.known(sitter.age_groups, sitters_service.AGE_GROUPS),
+        "languages": sitters_service.known(sitter.languages, sitters_service.LANGUAGES),
         "first_aid": sitter.first_aid,
         "avg_rating": float(sitter.avg_rating) if sitter.avg_rating is not None else None,
         "review_count": sitter.review_count,
@@ -322,10 +347,13 @@ def search_sitters(
     min_years: Annotated[int | None, Query(ge=0, le=60)] = None,
     language: Annotated[str | None, Query(max_length=40)] = None,
     first_aid: bool = False,
+    part: Annotated[Literal["morning", "afternoon", "evening", "night"] | None, Query()] = None,
     sort: search_service.SortBy = search_service.SortBy.distance,
 ) -> list[SitterSummary]:
     """Every live sitter, or one plan's level. Parents browse once their profile is finished (CLAUDE.md 7)."""
     checklists.require_finished_parent_profile(db, parent)
+    if part is not None and day is None:
+        raise AppError(422, "day_needed", "Choose a day as well as a time of day")
     if (starts_at is None) != (ends_at is None):
         raise AppError(422, "time_incomplete", "Choose both a start and an end time")
     if starts_at is not None and ends_at is not None and ends_at <= starts_at:
@@ -338,6 +366,7 @@ def search_sitters(
         min_rating=min_rating,
         min_years=min_years,
         language=language,
+        part=part,
         first_aid=first_aid,
         sort=sort,
     )
@@ -360,7 +389,6 @@ def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Sto
         bio=found.sitter.bio,
         week=[WeekHours(**vars(hours)) for hours in availability_service.week(db, sitter_id)],
         days_off=[day for day in availability_service.days_off(db, sitter_id, today) if day <= last_day],
-        reference=(
-            SharedReference(name=shared.name, phone=shared.phone, relationship=shared.relationship) if shared else None
-        ),
+        reference=(SharedReference(name=shared.name, relationship=shared.relationship) if shared else None),
+        joined_at=found.profile.created_at,
     )

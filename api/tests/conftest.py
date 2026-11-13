@@ -60,3 +60,18 @@ def fake_geocoder(monkeypatch):
     FakeGeocoder.queries = []
     monkeypatch.setattr(geocoding.NominatimGeocoder, "lookup", FakeGeocoder.lookup)
     return FakeGeocoder
+
+
+class Mailbox:
+    """Stands in for Resend (app.services.email): keeps every email instead of sending it."""
+
+    def __init__(self) -> None:
+        self.sent = []
+
+    def send(self, email) -> None:
+        self.sent.append(email)
+
+
+@pytest.fixture
+def mailbox():
+    return Mailbox()

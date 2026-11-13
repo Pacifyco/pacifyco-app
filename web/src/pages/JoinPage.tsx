@@ -1,3 +1,4 @@
+import { SIGN_IN_PATH } from "./SignInPage";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate } from "react-router";
@@ -31,7 +32,7 @@ export function JoinPage() {
     },
   });
 
-  if (status === "signed_out") return <Navigate to="/sign-in" replace />;
+  if (status === "signed_out") return <Navigate to={SIGN_IN_PATH} replace />;
   if (status === "loading" || me.isPending) return <LoadingScreen />;
   if (me.isError) return <p className="text-center text-muted">{me.error.message}</p>;
   if (me.data.profile) return <Navigate to={AREA_PATH[me.data.profile.role]} replace />;
@@ -85,7 +86,7 @@ export function JoinPage() {
         <h1>{role === "parent" ? "Family" : "Sitter"} sign-up opens soon.</h1>
         <p className="mt-4 text-muted">
           We're finishing the {role === "parent" ? "Family" : "Sitter"} Terms of Use. Please check back soon, or contact
-          us at query.pacifyco@gmail.com.
+          us at founders@pacifyco.in.
         </p>
         <div className="mt-6 flex justify-center">
           <Button variant="secondary" onClick={() => setConfirming(false)}>

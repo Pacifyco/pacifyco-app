@@ -34,6 +34,26 @@ function inline(text: string): ReactNode[] {
   });
 }
 
+/** Plain text of a heading, without ** or escapes. */
+function plainText(text: string): string {
+  return unescape(text.replace(/\*\*/g, "").replace(/(^|\s)\*(\S)/g, "$1$2").replace(/(\S)\*(\s|$)/g, "$1$2"));
+}
+
+/** An anchor for a section heading: "3. Bookings and payments" → "3-bookings-and-payments". */
+export function headingId(text: string): string {
+  return plainText(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** The "##" sections of a document, for a contents list (UX review 2026-11-13). */
+export function sections(body: string): { id: string; text: string }[] {
+  return toBlocks(body)
+    .filter((block): block is Extract<Block, { kind: "heading" }> => block.kind === "heading" && block.level === 2)
+    .map((block) => ({ id: headingId(block.text), text: plainText(block.text) }));
+}
+
 function cells(row: string): string[] {
   return row
     .trim()
@@ -72,15 +92,20 @@ function toBlocks(body: string): Block[] {
   return blocks;
 }
 
-export function Markdown({ body }: { body: string }) {
+/** `boldTitle`: a first line that's all bold ("**Pacifyco Family Terms of Use**") is the page's title,
+so it's shown as the H1 without changing the document's wording (UX review 2026-11-13). */
+export function Markdown({ body, boldTitle = false }: { body: string; boldTitle?: boolean }) {
   return (
     <>
       {toBlocks(body).map((block, index) => {
+        if (boldTitle && index === 0 && block.kind === "paragraph" && /^\*\*[^*]+\*\*$/.test(block.text)) {
+          return <h1 key={index}>{inline(block.text.slice(2, -2))}</h1>;
+        }
         switch (block.kind) {
           case "heading":
             if (block.level === 1) return <h1 key={index}>{inline(block.text)}</h1>;
             return block.level === 2 ? (
-              <h2 key={index} className="mt-7 text-h3">
+              <h2 key={index} id={headingId(block.text)} className="mt-7 scroll-mt-5 text-h3">
                 {inline(block.text)}
               </h2>
             ) : (

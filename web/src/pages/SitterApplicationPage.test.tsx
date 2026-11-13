@@ -2,19 +2,22 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { AuthProvider } from "../auth/AuthProvider";
 import { jsonResponse } from "../test/renderApp";
 import { SitterApplicationPage } from "./SitterApplicationPage";
 
 // Needs no sign-in session to render, same as FamilyPage: apiFetch sends no Authorization header
 // when there isn't one, and every test here stubs fetch by URL directly. Wrapped in a MemoryRouter
 // because the last step navigates to the psychology screening page.
-function renderPage() {
+function renderPage(path = "/sitter/application") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <SitterApplicationPage />
-      </MemoryRouter>
+      <AuthProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <SitterApplicationPage />
+        </MemoryRouter>
+      </AuthProvider>
     </QueryClientProvider>,
   );
 }
@@ -102,6 +105,9 @@ async function clickContinue(name = "Continue") {
 async function fillProfileAndContinue() {
   fireEvent.change(await screen.findByLabelText("Date of birth"), { target: { value: "1995-06-15" } });
   fireEvent.change(screen.getByLabelText("Years of experience"), { target: { value: "5" } });
+  fireEvent.change(screen.getByLabelText(/About you/), { target: { value: "I love storytime." } });
+  fireEvent.click(screen.getByRole("button", { name: /Toddler/ }));
+  fireEvent.click(screen.getByRole("button", { name: "English" }));
   await clickContinue();
   await screen.findByRole("heading", { name: "Documents" });
 }
@@ -115,7 +121,7 @@ describe("the sitter application page", () => {
     mockApi();
     renderPage();
     expect(await screen.findByRole("heading", { level: 1, name: "Your application" })).toBeTruthy();
-    expect(await screen.findByText("Step 1 of 5 · About you")).toBeTruthy();
+    expect(await screen.findByText(/Step 1 of 5/)).toBeTruthy();
     expect(await screen.findByRole("heading", { name: "Your profile" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Documents" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Health disclosure" })).toBeNull();
@@ -133,14 +139,37 @@ describe("the sitter application page", () => {
     const put = calls.find((call) => call.url.endsWith("/sitter/profile") && call.init?.method === "PUT")!;
     expect(JSON.parse(put.init!.body as string)).toEqual({
       date_of_birth: "1995-06-15",
-      bio: null,
+      bio: "I love storytime.",
       years_experience: 5,
-      age_groups: [],
-      languages: [],
+      age_groups: ["Toddler"],
+      languages: ["English"],
       first_aid: false,
       reference_shared_consent: false,
     });
-    expect(await screen.findByText("Step 2 of 5 · Documents")).toBeTruthy();
+    expect(await screen.findByText(/Step 2 of 5/)).toBeTruthy();
+  });
+
+  test("ages and languages are picked from fixed lists, and every field says what's missing", async () => {
+    // UX review 2026-11-13: free text showed parents "dsfghjkl"; errors name the field.
+    const calls = mockApi();
+    renderPage();
+    expect(await screen.findByRole("button", { name: /Preschool \(3–5\)/ })).toBeTruthy();
+    for (const language of ["English", "Kannada", "Hindi", "Tamil", "Malayalam", "Telugu"]) {
+      expect(screen.getByRole("button", { name: language }).getAttribute("aria-pressed")).toBe("false");
+    }
+    expect(screen.queryByRole("button", { name: /Infant/ })).toBeNull(); // Pacify starts at 18 months
+    await clickContinue();
+    expect(await screen.findByText("Please write a few words for parents.")).toBeTruthy();
+    expect(screen.getByText("Please choose at least one age group.")).toBeTruthy();
+    expect(screen.getByText("Please choose at least one language.")).toBeTruthy();
+    expect(calls.some((call) => call.init?.method === "PUT")).toBe(false);
+  });
+
+  test("the checklist can open a step directly", async () => {
+    mockApi();
+    renderPage("/sitter/application?step=references");
+    expect(await screen.findByRole("heading", { name: "References" })).toBeTruthy();
+    expect(screen.getByText(/Step 4 of 5/)).toBeTruthy();
   });
 
   test("sharing a reference with parents is unticked unless she ticks it", async () => {
@@ -148,6 +177,8 @@ describe("the sitter application page", () => {
     renderPage();
     const tick = await screen.findByRole("checkbox", { name: /Pacify may show parents one of my references/ });
     expect((tick as HTMLInputElement).checked).toBe(false);
+    // Parents never see a referee's phone number (UX review 2026-11-13).
+    expect(tick.closest("label")!.textContent).toContain("never their phone number");
     fireEvent.click(tick);
     await fillProfileAndContinue();
     const put = calls.find((call) => call.url.endsWith("/sitter/profile") && call.init?.method === "PUT")!;
@@ -170,7 +201,7 @@ describe("the sitter application page", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "← Back" }));
     expect(await screen.findByRole("heading", { name: "Your profile" })).toBeTruthy();
-    expect(await screen.findByText("Step 1 of 5 · About you")).toBeTruthy();
+    expect(await screen.findByText(/Step 1 of 5/)).toBeTruthy();
   });
 
   test("walking through every step reaches the psychology screening page", async () => {
@@ -185,20 +216,22 @@ describe("the sitter application page", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
       </QueryClientProvider>,
     );
 
     await fillProfileAndContinue();
 
     await clickContinue(); // documents, nothing required
-    await screen.findByText("Step 3 of 5 · Health disclosure");
+    await screen.findByText(/Step 3 of 5/);
 
     await clickContinue(); // health disclosure, blank is valid
-    await screen.findByText("Step 4 of 5 · References");
+    await screen.findByText(/Step 4 of 5/);
 
     await clickContinue(); // references, none required
-    await screen.findByText("Step 5 of 5 · Payout details");
+    await screen.findByText(/Step 5 of 5/);
 
     fireEvent.change(await screen.findByLabelText("UPI ID"), { target: { value: "asha@upi" } });
     await clickContinue("Continue to the psychology screening");
@@ -211,9 +244,9 @@ describe("the sitter application page", () => {
     renderPage();
     await fillProfileAndContinue();
     await clickContinue(); // documents
-    await screen.findByText("Step 3 of 5 · Health disclosure");
+    await screen.findByText(/Step 3 of 5/);
     await clickContinue(); // health disclosure
-    await screen.findByText("Step 4 of 5 · References");
+    await screen.findByText(/Step 4 of 5/);
     await clickContinue(); // references
     await screen.findByRole("heading", { name: "Payout details" });
 
@@ -223,12 +256,25 @@ describe("the sitter application page", () => {
     expect(screen.getByLabelText("Account holder name")).toBeTruthy();
   });
 
+  test("a reference's problems are shown under each field", async () => {
+    const calls = mockApi();
+    renderPage("/sitter/application?step=references");
+    const section = (await screen.findByRole("heading", { name: "References" })).closest("section")!;
+    const scope = within(section);
+    fireEvent.change(scope.getByLabelText("Name"), { target: { value: "Priya Rao" } });
+    fireEvent.change(scope.getByLabelText("Mobile number"), { target: { value: "12345" } });
+    fireEvent.click(scope.getByRole("button", { name: "Add this reference" }));
+    expect(await scope.findByText(/Please say how they know you/)).toBeTruthy();
+    expect(scope.getByText("Please enter a 10-digit mobile number.")).toBeTruthy();
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(false);
+  });
+
   test("a third reference is refused", async () => {
     mockApi();
     renderPage();
     await fillProfileAndContinue();
     await clickContinue(); // documents
-    await screen.findByText("Step 3 of 5 · Health disclosure");
+    await screen.findByText(/Step 3 of 5/);
     await clickContinue(); // health disclosure
     const section = (await screen.findByRole("heading", { name: "References" })).closest("section")!;
     const scope = within(section);
@@ -236,8 +282,8 @@ describe("the sitter application page", () => {
     for (const name of ["Priya Rao", "Vikram Rao"]) {
       fireEvent.change(scope.getByLabelText("Name"), { target: { value: name } });
       fireEvent.change(scope.getByLabelText("Relationship"), { target: { value: "Neighbour" } });
-      fireEvent.change(scope.getByLabelText("Phone"), { target: { value: "9876543210" } });
-      fireEvent.click(scope.getByRole("button", { name: "Add reference" }));
+      fireEvent.change(scope.getByLabelText("Mobile number"), { target: { value: "9876543210" } });
+      fireEvent.click(scope.getByRole("button", { name: "Add this reference" }));
       await waitFor(() => expect(scope.queryByText(name)).toBeTruthy());
     }
     expect(scope.queryByLabelText("Name")).toBeNull(); // the add form hides once two are added

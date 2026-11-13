@@ -56,7 +56,7 @@ def test_failing_the_psych_test_needs_a_reason(client, db_engine, sitter, review
     ok = client.post(path, json={"passed": False, "rejection_reason": "Too brief"}, headers=as_user(reviewer))
     assert ok.status_code == 200
     items, _ = checklist(client, sitter, "sitter")
-    assert items["psych_test"] == {"key": "psych_test", "status": "rejected", "reason": "Too brief"}
+    assert items["psych_test"] == {"key": "psych_test", "status": "rejected", "reason": "Too brief", "note": None}
 
 
 # ---------- parents see why ----------
@@ -143,7 +143,12 @@ def test_approving_clears_the_reason(client, sitter, reviewer):  # noqa: F811
     review(client, reviewer, path, False, reason="Too old")
     review(client, reviewer, path)
     items, _ = checklist(client, sitter, "sitter")
-    assert items["police_certificate"] == {"key": "police_certificate", "status": "approved", "reason": None}
+    assert items["police_certificate"] == {
+        "key": "police_certificate",
+        "status": "approved",
+        "reason": None,
+        "note": None,
+    }
 
 
 # ---------- profile photos ----------

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { TermsCheckbox, requiredTerms, shownVersions, termsOutdated, termsReady } from "../auth/TermsAgreement";
@@ -53,6 +53,9 @@ export function ConsentPage() {
   const [termsTicked, setTermsTicked] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [error, setError] = useState<string>();
+  // After a try with boxes missing, each unticked required box is outlined (UX review 2026-11-13).
+  const [tried, setTried] = useState(false);
+  const boxes = useRef<HTMLDivElement>(null);
 
   async function done() {
     await Promise.all([
@@ -100,7 +103,14 @@ export function ConsentPage() {
   const marketingGiven = consent.data && !outdated ? consent.data.marketing : false;
 
   function submit() {
-    if (ticked.some((value) => !value) || !termsTicked) return setError(TICK_EVERY_BOX);
+    if (ticked.some((value) => !value) || !termsTicked) {
+      setTried(true);
+      setError(TICK_EVERY_BOX);
+      // Move to the first box still to tick.
+      const boxesLeft = boxes.current?.querySelectorAll<HTMLInputElement>("input[type=checkbox][data-required]");
+      [...(boxesLeft ?? [])].find((box) => !box.checked)?.focus();
+      return;
+    }
     setError(undefined);
     accept.mutate();
   }
@@ -164,10 +174,13 @@ export function ConsentPage() {
             </ButtonLink>
           </div>
         ) : (
-          <>
+          <div ref={boxes} className="flex flex-col gap-5">
             {REQUIRED_LABELS.map((label, index) => (
               <Checkbox
                 key={label}
+                tag="Required"
+                data-required
+                highlight={tried && !ticked[index]}
                 label={label}
                 checked={ticked[index]}
                 onChange={(event) =>
@@ -175,8 +188,24 @@ export function ConsentPage() {
                 }
               />
             ))}
-            <TermsCheckbox kinds={TERMS} checked={termsTicked} onChange={setTermsTicked} />
-            <Checkbox label={MARKETING_LABEL} checked={marketing} onChange={(event) => setMarketing(event.target.checked)} />
+            <TermsCheckbox
+              kinds={TERMS}
+              tag="Required"
+              highlight={tried && !termsTicked}
+              checked={termsTicked}
+              onChange={setTermsTicked}
+            />
+            <div className="flex items-center gap-3 text-eyebrow text-muted uppercase" aria-hidden="true">
+              <span className="h-px flex-1 bg-line" />
+              Optional
+              <span className="h-px flex-1 bg-line" />
+            </div>
+            <Checkbox
+              tag="Optional"
+              label={MARKETING_LABEL}
+              checked={marketing}
+              onChange={(event) => setMarketing(event.target.checked)}
+            />
             {error && (
               <p role="alert" className="text-small text-danger">
                 {error}
@@ -190,7 +219,7 @@ export function ConsentPage() {
             <Button loading={accept.isPending} onClick={submit}>
               I agree
             </Button>
-          </>
+          </div>
         )}
       </div>
     </article>

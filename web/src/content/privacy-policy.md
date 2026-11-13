@@ -8,7 +8,7 @@ version: 0.1-draft
 
 ## Who we are
 
-Pacify is run by Pacifyco LLP. Contact us at query.pacifyco@gmail.com or +91 8848873841.
+Pacify is run by Pacifyco LLP. Contact us at founders@pacifyco.in or +91 8848873841.
 
 ## What this policy will cover
 

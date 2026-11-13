@@ -130,11 +130,29 @@ describe("sign in with an email code", () => {
     expect(await screen.findByText(/Please wait a minute before asking for another/)).toBeTruthy();
   });
 
+  test("an incomplete email is caught on pressing the button, and announced", async () => {
+    // UX review 2026-11-13: the button is never greyed out, and the field says what's wrong.
+    renderApp("/sign-in");
+    expect((await screen.findByRole("button", { name: /Email me a code/ })).hasAttribute("disabled")).toBe(false);
+    await enterEmail("");
+    expect((await screen.findByRole("alert")).textContent).toBe("Enter your email to continue.");
+    await enterEmail("abcabc");
+    expect((await screen.findByRole("alert")).textContent).toBe("Enter a full email, like name@gmail.com.");
+    expect(fake.auth.signInWithOtp).not.toHaveBeenCalled();
+  });
+
   test("an email Supabase refuses is a blame-free field error", async () => {
     fake.auth.signInWithOtp.mockResolvedValue({ error: { status: 400, name: "AuthApiError" } });
     renderApp("/sign-in");
-    await enterEmail("not-an-email");
+    await enterEmail("asha@example.invalid");
     expect(await screen.findByText("That email doesn't look quite right — could you check it?")).toBeTruthy();
+  });
+
+  test("the sign-in page has no Sign in link in its header, and Google shows its mark", async () => {
+    renderApp("/sign-in");
+    await screen.findByRole("heading", { name: "Sign in to Pacify." });
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Continue with Google" }).querySelector("svg")).toBeTruthy();
   });
 
   test("a wrong or expired code can be retried", async () => {
@@ -208,7 +226,7 @@ describe("signed-in state", () => {
     await screen.findByRole("heading", { level: 1, name: "Find a sitter" });
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
-    expect(await screen.findByRole("link", { name: "Sign in" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Sign in to Pacify." })).toBeTruthy();
     expect(fake.auth.signOut).toHaveBeenCalled();
   });
 });
@@ -266,10 +284,9 @@ describe("joining after the first sign-in", () => {
     const post = calls.find((call) => call.url.endsWith("/me/profile"))!;
     expect(post.init!.method).toBe("POST");
     expect(JSON.parse(post.init!.body as string)).toEqual({ role: "parent" });
-    // Straight into the area; a bubble from the profile button leads to the checklist.
-    expect((await screen.findByRole("link", { name: "Finish your profile" }, { timeout: 5000 })).getAttribute("href")).toBe(
-      "/parent/profile",
-    );
+    // Straight into the area; a bubble from the profile button (and the page) lead to the checklist.
+    const links = await screen.findAllByRole("link", { name: "Finish your profile" }, { timeout: 5000 });
+    for (const link of links) expect(link.getAttribute("href")).toBe("/parent/profile");
     expect(screen.queryByRole("heading", { name: "Finish your profile" })).toBeNull();
   });
 
@@ -320,7 +337,8 @@ describe("joining after the first sign-in", () => {
 
   test("signed-out people are sent to sign in", async () => {
     const { router } = renderApp("/join");
-    await waitFor(() => expect(router.state.location.pathname).toBe("/sign-in"));
+    await waitFor(() => expect(router.state.location.search).toBe("?signin"));
+    expect(router.state.location.pathname).toBe("/");
   });
 });
 
@@ -368,11 +386,28 @@ describe("finishing a profile after sign-up", () => {
       "Your details": "/parent/details",
       "Parental consent": "/parent/consent",
       "Your children": "/parent/family",
-      "Emergency contacts": "/parent/family",
+      "Emergency contacts": "/parent/family?step=emergency",
     };
     for (const [name, href] of Object.entries(links)) {
       expect(screen.getByRole("link", { name: new RegExp(name) }).getAttribute("href")).toBe(href);
     }
+  });
+
+  test("a checklist row shows its status under the name and the exact next action", async () => {
+    detailsApi();
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      Promise.resolve(
+        url.endsWith("/parent/checklist")
+          ? jsonResponse({
+              items: [{ key: "children", status: "to_do", note: "1 child · certificate needed" }],
+              finished: false,
+            })
+          : jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE }),
+      )) as typeof fetch);
+    renderApp("/parent/profile");
+    const row = within(await screen.findByRole("link", { name: /Your children/ }));
+    expect(row.getByText("To do")).toBeTruthy();
+    expect(row.getByText("1 child · certificate needed")).toBeTruthy();
   });
 
   test("a finished parent profile says booking waits for the birth certificates", async () => {
@@ -391,7 +426,7 @@ describe("finishing a profile after sign-up", () => {
       )) as typeof fetch);
     renderApp("/parent/profile");
     expect(await screen.findByText(/a booking is confirmed once Pacify has checked/i)).toBeTruthy();
-    expect(within(screen.getByRole("link", { name: /Your children/ })).getByText("Being checked")).toBeTruthy();
+    expect(within(screen.getByRole("link", { name: /Your children/ })).getByText("In review")).toBeTruthy();
   });
 
   test("the sitter's profile page lists every onboarding step", async () => {
@@ -399,8 +434,12 @@ describe("finishing a profile after sign-up", () => {
     renderApp("/sitter/profile");
     expect(await screen.findByText(/once every step passes and Pacify approves your profile/)).toBeTruthy();
     expect(screen.getByRole("link", { name: /Your details/ }).getAttribute("href")).toBe("/sitter/details");
+    // Each row opens the exact step (UX review 2026-11-13).
     expect(screen.getByRole("link", { name: /Police clearance certificate/ }).getAttribute("href")).toBe(
-      "/sitter/application",
+      "/sitter/application?step=documents",
+    );
+    expect(screen.getByRole("link", { name: /References/ }).getAttribute("href")).toBe(
+      "/sitter/application?step=references",
     );
     expect(screen.getByRole("link", { name: /Psychology screening/ }).getAttribute("href")).toBe("/sitter/psych-test");
   });
@@ -410,11 +449,12 @@ describe("finishing a profile after sign-up", () => {
     const { router } = renderApp("/parent/details");
     await fill("Asha K", "98765 43210");
     await waitFor(() => expect(router.state.location.pathname).toBe("/parent/profile"));
+    expect(await screen.findByText("Details saved")).toBeTruthy(); // the toast, still up on the profile
     const put = calls.find((call) => call.url.endsWith("/me/details"))!;
     expect(put.init!.method).toBe("PUT");
     expect(JSON.parse(put.init!.body as string)).toEqual({
       full_name: "Asha K",
-      phone: "98765 43210",
+      phone: "9876543210", // typed after a fixed +91 (UX review 2026-11-13)
       pin_code: "560034",
       address: "12, 4th Cross, Koramangala",
     });
@@ -437,7 +477,7 @@ describe("finishing a profile after sign-up", () => {
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/service-area"))).toBe(true));
     await fill("Asha K", "9876543210", "560002");
     expect(
-      await screen.findByText("Pacify isn't in 560002 yet. For now we're in these Bengaluru pin codes: 560001, 560034."),
+      await screen.findByText("Pacify isn't in 560002 yet. For now we're in these parts of Bengaluru: MG Road (560001), Koramangala (560034)."),
     ).toBeTruthy();
   });
 
@@ -485,7 +525,7 @@ describe("role-gated areas", () => {
 
   test.each([
     ["parent", "/parent", "Find a sitter"],
-    ["sitter", "/sitter", "Your bookings"],
+    ["sitter", "/sitter", "Hi Asha."],
     ["admin", "/admin", "Admin"],
   ])("a %s sees their own area", async (role, path, heading) => {
     signedInAs(role);
@@ -493,23 +533,47 @@ describe("role-gated areas", () => {
     expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeTruthy();
   });
 
-  test("a sitter who hasn't set her availability is asked to, on her bookings page", async () => {
+  test("a sitter who isn't live yet sees where her application stands, not an empty bookings list", async () => {
     signedInAs("sitter");
     renderApp("/sitter");
-    expect(await screen.findByRole("heading", { name: "Set your availability" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Your availability/ }).getAttribute("href")).toBe("/sitter/availability");
+    expect(await screen.findByRole("heading", { name: "Finish your application" })).toBeTruthy();
+    expect(screen.getByText(/0 of 7 steps done/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Continue your application/ }).getAttribute("href")).toBe("/sitter/profile");
+    expect(screen.queryByText(/No bookings yet/)).toBeNull();
+  });
+
+  function liveSitter(week: unknown[]) {
+    fake.state.session = fake.session;
+    const profile = { role: "sitter", status: "active", full_name: "Asha K", pin_code: "560034" };
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      url.endsWith("/sitter/availability")
+        ? Promise.resolve(jsonResponse({ week, days_off: [] }))
+        : url.endsWith("/sitter/checklist")
+          ? Promise.resolve(jsonResponse({ ...SITTER_CHECKLIST, live: true }))
+          : meResponse(profile)(url)) as typeof fetch);
+  }
+
+  test("an approved sitter is welcomed once, and asked to set her availability", async () => {
+    liveSitter([]);
+    renderApp("/sitter");
+    expect(await screen.findByText("You're approved")).toBeTruthy();
+    expect(screen.getByText("Families near 560034 can now find you on Pacify.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Get your first booking" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Set your availability/ }).getAttribute("href")).toBe("/sitter/availability");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByText("You're approved")).toBeNull();
+    cleanup();
+    renderApp("/sitter");
+    await screen.findByRole("heading", { name: "Get your first booking" });
+    expect(screen.queryByText("You're approved")).toBeNull(); // only once
   });
 
   test("a sitter who has set her availability just sees her bookings, and changes it from her profile", async () => {
-    fake.state.session = fake.session;
-    const profile = { role: "sitter", status: "pending", full_name: "Asha K" };
-    vi.mocked(fetch).mockImplementation(((url: string) =>
-      url.endsWith("/sitter/availability")
-        ? Promise.resolve(jsonResponse({ week: [{ weekday: 0, start_hour: 9, end_hour: 13 }], days_off: [] }))
-        : meResponse(profile)(url)) as typeof fetch);
+    liveSitter([{ weekday: 0, start_hour: 9, end_hour: 13 }]);
     renderApp("/sitter");
     expect(await screen.findByText("No bookings yet. Confirmed bookings will show here.")).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Set your availability" })).toBeNull();
+    expect(screen.getByText(/Your usual week is set/)).toBeTruthy();
 
     cleanup();
     renderApp("/sitter/profile");
@@ -541,7 +605,7 @@ describe("role-gated areas", () => {
     renderApp("/sitter");
     expect(await screen.findByRole("heading", { name: "Your account is on hold." })).toBeTruthy();
     expect(screen.getByText(/appeal within 15 days/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: "query.pacifyco@gmail.com" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "founders@pacifyco.in" })).toBeTruthy();
     expect(screen.queryByText("Your bookings")).toBeNull();
   });
 
@@ -556,7 +620,7 @@ describe("role-gated areas", () => {
     signedInAs("parent", "suspended");
     renderApp("/parent");
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
-    expect(await screen.findByRole("link", { name: "Sign in" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Sign in to Pacify." })).toBeTruthy();
   });
 });
 
@@ -646,10 +710,17 @@ describe("parental consent", () => {
     const marketing = screen.getByRole("checkbox", { name: /offers and updates/ });
     for (const box of [...required, terms, marketing]) expect((box as HTMLInputElement).checked).toBe(false);
 
-    // Ticking only some of the required boxes isn't enough.
+    // Each box says whether it's required (UX review 2026-11-13: the copy says five, the page shows six).
+    expect(screen.getAllByText("Required")).toHaveLength(5);
+    expect(screen.getAllByText("Optional").length).toBeGreaterThanOrEqual(1);
+
+    // Ticking only some of the required boxes isn't enough: the first one left gets the focus.
     fireEvent.click(required[0]);
     fireEvent.click(screen.getByRole("button", { name: "I agree" }));
     expect(screen.getByText("Please tick every required box to continue.")).toBeTruthy();
+    expect(document.activeElement).toBe(required[1]);
+    expect(required[1]!.closest(".border-danger")).toBeTruthy(); // outlined
+    expect(required[0]!.closest(".border-danger")).toBeNull();
     expect(calls.some((call) => call.init?.method === "POST")).toBe(false);
 
     // Every consent but not the terms: still not enough.
@@ -808,7 +879,7 @@ describe("sitter consent", () => {
   test("a new sitter isn't held up by the terms: she lands in her area, and her profile lists the consent", async () => {
     sitterNeeding(SITTER_DOCS);
     const { router } = renderApp("/sitter");
-    expect(await screen.findByRole("heading", { name: "Your bookings" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Finish your application" })).toBeTruthy();
 
     await router.navigate("/sitter/profile");
     const link = await screen.findByRole("link", { name: /Sitter consent/ });
@@ -893,8 +964,10 @@ describe("the profile button and its bubble", () => {
   test("with steps left, the home shows a bubble from the profile button instead of the checklist", async () => {
     signedIn(PARENT_PROFILE, PARENT_CHECKLIST);
     renderApp("/parent");
-    const bubble = await screen.findByRole("link", { name: "Finish your profile" }, { timeout: 5000 });
-    expect(bubble.getAttribute("href")).toBe("/parent/profile");
+    // The bubble, and the page's own button (Find a sitter shows no filters until the profile is done).
+    const [bubble] = await screen.findAllByRole("link", { name: "Finish your profile" }, { timeout: 5000 });
+    expect(bubble!.getAttribute("href")).toBe("/parent/profile");
+    expect(bubble!.className).toContain("bubble-in");
     expect(screen.getByRole("link", { name: "Your profile" }).getAttribute("href")).toBe("/parent/profile");
     expect(screen.queryByRole("link", { name: /Parental consent/ })).toBeNull();
   });
