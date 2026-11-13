@@ -32,6 +32,8 @@ export type SitterSummary = {
   photo_url: string | null;
   /** The plan she works (her level), shown as a label on her card. */
   plan: Plan;
+  /** One of her references has been approved by Pacifyco (references are optional). */
+  references_checked: boolean;
 };
 
 /** What each plan means, in plain words (UX review 2026-11-13). */
@@ -53,8 +55,13 @@ export function distanceText(km: number | null): string | undefined {
 }
 
 /** Checks every live sitter has passed (CLAUDE.md 7). The psychology chip waits for the real questions. */
-export function checksFor(sitter: { first_aid: boolean }): VerifiedCheck[] {
-  return sitter.first_aid ? ["id_police", "references", "first_aid"] : ["id_police", "references"];
+export function checksFor(sitter: { first_aid: boolean; references_checked?: boolean }): VerifiedCheck[] {
+  // References are optional (Reuben, 2026-11-13): "References checked" only when one has been approved.
+  return [
+    "id_police",
+    ...(sitter.references_checked ? (["references"] as const) : []),
+    ...(sitter.first_aid ? (["first_aid"] as const) : []),
+  ];
 }
 
 /** The languages live sitters speak, from the unfiltered list, so every option finds someone. */

@@ -221,7 +221,12 @@ def sitter_checklist(db: Session, profile: Profile, sitter: Sitter) -> list[Item
         Item("identity_documents", ids, note=ids_note if ids != ItemStatus.to_do else None),
         # Optional to fill in, but she confirms it (saving it empty means "nothing to declare").
         Item("health_disclosure", _done(sitter.health_disclosure_confirmed_at is not None)),
-        Item("references", _reviewed(reviews["references"], references >= verification.REQUIRED_REFERENCES)),
+        # Optional, but good to have (Reuben, 2026-11-13): with none, the step counts as done.
+        Item(
+            "references",
+            _reviewed(reviews["references"], True) if references else ItemStatus.done,
+            note=None if references else "Optional: a reference helps families trust you",
+        ),
         Item("payout", _done(sitter.payout_method is not None)),
         Item(
             "psych_test",

@@ -276,8 +276,10 @@ describe("the family page", () => {
     fireEvent.change(phone, { target: { value: "9876543210" } });
     fireEvent.click(scope.getByRole("button", { name: "Continue" }));
 
-    // It's the last step: back to the profile checklist.
-    expect(await screen.findByText("Parent profile page")).toBeTruthy();
+    // It's the last step: only "your profile is under review", no heading (Reuben, 2026-11-13).
+    expect(await screen.findByText("Your profile is under review.")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "My family" })).toBeNull();
+    expect(screen.queryByText(/Step 4 of 4/)).toBeNull();
     const put = calls.find((call) => call.url.endsWith("/parent/emergency-contacts") && call.init?.method === "PUT")!;
     expect(JSON.parse(put.init!.body as string)).toEqual({
       contacts: [{ name: "Priya Rao", relationship: "Parent", phone: "9876543210" }],

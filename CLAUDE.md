@@ -430,7 +430,10 @@ Emergency button instead.
    matching. Sitters can update it any time.
 2. Government ID upload, plus college or work ID.
 3. Police clearance certificate upload.
-4. Two references (name, phone, relationship). Admin records the outcome.
+4. One reference (name, phone, relationship), **optional but good to have** (Reuben, 2026-11-13; was two
+   required). Admin records the outcome; a reference she gives must pass (a rejected one must be removed).
+   Its number can't be her own or one she has given before (removed references are kept, `removed_at`).
+   Parents see "References checked" only when she has an approved reference.
 5. Psychology test, taken in the app: multiple-choice questions plus a few short written answers; an
    admin reads them and records pass or fail. After a fail, she can take it again only once an admin
    allows a retake (decided 2026-11-08; audit logged). Questions come from a licensed psychologist and are stored as
@@ -447,7 +450,7 @@ ones before it are filled in, with a "Step N of 8" bar on every step page: 1 Sit
 details, 3 About you (photo, date of birth, experience, bio, ages, languages, first aid; all required),
 4 ID verification (government ID and college or work ID; her first-aid certificate if she says she has
 one; the **police certificate can come later** but is needed before approval), 5 Health disclosure
-(optional to fill in, but she saves it, even empty), 6 References (two), 7 Payment details (bank or UPI,
+(optional to fill in, but she saves it, even empty), 6 References (optional, one), 7 Payment details (bank or UPI,
 all fields required; approval needs them), 8 Psychology screening. After submitting the screening the
 page shows only the "submitted" message.
 
@@ -474,7 +477,8 @@ exception: after a fail, an admin decides when she can retake it.
 **Parental consent page (2026-11-13):** shows Reuben's "Parent consent" document word for word
 (`web/src/content/consent.md`, "Before you book: a few things to know"), then the consent boxes below.
 
-**Parent steps (Reuben, 2026-11-13):** four, each page showing "Step N of 4" and a bar of how many are
+**Parent steps (Reuben, 2026-11-13):** after the emergency contact is saved, only "Your profile is
+under review." shows (or "complete" once every child is verified), with no heading. Four steps, each page showing "Step N of 4" and a bar of how many are
 done: Parental consent, Your details, Your children, Emergency contact. A new child's birth certificate is
 the last field of the add-child form, sent with it. Parent pages have no subheadings.
 

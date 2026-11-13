@@ -91,6 +91,8 @@ class Reference(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     # Shown to the person when rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.
     rejection_reason: Mapped[str | None] = mapped_column(Text)
+    # Removed by her: kept so the same number can't be given again (2026-11-13); hidden everywhere else.
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class OnboardingStep(Base):

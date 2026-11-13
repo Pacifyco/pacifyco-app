@@ -115,7 +115,7 @@ def test_an_approved_step_stays_approved_when_she_uploads_again(client, storage,
 
 
 def test_a_sitter_sees_which_reference_was_rejected_and_why(client, sitter, reviewer):  # noqa: F811
-    first, _ = add_references(client, sitter)
+    [first] = add_references(client, sitter)
     review(client, reviewer, f"/admin/references/{first['id']}/decision", False, reason="We couldn't reach them")
     mine = {ref["name"]: ref for ref in client.get("/sitter/references", headers=auth_for(sitter)).json()}
     assert mine[first["name"]]["rejection_reason"] == "We couldn't reach them"
@@ -126,7 +126,7 @@ def test_a_sitter_sees_which_reference_was_rejected_and_why(client, sitter, revi
     client.delete(f"/sitter/references/{first['id']}", headers=auth_for(sitter))
     client.post(
         "/sitter/references",
-        json={"name": "Ravi Kumar", "phone": "9876511111", "relationship": "Neighbour"},
+        json={"name": "Ravi Kumar", "phone": "9876522222", "relationship": "Neighbour"},
         headers=auth_for(sitter),
     )
     assert checklist(client, sitter, "sitter")[0]["references"]["status"] == "waiting"

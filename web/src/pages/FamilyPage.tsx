@@ -26,6 +26,7 @@ import {
 } from "../lib/fieldErrors";
 import { formatDate, localMobile } from "../lib/format";
 import { useConsent } from "./ConsentPage";
+import { useChecklist, type ParentChecklist } from "./ProfileChecklist";
 import { ParentProgress } from "./SitterSteps";
 
 // ---------- shared bits ----------
@@ -600,10 +601,11 @@ export function FamilyPage() {
   const [params] = useSearchParams();
   const [stepIndex, setStepIndex] = useState(() => Math.max(0, STEPS.indexOf(params.get("step") as Step)));
   const step = STEPS[stepIndex];
+  const [finished, setFinished] = useState(false);
 
   function goNext() {
     if (stepIndex === STEPS.length - 1) {
-      navigate("/parent/profile"); // nothing further to hand off to -- back to the checklist
+      setFinished(true); // the last of her four steps: only the "under review" message (Reuben, 2026-11-13)
       return;
     }
     setStepIndex((index) => index + 1);
@@ -617,6 +619,8 @@ export function FamilyPage() {
     }
     setStepIndex((index) => index - 1);
   }
+
+  if (finished) return <ProfileInReview />;
 
   return (
     <article className="mx-auto max-w-[72rem]">
@@ -653,6 +657,28 @@ export function FamilyPage() {
             </StepBackContext.Provider>
           </>
         )}
+      </div>
+    </article>
+  );
+}
+
+/** Shown on its own once the emergency contact is saved: no heading or subheading (Reuben, 2026-11-13).
+"Under review" while Pacifyco checks the birth certificates; finished once every child is verified. */
+function ProfileInReview() {
+  const checklist = useChecklist<ParentChecklist>("parent");
+  const verified = checklist.data?.items.find((item) => item.key === "children")?.status === "approved";
+  return (
+    <article className="mx-auto max-w-[62ch]">
+      <div role="status" className="flex flex-col items-start gap-3 rounded-lg bg-surface-sunken p-5">
+        <p className="text-h3 text-ink">{verified ? "Your profile is complete." : "Your profile is under review."}</p>
+        <p className="text-ink">
+          {verified
+            ? "You can book a sitter now."
+            : "Pacifyco is checking your children's birth certificates. We'll email you once they're verified. You can find a sitter meanwhile: a booking is confirmed once the check is done."}
+        </p>
+        <ButtonLink to="/parent/sitters" variant="secondary">
+          Find a sitter
+        </ButtonLink>
       </div>
     </article>
   );

@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import text
 
 from tests.test_auth import client  # noqa: F401  (fixture)
-from tests.test_sign_up import PARENT, auth_for, user  # noqa: F401  (fixture)
+from tests.test_sign_up import PARENT, auth_for, fill_details, user  # noqa: F401  (fixture)
 
 PROFILE_BODY = {
     "date_of_birth": "1995-06-15",
@@ -200,39 +200,42 @@ def test_no_references_yet(client, sitter):  # noqa: F811
     assert client.get("/sitter/references", headers=auth_for(sitter)).json() == []
 
 
-def test_adding_two_references(client, sitter):  # noqa: F811
+def test_one_reference_is_enough_and_a_second_is_refused(client, sitter):  # noqa: F811
+    # One reference, optional but good to have (Reuben, 2026-11-13).
     first = client.post(
         "/sitter/references",
-        json={"name": "Priya Rao", "relationship": "Neighbour", "phone": "9876543210"},
+        json={"name": "Priya Rao", "relationship": "Neighbour", "phone": "9876511111"},
         headers=auth_for(sitter),
     )
     assert first.status_code == 201
     assert first.json()["outcome"] == "pending"
-
     second = client.post(
         "/sitter/references",
         json={"name": "Vikram Rao", "relationship": "Former employer", "phone": "9876500000"},
         headers=auth_for(sitter),
     )
-    assert second.status_code == 201
-
-    listed = client.get("/sitter/references", headers=auth_for(sitter)).json()
-    assert {r["name"] for r in listed} == {"Priya Rao", "Vikram Rao"}
+    assert second.status_code == 409
+    assert [r["name"] for r in client.get("/sitter/references", headers=auth_for(sitter)).json()] == ["Priya Rao"]
 
 
-def test_a_third_reference_is_refused(client, sitter):  # noqa: F811
-    for name in ("Priya Rao", "Vikram Rao"):
-        client.post(
-            "/sitter/references",
-            json={"name": name, "relationship": "Neighbour", "phone": "9876543210"},
-            headers=auth_for(sitter),
-        )
-    third = client.post(
+def test_a_reference_cant_be_her_own_number(client, sitter):  # noqa: F811
+    assert fill_details(client, sitter).status_code == 200  # her mobile is +91 98765-43210
+    response = client.post(
         "/sitter/references",
-        json={"name": "Meera", "relationship": "Friend", "phone": "9876500001"},
+        json={"name": "Priya Rao", "relationship": "Neighbour", "phone": "98765 43210"},
         headers=auth_for(sitter),
     )
-    assert third.status_code == 409
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "reference_is_you"
+
+
+def test_a_number_she_gave_before_cant_be_given_again(client, sitter):  # noqa: F811
+    body = {"name": "Priya Rao", "relationship": "Neighbour", "phone": "9876511111"}
+    created = client.post("/sitter/references", json=body, headers=auth_for(sitter)).json()
+    client.delete(f"/sitter/references/{created['id']}", headers=auth_for(sitter))
+    again = client.post("/sitter/references", json={**body, "name": "Someone else"}, headers=auth_for(sitter))
+    assert again.status_code == 422
+    assert again.json()["error"]["code"] == "reference_number_used"
 
 
 def test_removing_a_reference(client, sitter):  # noqa: F811

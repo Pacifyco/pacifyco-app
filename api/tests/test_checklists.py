@@ -144,7 +144,8 @@ def test_sitter_checklist_moves_from_to_do_to_waiting(client, db_engine, storage
         "psych_test",
     ]
     assert items["details"] == "done"  # the fixture fills them in
-    assert {key for key, status in items.items() if status == "to_do"} == set(items) - {"details"}
+    # References are optional (2026-11-13): with none, that step is already done.
+    assert {key for key, status in items.items() if status == "to_do"} == set(items) - {"details", "references"}
     assert body["live"] is False
     profile = next(item for item in body["items"] if item["key"] == "profile")
     assert profile["note"] == "Add your date of birth, experience and a few words about you"  # the next action

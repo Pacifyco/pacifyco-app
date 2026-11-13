@@ -42,7 +42,8 @@ from app.services.storage import StorageClient
 
 # Every step that must be approved before a sitter can be approved, in CLAUDE.md 7 order.
 REVIEWED_STEPS = ("profile", "identity_documents", "police_certificate", "references", "psych_test")
-REQUIRED_REFERENCES = 2
+# Optional since 2026-11-13 (Reuben): a sitter may give one reference, or none.
+REQUIRED_REFERENCES = 0
 
 _PSYCH_TO_STEP = {
     PsychAttemptStatus.passed: VerificationStatus.approved,
@@ -75,10 +76,11 @@ def step_statuses(db: Session, sitter_id: uuid.UUID) -> dict[str, VerificationSt
     for row in db.scalars(select(OnboardingStep).where(OnboardingStep.sitter_id == sitter_id)):
         statuses[row.step.value] = row.status
 
+    # References are optional: none passes; one she gives must be approved (a rejected one must go).
     outcomes = [reference.outcome for reference in sitter_references(db, sitter_id)]
     if VerificationStatus.rejected in outcomes:
         statuses["references"] = VerificationStatus.rejected
-    elif len(outcomes) >= REQUIRED_REFERENCES and all(o == VerificationStatus.approved for o in outcomes):
+    elif all(o == VerificationStatus.approved for o in outcomes):
         statuses["references"] = VerificationStatus.approved
 
     attempt = psych_tests.latest_attempt(db, sitter_id)
@@ -88,7 +90,13 @@ def step_statuses(db: Session, sitter_id: uuid.UUID) -> dict[str, VerificationSt
 
 
 def sitter_references(db: Session, sitter_id: uuid.UUID) -> list[Reference]:
-    return list(db.scalars(select(Reference).where(Reference.sitter_id == sitter_id).order_by(Reference.id)))
+    return list(
+        db.scalars(
+            select(Reference)
+            .where(Reference.sitter_id == sitter_id, Reference.removed_at.is_(None))
+            .order_by(Reference.id)
+        )
+    )
 
 
 def sitter_documents(db: Session, sitter_id: uuid.UUID) -> list[Document]:
