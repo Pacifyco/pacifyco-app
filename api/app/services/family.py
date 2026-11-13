@@ -2,8 +2,8 @@
 contacts per family, not per child, and any number of named adults who may hand over or receive a
 child during a booking. Getting each person's permission to share their details is the parent's own
 responsibility (the web asks them to confirm it before saving); nothing about that confirmation is
-recorded here. Field validation (name, relationship, a real Indian mobile number, exactly two
-contacts) happens in the router's request schema, same as sign-up; this module trusts its input."""
+recorded here. Field validation (name, relationship, a real Indian mobile number, exactly one
+contact) happens in the router's request schema, same as sign-up; this module trusts its input."""
 
 import uuid
 
@@ -26,7 +26,7 @@ def set_emergency_contacts(
     db: Session, parent_id: uuid.UUID, contacts: list[tuple[str, str, str]]
 ) -> list[EmergencyContact]:
     """Replaces both at once, so the family never has a half-saved set. `contacts` is (name,
-    relationship, phone) tuples; the caller has already checked there are exactly two."""
+    relationship, phone) tuples; the caller has already checked how many there are."""
     db.execute(delete(EmergencyContact).where(EmergencyContact.parent_id == parent_id))
     db.add_all(
         [

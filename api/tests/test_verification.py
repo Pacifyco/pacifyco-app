@@ -79,6 +79,13 @@ def approve_everything(client, db_engine, sitter_user, admin_id):  # noqa: F811
         assert review(client, admin_id, f"/admin/references/{reference['id']}/decision").status_code == 200
     psych_attempt(db_engine, sitter_id, "passed")
     accept_terms(client, sitter_user)  # her consent page
+    # Her own steps that Pacifyco doesn't review (2026-11-13): health disclosure and payment details.
+    assert (
+        client.put("/sitter/health-disclosure", json={"disclosure": None}, headers=auth_for(sitter_user)).status_code
+        == 200
+    )
+    body = {"method": "upi", "upi_id": "asha@okaxis"}
+    assert client.put("/sitter/payout-details", json=body, headers=auth_for(sitter_user)).status_code == 200
 
 
 def audit_actions(db_engine, admin_id):

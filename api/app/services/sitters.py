@@ -6,7 +6,7 @@ disclosure and bank details."""
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -79,6 +79,8 @@ def set_health_disclosure(db: Session, sitter_id: uuid.UUID, disclosure: str | N
     sitter.health_disclosure_encrypted = (
         encryption.encrypt(encryption_key, disclosure) if disclosure is not None else None
     )
+    # Saving it, even empty, completes the "Health disclosure" step (Reuben, 2026-11-13).
+    sitter.health_disclosure_confirmed_at = datetime.now(UTC)
     db.commit()
 
 

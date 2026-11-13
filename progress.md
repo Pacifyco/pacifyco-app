@@ -431,6 +431,16 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-13 — Sitter onboarding (Reuben): eight steps in order, each locked until the ones before are done
+  (consent, details, about you with her photo, ID verification, health disclosure, references, payment
+  details, psych test), a "Step N of 8" bar on each; all fields required except the police certificate
+  (needed before approval) and the health disclosure (saved, even empty: migration `f9a1c3e5b7d2`);
+  approval needs payment details; only the "submitted" message after the psych test; no days off.
+- 2026-11-13 — Reuben's list (`profile-and-terms-cleanup`): no subheadings on the home page or the join
+  confirmation; a generic privacy policy (no draft marker or version shown; lawyer review still due);
+  parents give their relationship to their child in Your details (migration `e7b3d9f1a2c4`); one
+  emergency contact, no authorised adults; the terms drop the LLPIN, registered office and emergency
+  line. API 429, web 235, e2e 5 passed. Sign-in email wording is set in Supabase (dashboard).
 - 2026-11-13 — Rejection emails (Reuben): a parent when a birth certificate is rejected; a sitter when a
   step, a reference, the psych test or her application is rejected; each with the admin's reason.
 - 2026-11-13 — Reuben's tidy-ups (with the pinned header): no subheading on the join page; the terms say

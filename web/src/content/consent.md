@@ -14,7 +14,7 @@ Family Terms of Use section 11.2 asks you to tick five things separately before 
 
 - Your own details: for your account, verification, bookings, payments and safety.
 - Each child's details, given by you as their parent or guardian: their name and date of birth, a birth certificate to check their age, and anything else you choose to share (allergies, medical notes, routines). Once a child is verified, we delete the birth certificate and keep only the result, who checked it and when.
-- Emergency contacts, and any authorised adults you name.
+- Your emergency contact.
 
 ## Who sees it
 

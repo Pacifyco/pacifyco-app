@@ -18,13 +18,9 @@ type Placeholder = { token: string; label: string; value: (values: Values, priva
 
 // Placeholders both documents share, exactly as written (Markdown-escaped brackets).
 const SHARED: Placeholder[] = [
-  { token: "\\[INSERT\\]", label: "LLPIN", value: (v) => v.llpin },
-  { token: "\\[INSERT ADDRESS\\]", label: "registered address", value: (v) => v.address },
-  { token: "\\[REGISTERED ADDRESS\\]", label: "registered address", value: (v) => v.address },
   { token: "\\[NAME\\]", label: "Grievance Officer name", value: (v) => v.grievanceName },
   { token: "\\[EMAIL\\]", label: "Grievance Officer email", value: (v) => v.grievanceEmail },
   { token: "\\[PHONE\\]", label: "Grievance Officer phone", value: (v) => v.grievancePhone },
-  { token: "\\[NUMBER\\]", label: "emergency line", value: (v) => v.emergencyLine },
   { token: "\\[LINK\\]", label: "privacy policy link", value: (_, url) => url },
 ];
 

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { BackLink, Button, ButtonLink, Card, Textarea } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { formatDate } from "../lib/format";
+import { SitterGate, SitterProgress } from "./SitterSteps";
 
 // Psychology screening (CLAUDE.md section 7 step 5): a handful of multiple-choice and short-answer
 // questions. Not auto-scored -- an admin reads the answers later, so this page only has to collect
@@ -205,6 +206,17 @@ function FailedView({ retakeAllowed, onRetake }: { retakeAllowed: boolean; onRet
 export function PsychTestPage() {
   const test = usePsychTest();
   const [retaking, setRetaking] = useState(false);
+  const attempt = test.data?.attempt;
+
+  // Once she's submitted, only the confirmation shows: no heading, intro or links around it (Reuben,
+  // 2026-11-13).
+  if (attempt?.status === "submitted") {
+    return (
+      <article className="mx-auto max-w-[62ch]">
+        <SubmittedView submittedAt={attempt.submitted_at} />
+      </article>
+    );
+  }
 
   return (
     <article className="mx-auto max-w-[62ch]">
@@ -216,20 +228,27 @@ export function PsychTestPage() {
         A few questions so we can get to know how you think about caring for children.
       </p>
 
-      <Card as="section" padding="roomy" className="mt-6">
-        {test.isPending && <p className="text-muted">Loading…</p>}
-        {test.isError && <p className="text-muted">{test.error.message}</p>}
-        {test.data &&
-          (() => {
-            const { attempt, questions } = test.data;
-            if (attempt && attempt.status === "submitted") return <SubmittedView submittedAt={attempt.submitted_at} />;
-            if (attempt && attempt.status === "passed") return <PassedView />;
-            if (attempt && attempt.status === "failed" && !retaking) {
-              return <FailedView retakeAllowed={attempt.retake_allowed} onRetake={() => setRetaking(true)} />;
-            }
-            return <PsychTestForm questions={questions} initial={retaking ? {} : attempt?.answers ?? {}} />;
-          })()}
-      </Card>
+      <div className="mt-6">
+        <SitterProgress step="psych_test" />
+      </div>
+      {/* The last of her eight steps: it opens once the others are filled in. */}
+      <div className="mt-4">
+        <SitterGate step="psych_test">
+          <Card as="section" padding="roomy">
+            {test.isPending && <p className="text-muted">Loading…</p>}
+            {test.isError && <p className="text-muted">{test.error.message}</p>}
+            {test.data &&
+              (() => {
+                const { questions } = test.data;
+                if (attempt && attempt.status === "passed") return <PassedView />;
+                if (attempt && attempt.status === "failed" && !retaking) {
+                  return <FailedView retakeAllowed={attempt.retake_allowed} onRetake={() => setRetaking(true)} />;
+                }
+                return <PsychTestForm questions={questions} initial={retaking ? {} : attempt?.answers ?? {}} />;
+              })()}
+          </Card>
+        </SitterGate>
+      </div>
 
       <div className="mt-6">
         <ButtonLink to="/sitter/application" variant="secondary">

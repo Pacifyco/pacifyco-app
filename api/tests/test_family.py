@@ -43,7 +43,7 @@ def rows(db_engine, sql: str, **params):
     ("method", "path", "body"),
     [
         ("post", "/parent/children", {"name": "Diya", "date_of_birth": "2022-05-01"}),
-        ("put", "/parent/emergency-contacts", {"contacts": [CONTACT_A, CONTACT_B]}),
+        ("put", "/parent/emergency-contacts", {"contacts": [CONTACT_B]}),
         ("post", "/parent/authorised-adults", CONTACT_A),
     ],
 )
@@ -58,20 +58,12 @@ def test_family_details_wait_for_the_consent(client, db_engine, user, method, pa
             conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": user["id"]})
 
 
-# ---------- emergency contacts ----------
-
-
-def test_the_two_contacts_need_different_numbers(client, parent):  # noqa: F811
-    same = {**CONTACT_B, "phone": CONTACT_A["phone"]}
-    response = client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_A, same]}, headers=auth_for(parent))
-    assert response.status_code == 422
+# ---------- emergency contact (one per family, Reuben 2026-11-13) ----------
 
 
 def test_an_emergency_contact_cant_be_the_parents_own_number(client, parent):  # noqa: F811
     assert fill_details(client, parent).status_code == 200  # her mobile is +91 98765-43210, as CONTACT_A
-    response = client.put(
-        "/parent/emergency-contacts", json={"contacts": [CONTACT_A, CONTACT_B]}, headers=auth_for(parent)
-    )
+    response = client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_A]}, headers=auth_for(parent))
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "emergency_contact_is_you"
 
@@ -80,51 +72,45 @@ def test_no_contacts_yet(client, parent):  # noqa: F811
     assert client.get("/parent/emergency-contacts", headers=auth_for(parent)).json() == []
 
 
-def test_setting_exactly_two_is_accepted(client, db_engine, parent):  # noqa: F811
-    response = client.put(
-        "/parent/emergency-contacts", json={"contacts": [CONTACT_A, CONTACT_B]}, headers=auth_for(parent)
-    )
+def test_setting_one_is_accepted(client, db_engine, parent):  # noqa: F811
+    response = client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_B]}, headers=auth_for(parent))
     assert response.status_code == 200
-    body = response.json()
-    assert len(body) == 2
-    assert {c["name"] for c in body} == {"Priya Rao", "Vikram Rao"}
-    assert {c["phone"] for c in body} == {"+919876543210", "+919876500000"}
-    assert len(rows(db_engine, "SELECT id FROM emergency_contacts WHERE parent_id = :id", id=parent["id"])) == 2
+    [contact] = response.json()
+    assert contact["name"] == "Vikram Rao"
+    assert contact["phone"] == "+919876500000"
+    assert len(rows(db_engine, "SELECT id FROM emergency_contacts WHERE parent_id = :id", id=parent["id"])) == 1
 
 
-@pytest.mark.parametrize("contacts", [[], [CONTACT_A], [CONTACT_A, CONTACT_B, CONTACT_A]])
-def test_anything_other_than_two_contacts_is_refused(client, contacts, parent):  # noqa: F811
+@pytest.mark.parametrize("contacts", [[], [CONTACT_A, CONTACT_B]])
+def test_anything_other_than_one_contact_is_refused(client, contacts, parent):  # noqa: F811
     response = client.put("/parent/emergency-contacts", json={"contacts": contacts}, headers=auth_for(parent))
     assert response.status_code == 422
 
 
 def test_an_invalid_phone_number_is_refused(client, parent):  # noqa: F811
     bad = {**CONTACT_B, "phone": "12345"}
-    response = client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_A, bad]}, headers=auth_for(parent))
+    response = client.put("/parent/emergency-contacts", json={"contacts": [bad]}, headers=auth_for(parent))
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
 
 
 def test_a_blank_name_is_refused(client, parent):  # noqa: F811
     bad = {**CONTACT_B, "name": "   "}
-    response = client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_A, bad]}, headers=auth_for(parent))
+    response = client.put("/parent/emergency-contacts", json={"contacts": [bad]}, headers=auth_for(parent))
     assert response.status_code == 422
 
 
-def test_replacing_removes_the_old_pair(client, db_engine, parent):  # noqa: F811
-    client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_A, CONTACT_B]}, headers=auth_for(parent))
-    other_a = {"name": "Asha K", "relationship": "Aunt", "phone": "9000000001"}
-    other_b = {"name": "Ravi K", "relationship": "Uncle", "phone": "9000000002"}
-    response = client.put("/parent/emergency-contacts", json={"contacts": [other_a, other_b]}, headers=auth_for(parent))
+def test_replacing_removes_the_old_contact(client, db_engine, parent):  # noqa: F811
+    client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_B]}, headers=auth_for(parent))
+    other = {"name": "Asha K", "relationship": "Sibling", "phone": "9000000001"}
+    response = client.put("/parent/emergency-contacts", json={"contacts": [other]}, headers=auth_for(parent))
     assert response.status_code == 200
-    names = {c["name"] for c in response.json()}
-    assert names == {"Asha K", "Ravi K"}
     all_rows = rows(db_engine, "SELECT name FROM emergency_contacts WHERE parent_id = :id", id=parent["id"])
-    assert {row["name"] for row in all_rows} == {"Asha K", "Ravi K"}  # exactly two, old ones gone
+    assert [row["name"] for row in all_rows] == ["Asha K"]  # the old one is gone
 
 
 def test_emergency_contacts_make_the_account_not_empty(client, db_engine, parent):  # noqa: F811
-    client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_A, CONTACT_B]}, headers=auth_for(parent))
+    client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_B]}, headers=auth_for(parent))
     url = db_engine.url.render_as_string(hide_password=False)
     assert cli.delete_empty_profile(parent["email"], True, url) == 1
 

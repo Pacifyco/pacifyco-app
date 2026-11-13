@@ -33,7 +33,7 @@ const REQUIRED_LABELS = [
   "I consent to Pacifyco's use of my own data for my account, verification, bookings, payments and safety.",
   "I consent to Pacifyco's use of each child's data, given by me as their parent or guardian, to match and brief a sitter and keep my child safe.",
   "I consent to Pacifyco sharing my child's care details with the booked sitter.",
-  "I give emergency authorisation: if I and my emergency contacts can't be reached, the sitter may call 112, take my child to the nearest hospital or doctor, and Pacifyco may share my child's health details with treating doctors.",
+  "I give emergency authorisation: if I and my emergency contact can't be reached, the sitter may call 112, take my child to the nearest hospital or doctor, and Pacifyco may share my child's health details with treating doctors.",
 ];
 const MARKETING_LABEL =
   "I'd like offers and updates from Pacifyco. Saying no won't affect my service, and I can change my mind at any time.";

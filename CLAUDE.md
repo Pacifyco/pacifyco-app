@@ -122,10 +122,9 @@ from `SUPABASE_URL`), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM
 `JOBS_SECRET`, `PUBLIC_WEB_URL`, `CORS_ORIGINS`, `PACIFY_UPI_ID`.
 
 Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY_DSN`,
-`VITE_ENVIRONMENT`, and the Sitter Terms values `VITE_PACIFY_LLPIN`, `VITE_PACIFY_REGISTERED_ADDRESS`,
-`VITE_GRIEVANCE_OFFICER_NAME`, `VITE_GRIEVANCE_OFFICER_EMAIL`, `VITE_GRIEVANCE_OFFICER_PHONE`,
-`VITE_EMERGENCY_LINE`, `VITE_FAMILY_INTRO_FEE`. (The terms' "Last updated" date is written in the documents, not a
-variable, since 2026-11-13.)
+`VITE_ENVIRONMENT`, and the terms values `VITE_GRIEVANCE_OFFICER_NAME`, `VITE_GRIEVANCE_OFFICER_EMAIL`,
+`VITE_GRIEVANCE_OFFICER_PHONE`, `VITE_FAMILY_INTRO_FEE`. (The terms' "Last updated" date is written in the
+documents; the LLPIN, registered office and emergency line were taken out of the terms, 2026-11-13.)
 
 ---
 
@@ -252,7 +251,8 @@ variable, since 2026-11-13.)
 - Bath time is ticked when booking (Unwind and Recharge only). Outings are allowed only on Recharge,
   still approved by the parent during the booking (above).
 - **Sitter availability (decided 2026-11-09):** a sitter sets her usual week once (whole-hour times per
-  weekday, India time) and it repeats every week until she changes it; she marks single **days off**.
+  weekday, India time) and it repeats every week until she changes it. (Single **days off** were taken out of
+  her availability page on 2026-11-13; the API still has them.)
   **Adding her times (Reuben, 2026-11-13):** no quick fills. Ticking a day adds 9 am–1 pm; each "+" adds
   the next time after her latest one on that day: 1–4 pm, 4–7 pm, 7–10 pm, 10 pm–12 am, then nothing
   more (it never starts again at 9 am). She can change any time with the selects (`SLOTS` in
@@ -439,6 +439,15 @@ Emergency button instead.
 6. Admin approval, with the sitter's level set (6.2). (The onboarding interview was dropped
    2026-11-08.) Only then is she live: shown to parents and bookable.
 
+**How she goes through them (Reuben, 2026-11-13):** eight steps, in this order, each opening only once the
+ones before it are filled in, with a "Step N of 8" bar on every step page: 1 Sitter consent, 2 Your
+details, 3 About you (photo, date of birth, experience, bio, ages, languages, first aid; all required),
+4 ID verification (government ID and college or work ID; her first-aid certificate if she says she has
+one; the **police certificate can come later** but is needed before approval), 5 Health disclosure
+(optional to fill in, but she saves it, even empty), 6 References (two), 7 Payment details (bank or UPI,
+all fields required; approval needs them), 8 Psychology screening. After submitting the screening the
+page shows only the "submitted" message.
+
 **Parent verification:** a birth certificate per child, reviewed and approved by an admin. The family
 (parent) is verified once **every** child's certificate is approved; adding a child sets the family back
 to waiting until that child is approved (decided 2026-11-08). Parents can browse and book once their
@@ -473,10 +482,10 @@ nothing pre-ticked, each recorded with its version and time:
 The labels use the wording of Family Terms 11.2. These replace the single parental consent form built in
 phase 2 (`/parent/consent`); child documents still need every required consent at its current version.
 
-**Emergency contacts and authorised adults (decided 2026-11-02, follow Family Terms 2.5):** two emergency
-contacts per **family** (not per child), and any number of named **authorised adults** who may hand over or
-receive the child during a booking. The parent confirms they have each person's permission to share their
-details.
+**Emergency contact (Reuben, 2026-11-13; was two contacts plus authorised adults):** **one** emergency
+contact per **family** (not per child). The parent confirms they have the person's permission to share their
+details. Authorised adults are no longer asked for (the API and table still exist, unused). In "Your details"
+a parent also gives their **relationship to their child**: Mother, Father or Legal guardian (required).
 
 **Uploads:** PDF, JPG or PNG only, at most 5 MB each, checked by the API (type from the file's contents,
 not its name).
@@ -486,9 +495,9 @@ not its name).
   `/web/src/content/`.
 - **Sitter Terms of Use v1.1 is final:** `web/src/content/sitter-terms-v1.1.md` (a test checks its
   wording against a fingerprint). Placeholders are filled in `web/src/lib/legal.ts` from the
-  `VITE_PACIFY_*`, `VITE_GRIEVANCE_OFFICER_*` and `VITE_EMERGENCY_LINE` variables. **Never change its
+  `VITE_GRIEVANCE_OFFICER_*` variables. **Never change its
   wording** (after the first release to `main`). Only fill its bracketed placeholders
-  (LLPIN, registered address, Grievance Officer, Privacy Policy link, emergency line) from config. Don't
+  (Grievance Officer, Privacy Policy link) from config. Don't
   serve it in production while any placeholder is empty.
 - **Family Terms of Use v1.0 is final** (the parent terms): `web/src/content/family-terms-v1.0.md`,
   converted word for word from Reuben's .docx and fingerprinted the same way. Same placeholders as the
@@ -505,7 +514,8 @@ not its name).
   Changed in place on 2026-11-13: founders@pacifyco.in in all three documents, and in the Family Terms
   (6.2 and the Section 5 table) that a sitter may decline when the only adult at home is a man, with the
   full booking charged (6.5).
-- The Privacy policy is still a placeholder marked "DRAFT — NOT LEGALLY REVIEWED".
+- The Privacy policy is a generic policy (Reuben, 2026-11-13), written from what the app actually collects and
+  who it's shared with. It still needs the lawyer's review before production launch (phase 15).
 - Changes to the sitter terms that affect pay or rights must be announced in the app at least **14 days**
   before they take effect (`effective_at`); urgent safety or legal changes can take effect at once.
 - **On the consent page, not at sign-up (decided 2026-11-12, Reuben):** the user sees an unticked
@@ -544,11 +554,11 @@ of truth for their columns. Other tables are added by the phase that needs them,
 Status values use text columns with CHECK constraints (not Postgres enums), so adding a value is a small
 migration. Verification statuses are `pending|approved|rejected`.
 
-- `profiles` **(created)** (id = Supabase user id, role, full_name (empty until filled in after sign-up, 6.13), phone, email, status: `pending|active|suspended|removed`, pin_code, address, lat, lng, created_at)
+- `profiles` **(created)** (id = Supabase user id, role, full_name (empty until filled in after sign-up, 6.13), phone, email, status: `pending|active|suspended|removed`, pin_code, address, relationship_to_child (parents: Mother, Father or Legal guardian), lat, lng, created_at)
 - `parents` **(created)** (profile_id, second_parent_name, verification_status)
 - `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status, verified_by, verified_at, verification_notes) — name and date of birth locked once verified
-- `emergency_contacts` **(created)** (id, parent_id, name, relationship, phone) — exactly two per family
-- `authorised_adults` **(created)** (id, parent_id, name, relationship, phone)
+- `emergency_contacts` **(created)** (id, parent_id, name, relationship, phone) — exactly one per family (was two)
+- `authorised_adults` **(created)** (id, parent_id, name, relationship, phone) — no longer asked for (2026-11-13)
 - `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), reference_shared_consent, avg_rating, review_count) — no rate column (dropped 2026-11-03). Age groups (Toddler, Preschool, School age) and languages (English, Kannada, Hindi, Tamil, Malayalam, Telugu) come from fixed lists (`AGE_GROUPS`, `LANGUAGES` in `app/services/sitters.py`, UX review 2026-11-13); older free text is never shown to parents
 - `onboarding_steps` **(created)** (sitter_id, step: `profile|identity_documents|police_certificate`, status, notes, reviewed_by, reviewed_at) — admin reviews of steps 1-3; references and the psych test keep their own outcomes; `app/services/verification.py` combines them. Health disclosure views are logged in `audit_log` (`health_disclosure_viewed`)
 - `documents` **(created)** (id, owner_profile_id, child_id null, type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)

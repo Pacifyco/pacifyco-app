@@ -27,7 +27,7 @@ from app.models import (
 )
 from app.services import accounts, consent, legal, psych_tests, verification
 
-REQUIRED_EMERGENCY_CONTACTS = 2  # per family (CLAUDE.md 7)
+REQUIRED_EMERGENCY_CONTACTS = 1  # per family (CLAUDE.md 7; was two until 2026-11-13)
 
 
 class ItemStatus(StrEnum):
@@ -163,7 +163,9 @@ def _reviewed(review: VerificationStatus, sent: bool) -> ItemStatus:
 
 
 def sitter_checklist(db: Session, profile: Profile, sitter: Sitter) -> list[Item]:
-    """Each onboarding step (CLAUDE.md 7) with where it stands, after her own details."""
+    """Her eight onboarding steps, in the order she does them (Reuben, 2026-11-13): sitter consent, her
+    details, about you, ID verification, health disclosure, references, payment details and the
+    psychology screening. The web app opens each only once the ones before it are filled in."""
     reviews = verification.step_statuses(db, sitter.profile_id)
     step_reasons = {
         row.step.value: row.rejection_reason
@@ -178,32 +180,49 @@ def sitter_checklist(db: Session, profile: Profile, sitter: Sitter) -> list[Item
     references = len(verification.sitter_references(db, sitter.profile_id))
     attempt = psych_tests.latest_attempt(db, sitter.profile_id)
     step_reasons["psych_test"] = attempt.rejection_reason if attempt is not None else None
-    # Step 1 bundles her profile, photo and payout details: say which is missing (UX review 2026-11-13).
+
+    # About you: everything parents see about her, all required, with the exact thing still missing.
     missing = [
         note
         for note, given in (
-            ("Add your date of birth and a few words about you", sitter.date_of_birth and sitter.bio),
+            (
+                "Add your date of birth, experience and a few words about you",
+                sitter.date_of_birth and sitter.bio and sitter.years_experience is not None,
+            ),
+            ("Choose the ages you care for and the languages you speak", sitter.age_groups and sitter.languages),
             ("Add your photo", _uploaded(db, profile.id, DocumentType.photo)),
-            ("Add how you'd like to be paid", sitter.payout_method is not None),
         )
         if not given
     ]
-    application_sent = not missing
-    ids_sent = _uploaded(db, profile.id, DocumentType.government_id) and _uploaded(
-        db, profile.id, DocumentType.college_or_work_id
+    # ID verification: both IDs, and her first-aid certificate if she says she has one. The police
+    # certificate can come later, but Pacifyco needs it before her profile goes live.
+    ids_sent = (
+        _uploaded(db, profile.id, DocumentType.government_id)
+        and _uploaded(db, profile.id, DocumentType.college_or_work_id)
+        and (not sitter.first_aid or _uploaded(db, profile.id, DocumentType.first_aid_certificate))
     )
+    ids = _reviewed(reviews["identity_documents"], ids_sent)
+    police = reviews["police_certificate"]
+    if police == VerificationStatus.rejected:
+        ids, step_reasons["identity_documents"] = ItemStatus.rejected, step_reasons.get("police_certificate")
+    elif ids == ItemStatus.approved and police != VerificationStatus.approved:
+        ids = ItemStatus.waiting  # her IDs are fine; the police certificate is still to come or be checked
+    ids_note = (
+        None
+        if _uploaded(db, profile.id, DocumentType.police_certificate) or police == VerificationStatus.approved
+        else "Your police clearance certificate is still needed before your profile goes live"
+    )
+
     items = [
-        # The sitter consent, Sitter Terms of Use and privacy policy, on one page (decided 2026-11-12),
-        # first, as on the parent side (UX review 2026-11-13).
+        # The sitter consent, Sitter Terms of Use and privacy policy, on one page (decided 2026-11-12).
         Item("consent", _done(not legal.outstanding(db, profile.id, profile.role))),
         Item("details", _done(accounts.details_complete(profile))),
-        Item("profile", _reviewed(reviews["profile"], application_sent), note=missing[0] if missing else None),
-        Item("identity_documents", _reviewed(reviews["identity_documents"], ids_sent)),
-        Item(
-            "police_certificate",
-            _reviewed(reviews["police_certificate"], _uploaded(db, profile.id, DocumentType.police_certificate)),
-        ),
+        Item("profile", _reviewed(reviews["profile"], not missing), note=missing[0] if missing else None),
+        Item("identity_documents", ids, note=ids_note if ids != ItemStatus.to_do else None),
+        # Optional to fill in, but she confirms it (saving it empty means "nothing to declare").
+        Item("health_disclosure", _done(sitter.health_disclosure_confirmed_at is not None)),
         Item("references", _reviewed(reviews["references"], references >= verification.REQUIRED_REFERENCES)),
+        Item("payout", _done(sitter.payout_method is not None)),
         Item(
             "psych_test",
             _reviewed(reviews["psych_test"], attempt is not None and attempt.status == PsychAttemptStatus.submitted),

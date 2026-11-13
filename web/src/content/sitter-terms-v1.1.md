@@ -2,7 +2,7 @@
 
 *Last updated: 13 Nov 2026*
 
-These Terms are a **legally binding agreement** between you and **Pacifyco** (LLPIN \[INSERT\], registered office at \[INSERT ADDRESS\]) ("**Pacifyco**", "**we**", "**us**"). "**You**" means you, the sitter. You accept these Terms when you tick "I agree" at sign-up or accept your first booking. Ticking "I agree" is the same as signing a contract.
+These Terms are a **legally binding agreement** between you and **Pacifyco** ("**Pacifyco**", "**we**", "**us**"). "**You**" means you, the sitter. You accept these Terms when you tick "I agree" at sign-up or accept your first booking. Ticking "I agree" is the same as signing a contract.
 
 The summary below is part of these Terms. If anything in it differs from the full sections that follow, the full sections apply.
 
@@ -194,6 +194,4 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 ## **9. Contact us**
 
-Pacifyco · \[REGISTERED ADDRESS\]
-
-founders@pacifyco.in · +91 8848873841 · Emergency line during bookings: \[NUMBER\]
+founders@pacifyco.in · +91 8848873841

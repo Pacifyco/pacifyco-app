@@ -222,6 +222,8 @@ def decide_sitter(
             raise AppError(409, "details_missing", "She hasn't filled in her name, mobile, pin code and address yet")
         if legal.outstanding(db, profile.id, profile.role):
             raise AppError(409, "consent_missing", "She hasn't accepted the sitter consent and terms yet")
+        if sitter.payout_method is None:  # its own step since 2026-11-13, so check it here
+            raise AppError(409, "payout_missing", "She hasn't added how she'd like to be paid yet")
 
     before = {"onboarding_status": sitter.onboarding_status.value, "profile_status": profile.status.value}
     sitter.onboarding_status = OnboardingStatus.approved if approved else OnboardingStatus.rejected

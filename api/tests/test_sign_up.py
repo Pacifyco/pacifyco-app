@@ -24,6 +24,7 @@ DETAILS = {
     "phone": "+91 98765-43210",
     "pin_code": "560034",
     "address": " 12, 4th Cross \n\n  Koramangala ",
+    "relationship_to_child": "Mother",  # parents only; sitters' is ignored (Reuben, 2026-11-13)
 }
 
 
@@ -71,6 +72,7 @@ def test_parent_sign_up_creates_profile_and_parent(client, db_engine, user):  # 
             "phone": None,
             "pin_code": None,
             "address": None,
+            "relationship_to_child": None,
             "details_complete": False,
         },
         # Ticked on the parental consent page, not at sign-up (decided 2026-11-12).
@@ -105,10 +107,22 @@ def test_details_are_filled_in_after_sign_up(client, db_engine, user, role):  # 
         "phone": "+919876543210",
         "pin_code": "560034",
         "address": "12, 4th Cross\nKoramangala",
+        "relationship_to_child": "Mother" if role == "parent" else None,
         "details_complete": True,
     }
     stored = row(db_engine, "SELECT phone, address FROM profiles WHERE id = :id", user["id"])
     assert dict(stored) == {"phone": "+919876543210", "address": "12, 4th Cross\nKoramangala"}
+
+
+def test_a_parent_must_say_their_relationship_to_the_child(client, user):  # noqa: F811
+    assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    response = fill_details(client, user, relationship_to_child=None)
+    assert response.status_code == 422
+    assert response.json()["error"]["details"][0]["field"] == "body.relationship_to_child"
+    assert fill_details(client, user, relationship_to_child="Grandmother").status_code == 422  # not a choice
+    response = fill_details(client, user, relationship_to_child="Legal guardian")
+    assert response.status_code == 200
+    assert response.json()["profile"]["relationship_to_child"] == "Legal guardian"
 
 
 def test_details_need_a_profile(client, user):  # noqa: F811

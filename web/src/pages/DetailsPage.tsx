@@ -3,15 +3,20 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { PROFILE_PATH, useMe, type Me } from "../auth/useMe";
-import { BackLink, Button, LoadingScreen, TextInput, Textarea, showToast } from "../components/ui";
+import { BackLink, Button, LoadingScreen, Select, TextInput, Textarea, showToast } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { localMobile } from "../lib/format";
+import { SitterGate, SitterProgress } from "./SitterSteps";
 import { areaList } from "../lib/serviceArea";
 
 // "Your details" (CLAUDE.md 6.13): name, mobile, home pin code and address. Sign-up only asks the role
 // and the terms; this is the first item of each area's "finish your profile" checklist.
 
-type Details = { full_name: string; phone: string; pin_code: string; address: string };
+type Details = { full_name: string; phone: string; pin_code: string; address: string; relationship_to_child: string };
+
+// Asked of parents in "Your details" (Reuben, 2026-11-13).
+export const RELATIONSHIPS_TO_CHILD = ["Mother", "Father", "Legal guardian"];
+const RELATIONSHIP_ERROR = "Please choose your relationship to your child.";
 type FieldErrors = Partial<Record<keyof Details, string>>;
 
 const NAME_ERROR = "Please tell us your full name.";
@@ -33,6 +38,7 @@ const FIELD_MESSAGES: Record<keyof Details, string> = {
   phone: PHONE_ERROR,
   pin_code: "Please enter your home pin code.",
   address: ADDRESS_ERROR,
+  relationship_to_child: RELATIONSHIP_ERROR,
 };
 
 // The API's validation details look like [{"field": "body.phone", "message": ...}]. Use our own wording.
@@ -47,7 +53,7 @@ export function fieldErrorsFrom(details: unknown): FieldErrors {
 }
 
 // `pinCodes` is the service area from the API; if it couldn't load, the API still checks on save.
-function checkDetails(details: Details, pinCodes: string[] | undefined): FieldErrors {
+function checkDetails(details: Details, pinCodes: string[] | undefined, role: "parent" | "sitter"): FieldErrors {
   const errors: FieldErrors = {};
   if (!details.full_name.trim()) errors.full_name = NAME_ERROR;
   if (!isIndianMobile(details.phone)) errors.phone = PHONE_ERROR;
@@ -57,6 +63,7 @@ function checkDetails(details: Details, pinCodes: string[] | undefined): FieldEr
     errors.pin_code = outsideAreaMessage(details.pin_code, pinCodes);
   }
   if (!details.address.trim()) errors.address = ADDRESS_ERROR;
+  if (role === "parent" && !details.relationship_to_child) errors.relationship_to_child = RELATIONSHIP_ERROR;
   return errors;
 }
 
@@ -74,7 +81,8 @@ function DetailsForm({ initial, home, role }: { initial: Details; home: string; 
   });
 
   const save = useMutation({
-    mutationFn: (body: Details) => apiFetch<Me>("/me/details", { method: "PUT", body: JSON.stringify(body) }),
+    mutationFn: (body: Omit<Details, "relationship_to_child"> & { relationship_to_child?: string }) =>
+      apiFetch<Me>("/me/details", { method: "PUT", body: JSON.stringify(body) }),
     onSuccess: async (me) => {
       queryClient.setQueryData(["me", userId], me);
       await queryClient.invalidateQueries({ queryKey: ["checklist"] });
@@ -109,7 +117,7 @@ function DetailsForm({ initial, home, role }: { initial: Details; home: string; 
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const errors = checkDetails(form, serviceArea.data?.pin_codes);
+    const errors = checkDetails(form, serviceArea.data?.pin_codes, role);
     setFieldErrors(errors);
     setFormError(undefined);
     if (Object.keys(errors).length === 0) {
@@ -118,6 +126,7 @@ function DetailsForm({ initial, home, role }: { initial: Details; home: string; 
         phone: form.phone.trim(),
         pin_code: form.pin_code,
         address: form.address.trim(),
+        ...(role === "parent" ? { relationship_to_child: form.relationship_to_child } : {}),
       });
     }
   }
@@ -177,6 +186,22 @@ function DetailsForm({ initial, home, role }: { initial: Details; home: string; 
         onChange={(event) => set("address", event.target.value)}
         error={fieldErrors.address}
       />
+      {role === "parent" && (
+        <Select
+          label="Your relationship to your child"
+          name="relationship_to_child"
+          value={form.relationship_to_child}
+          onChange={(event) => set("relationship_to_child", event.target.value)}
+          error={fieldErrors.relationship_to_child}
+        >
+          <option value="">Choose one</option>
+          {RELATIONSHIPS_TO_CHILD.map((relationship) => (
+            <option key={relationship} value={relationship}>
+              {relationship}
+            </option>
+          ))}
+        </Select>
+      )}
       <Button type="submit" arrow loading={save.isPending} fullWidthOnPhone={false} className="w-full">
         Save my details
       </Button>
@@ -196,6 +221,7 @@ export function DetailsPage() {
     phone: localMobile(profile.phone), // the field shows +91 itself
     pin_code: profile.pin_code ?? "",
     address: profile.address ?? "",
+    relationship_to_child: profile.relationship_to_child ?? "",
   };
   return (
     <section className="mx-auto max-w-[28rem] text-center">
@@ -208,11 +234,17 @@ export function DetailsPage() {
           ? "So your sitter knows where to come, and Pacifyco can reach you."
           : "So Pacifyco can reach you about your work."}
       </p>
-      <DetailsForm
-        initial={initial}
-        role={profile.role as "parent" | "sitter"}
-        home={PROFILE_PATH[profile.role as "parent" | "sitter"]}
-      />
+      {profile.role === "sitter" ? (
+        // Her second of eight steps: it opens once the sitter consent is done (Reuben, 2026-11-13).
+        <div className="mt-6 flex flex-col gap-4 text-left">
+          <SitterProgress step="details" />
+          <SitterGate step="details">
+            <DetailsForm initial={initial} role="sitter" home={PROFILE_PATH.sitter} />
+          </SitterGate>
+        </div>
+      ) : (
+        <DetailsForm initial={initial} role="parent" home={PROFILE_PATH.parent} />
+      )}
     </section>
   );
 }

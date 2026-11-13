@@ -106,7 +106,8 @@ export function PrivacyPolicyPage() {
       <div className="mx-auto max-w-[72rem]">
         <BackToPrevious />
       </div>
-      <LegalArticle body={PRIVACY_POLICY.body} version={PRIVACY_POLICY.meta.version} />
+      {/* No version shown, as on the terms (Reuben, 2026-11-13). */}
+      <LegalArticle body={PRIVACY_POLICY.body} />
     </>
   );
 }

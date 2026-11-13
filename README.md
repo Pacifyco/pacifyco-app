@@ -401,10 +401,7 @@ project, then redeploy):
 | --- | --- |
 | Variable | Sitter Terms | Family Terms |
 | --- | --- | --- |
-| `VITE_PACIFY_LLPIN` | LLPIN | LLPIN |
-| `VITE_PACIFY_REGISTERED_ADDRESS` | registered office (twice) | registered office (twice) |
 | `VITE_GRIEVANCE_OFFICER_NAME`, `_EMAIL`, `_PHONE` | Grievance Officer (6.3) | Grievance Officer (9.3) |
-| `VITE_EMERGENCY_LINE` | emergency line during bookings | 24-hour safety line (9.3 and contact) |
 | `VITE_FAMILY_INTRO_FEE` | | introduction fee in 7.2, e.g. `15,000` (shown as ₹15,000) |
 
 Outside production a blank value shows as a TEST marker. In production each document stays hidden, and

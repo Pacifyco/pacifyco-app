@@ -54,6 +54,7 @@ function SitterProfile() {
         intro={intro}
         items={items}
         steps={SITTER_STEPS}
+        inOrder
       />
       {/* Sitters change their availability here once they're set up; their home is their bookings. */}
       <Card as="section" className="flex flex-col items-start gap-3">

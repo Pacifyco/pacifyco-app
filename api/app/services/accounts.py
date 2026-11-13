@@ -80,11 +80,19 @@ def update_details(
     phone: str,
     pin_code: str,
     address: str,
+    relationship_to_child: str | None = None,
 ) -> Profile:
     """The "your details" part of finishing a profile (CLAUDE.md 6.13). The home pin code must be in
     the service area (CLAUDE.md 1). The home's map position is looked up when the address changes."""
     if profile.role not in SIGN_UP_ROLES:
         raise AppError(403, "forbidden", "This isn't available for your account")
+    if profile.role == Role.parent and not relationship_to_child:
+        raise AppError(
+            422,
+            "validation_error",
+            "Some fields need fixing",
+            [{"field": "body.relationship_to_child", "message": "Please choose your relationship to your child"}],
+        )
     require_in_service_area(db, pin_code)
     if profile.lat is None or (address, pin_code) != (profile.address, profile.pin_code):
         position = geocoding.locate_home(db, geocoder, address, pin_code)
@@ -93,12 +101,16 @@ def update_details(
     profile.phone = phone
     profile.pin_code = pin_code
     profile.address = address
+    if profile.role == Role.parent:
+        profile.relationship_to_child = relationship_to_child
     db.commit()
     return profile
 
 
 def details_complete(profile: Profile) -> bool:
-    return all((profile.full_name, profile.phone, profile.pin_code, profile.address))
+    filled = all((profile.full_name, profile.phone, profile.pin_code, profile.address))
+    # Parents also say how they're related to their children (Reuben, 2026-11-13).
+    return filled and (profile.role != Role.parent or bool(profile.relationship_to_child))
 
 
 def find_auth_user_id(db: Session, email: str) -> uuid.UUID | None:

@@ -10,12 +10,9 @@ export const config = {
   supabaseKey: (import.meta.env.VITE_SUPABASE_ANON_KEY || "").trim(),
   // Values for the Sitter and Family Terms placeholders (CLAUDE.md 7). Public information, not secrets.
   legal: {
-    llpin: (import.meta.env.VITE_PACIFY_LLPIN || "").trim(),
-    address: (import.meta.env.VITE_PACIFY_REGISTERED_ADDRESS || "").trim(),
     grievanceName: (import.meta.env.VITE_GRIEVANCE_OFFICER_NAME || "").trim(),
     grievanceEmail: (import.meta.env.VITE_GRIEVANCE_OFFICER_EMAIL || "").trim(),
     grievancePhone: (import.meta.env.VITE_GRIEVANCE_OFFICER_PHONE || "").trim(),
-    emergencyLine: (import.meta.env.VITE_EMERGENCY_LINE || "").trim(),
     // Family Terms 7.2: the one-time fee to hire a sitter directly, e.g. "15,000" (shown as ₹15,000).
     familyIntroFee: (import.meta.env.VITE_FAMILY_INTRO_FEE || "").trim(),
   },

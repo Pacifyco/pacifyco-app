@@ -103,7 +103,6 @@ export function JoinPage() {
   return (
     <section className="mx-auto max-w-[36rem] text-center">
       <h1>You're joining as {roleLabel}.</h1>
-      <p className="mt-4 text-muted">Is that right? Once your account is set up, only the Pacifyco team can change this.</p>
       {failure && failure.code !== "already_signed_up" && (
         <p role="alert" className="mt-4 text-small text-danger">
           {failure.code === "email_in_use"
