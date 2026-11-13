@@ -205,6 +205,10 @@ title). While a parent or sitter has something left to do, a small coral speech 
 profile button ("Finish your profile", or "Something needs another look" after a rejection) and leads
 to "Your profile" (`/parent/profile`, `/sitter/profile`), which holds the checklist; the home pages no
 longer show it. Keep pages short enough to avoid scrolling on a phone where possible.
+UX review 2026-11-13: the bubble shows only on the home page (Find a sitter, the sitter's home), never
+over the profile pages; the dot on the button stays. Header controls are 44px. On phones the header
+holds only the logo and the profile button: the theme switch and Sign out are in a "Settings" card on
+"Your profile". Saves confirm with a toast at the bottom ("Details saved").
 
 ---
 
@@ -339,9 +343,11 @@ this file and CLAUDE.md win.
   automatically (CLAUDE.md 6.4).
 - **Prices on sitter cards or bookings** ("Est. cost"), sitter earnings shown to parents, and
   occasions ("Date night", "Gym session") as a booking field.
-- **Skills taxonomy**: v1 has free-text age groups and languages. (Weekday availability is in: a week
-  that repeats, with quick fills and days off, decided 2026-11-09.)
+- **Skills taxonomy** beyond two fixed lists: age groups and languages are tapped from fixed lists (UX
+  review 2026-11-13). (Weekday availability is in: a week that repeats, with quick fills and days off,
+  decided 2026-11-09.)
 - Checks we don't do or name differently: show only CLAUDE.md 7's steps (ID, police certificate,
   references, psychology test, approval).
 - The prototype's login screen ("Choose a portal", demo account pickers, "Reset demo data") and its
-  hero copy and stats. Our sign-in and `/join` already follow section 10.
+  hero copy and stats. Our sign-in (a box on the home page, opened by "Sign in or join"; no separate
+  page since 2026-11-13, `/sign-in` redirects to `/?signin`) and `/join` already follow section 10.

@@ -1,7 +1,7 @@
 import { CircleUserRound } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router";
-import { PROFILE_PATH, useMe } from "../auth/useMe";
+import { AREA_PATH, PROFILE_PATH, useMe } from "../auth/useMe";
 import {
   profilePrompt,
   useChecklist,
@@ -34,7 +34,10 @@ function ProfileButtonFor({ role }: { role: "parent" | "sitter" }) {
   }, [pathname, refetch]);
   const to = PROFILE_PATH[role];
   const prompt = checklist.isSuccess ? profilePrompt(checklist.data.items ?? []) : null;
-  const showBubble = prompt !== null && pathname !== to;
+  // The bubble shows only on the home page (Find a sitter, or the sitter's home), never over the
+  // profile pages' headings (UX review 2026-11-13). The dot on the button stays everywhere.
+  const home = AREA_PATH[role];
+  const showBubble = prompt !== null && pathname === home;
 
   return (
     <div className="relative">
@@ -42,7 +45,7 @@ function ProfileButtonFor({ role }: { role: "parent" | "sitter" }) {
         to={to}
         aria-label="Your profile"
         title="Your profile"
-        className="relative flex size-[40px] items-center justify-center rounded-pill border border-line text-ink no-underline transition-colors duration-200 ease-calm hover:bg-surface-tint"
+        className="relative flex size-[44px] items-center justify-center rounded-pill border border-line text-ink no-underline transition-colors duration-200 ease-calm hover:bg-surface-tint"
       >
         <CircleUserRound aria-hidden="true" size={24} strokeWidth={1.75} />
         {prompt && (

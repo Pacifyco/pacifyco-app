@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { BackLink, Button, TextInput } from "../components/ui";
 import { cx } from "../components/ui/cx";
 import { ApiError, apiFetch } from "../lib/api";
+import { PARTS_OF_DAY } from "../lib/sitterLists";
 import {
   END_HOURS,
   START_HOURS,
@@ -26,12 +27,24 @@ type Draft = Range[][]; // one list per weekday, Monday first
 
 const KEY = ["sitter-availability"];
 
-/** Quick fills (whole hours, India time). */
-export const PRESETS: { label: string; range: Range }[] = [
-  { label: "Mornings", range: { start: 9, end: 13 } },
-  { label: "Afternoons", range: { start: 13, end: 18 } },
-  { label: "Evenings", range: { start: 18, end: 22 } },
-];
+/** Quick fills: the same parts of the day parents filter by (UX review 2026-11-13). */
+export const PRESETS: { label: string; range: Range }[] = PARTS_OF_DAY.map((part) => ({
+  label: part.key === "night" ? "Nights" : `${part.label}s`,
+  range: { start: part.start, end: part.end },
+}));
+
+/** Adds a time to a day's times, joining any it overlaps or touches, so a quick fill never wipes
+an earlier time (UX review 2026-11-13: "Afternoons" replaced Monday's morning). */
+export function addRange(ranges: Range[], range: Range): Range[] {
+  const sorted = [...ranges, range].sort((a, b) => a.start - b.start);
+  const joined: Range[] = [];
+  for (const next of sorted) {
+    const last = joined.at(-1);
+    if (last && next.start <= last.end) last.end = Math.max(last.end, next.end);
+    else joined.push({ ...next });
+  }
+  return joined;
+}
 
 function toDraft(week: WeekHours[]): Draft {
   const draft: Draft = WEEKDAYS.map(() => []);
@@ -172,8 +185,10 @@ function WeekCard({ saved }: { saved: WeekHours[] }) {
 
   function fill(range: Range) {
     const ticked = draft.some((ranges) => ranges.length > 0);
-    // With no day ticked yet, a quick fill sets Monday to Friday.
-    setDraft(draft.map((ranges, weekday) => ((ticked ? ranges.length > 0 : weekday < 5) ? [range] : ranges)));
+    // With no day ticked yet, a quick fill sets Monday to Friday. It adds to each day's times.
+    setDraft(
+      draft.map((ranges, weekday) => ((ticked ? ranges.length > 0 : weekday < 5) ? addRange(ranges, range) : ranges)),
+    );
   }
 
   function submit(event: FormEvent) {
@@ -193,7 +208,7 @@ function WeekCard({ saved }: { saved: WeekHours[] }) {
           <h2 id="week-heading" className="mr-auto text-ui font-semibold">
             Your week
           </h2>
-          <span className="text-small text-muted">Fill ticked days:</span>
+          <span className="text-small text-muted">Add to ticked days:</span>
           {PRESETS.map((preset) => (
             <button
               key={preset.label}

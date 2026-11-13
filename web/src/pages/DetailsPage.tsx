@@ -3,8 +3,10 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { PROFILE_PATH, useMe, type Me } from "../auth/useMe";
-import { BackLink, Button, LoadingScreen, TextInput, Textarea } from "../components/ui";
+import { BackLink, Button, LoadingScreen, TextInput, Textarea, showToast } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
+import { localMobile } from "../lib/format";
+import { areaList } from "../lib/serviceArea";
 
 // "Your details" (CLAUDE.md 6.13): name, mobile, home pin code and address. Sign-up only asks the role
 // and the terms; this is the first item of each area's "finish your profile" checklist.
@@ -22,7 +24,7 @@ export function isIndianMobile(raw: string): boolean {
 }
 
 export function outsideAreaMessage(pinCode: string, pinCodes: string[] | undefined): string {
-  const list = pinCodes?.length ? ` For now we're in these Bengaluru pin codes: ${pinCodes.join(", ")}.` : "";
+  const list = pinCodes?.length ? ` For now we're in these parts of Bengaluru: ${areaList(pinCodes)}.` : "";
   return `Pacify isn't in ${pinCode} yet.${list}`;
 }
 
@@ -58,7 +60,7 @@ function checkDetails(details: Details, pinCodes: string[] | undefined): FieldEr
   return errors;
 }
 
-function DetailsForm({ initial, home }: { initial: Details; home: string }) {
+function DetailsForm({ initial, home, role }: { initial: Details; home: string; role: "parent" | "sitter" }) {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -76,6 +78,7 @@ function DetailsForm({ initial, home }: { initial: Details; home: string }) {
     onSuccess: async (me) => {
       queryClient.setQueryData(["me", userId], me);
       await queryClient.invalidateQueries({ queryKey: ["checklist"] });
+      showToast("Details saved"); // stays up on the page they go back to (UX review 2026-11-13)
       navigate(home);
     },
     onError: (error) => {
@@ -94,6 +97,15 @@ function DetailsForm({ initial, home }: { initial: Details; home: string }) {
   function set(field: keyof Details, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
   }
+
+  // The pin codes Pacify serves, up front, so nobody types one only to be turned away.
+  const served = serviceArea.data?.pin_codes;
+  const pinHint =
+    role === "sitter"
+      ? `Where you live. We're matching sitters with families in ${served?.length ? areaList(served) : "a few Bengaluru neighbourhoods"}.`
+      : served?.length
+        ? `For now Pacify is in ${areaList(served)}.`
+        : "Pacify is starting in a few Bengaluru neighbourhoods.";
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -130,12 +142,17 @@ function DetailsForm({ initial, home }: { initial: Details; home: string }) {
         label="Mobile number"
         name="phone"
         type="tel"
-        autoComplete="tel"
-        inputMode="tel"
-        maxLength={20}
-        hint="Pacify uses it to reach you about your bookings."
+        autoComplete="tel-national"
+        inputMode="numeric"
+        prefix="+91"
+        maxLength={10}
+        hint={
+          role === "sitter"
+            ? "Pacify uses it to reach you about your work."
+            : "Pacify uses it to reach you about your bookings."
+        }
         value={form.phone}
-        onChange={(event) => set("phone", event.target.value)}
+        onChange={(event) => set("phone", event.target.value.replace(/\D/g, ""))}
         error={fieldErrors.phone}
       />
       <TextInput
@@ -144,7 +161,7 @@ function DetailsForm({ initial, home }: { initial: Details; home: string }) {
         autoComplete="postal-code"
         inputMode="numeric"
         maxLength={6}
-        hint="Pacify is starting in a few Bengaluru neighbourhoods."
+        hint={pinHint}
         value={form.pin_code}
         onChange={(event) => set("pin_code", event.target.value.replace(/\D/g, ""))}
         error={fieldErrors.pin_code}
@@ -176,7 +193,7 @@ export function DetailsPage() {
   const profile = me.data.profile;
   const initial: Details = {
     full_name: profile.full_name ?? name ?? "", // Google's name, if they signed in with Google
-    phone: profile.phone ?? "",
+    phone: localMobile(profile.phone), // the field shows +91 itself
     pin_code: profile.pin_code ?? "",
     address: profile.address ?? "",
   };
@@ -191,7 +208,11 @@ export function DetailsPage() {
           ? "So your sitter knows where to come, and Pacify can reach you."
           : "So Pacify can reach you about your work."}
       </p>
-      <DetailsForm initial={initial} home={PROFILE_PATH[profile.role as "parent" | "sitter"]} />
+      <DetailsForm
+        initial={initial}
+        role={profile.role as "parent" | "sitter"}
+        home={PROFILE_PATH[profile.role as "parent" | "sitter"]}
+      />
     </section>
   );
 }

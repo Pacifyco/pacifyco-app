@@ -43,10 +43,12 @@ class Item:
     key: str
     status: ItemStatus
     reason: str | None = None  # when rejected: why, in the admin's words (decided 2026-11-09)
+    # The exact next action, e.g. "1 child · certificate needed" or "Add your photo" (UX review 2026-11-13).
+    note: str | None = None
 
 
 def _with_reason(item: Item, reason) -> Item:
-    return Item(item.key, item.status, reason()) if item.status == ItemStatus.rejected else item
+    return Item(item.key, item.status, reason(), item.note) if item.status == ItemStatus.rejected else item
 
 
 def _done(finished: bool) -> ItemStatus:
@@ -99,11 +101,28 @@ def _children_status(db: Session, parent_id: uuid.UUID) -> ItemStatus:
     return ItemStatus.approved
 
 
+_CHILDREN_NOTE = {
+    ItemStatus.to_do: "certificate needed",
+    ItemStatus.waiting: "being checked",
+    ItemStatus.approved: "verified",
+    ItemStatus.rejected: "certificate needs another look",
+}
+
+
+def _children_note(db: Session, parent_id: uuid.UUID, status: ItemStatus) -> str | None:
+    """ "1 child · certificate needed", so a parent who has added a child sees what's left."""
+    count = db.scalar(select(func.count()).where(Child.parent_id == parent_id)) or 0
+    if not count:
+        return None
+    return f"{count} {'child' if count == 1 else 'children'} · {_CHILDREN_NOTE[status]}"
+
+
 def parent_checklist(db: Session, profile: Profile) -> list[Item]:
     contacts = db.scalar(select(func.count()).where(EmergencyContact.parent_id == profile.id)) or 0
+    children = _children_status(db, profile.id)
     return [
-        Item("details", _done(accounts.details_complete(profile))),
-        # The consents and the current Family Terms and privacy policy, ticked on the same page.
+        # Consent comes first: family details can't be saved before it (UX review 2026-11-13). It covers
+        # the consents and the current Family Terms and privacy policy, ticked on the same page.
         Item(
             "consent",
             _done(
@@ -111,7 +130,11 @@ def parent_checklist(db: Session, profile: Profile) -> list[Item]:
                 and not legal.outstanding(db, profile.id, profile.role)
             ),
         ),
-        _with_reason(Item("children", _children_status(db, profile.id)), lambda: _children_reason(db, profile.id)),
+        Item("details", _done(accounts.details_complete(profile))),
+        _with_reason(
+            Item("children", children, note=_children_note(db, profile.id, children)),
+            lambda: _children_reason(db, profile.id),
+        ),
         Item("emergency_contacts", _done(contacts >= REQUIRED_EMERGENCY_CONTACTS)),
     ]
 
@@ -155,17 +178,26 @@ def sitter_checklist(db: Session, profile: Profile, sitter: Sitter) -> list[Item
     references = len(verification.sitter_references(db, sitter.profile_id))
     attempt = psych_tests.latest_attempt(db, sitter.profile_id)
     step_reasons["psych_test"] = attempt.rejection_reason if attempt is not None else None
-    application_sent = all(
-        value is not None for value in (sitter.date_of_birth, sitter.bio, sitter.payout_method)
-    ) and _uploaded(db, profile.id, DocumentType.photo)
+    # Step 1 bundles her profile, photo and payout details: say which is missing (UX review 2026-11-13).
+    missing = [
+        note
+        for note, given in (
+            ("Add your date of birth and a few words about you", sitter.date_of_birth and sitter.bio),
+            ("Add your photo", _uploaded(db, profile.id, DocumentType.photo)),
+            ("Add how you'd like to be paid", sitter.payout_method is not None),
+        )
+        if not given
+    ]
+    application_sent = not missing
     ids_sent = _uploaded(db, profile.id, DocumentType.government_id) and _uploaded(
         db, profile.id, DocumentType.college_or_work_id
     )
     items = [
-        Item("details", _done(accounts.details_complete(profile))),
-        # The sitter consent, Sitter Terms of Use and privacy policy, on one page (decided 2026-11-12).
+        # The sitter consent, Sitter Terms of Use and privacy policy, on one page (decided 2026-11-12),
+        # first, as on the parent side (UX review 2026-11-13).
         Item("consent", _done(not legal.outstanding(db, profile.id, profile.role))),
-        Item("profile", _reviewed(reviews["profile"], application_sent)),
+        Item("details", _done(accounts.details_complete(profile))),
+        Item("profile", _reviewed(reviews["profile"], application_sent), note=missing[0] if missing else None),
         Item("identity_documents", _reviewed(reviews["identity_documents"], ids_sent)),
         Item(
             "police_certificate",

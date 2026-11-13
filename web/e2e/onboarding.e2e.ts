@@ -73,7 +73,7 @@ async function join(page: Page, role: "parent" | "sitter") {
 async function fillDetails(page: Page, name: string) {
   await page.getByRole("link", { name: /Your details/ }).click();
   await page.getByLabel("Full name").fill(name);
-  await page.getByLabel("Mobile number").fill("98765 43210");
+  await page.getByLabel("Mobile number").fill("9876543210"); // after a fixed +91
   await page.getByLabel("Home pin code").fill("560034");
   await page.getByLabel("Home address").fill("12, 4th Cross, Koramangala");
   await page.getByRole("button", { name: /Save my details/ }).click();
@@ -101,9 +101,11 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   await expect(page.getByRole("link", { name: /Parental consent/ }).getByText("Done")).toBeVisible();
 
   await page.getByRole("link", { name: /Your children/ }).click();
-  await page.getByRole("button", { name: "Add a child" }).click();
+  // With no child yet, the form is already open; the date of birth is day, month and year.
   await page.getByLabel("Child's name").fill("Asha");
-  await page.getByLabel("Date of birth").fill("2022-03-01");
+  await page.getByLabel("Day", { exact: true }).selectOption("01");
+  await page.getByLabel("Month", { exact: true }).selectOption("03");
+  await page.getByLabel("Year", { exact: true }).selectOption("2022");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("heading", { name: "Asha" })).toBeVisible();
   await upload(page, "Birth certificate", PDF);
@@ -111,15 +113,19 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
 
   const contacts = sectionOf(page, "Name").first();
   await expect(contacts.getByRole("heading", { name: "Emergency contacts" })).toBeVisible();
-  const [names, relationships, phones] = [contacts.getByLabel("Name"), contacts.getByLabel("Relationship"), contacts.getByLabel("Phone")];
+  const [names, relationships, phones] = [
+    contacts.getByLabel("Name"),
+    contacts.getByLabel("Relationship"),
+    contacts.getByLabel("Mobile number"),
+  ];
   await names.nth(0).fill("Meera Rao");
-  await relationships.nth(0).fill("Grandmother");
+  await relationships.nth(0).selectOption("Grandparent");
   await phones.nth(0).fill("9876500001");
   await names.nth(1).fill("Vikram Rao");
-  await relationships.nth(1).fill("Father");
+  await relationships.nth(1).selectOption("Spouse");
   await phones.nth(1).fill("9876500002");
   await contacts.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Step 3 of 3 · Authorised adults")).toBeVisible();
+  await expect(page.getByText(/Step 3 of 3/)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page).toHaveURL(/\/parent\/profile$/);
@@ -147,30 +153,33 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   await page.getByLabel("Date of birth").fill("1996-04-02");
   await page.getByLabel("Years of experience").fill("4");
   await page.getByLabel(/About you/).fill("I love storytime and long walks.");
-  await page.getByLabel("Languages you speak").fill("English, Kannada");
+  // Ages and languages are tapped from fixed lists.
+  await page.getByRole("button", { name: /Toddler/ }).click();
+  await page.getByRole("button", { name: "English", exact: true }).click();
+  await page.getByRole("button", { name: "Kannada", exact: true }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByText("Step 2 of 5 · Documents")).toBeVisible();
+  await expect(page.getByText(/Step 2 of 5/)).toBeVisible();
   await upload(page, "Profile photo", PNG);
   await upload(page, "Government ID", PDF);
   await upload(page, "College or work ID", PDF);
   await upload(page, "Police clearance certificate", PDF);
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByText("Step 3 of 5 · Health disclosure")).toBeVisible();
+  await expect(page.getByText(/Step 3 of 5/)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByText("Step 4 of 5 · References")).toBeVisible();
+  await expect(page.getByText(/Step 4 of 5/)).toBeVisible();
   for (const [name, phone] of [["Asha Iyer", "9876511111"], ["Ravi Kumar", "9876522222"]]) {
     await page.getByLabel("Name").fill(name);
     await page.getByLabel("Relationship").fill("Former employer");
-    await page.getByLabel("Phone").fill(phone);
-    await page.getByRole("button", { name: "Add reference" }).click();
-    await expect(page.getByText(name)).toBeVisible();
+    await page.getByLabel("Mobile number").fill(phone);
+    await page.getByRole("button", { name: "Add this reference" }).click();
+    await expect(page.getByText(name, { exact: true })).toBeVisible();
   }
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
-  await expect(page.getByText("Step 5 of 5 · Payout details")).toBeVisible();
+  await expect(page.getByText(/Step 5 of 5/)).toBeVisible();
   await page.getByLabel("Payout method").selectOption("upi");
   await page.getByLabel("UPI ID").fill("lakshmi@okaxis");
   await page.getByRole("button", { name: "Continue" }).click();
@@ -193,7 +202,7 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   await expect(page.getByText("Your application is submitted.")).toBeVisible();
   await page.getByRole("link", { name: "Go to your profile" }).click();
   await expect(page).toHaveURL(/\/sitter\/profile$/);
-  await expect(page.getByRole("link", { name: /Psychology screening/ }).getByText("Being checked")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Psychology screening/ }).getByText("In review")).toBeVisible();
 
   // Her usual week: Mornings on every weekday, in one tap, plus a day off.
   await page.goto("/sitter/availability");
@@ -207,7 +216,7 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
 
   await page.goto("/sitter/profile");
   for (const step of ["About you", "ID documents", "Police clearance certificate", "References", "Psychology screening"]) {
-    await expect(page.getByRole("link", { name: new RegExp(step) }).getByText("Being checked")).toBeVisible();
+    await expect(page.getByRole("link", { name: new RegExp(step) }).getByText("In review")).toBeVisible();
   }
 });
 
@@ -233,11 +242,11 @@ test("an admin rejects a step with a reason; the sitter sees it and uploads agai
   await expect(item.getByText("Needs another look")).toBeVisible();
   await expect(item.getByText("Reason: It's older than six months.")).toBeVisible();
 
+  // The row opens the documents step directly.
   await item.click();
-  await sitterPage.getByRole("button", { name: "Continue" }).click();
   await upload(sitterPage, "Police clearance certificate", PDF);
   await sitterPage.goto("/sitter/profile");
-  await expect(sitterPage.getByRole("link", { name: /Police clearance certificate/ }).getByText("Being checked")).toBeVisible();
+  await expect(sitterPage.getByRole("link", { name: /Police clearance certificate/ }).getByText("In review")).toBeVisible();
 
   await page.reload();
   await expect(sectionOf(page, "Notes on the police certificate").getByText("Waiting")).toBeVisible();
@@ -278,7 +287,7 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
 
   const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Lakshmi Nair" }) });
   await expect(card).toBeVisible();
-  await expect(card.getByText("4 years' experience · under 1 km away")).toBeVisible();
+  await expect(card.getByText("4 yrs · <1 km · Ages 1½–3")).toBeVisible();
   const photo = card.getByRole("img", { name: "Lakshmi Nair" });
   await expect(photo).toBeVisible();
   expect(await photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
@@ -287,8 +296,9 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
   await card.getByRole("link", { name: "See Lakshmi's profile" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Lakshmi Nair" })).toBeVisible();
   await expect(page.getByText("I love storytime and long walks.")).toBeVisible();
-  await expect(page.getByText("Mon", { exact: true })).toBeVisible();
-  await expect(page.getByText("9 am – 1 pm").first()).toBeVisible();
+  // Her week as a grid: Monday morning free, Sunday not available.
+  await expect(page.getByRole("rowheader", { name: "Mon" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Sun/ }).getByText("Not available")).toBeVisible();
   await expect(page.getByText(/^Not free on /)).toBeVisible();
   await expect(page.getByText(/Start with a 1-hour booking while you're at home/)).toBeVisible();
   await expect(page.locator("body")).not.toContainText("₹");

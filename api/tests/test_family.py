@@ -9,8 +9,9 @@ from sqlalchemy import text
 
 from app import cli
 from tests.test_auth import client  # noqa: F401  (fixture)
+from tests.test_documents import accept_consent
 from tests.test_roles import as_user, make_profile  # noqa: F401  (fixture)
-from tests.test_sign_up import PARENT, auth_for, user  # noqa: F401  (fixture)
+from tests.test_sign_up import PARENT, auth_for, fill_details, user  # noqa: F401  (fixture)
 
 CONTACT_A = {"name": "Priya Rao", "relationship": "Mother", "phone": "+91 98765 43210"}
 CONTACT_B = {"name": "Vikram Rao", "relationship": "Father", "phone": "9876500000"}
@@ -19,6 +20,8 @@ CONTACT_B = {"name": "Vikram Rao", "relationship": "Father", "phone": "987650000
 @pytest.fixture
 def parent(client, db_engine, user):  # noqa: F811
     assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    # Family data is accepted only after the parental consent (UX review 2026-11-13).
+    assert accept_consent(client, user).status_code == 200
     yield user
     with db_engine.begin() as conn:
         conn.execute(text("DELETE FROM emergency_contacts WHERE parent_id = :id"), {"id": user["id"]})
@@ -33,7 +36,44 @@ def rows(db_engine, sql: str, **params):
         return conn.execute(text(sql), params).mappings().all()
 
 
+# ---------- consent first ----------
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("post", "/parent/children", {"name": "Diya", "date_of_birth": "2022-05-01"}),
+        ("put", "/parent/emergency-contacts", {"contacts": [CONTACT_A, CONTACT_B]}),
+        ("post", "/parent/authorised-adults", CONTACT_A),
+    ],
+)
+def test_family_details_wait_for_the_consent(client, db_engine, user, method, path, body):  # noqa: F811
+    assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    try:
+        response = getattr(client, method)(path, json=body, headers=auth_for(user))
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "consent_required"
+    finally:
+        with db_engine.begin() as conn:
+            conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": user["id"]})
+
+
 # ---------- emergency contacts ----------
+
+
+def test_the_two_contacts_need_different_numbers(client, parent):  # noqa: F811
+    same = {**CONTACT_B, "phone": CONTACT_A["phone"]}
+    response = client.put("/parent/emergency-contacts", json={"contacts": [CONTACT_A, same]}, headers=auth_for(parent))
+    assert response.status_code == 422
+
+
+def test_an_emergency_contact_cant_be_the_parents_own_number(client, parent):  # noqa: F811
+    assert fill_details(client, parent).status_code == 200  # her mobile is +91 98765-43210, as CONTACT_A
+    response = client.put(
+        "/parent/emergency-contacts", json={"contacts": [CONTACT_A, CONTACT_B]}, headers=auth_for(parent)
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "emergency_contact_is_you"
 
 
 def test_no_contacts_yet(client, parent):  # noqa: F811

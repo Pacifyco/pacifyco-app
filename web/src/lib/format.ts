@@ -48,6 +48,18 @@ export function joinNames(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
+/** "+919845012345" → "+91 98450 12345" (UX review 2026-11-13). Anything else is shown as it is. */
+export function formatMobile(phone: string): string {
+  const match = /^\+91(\d{5})(\d{5})$/.exec(phone.replace(/\s/g, ""));
+  return match ? `+91 ${match[1]} ${match[2]}` : phone;
+}
+
+/** The 10 digits after +91, for a field that shows "+91" itself. */
+export function localMobile(phone: string | null | undefined): string {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
 export function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }

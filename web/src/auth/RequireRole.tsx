@@ -1,3 +1,4 @@
+import { SIGN_IN_PATH } from "../pages/SignInPage";
 import type { ReactNode } from "react";
 import { Navigate } from "react-router";
 import { LoadingScreen } from "../components/ui";
@@ -11,7 +12,7 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
   const { status } = useAuth();
   const me = useMe();
 
-  if (status === "signed_out") return <Navigate to="/sign-in" replace />;
+  if (status === "signed_out") return <Navigate to={SIGN_IN_PATH} replace />;
   if (status === "loading" || me.isPending) return <LoadingScreen />;
   if (me.isError) return <p className="text-center text-muted">{me.error.message}</p>;
 
@@ -34,7 +35,7 @@ export function AccountOnHold({ removed }: { removed: boolean }) {
         If you think this is a mistake, you can appeal within 15 days of the decision.
       </p>
       <p className="mt-4 text-muted">
-        Contact us at <a href="mailto:query.pacifyco@gmail.com">query.pacifyco@gmail.com</a> or{" "}
+        Contact us at <a href="mailto:founders@pacifyco.in">founders@pacifyco.in</a> or{" "}
         <a href="tel:+918848873841">+91 8848873841</a>.
       </p>
     </section>

@@ -1,14 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link, Outlet } from "react-router";
+import { Link, Outlet, useLocation } from "react-router";
+import { SIGN_IN_PATH } from "../pages/SignInPage";
 import wordmarkReversedUrl from "../assets/brand/wordmark-reversed.png";
 import wordmarkUrl from "../assets/brand/wordmark.png";
 import { useAuth } from "../auth/AuthProvider";
-import { config } from "../config";
-import { apiFetch } from "../lib/api";
+import { useMe } from "../auth/useMe";
+import { Toaster } from "../components/ui";
+import { cx } from "../components/ui/cx";
 import { ThemeToggle } from "../theme/ThemeToggle";
 import { ProfileButton } from "./ProfileButton";
-
-type Health = { status: string; environment: string };
 
 export function AppLayout() {
   return (
@@ -27,11 +26,7 @@ export function AppLayout() {
               className="hidden h-6 w-auto sm:h-7 dark:block"
             />
           </Link>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <AccountLink />
-            <ThemeToggle />
-            <ProfileButton />
-          </div>
+          <HeaderActions />
         </div>
       </header>
 
@@ -41,50 +36,57 @@ export function AppLayout() {
 
       <footer className="border-t border-line px-4 py-4 sm:px-5">
         <nav aria-label="Legal" className="mx-auto flex max-w-content flex-wrap justify-center gap-5 text-small">
-          <Link to="/terms/parent">Family Terms of Use</Link>
-          <Link to="/terms/sitter">Sitter Terms of Use</Link>
+          {/* Only the privacy policy (Reuben, 2026-11-13). The terms are linked where people agree to them:
+              the consent pages. */}
           <Link to="/privacy">Privacy policy</Link>
         </nav>
       </footer>
-      {config.environment !== "production" && <EnvironmentFooter />}
+      <Toaster />
     </div>
   );
 }
 
+// On phones, parents and sitters find Sign out and the theme switch on "Your profile" instead, so the
+// header holds just the logo and the profile button (UX review 2026-11-13). Admins have no profile page.
+function HeaderActions() {
+  const me = useMe();
+  const role = me.data?.profile?.role;
+  const hasProfilePage = role === "parent" || role === "sitter";
+  return (
+    <div className="flex items-center gap-2 sm:gap-3">
+      <div className={cx("items-center gap-2 sm:gap-3", hasProfilePage ? "hidden sm:flex" : "flex")}>
+        <AccountLink />
+        <ThemeToggle />
+      </div>
+      <ProfileButton />
+    </div>
+  );
+}
+
+export function SignOutButton() {
+  const { signOut } = useAuth();
+  return (
+    <button
+      type="button"
+      onClick={signOut}
+      className="min-h-[44px] whitespace-nowrap text-ui text-coral-deep underline-offset-4 hover:underline"
+    >
+      Sign out
+    </button>
+  );
+}
+
 function AccountLink() {
-  const { status, available, signOut } = useAuth();
-  if (status === "signed_in") {
+  const { status, available } = useAuth();
+  const { pathname, search } = useLocation();
+  if (status === "signed_in") return <SignOutButton />;
+  // No "Sign in" link while the sign-in box is already open.
+  if (status === "signed_out" && available && !(pathname === "/" && new URLSearchParams(search).has("signin"))) {
     return (
-      <button type="button" onClick={signOut} className="whitespace-nowrap text-ui text-coral-deep underline-offset-4 hover:underline">
-        Sign out
-      </button>
-    );
-  }
-  if (status === "signed_out" && available) {
-    return (
-      <Link to="/sign-in" className="text-ui">
+      <Link to={SIGN_IN_PATH} className="text-ui">
         Sign in
       </Link>
     );
   }
   return null;
-}
-
-// Shown outside production only: which environment this is and whether the API answers.
-function EnvironmentFooter() {
-  const health = useQuery({
-    queryKey: ["health"],
-    queryFn: () => apiFetch<Health>("/health"),
-    retry: false,
-  });
-
-  const apiStatus = health.isPending ? "checking" : health.isSuccess ? "connected" : "not reachable";
-
-  return (
-    <footer className="border-t border-line px-4 py-3 text-caption text-muted sm:px-5">
-      <p className="mx-auto max-w-content">
-        Environment: {config.environment} · API: {apiStatus}
-      </p>
-    </footer>
-  );
 }

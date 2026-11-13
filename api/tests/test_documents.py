@@ -13,6 +13,7 @@ from app.errors import AppError
 from app.main import create_app
 from app.services import consent
 from app.services.documents import MAX_FILE_BYTES, sniff_content_type
+from app.services.email import get_email
 from app.services.storage import get_storage
 from tests.test_auth import FakeKeys, make_settings
 from tests.test_migrations import alembic_config
@@ -58,11 +59,12 @@ def storage():
 
 
 @pytest.fixture
-def client(db_engine, storage):
+def client(db_engine, storage, mailbox):
     command.upgrade(alembic_config(db_engine), "head")
     app = create_app(make_settings(db_engine))
     app.dependency_overrides[get_key_source] = FakeKeys
     app.dependency_overrides[get_storage] = lambda: storage
+    app.dependency_overrides[get_email] = lambda: mailbox
     return TestClient(app, raise_server_exceptions=False)
 
 

@@ -59,11 +59,17 @@ export function TermsCheckbox({
   checked,
   onChange,
   error,
+  tag,
+  highlight,
 }: {
   kinds: TermsKind[];
   checked: boolean;
   onChange: (checked: boolean) => void;
   error?: string;
+  /** e.g. "Required" (UX review 2026-11-13). */
+  tag?: string;
+  /** Outline it: still unticked after trying to continue. */
+  highlight?: boolean;
 }) {
   const [first, ...rest] = kinds;
   return (
@@ -72,6 +78,9 @@ export function TermsCheckbox({
       checked={checked}
       onChange={(event) => onChange(event.target.checked)}
       error={error}
+      tag={tag}
+      highlight={highlight}
+      data-required
       label={
         <>
           I agree to the <DocLink kind={first} />

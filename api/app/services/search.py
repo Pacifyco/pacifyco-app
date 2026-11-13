@@ -42,6 +42,7 @@ class Filters:
     min_rating: Decimal | None = None
     min_years: int | None = None
     language: str | None = None
+    part: str | None = None  # a part of the day (availability.PARTS_OF_DAY), on `day`
     first_aid: bool = False
     sort: SortBy = SortBy.distance
 
@@ -86,7 +87,11 @@ def search(db: Session, parent: Profile, filters: Filters, now: datetime) -> lis
     # Free times come from each sitter's weekly hours and days off (worked out, not stored).
     if filters.day is not None or (filters.starts_at is not None and filters.ends_at is not None):
         times = availability.free_times_for(db, [profile.id for profile, _ in rows], now)
-        if filters.day is not None:
+        if filters.day is not None and filters.part is not None:
+            rows = [
+                row for row in rows if availability.has_time_in_part(times[row[0].id], filters.day, filters.part, now)
+            ]
+        elif filters.day is not None:
             rows = [row for row in rows if availability.has_time_on(times[row[0].id], filters.day, now)]
         if filters.starts_at is not None and filters.ends_at is not None:
             rows = [row for row in rows if availability.is_free(times[row[0].id], filters.starts_at, filters.ends_at)]

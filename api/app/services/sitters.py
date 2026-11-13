@@ -17,6 +17,16 @@ from app.services import encryption
 
 MAX_REFERENCES = 2
 
+# Fixed lists the sitter picks from (UX review 2026-11-13). Pacify takes children from 18 months
+# (CLAUDE.md 6.4), so there's no infant group.
+AGE_GROUPS = ("Toddler", "Preschool", "School age")
+LANGUAGES = ("English", "Kannada", "Hindi", "Tamil", "Malayalam", "Telugu")
+
+
+def known(values: list[str], allowed: tuple[str, ...]) -> list[str]:
+    """Only values from the list, for anything shown to parents (older free-text entries are dropped)."""
+    return [value for value in allowed if value in values]
+
 
 def age_years(dob: date, as_of: date) -> int:
     return as_of.year - dob.year - ((as_of.month, as_of.day) < (dob.month, dob.day))

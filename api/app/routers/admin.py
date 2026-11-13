@@ -25,14 +25,20 @@ from app.models import (
 )
 from app.services import children as children_service
 from app.services import documents, verification
+from app.services import email as email_service
 from app.services import psych_tests as psych_tests_service
 from app.services.storage import StorageClient, get_storage
-from app.settings import Settings, get_settings
+from app.settings import LOCAL_WEB_ORIGIN, Settings, get_settings
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role(Role.admin))])
 Admin = Annotated[Profile, Depends(require_role(Role.admin))]
 Storage = Annotated[StorageClient, Depends(get_storage)]
 AppSettings = Annotated[Settings, Depends(get_settings)]
+Mailer = Annotated[email_service.EmailClient, Depends(email_service.get_email)]
+
+
+def _web_url(settings: Settings) -> str:
+    return settings.public_web_url or LOCAL_WEB_ORIGIN
 
 
 class DocumentViewUrl(BaseModel):
@@ -386,8 +392,13 @@ class OnboardingStatusOut(BaseModel):
 
 
 @router.post("/sitters/{sitter_id}/decision")
-def decide_sitter(sitter_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession) -> OnboardingStatusOut:
+def decide_sitter(
+    sitter_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> OnboardingStatusOut:
     sitter = verification.decide_sitter(db, admin.id, sitter_id, body.approved, body.notes, body.rejection_reason)
+    if body.approved:  # she hears that she's live (approval emails brought forward, 2026-11-13)
+        profile, _ = verification.get_sitter(db, sitter_id)
+        mailer.send(email_service.sitter_approved(profile.email, profile.full_name, _web_url(settings)))
     return OnboardingStatusOut(onboarding_status=sitter.onboarding_status)
 
 
@@ -446,6 +457,22 @@ def get_family_review(parent_id: uuid.UUID, admin: Admin, db: DbSession) -> Fami
 
 
 @router.post("/children/{child_id}/decision")
-def decide_child(child_id: uuid.UUID, body: Decision, admin: Admin, db: DbSession, storage: Storage) -> StatusOut:
+def decide_child(
+    child_id: uuid.UUID,
+    body: Decision,
+    admin: Admin,
+    db: DbSession,
+    storage: Storage,
+    mailer: Mailer,
+    settings: AppSettings,
+) -> StatusOut:
     child = verification.decide_child(db, storage, admin.id, child_id, body.approved, body.notes, body.rejection_reason)
+    if body.approved:  # the parent hears their child is verified (brought forward, 2026-11-13)
+        profile, parent = verification.get_parent(db, child.parent_id)
+        family_verified = parent.verification_status == VerificationStatus.approved
+        mailer.send(
+            email_service.child_verified(
+                profile.email, profile.full_name, child.name, family_verified, _web_url(settings)
+            )
+        )
     return StatusOut(status=child.verification_status)

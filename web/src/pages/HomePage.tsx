@@ -1,13 +1,18 @@
-import { Link, Navigate } from "react-router";
+import { Navigate, useSearchParams } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { AREA_PATH, useMe } from "../auth/useMe";
-import { ButtonLink, LoadingScreen, Photo } from "../components/ui";
-import { config } from "../config";
+import { Button, LoadingScreen, Photo } from "../components/ui";
+import { SignInBox } from "./SignInPage";
 
 // Signed-in people never see this marketing page: a loading buffer covers the moment while we
 // decide whether to send them to /join or straight to their area, so nothing flashes underneath it.
+// Signing in happens here too: "Sign in or join" opens the sign-in box in place of the button (Reuben,
+// 2026-11-13; there's no separate sign-in page). The box is open whenever the address has ?signin, so
+// "Sign in" links elsewhere (SIGN_IN_PATH) and Back work.
 export function HomePage() {
   const { status } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const signingIn = params.has("signin");
 
   if (status === "loading") return <LoadingScreen />;
   if (status === "signed_in") return <SignedIn />;
@@ -16,6 +21,17 @@ export function HomePage() {
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>A little help for you. A little more fun for them.</h1>
       <p className="mt-4 text-body-lg text-muted">Pacify is getting ready for families in Bengaluru.</p>
+
+      {/* The one action sits in the first screen, above the photos (UX review 2026-11-13). */}
+      <div className="mt-6">
+        {signingIn ? (
+          <SignInBox autoFocus />
+        ) : (
+          <Button arrow fullWidthOnPhone={false} onClick={() => setParams({ signin: "" })}>
+            Sign in or join
+          </Button>
+        )}
+      </div>
 
       <div className="mx-auto mt-7 grid max-w-[40rem] grid-cols-2 gap-4 sm:gap-5">
         <Photo name="parentsDinnerCouple" aspect="4 / 5" sizes="(min-width: 640px) 20rem, 50vw" priority />
@@ -27,18 +43,6 @@ export function HomePage() {
           className="mt-7 [animation-delay:120ms]"
         />
       </div>
-
-      <div className="mt-7">
-        <ButtonLink to="/sign-in" arrow>
-          Sign in or join
-        </ButtonLink>
-      </div>
-
-      {config.environment !== "production" && (
-        <p className="mt-6 text-ui">
-          <Link to="/dev/components">Components</Link>
-        </p>
-      )}
     </section>
   );
 }

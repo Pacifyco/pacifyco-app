@@ -117,8 +117,7 @@ export function ComponentsPage() {
             firstName="Priya"
             yearsExperience={6}
             area="Indiranagar"
-            ageGroups={["Ages 1–8"]}
-            interests={["Storytime", "Art"]}
+            ages="Ages 1–8"
             checks={["id_police", "references", "psychology", "first_aid"]}
             rating={4.8}
             reviewCount={23}
@@ -130,8 +129,7 @@ export function ComponentsPage() {
             firstName="Anjali"
             yearsExperience={1}
             area="Koramangala"
-            ageGroups={["Ages 2–5"]}
-            interests={["Music"]}
+            ages="Ages 2–5"
             checks={["id_police", "references", "psychology"]}
             rating={null}
             reviewCount={0}

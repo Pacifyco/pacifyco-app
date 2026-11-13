@@ -6,11 +6,11 @@ import sitterTermsSource from "../content/sitter-terms-v1.1.md?raw";
 import { renderApp } from "../test/renderApp";
 import { fillFamilyTerms, fillSitterTerms } from "./legal";
 
-// Fingerprint of the final Sitter Terms of Use v1.1 (CLAUDE.md 7: never change its wording). If this
-// fails, the file was edited: undo the edit. A new version is a new file with a new fingerprint.
-const SITTER_TERMS_SHA256 = "0b2796dde3e7de1f373cc20defa6c327dcfb68105fb5fd8024544f5c4bc67b41";
-// The same for the Family Terms of Use v1.0 (converted word for word from Reuben's final .docx).
-const FAMILY_TERMS_SHA256 = "52a18d3650b0b0a07d3ec0017c374dd46f2eed1d7fed100244d96cf994328ded";
+// Fingerprint of the Sitter Terms of Use v1.1 (CLAUDE.md 7). Until the first release to main, Reuben's changes
+// go in place and this is updated; after that, if this fails, undo the edit: a new version is a new file.
+const SITTER_TERMS_SHA256 = "19bb38495ed9cb430d0479e4d41780a4a8139e7b62ed707c5e3fa9d4d3f881df";
+// The same for the Family Terms of Use v1.0 (from Reuben's .docx, brought in line with CLAUDE.md 2026-11-13).
+const FAMILY_TERMS_SHA256 = "f9f4dda2fefdbba88074b84f043a349873acee3e826a8a4270129d6608adbf29";
 // The sitter consent v1.0 (converted word for word from Reuben's "Sitter consent" .docx, 2026-11-12).
 const SITTER_CONSENT_SHA256 = "66196167b2bd055705e3fb417cef19803b1aa417b7757ac3ae53f724d7655433";
 
@@ -141,8 +141,12 @@ describe("legal pages", () => {
   test("the Family Terms page shows the full terms, tables included", async () => {
     renderApp("/terms/parent");
     expect(await screen.findByText("Pacifyco Family Terms of Use")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "4. Hour packs, payment and overtime" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Hours bought per child" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "4. Plans, payment and overtime" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Price per hour" })).toBeTruthy();
+    // In line with CLAUDE.md (Reuben, 2026-11-13): plans, 18 months, no interviews, packs or Aadhaar.
+    const text = document.querySelector("article")!.textContent!;
+    expect(text).toContain("18 months and above");
+    expect(text).not.toMatch(/hour pack|interview|Aadhaar|one-time password/i);
     const article = document.querySelector("article")!.textContent!;
     expect(article).not.toMatch(/\*\*|\\|^\s*\|/m);
   });
@@ -154,10 +158,11 @@ describe("legal pages", () => {
     expect(screen.getByText("Version 0.1-draft")).toBeTruthy();
   });
 
-  test("every page links to the terms and privacy policy", async () => {
+  test("every page's footer links only to the privacy policy", async () => {
     renderApp("/");
     const legal = await screen.findByRole("navigation", { name: "Legal" });
     const links = [...legal.querySelectorAll("a")].map((link) => link.getAttribute("href"));
-    expect(links).toEqual(["/terms/parent", "/terms/sitter", "/privacy"]);
+    expect(links).toEqual(["/privacy"]);
+    expect(screen.queryByRole("link", { name: "Components" })).toBeNull();
   });
 });

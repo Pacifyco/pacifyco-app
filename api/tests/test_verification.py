@@ -241,6 +241,20 @@ def test_approving_makes_her_live(client, db_engine, sitter, reviewer):  # noqa:
     assert str(sitter["id"]) not in {item["id"] for item in queue["sitters"]}
 
 
+def test_approving_emails_her_and_rejecting_does_not(client, db_engine, sitter, reviewer, mailbox):  # noqa: F811
+    # Approval emails, brought forward from phase 11 (Reuben, 2026-11-13).
+    approve_everything(client, db_engine, sitter, reviewer)
+    client.put(f"/admin/sitters/{sitter['id']}/level", json={"level": "pause"}, headers=as_user(reviewer))
+    assert review(client, reviewer, f"/admin/sitters/{sitter['id']}/decision", False, "Not yet").status_code == 200
+    assert mailbox.sent == []
+
+    assert review(client, reviewer, f"/admin/sitters/{sitter['id']}/decision").status_code == 200
+    [email] = mailbox.sent
+    assert email.to == scalar(db_engine, "SELECT email FROM profiles WHERE id = :id", id=sitter["id"])
+    assert email.subject == "You're approved on Pacify"
+    assert email.button_url.endswith("/sitter")
+
+
 def test_approving_never_reinstates_a_suspended_account(client, db_engine, sitter, reviewer):  # noqa: F811
     approve_everything(client, db_engine, sitter, reviewer)
     client.put(f"/admin/sitters/{sitter['id']}/level", json={"level": "pause"}, headers=as_user(reviewer))
@@ -340,6 +354,17 @@ def test_approving_a_child_verifies_the_parent(client, db_engine, storage, paren
     )
     assert scalar(db_engine, "SELECT status FROM profiles WHERE id = :id", id=parent["id"]) == "active"
     assert audit_actions(db_engine, reviewer) == ["child_verified", "parent_verified"]
+
+
+def test_approving_a_child_emails_the_parent(client, db_engine, storage, parent, reviewer, mailbox):  # noqa: F811
+    child_id, _ = family_with_certificate(client, db_engine, storage, parent)
+    review(client, reviewer, f"/admin/children/{child_id}/decision")
+    [email] = mailbox.sent
+    assert email.to == scalar(db_engine, "SELECT email FROM profiles WHERE id = :id", id=parent["id"])
+    assert email.subject == "Asha is verified on Pacify"
+    assert "Every child on your account is now verified" in email.body
+    # Only a first name and a link: never a date of birth.
+    assert "2023" not in email.body
 
 
 def test_a_family_is_verified_only_once_every_child_is_approved(client, db_engine, storage, parent, reviewer):  # noqa: F811

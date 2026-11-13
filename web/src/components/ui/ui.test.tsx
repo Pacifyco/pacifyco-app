@@ -166,8 +166,7 @@ const sitter: SitterCardProps = {
   firstName: "Priya",
   yearsExperience: 6,
   area: "Indiranagar",
-  ageGroups: ["Ages 1–8"],
-  interests: ["Storytime"],
+  ages: "Ages 1–8",
   checks: ["id_police", "first_aid"],
   rating: 4.8,
   reviewCount: 23,
@@ -179,7 +178,7 @@ describe("SitterCard", () => {
   test("shows who, checks, experience and a link to the profile", () => {
     withRouter(<SitterCard {...sitter} />);
     expect(screen.getByRole("heading", { name: "Priya Raman" })).toBeTruthy();
-    expect(screen.getByText("6 years' experience · Indiranagar")).toBeTruthy();
+    expect(screen.getByText("6 yrs · Indiranagar · Ages 1–8")).toBeTruthy();
     expect(screen.getByText("ID & police verified")).toBeTruthy();
     expect(screen.getByText("Trusted by 14 Pacify families")).toBeTruthy();
     expect(screen.getByRole("link", { name: "See Priya's profile" }).getAttribute("href")).toBe("/sitters/priya");
@@ -192,7 +191,7 @@ describe("SitterCard", () => {
 
   test("the area is left out when unknown", () => {
     withRouter(<SitterCard {...sitter} area={undefined} />);
-    expect(screen.getByText("6 years' experience")).toBeTruthy();
+    expect(screen.getByText("6 yrs · Ages 1–8")).toBeTruthy();
   });
 
   test("new sitters show initials, no rating and no family count", () => {
@@ -200,8 +199,8 @@ describe("SitterCard", () => {
       <SitterCard {...sitter} rating={null} reviewCount={0} familiesServed={0} yearsExperience={1} />,
     );
     expect(screen.getByText("PR")).toBeTruthy();
-    expect(screen.getByText("New to Pacify")).toBeTruthy();
-    expect(screen.getByText("1 year's experience · Indiranagar")).toBeTruthy();
+    expect(container.textContent).not.toContain("New to Pacify"); // the card stays short (UX review)
+    expect(screen.getByText("1 yr · Indiranagar · Ages 1–8")).toBeTruthy();
     expect(container.textContent).not.toContain("Trusted by");
   });
 });

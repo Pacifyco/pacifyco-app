@@ -2,7 +2,7 @@
 
 *Last updated: \[DATE\] · Version 1.0*
 
-These Terms are a **legally binding agreement** between you and **Pacifyco LLP** (LLPIN \[INSERT\], registered office at \[INSERT ADDRESS\]) ("**Pacifyco**", "**we**", "**us**"). "**You**" means the parent or legal guardian who registers. You accept these Terms when you tick "I agree" and confirm with the one-time password sent to your verified mobile number. That is the same as signing a contract.
+These Terms are a **legally binding agreement** between you and **Pacifyco LLP** (LLPIN \[INSERT\], registered office at \[INSERT ADDRESS\]) ("**Pacifyco**", "**we**", "**us**"). "**You**" means the parent or legal guardian who registers. You accept these Terms when you tick "I agree" in the app. That is the same as signing a contract.
 
 The summary below is part of these Terms. If anything in it differs from the full sections that follow, the full sections apply.
 
@@ -10,12 +10,12 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 | **Topic** | **The rule** |
 |---|---|
-| **Who can book** | Verified parents or legal guardians in our service areas, for children aged **2 and above** |
-| **Choosing a sitter** | You pick from verified profiles. Pacifyco interviews every new parent–sitter pair before the first booking |
-| **Paying** | Buy hour packs per child in advance. Pay only through Pacifyco, never the sitter directly |
-| **Pack validity** | 30 days, with some hours carried forward. Unused hours are not refundable |
-| **Cancelling** | At least 3 hours before: hours returned. Less than 3 hours, or not home: booked hours are used up |
-| **Overtime** | Only when you approve it in the app. Charged at ₹300/hour once your hours run out |
+| **Who can book** | Verified parents or legal guardians in our service areas, for children aged **18 months and above** |
+| **Choosing a sitter** | You pick from verified profiles. With a new sitter, we suggest a short first booking (about an hour) while you are at home |
+| **Paying** | Choose a plan for each booking and pay the full price in advance through Pacifyco, never the sitter directly |
+| **Plans** | Pause ₹499/hour (one child, until 6 pm), Unwind ₹699/hour plus ₹150 for each extra child (until 10:30 pm), Recharge ₹899/hour for any number of children (until midnight) |
+| **Cancelling** | At least 3 hours before: refunded. Less than 3 hours, or not home: the full booking is charged |
+| **Overtime** | Worked out at check-out, rounded up to the full hour at your plan's price. Pay within 2 hours |
 | **Your home** | Keep it safe, disclose cameras, other adults and pets, and give the sitter water and a washroom |
 | **The sitter** | Treat them with dignity. No harassment, no housework, and never stop them from leaving |
 | **Breaking the rules** | Can lead to suspension, account closure, recovery of losses, a police complaint and legal action (Section 10) |
@@ -24,19 +24,19 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 ## **1. What Pacifyco is**
 
-1.1 Pacifyco is a platform that helps families find, check and book independent babysitters ("**sitters**"). We provide the app, sitter verification, interviews, booking and payment handling, safety features and complaint handling.
+1.1 Pacifyco is a platform that helps families find, check and book independent babysitters ("**sitters**"). We provide the app, sitter verification, booking and payment handling, safety features and complaint handling.
 
 1.2 Pacifyco is not a crèche, day-care centre, school, medical service or emergency service. Sitters are independent and are not our employees. We do not supervise sitters while they care for your child.
 
 1.3 **Verification is not a guarantee.** Every sitter goes through an ID check, police verification, a reference check and a psychology test before approval. These checks are based on the documents and information available at the time. They help you make your own informed choice, but they are not a guarantee of any sitter's future conduct. Please use your own judgement too.
 
-1.4 **What we offer right now:** babysitting only, at homes in our launch pin codes in Bengaluru (shown in the app), for children aged 2 and above, with no overnight care and no specialised medical, therapeutic or disability-related care. We may decline any booking outside this scope.
+1.4 **What we offer right now:** babysitting only, at homes in our launch pin codes in Bengaluru (shown in the app), for children aged 18 months and above, with no overnight care and no specialised medical, therapeutic or disability-related care. We may decline any booking outside this scope.
 
 ## **2. Joining and verification**
 
 2.1 You must be **18 or older**, the parent or legal guardian of each child you add, and live in (or be responsible for) the home where care will take place. One account per family.
 
-2.2 **Documents.** To verify your family, we ask for the masked Aadhaar of both parents and the birth certificate of each child. Files are encrypted and stored in India. Only Pacifyco admins can view them, and every view is logged. A birth certificate is deleted once it is verified; we keep only the verified status and date. An admin approves your account before you can request interviews.
+2.2 **Documents.** To verify your family, we ask for the birth certificate of each child. Files are encrypted and stored in India. Only Pacifyco admins can view them, and every view is logged. A birth certificate is deleted once it is verified; we keep only the verified status and date. You can book once your profile is finished, but a booking is confirmed only once every child on it is verified.
 
 2.3 **Accurate information.** Your information must be true, complete and kept up to date. In particular, tell us about any allergy, medicine, health condition or behaviour that could affect your child's safety (for example, seizures, choking risk or a tendency to run off). False information is a breach of these Terms.
 
@@ -44,71 +44,72 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 2.5 **Emergency contacts and authorised adults.** Add two emergency contacts, and name any adult who may hand over or receive your child during a booking. Get their permission before sharing their details with us.
 
-2.6 Keep your login and one-time passwords private. You are responsible for activity on your account until you tell us it has been compromised.
+2.6 Keep your login and sign-in codes private. You are responsible for activity on your account until you tell us it has been compromised.
 
 ## **3. Choosing a sitter and booking**
 
-3.1 **Choosing.** You browse verified sitter profiles (photo, bio, experience, rate and reviews) and choose who you would like. Pacifyco does not assign sitters to you.
+3.1 **Choosing.** You browse verified sitter profiles (photo, bio, experience, checks and reviews) and choose who you would like. Pacifyco does not assign sitters to you.
 
-3.2 **Interviews.** Before you book a sitter for the first time, Pacifyco runs a short online interview with you and the sitter. It costs you no hours. You can book that sitter only once the interview is passed. Pairs who have worked together before can book directly.
+3.2 **Your first booking with a sitter.** We suggest that your first booking with a new sitter is a short one (about an hour) while you are at home, so you can see how they get on with your family. This is a suggestion, not a requirement.
 
-3.3 **Bookings.** All bookings are scheduled in advance and are at least 2 hours long. Time is rounded up to the next half hour. A booking is confirmed when it is placed in the sitter's available slot and you have enough hours in your balance.
+3.3 **Bookings.** All bookings are scheduled in advance, up to 14 days ahead, inside the sitter's free times, and are counted in whole hours. Each booking is on one plan (Section 4) and must end by that plan's latest time, overtime included. A booking is confirmed once we have confirmed your payment and every child on it is verified.
 
-3.4 **Handover.** When the sitter arrives, check that they match the photo and name in the app. Give them your 4-digit start code only once you are satisfied; they need it to check in. If anything does not match, do not hand over your child and contact us at once.
+3.4 **Handover.** When the sitter arrives, check that they match the photo and name in the app. Give them your 4-digit check-in code (shown in your app on the day of the booking) only once you are satisfied; they need it to check in. If anything does not match, do not hand over your child and contact us at once. At the end of the booking, give the sitter your check-out code only once you or an authorised adult are with your child.
 
 3.5 **Instructions.** You may give reasonable instructions about your child's care. You must not ask the sitter to do anything unlawful, unsafe, humiliating or outside the booking. The sitter may refuse any such instruction.
 
-3.6 **Outings.** The sitter may take your child out of the home only if you have given permission in the app for that booking.
+3.6 **Outings and bath time.** Outings are available only on the Recharge plan, and the sitter may take your child out of the home only if you have given permission in the app during that booking. Bath time is available on the Unwind and Recharge plans if you ask for it when booking.
 
-3.7 **Medicine.** A sitter will give medicine only if you have written the instruction (name, dose and time) in the app, and only oral medicine in its original labelled pack. Sitters do not give injections or other medical treatment.
+3.7 **Medicine.** A sitter will give medicine only if you have written the instruction (name, dose and time) in your child's medical notes in the app, and only oral medicine in its original labelled pack. Sitters do not give injections or other medical treatment.
 
-3.8 **Children under 2.** We only provide care for children aged 2 and above. If a sitter arrives and finds a child under 2, the sitter is not required to provide care and will leave once an adult is with the child. The booked hours are used up and the sitter is paid a ₹100 show-up fee.
+3.8 **Children under 18 months.** We only provide care for children aged 18 months and above. If a sitter arrives and finds a child under 18 months, the sitter is not required to provide care and will leave once an adult is with the child. You are charged for 1 hour and the rest of the booking is refunded.
 
-## **4. Hour packs, payment and overtime**
+## **4. Plans, payment and overtime**
 
-4.1 **Hour packs.** You buy hours in advance for each child. The more hours you buy for a child, the lower the rate:
+4.1 **Plans.** You choose a plan for each booking and pay by the hour:
 
-| **Hours bought per child** | **Price per child-hour** | **Hours carried forward when the pack expires** |
-|---|---|---|
-| 1–10 hours | ₹275 | None |
-| 11–30 hours | ₹250 | Up to 2 hours |
-| 31–50 hours | ₹225 | Up to 5 hours |
-| 51+ hours | ₹199 | Up to 10 hours |
+| **Plan** | **Price per hour** | **Children** | **Latest end, overtime included** | **Extras** |
+|---|---|---|---|---|
+| Pause | ₹499 | One child | 6 pm | None |
+| Unwind | ₹699 for the first child, plus ₹150 for each extra child | Any number | 10:30 pm | Bath time if you ask |
+| Recharge | ₹899 | Any number | 12 am (midnight) | Bath time if you ask; outings with your approval |
 
-4.2 **How hours are used.** Each booking uses hours once per child. For example, a 3-hour booking for 2 children uses 6 hours. Prices include applicable taxes unless the app says otherwise.
+4.2 **Price.** A booking's price is the plan's hourly price for the children on it, multiplied by the booked hours. For example, Recharge for 3 hours is ₹2,697. Add every child who will be there, so the sitter knows who they are caring for. Prices include applicable taxes unless the app says otherwise.
 
-4.3 **Expiry.** Every pack expires 30 days after purchase. Hours carried forward (as in the table above) stay valid until used. Unused hours are **not refundable**, except where Section 4.7 or 11.5 applies.
+4.3 **Paying.** Pay the full price of each booking in advance by UPI to the Pacifyco account shown in the app, and enter your UPI reference. The booking is confirmed once we confirm your payment. A booking that is not paid and confirmed by **3 hours before its start** is cancelled automatically. The sitter's time is not held until your payment is confirmed, so please pay as soon as you book.
 
-4.4 **Paying.** Pay only through the methods shown in the app. Hours are credited once we confirm your payment. Never pay a sitter directly in cash or by transfer for a booking.
+4.4 **Never pay the sitter.** Pay only through Pacifyco. Never pay a sitter directly in cash or by transfer for a booking.
 
-4.5 **Overtime.** If you will be home late, or need the sitter longer, the sitter will request overtime in the app. They will only stay longer once you approve it. Approved overtime comes from your balance; if your balance runs out, overtime is charged at **₹300 per hour**.
+4.5 **Overtime.** If you need the sitter longer, request overtime in the app in whole hours; the sitter may accept or decline. Either way, overtime is worked out at check-out: if check-out is after the booked end, the extra time is rounded up to the next full hour and charged at your plan's hourly price. Hours that fall after your plan's latest end are charged at the next plan's price (Pause at the Unwind price, Unwind at the Recharge price; Recharge stays at the Recharge price). Pay overtime by UPI within **2 hours**. Until it is paid, you cannot make new bookings.
 
 4.6 **Tips and gifts.** Tips are entirely your choice and are never expected. Any gift you give a sitter is a private matter between you and the sitter; Pacifyco is not involved and is not responsible for it.
 
-4.7 **If we cannot provide a booking** because a sitter cancels or does not turn up, or because we cancel, your hours are returned and we will try to find you a replacement.
+4.7 **Refunds.** If we cannot provide a booking because a sitter cancels or does not turn up, or because we cancel, the booking is refunded and we will try to find you a replacement. Refunds are paid back by UPI or bank transfer. Checking out early does not reduce the price.
 
 ## **5. Cancellations and late changes**
 
 | **What happens** | **What it means for you** |
 |---|---|
-| You cancel at least 3 hours before the start | No penalty. Hours returned to your balance |
-| You cancel less than 3 hours before | All booked hours are used up |
-| No one is home when the sitter arrives, and no one responds within 20 minutes | All booked hours are used up. The sitter leaves and is paid a show-up fee |
-| The child is under 2 | All booked hours are used up (see 3.8) |
-| The sitter cancels late or does not turn up | Hours returned to your balance |
+| You cancel at least 3 hours before the start | No penalty. Refunded |
+| You cancel less than 3 hours before | The full booking is charged |
+| No one is home when the sitter arrives, and no one responds within 20 minutes | The full booking is charged. The sitter leaves and Pacifyco pays them a show-up fee |
+| The child is under 18 months | You are charged for 1 hour; the rest is refunded (see 3.8) |
+| The sitter cancels, or does not turn up | Refunded |
+| The sitter is more than 15 minutes late without telling you and Pacifyco | You may cancel in the app, and the booking is refunded |
 | The sitter leaves because they felt unsafe or because you broke these Terms | Full booking charged (see 6.6) |
+| The only adult at home when the sitter arrives is a man, and the sitter declines the booking | Full booking charged (see 6.2) |
 
 ## **6. Your home and treating the sitter well**
 
 6.1 **Safe home.** Keep your home reasonably safe for a child and a visitor. Secure hazards such as medicines, chemicals, sharp objects, open balconies, windows, water and stairs, and lock away any lawfully held weapon.
 
-6.2 **Tell us who and what is at home.** Before each booking, update the app with who else will be in the home (adults, other children, household staff) and any pets that could be aggressive.
+6.2 **Tell us who and what is at home.** Before each booking, update the app with who else will be in the home (adults, other children, household staff) and any pets that could be aggressive. For their safety, a sitter may decline a booking when they arrive if the only adult at home is a man. If they do, the full booking is charged (see Section 5).
 
 6.3 **Cameras.** You may use cameras in your home, but you must disclose in the app where each camera is and whether it records audio, before the booking. **Never** place a camera in a bathroom, changing area or anywhere the sitter has privacy, and never hide one. Use recordings only for your child's safety, do not share or post them, and give them to Pacifyco or the police on request if there is a complaint.
 
 6.4 **No impairment.** No adult in the home may be under the influence of alcohol or drugs during a booking, and no one may smoke near the child.
 
-6.5 **Be reachable.** Stay reachable by phone throughout the booking and come back by the agreed end time. If you will be late, approve the sitter's overtime request.
+6.5 **Be reachable.** Stay reachable by phone throughout the booking and come back by the agreed end time. If you will be late, request overtime in the app (Section 4.5); if you are late without asking, overtime is still charged.
 
 6.6 **Dignity and freedom to leave.** You and everyone in your home must treat the sitter with dignity and respect. There must be no harassment of any kind (sexual, verbal, physical, or based on gender, caste, religion, region or class), no unwelcome touching or comments, and no requests for personal favours. Never lock a sitter in, keep their phone or documents, or stop them from leaving. If a sitter leaves because they feel unsafe, you must stay with your child or arrange another adult, and the full booking is charged.
 
@@ -120,7 +121,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 6.10 **The sitter's information.** Use what the app shows you about a sitter only to manage your bookings. Do not share, forward or post it (including on WhatsApp or social media), and do not post photos or videos of a sitter without their written permission.
 
-6.11 **Communication.** Keep communication with sitters in the Pacifyco app. Pacifyco is not responsible for anything agreed, said or shared outside the app.
+6.11 **Communication.** Chat with a sitter in the Pacifyco app; it opens once you have a confirmed booking with them. Sitters never have to share their phone number. After your first booking together, you may choose to exchange numbers. Agree things such as potty training and diaper changes in the chat or in person. Pacifyco is not responsible for anything agreed, said or shared outside the app.
 
 ## **7. Booking sitters outside Pacifyco**
 
@@ -132,7 +133,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 8.1 **Emergencies.** If anyone is in danger, call **112** first. You can also call Childline (**1098**) for a child in distress or the Women Helpline (**181**). Then press the Emergency button in the app; our team is alerted and will call both you and the sitter.
 
-8.2 **Incidents.** Report any injury, neglect, abuse, harassment, theft or behaviour that worries you through the app within 24 hours. When a report is made, we make everyone safe first, may suspend the sitter or your account while we investigate, hear both sides separately, and give a written outcome. We do not publish names.
+8.2 **Incidents.** Report any injury, neglect, abuse, harassment, theft or behaviour that worries you through the app within 24 hours. For something that is not an emergency (for example, a sitter running late), use the Issues button on the booking. When a report is made, we make everyone safe first, may suspend the sitter or your account while we investigate, hear both sides separately, and give a written outcome. We do not publish names.
 
 8.3 **Reporting child abuse.** Under the POCSO Act, 2012, anyone who has reason to believe a child has been sexually abused must report it to the police. Pacifyco will report such matters and will not suppress a report.
 
@@ -144,7 +145,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 ## **9. Complaints and grievances**
 
-9.1 You can raise a complaint about anything: a booking, a sitter, a payment, your hours or your data. Here is how it works:
+9.1 You can raise a complaint about anything: a booking, a sitter, a payment, a refund or your data. Here is how it works:
 
 | **Step** | **How** | **Our response** |
 |---|---|---|
@@ -153,7 +154,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 | 3. Review | To challenge a suspension or account closure, write to the Grievance Officer within 15 days of the decision | Reviewed by someone not involved in the original decision, **within 7 working days** |
 | 4. Outside help | If you are still not satisfied | Mediation (optional), the Consumer Commission, the Data Protection Board of India, the police or the courts |
 
-9.2 If you report an issue after 24 hours, we will still look at it, but it may be harder to investigate or to return hours.
+9.2 If you report an issue after 24 hours, we will still look at it, but it may be harder to investigate or to make a refund.
 
 9.3 **Grievance Officer:** \[NAME\] · \[EMAIL\] · \[PHONE\] · Monday to Saturday, 10 am to 6 pm. 24-hour safety line during bookings: \[NUMBER\].
 
@@ -192,7 +193,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 11.1 **Your data and your child's data.** We collect only what we need to verify your family, match you with sitters and keep your child safe. Before we process any of your child's data, we verify that you are an adult and the parent or guardian, and ask for your separate consent (Section 11.2). We share a child's booking details only with the sitter assigned to that booking, never sell your data, never use your child's data for advertising, and store data in India. You can ask to see, correct or delete your data, or withdraw consent, through the app or by writing to the Grievance Officer. Full details are in our Privacy Policy at \[LINK\].
 
-11.2 **Consents.** At sign-up we ask you to tick, separately, each of these. Nothing is pre-ticked:
+11.2 **Consents.** Before you add your family's details, we ask you to tick, separately, each of these. Nothing is pre-ticked:
 
 - **Required:** use of your own data for your account, verification, bookings, payments and safety;
 
@@ -208,11 +209,11 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 11.4 **Your responsibility.** You are responsible for losses caused by false information you give about your child's health, your guardianship or your identity, by a breach of Section 6, or by misuse of a sitter's information.
 
-11.5 **Closing your account.** You can close your account at any time in the app; unused hours are not refunded. If we close your account for any reason other than your breach of these Terms, or stop the service, we will refund your unused paid hours.
+11.5 **Closing your account.** You can ask us to close your account at any time through Help in the app. Bookings you have cancelled are refunded as set out in Section 5. If we close your account for any reason other than your breach of these Terms, or stop the service, we will refund any booking you have paid for that has not taken place.
 
 11.6 **Changes.** We will notify you in the app at least **14 days** before any change to these Terms that affects your bookings, payments or rights. Changes do not apply to bookings already confirmed. If you keep using Pacifyco after that, you accept the change. Changes needed urgently for child safety or legal reasons may apply immediately.
 
-11.7 **Events outside our control.** We are not responsible for delays or failures caused by events beyond our reasonable control, such as natural disasters, network outages, epidemics or government orders. We will return the hours for any booking we cannot provide.
+11.7 **Events outside our control.** We are not responsible for delays or failures caused by events beyond our reasonable control, such as natural disasters, network outages, epidemics or government orders. We will refund any booking we cannot provide.
 
 11.8 **Disputes.** These Terms are governed by Indian law. Either of us may propose mediation in Bengaluru or online before going to court, but you do not have to accept. Subject to your right to file a consumer complaint where you live or work, the courts in **Bengaluru** have jurisdiction. Nothing here stops you approaching the Consumer Commission, the Data Protection Board of India, the police or any court.
 
@@ -222,4 +223,4 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 Pacifyco LLP · \[REGISTERED ADDRESS\]
 
-query.pacifyco@gmail.com · +91 8848873841 · Safety line during bookings: \[NUMBER\]
+founders@pacifyco.in · +91 8848873841 · Safety line during bookings: \[NUMBER\]

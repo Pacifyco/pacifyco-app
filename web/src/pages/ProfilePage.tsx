@@ -1,5 +1,7 @@
 import { AREA_PATH } from "../auth/useMe";
 import { BackLink, ButtonLink, Card } from "../components/ui";
+import { SignOutButton } from "../layouts/AppLayout";
+import { ThemeToggle } from "../theme/ThemeToggle";
 import {
   ChecklistCard,
   PARENT_STEPS,
@@ -65,11 +67,31 @@ function SitterProfile() {
   );
 }
 
+// On phones the header holds only the logo and the profile button, so the theme switch and Sign out
+// live here (UX review 2026-11-13). On wider screens they stay in the header.
+function Settings() {
+  return (
+    <Card as="section" className="flex flex-col gap-4 sm:hidden" aria-labelledby="settings-heading">
+      <h2 id="settings-heading" className="text-h3">
+        Settings
+      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-ui text-ink">Theme</span>
+        <ThemeToggle />
+      </div>
+      <div className="border-t border-line pt-2">
+        <SignOutButton />
+      </div>
+    </Card>
+  );
+}
+
 export function ProfilePage({ role }: { role: "parent" | "sitter" }) {
   return (
     <section className="mx-auto flex max-w-[62ch] flex-col gap-4">
       <BackLink to={AREA_PATH[role]} label="Home" />
       {role === "parent" ? <ParentProfile /> : <SitterProfile />}
+      <Settings />
     </section>
   );
 }

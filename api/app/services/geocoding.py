@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.models import GeocodeCache
 from app.settings import Settings, get_settings
 
-USER_AGENT = "Pacifyco/1.0 (query.pacifyco@gmail.com)"
+USER_AGENT = "Pacifyco/1.0 (founders@pacifyco.in)"
 MIN_SECONDS_BETWEEN_REQUESTS = 1.0
 REQUEST_TIMEOUT = 5.0
 EARTH_RADIUS_KM = 6371.0

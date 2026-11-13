@@ -1,10 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
+import { useMe } from "../auth/useMe";
 import { DocumentUpload } from "../components/documents/DocumentUpload";
-import { BackLink, Button, Card, Checkbox, Select, StepActions, StepBackContext, TextInput, Textarea } from "../components/ui";
+import {
+  BackLink,
+  Button,
+  ButtonLink,
+  Card,
+  Checkbox,
+  Select,
+  StepActions,
+  StepBackContext,
+  StepProgress,
+  TextInput,
+  Textarea,
+  ToggleChip,
+  showToast,
+} from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
+import {
+  MOBILE_ERROR,
+  fieldErrorsFrom,
+  formErrorFrom,
+  isIndianMobile,
+  type FieldErrors,
+} from "../lib/fieldErrors";
+import { formatMobile } from "../lib/format";
+import { AGE_GROUPS, LANGUAGES } from "../lib/sitterLists";
 
 // ---------- shared bits ----------
 
@@ -17,12 +41,52 @@ function ErrorLine({ message }: { message?: string }) {
   );
 }
 
-function splitList(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+/** Tap to pick, from a fixed list (UX review 2026-11-13: free text showed parents typos). */
+function ChipPicker({
+  label,
+  hint,
+  options,
+  value,
+  onChange,
+  error,
+}: {
+  label: string;
+  hint?: string;
+  options: readonly { value: string; label: string }[];
+  value: string[];
+  onChange: (value: string[]) => void;
+  error?: string;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-ui text-ink">{label}</legend>
+      {hint && <p className="text-small text-muted">{hint}</p>}
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const on = value.includes(option.value);
+          return (
+            <ToggleChip
+              key={option.value}
+              mark="tick"
+              on={on}
+              onToggle={() => onChange(on ? value.filter((item) => item !== option.value) : [...value, option.value])}
+            >
+              {option.label}
+            </ToggleChip>
+          );
+        })}
+      </div>
+      {error && (
+        <p role="alert" className="text-small text-danger">
+          {error}
+        </p>
+      )}
+    </fieldset>
+  );
 }
+
+const AGE_OPTIONS = AGE_GROUPS.map((group) => ({ value: group.name, label: group.label }));
+const LANGUAGE_OPTIONS = LANGUAGES.map((language) => ({ value: language, label: language }));
 
 // ---------- profile (CLAUDE.md section 7 step 1) ----------
 
@@ -43,8 +107,8 @@ type ProfileInput = {
   date_of_birth: string;
   bio: string;
   years_experience: string;
-  age_groups: string;
-  languages: string;
+  age_groups: string[];
+  languages: string[];
   first_aid: boolean;
   reference_shared_consent: boolean;
 };
@@ -54,8 +118,8 @@ function profileInput(profile: SitterProfile): ProfileInput {
     date_of_birth: profile.date_of_birth ?? "",
     bio: profile.bio ?? "",
     years_experience: profile.years_experience !== null ? String(profile.years_experience) : "",
-    age_groups: profile.age_groups.join(", "),
-    languages: profile.languages.join(", "),
+    age_groups: profile.age_groups,
+    languages: profile.languages,
     first_aid: profile.first_aid,
     reference_shared_consent: profile.reference_shared_consent,
   };
@@ -66,11 +130,22 @@ function toProfileBody(input: ProfileInput) {
     date_of_birth: input.date_of_birth,
     bio: input.bio.trim() || null,
     years_experience: Number(input.years_experience),
-    age_groups: splitList(input.age_groups),
-    languages: splitList(input.languages),
+    age_groups: input.age_groups,
+    languages: input.languages,
     first_aid: input.first_aid,
     reference_shared_consent: input.reference_shared_consent,
   };
+}
+
+/** What the form can check before sending: everything parents need to see is required. */
+function checkProfile(input: ProfileInput): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!input.date_of_birth) errors.date_of_birth = "Please enter your date of birth.";
+  if (input.years_experience === "") errors.years_experience = "Please enter your years of experience (0 is fine).";
+  if (!input.bio.trim()) errors.bio = "Please write a few words for parents.";
+  if (!input.age_groups.length) errors.age_groups = "Please choose at least one age group.";
+  if (!input.languages.length) errors.languages = "Please choose at least one language.";
+  return errors;
 }
 
 const STATUS_LABEL: Record<OnboardingStatus, string> = {
@@ -98,6 +173,7 @@ function ProfileForm({
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initial);
+  const [fields, setFields] = useState<FieldErrors>({});
   const [error, setError] = useState<string>();
 
   const save = useMutation({
@@ -106,10 +182,22 @@ function ProfileForm({
     onSuccess: () => {
       setError(undefined);
       queryClient.invalidateQueries({ queryKey: ["sitter-profile"] });
+      showToast("Profile saved");
       onContinue();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
+    onError: (err) => {
+      const byField = fieldErrorsFrom(err);
+      setFields(byField);
+      setError(formErrorFrom(err, byField));
+    },
   });
+
+  function submit() {
+    const found = checkProfile(form);
+    setFields(found);
+    setError(undefined);
+    if (!Object.keys(found).length) save.mutate();
+  }
 
   return (
     <>
@@ -122,6 +210,7 @@ function ProfileForm({
           label="Date of birth"
           type="date"
           value={form.date_of_birth}
+          error={fields.date_of_birth}
           onChange={(event) => setForm({ ...form, date_of_birth: event.target.value })}
         />
         <TextInput
@@ -130,27 +219,32 @@ function ProfileForm({
           min={0}
           max={80}
           value={form.years_experience}
+          error={fields.years_experience}
           onChange={(event) => setForm({ ...form, years_experience: event.target.value })}
         />
       </div>
       <Textarea
         label="About you"
-        optional
-        hint="What parents will see on your profile."
+        hint="What parents see first. Try: how long you've cared for children, what you love doing with them, and anything families should know."
+        placeholder="I've looked after my nieces since they were babies. I love storytime, drawing and being outdoors…"
         value={form.bio}
+        error={fields.bio}
         onChange={(event) => setForm({ ...form, bio: event.target.value })}
       />
-      <TextInput
+      <ChipPicker
         label="Age groups you care for"
-        hint="Comma-separated, e.g. Infant, Toddler, Preschool."
+        hint="Pacify looks after children from 18 months."
+        options={AGE_OPTIONS}
         value={form.age_groups}
-        onChange={(event) => setForm({ ...form, age_groups: event.target.value })}
+        error={fields.age_groups}
+        onChange={(age_groups) => setForm({ ...form, age_groups })}
       />
-      <TextInput
+      <ChipPicker
         label="Languages you speak"
-        hint="Comma-separated, e.g. English, Kannada, Hindi."
+        options={LANGUAGE_OPTIONS}
         value={form.languages}
-        onChange={(event) => setForm({ ...form, languages: event.target.value })}
+        error={fields.languages}
+        onChange={(languages) => setForm({ ...form, languages })}
       />
       <Checkbox
         label="I'm first-aid certified"
@@ -158,13 +252,13 @@ function ProfileForm({
         onChange={(event) => setForm({ ...form, first_aid: event.target.checked })}
       />
       <Checkbox
-        label="When I reach the most experienced level, Pacify may show parents one of my references (their name, phone number and how they know me)."
+        label="When I reach the most experienced level, Pacify may show parents one of my references (their name and how they know me, never their phone number)."
         checked={form.reference_shared_consent}
         onChange={(event) => setForm({ ...form, reference_shared_consent: event.target.checked })}
       />
       <ErrorLine message={error} />
       <StepActions>
-        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={() => save.mutate()}>
+        <Button type="button" fullWidthOnPhone={false} loading={save.isPending} onClick={submit}>
           Continue
         </Button>
       </StepActions>
@@ -211,6 +305,7 @@ function HealthDisclosureForm({ initial, onContinue }: { initial: string; onCont
     onSuccess: () => {
       setError(undefined);
       queryClient.invalidateQueries({ queryKey: ["health-disclosure"] });
+      showToast("Health disclosure saved");
       onContinue();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
@@ -286,6 +381,7 @@ function usePayoutDetails() {
 function PayoutDetailsForm({ initial, onContinue }: { initial: PayoutInput; onContinue: () => void }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initial);
+  const [fields, setFields] = useState<FieldErrors>({});
   const [error, setError] = useState<string>();
 
   const save = useMutation({
@@ -304,9 +400,14 @@ function PayoutDetailsForm({ initial, onContinue }: { initial: PayoutInput; onCo
     onSuccess: () => {
       setError(undefined);
       queryClient.invalidateQueries({ queryKey: ["payout-details"] });
+      showToast("Payout details saved");
       onContinue();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
+    onError: (err) => {
+      const byField = fieldErrorsFrom(err);
+      setFields(byField);
+      setError(formErrorFrom(err, byField));
+    },
   });
 
   return (
@@ -324,17 +425,20 @@ function PayoutDetailsForm({ initial, onContinue }: { initial: PayoutInput; onCo
           <TextInput
             label="Account holder name"
             value={form.account_holder_name}
+            error={fields.account_holder_name}
             onChange={(event) => setForm({ ...form, account_holder_name: event.target.value })}
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <TextInput
               label="Account number"
               value={form.account_number}
+              error={fields.account_number}
               onChange={(event) => setForm({ ...form, account_number: event.target.value })}
             />
             <TextInput
               label="IFSC code"
               value={form.ifsc_code}
+              error={fields.ifsc_code}
               onChange={(event) => setForm({ ...form, ifsc_code: event.target.value.toUpperCase() })}
             />
           </div>
@@ -342,7 +446,9 @@ function PayoutDetailsForm({ initial, onContinue }: { initial: PayoutInput; onCo
       ) : (
         <TextInput
           label="UPI ID"
+          hint="Like name@okbank."
           value={form.upi_id}
+          error={fields.upi_id}
           onChange={(event) => setForm({ ...form, upi_id: event.target.value })}
         />
       )}
@@ -390,18 +496,37 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
   const queryClient = useQueryClient();
   const references = useQuery({ queryKey: ["references"], queryFn: () => apiFetch<Reference[]>("/sitter/references") });
   const [form, setForm] = useState<ReferenceInput>(EMPTY_REFERENCE);
+  const [fields, setFields] = useState<FieldErrors>({});
   const [error, setError] = useState<string>();
 
+  // Every problem is shown under its own field (UX review 2026-11-13: "Some fields need fixing" alone
+  // didn't say which).
   const add = useMutation({
     mutationFn: (input: ReferenceInput) =>
       apiFetch<Reference>("/sitter/references", { method: "POST", body: JSON.stringify(input) }),
-    onSuccess: () => {
+    onSuccess: (reference) => {
       queryClient.invalidateQueries({ queryKey: ["references"] });
       setForm(EMPTY_REFERENCE);
+      setFields({});
       setError(undefined);
+      showToast(`${reference.name} added`);
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
+    onError: (err) => {
+      const byField = fieldErrorsFrom(err);
+      setFields(byField);
+      setError(formErrorFrom(err, byField));
+    },
   });
+
+  function submit() {
+    const found: FieldErrors = {};
+    if (!form.name.trim()) found.name = "Please enter their name.";
+    if (!form.relationship.trim()) found.relationship = "Please say how they know you, e.g. Former employer.";
+    if (!isIndianMobile(form.phone)) found.phone = MOBILE_ERROR;
+    setFields(found);
+    setError(undefined);
+    if (!Object.keys(found).length) add.mutate(form);
+  }
 
   const remove = useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/sitter/references/${id}`, { method: "DELETE" }),
@@ -423,7 +548,7 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
               <div className="min-w-0 flex-1">
                 <p className="text-ui text-ink">{reference.name}</p>
                 <p className="text-small text-muted">
-                  {reference.relationship} · {reference.phone}
+                  {reference.relationship} · {formatMobile(reference.phone)}
                 </p>
                 {reference.outcome === "rejected" && (
                   <div className="mt-1 text-small text-danger">
@@ -449,30 +574,31 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
           <TextInput
             label="Name"
             value={form.name}
+            error={fields.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <TextInput
               label="Relationship"
+              hint="e.g. Former employer, Neighbour"
               value={form.relationship}
+              error={fields.relationship}
               onChange={(event) => setForm({ ...form, relationship: event.target.value })}
             />
             <TextInput
-              label="Phone"
+              label="Mobile number"
               type="tel"
+              inputMode="numeric"
+              prefix="+91"
+              maxLength={10}
               value={form.phone}
-              onChange={(event) => setForm({ ...form, phone: event.target.value })}
+              error={fields.phone}
+              onChange={(event) => setForm({ ...form, phone: event.target.value.replace(/\D/g, "") })}
             />
           </div>
           <ErrorLine message={error} />
-          <Button
-            type="button"
-            variant="secondary"
-            fullWidthOnPhone={false}
-            loading={add.isPending}
-            onClick={() => add.mutate(form)}
-          >
-            Add reference
+          <Button type="button" variant="secondary" fullWidthOnPhone={false} loading={add.isPending} onClick={submit}>
+            Add this reference
           </Button>
         </div>
       )}
@@ -497,7 +623,7 @@ function DocumentsSection({ onContinue }: { onContinue: () => void }) {
       <DocumentUpload
         type="photo"
         label="Profile photo"
-        hint="A clear, friendly photo of your face (JPG or PNG). Parents see it once your profile is live."
+        hint="Parents see it once your profile is live. JPG or PNG. Your face clearly, in good light, on a plain background. No sunglasses, pets or other people in front of you."
       />
       <DocumentUpload type="government_id" label="Government ID" />
       <DocumentUpload type="college_or_work_id" label="College or work ID" />
@@ -527,8 +653,13 @@ const STEP_LABEL: Record<Step, string> = {
 
 export function SitterApplicationPage() {
   const navigate = useNavigate();
-  const [stepIndex, setStepIndex] = useState(0);
+  const me = useMe();
+  // The checklist opens the exact step to finish, e.g. ?step=references (UX review 2026-11-13).
+  const [params] = useSearchParams();
+  const [stepIndex, setStepIndex] = useState(() => Math.max(0, STEPS.indexOf(params.get("step") as Step)));
   const step = STEPS[stepIndex];
+  // The sitter consent comes first, as on the parent side (UX review 2026-11-13).
+  const consentFirst = me.isSuccess && (me.data.terms_to_accept ?? []).length > 0;
 
   function goNext() {
     if (stepIndex === STEPS.length - 1) {
@@ -561,18 +692,32 @@ export function SitterApplicationPage() {
       </div>
 
       <div className="mx-auto mt-7 max-w-[40rem]">
-        <p className="text-center text-small text-muted">
-          Step {stepIndex + 1} of {STEPS.length} · {STEP_LABEL[step]}
-        </p>
-        <StepBackContext.Provider value={goBack}>
-          <div className="mt-4 flex flex-col gap-4">
-            {step === "profile" && <ProfileSection onContinue={goNext} />}
-            {step === "documents" && <DocumentsSection onContinue={goNext} />}
-            {step === "health" && <HealthDisclosureSection onContinue={goNext} />}
-            {step === "references" && <ReferencesSection onContinue={goNext} />}
-            {step === "payout" && <PayoutDetailsSection onContinue={goNext} />}
-          </div>
-        </StepBackContext.Provider>
+        {me.isLoading ? (
+          <p className="text-center text-muted">Loading…</p>
+        ) : consentFirst ? (
+          <Card as="section" className="flex flex-col items-start gap-3">
+            <h2 className="text-h3">Your consent comes first</h2>
+            <p className="text-small text-muted">
+              Before you send your application, please read our sitter guidelines and accept our terms.
+            </p>
+            <ButtonLink to="/sitter/consent" arrow>
+              Read the sitter consent
+            </ButtonLink>
+          </Card>
+        ) : (
+          <>
+            <StepProgress step={stepIndex + 1} of={STEPS.length} label={STEP_LABEL[step]} />
+            <StepBackContext.Provider value={goBack}>
+              <div className="mt-4 flex flex-col gap-4">
+                {step === "profile" && <ProfileSection onContinue={goNext} />}
+                {step === "documents" && <DocumentsSection onContinue={goNext} />}
+                {step === "health" && <HealthDisclosureSection onContinue={goNext} />}
+                {step === "references" && <ReferencesSection onContinue={goNext} />}
+                {step === "payout" && <PayoutDetailsSection onContinue={goNext} />}
+              </div>
+            </StepBackContext.Provider>
+          </>
+        )}
       </div>
     </article>
   );

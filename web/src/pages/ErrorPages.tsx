@@ -1,3 +1,4 @@
+import { SIGN_IN_PATH } from "./SignInPage";
 import { useEffect } from "react";
 import { Link, useRouteError } from "react-router";
 import { Photo } from "../components/ui";
@@ -9,8 +10,10 @@ export function NotFoundPage() {
       <Photo name="sitterBubbles" aspect="16 / 9" priority className="mb-6" />
       <h1>We couldn't find that page.</h1>
       <p className="mt-4 text-muted">It may have moved, or the link may be incomplete.</p>
-      <p className="mt-5 text-ui">
+      <p className="mt-5 flex flex-wrap justify-center gap-5 text-ui">
         <Link to="/">Go to the home page</Link>
+        <Link to={SIGN_IN_PATH}>Sign in</Link>
+        <a href="mailto:founders@pacifyco.in">Get help</a>
       </p>
     </section>
   );

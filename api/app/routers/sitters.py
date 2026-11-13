@@ -76,11 +76,23 @@ class SitterProfileIn(BaseModel):
     def _blank_is_none(cls, value: str | None) -> str | None:
         return (_clean_text(value) or None) if value is not None else None
 
-    @field_validator("age_groups", "languages")
+    @field_validator("age_groups")
     @classmethod
-    def _clean_list(cls, values: list[str]) -> list[str]:
-        cleaned = [_clean_text(value) for value in values]
-        return [value for value in cleaned if value]
+    def _known_age_groups(cls, values: list[str]) -> list[str]:
+        return _from_list(values, sitters_service.AGE_GROUPS)
+
+    @field_validator("languages")
+    @classmethod
+    def _known_languages(cls, values: list[str]) -> list[str]:
+        return _from_list(values, sitters_service.LANGUAGES)
+
+
+def _from_list(values: list[str], allowed: tuple[str, ...]) -> list[str]:
+    """Chosen from a fixed list (UX review 2026-11-13: free text showed parents typos), in the list's order."""
+    unknown = set(values) - set(allowed)
+    if unknown:
+        raise ValueError("Please choose from the list")
+    return [value for value in allowed if value in values]
 
 
 class SitterProfileOut(BaseModel):
@@ -99,8 +111,8 @@ def _profile_out(row: Sitter) -> SitterProfileOut:
         date_of_birth=row.date_of_birth,
         bio=row.bio,
         years_experience=row.years_experience,
-        age_groups=row.age_groups,
-        languages=row.languages,
+        age_groups=sitters_service.known(row.age_groups, sitters_service.AGE_GROUPS),
+        languages=sitters_service.known(row.languages, sitters_service.LANGUAGES),
         first_aid=row.first_aid,
         reference_shared_consent=row.reference_shared_consent,
         onboarding_status=row.onboarding_status,

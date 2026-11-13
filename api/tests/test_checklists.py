@@ -34,7 +34,7 @@ from tests.test_verification import (  # noqa: F401  (fixtures)
 )
 
 CONTACTS = [
-    {"name": "Priya Rao", "relationship": "Mother", "phone": "9876543210"},
+    {"name": "Priya Rao", "relationship": "Mother", "phone": "9876511111"},
     {"name": "Vikram Rao", "relationship": "Father", "phone": "9876500000"},
 ]
 
@@ -113,6 +113,19 @@ def test_children_status_follows_the_review(client, db_engine, storage, parent, 
     assert finished(db_engine, parent["id"]) is False
 
 
+def test_consent_comes_first_and_children_say_whats_left(client, db_engine, parent):  # noqa: F811
+    # UX review 2026-11-13: consent is step 1; "Your children" says how many and what's needed.
+    _, body = checklist(client, parent, "parent")
+    assert [item["key"] for item in body["items"]][0] == "consent"
+    assert next(item for item in body["items"] if item["key"] == "children")["note"] is None
+    accept_consent(client, parent)
+    add_child(db_engine, parent["id"])
+    _, body = checklist(client, parent, "parent")
+    children = next(item for item in body["items"] if item["key"] == "children")
+    assert children["status"] == "to_do"
+    assert children["note"] == "1 child · certificate needed"
+
+
 def test_sitters_cannot_see_the_parent_checklist(client, sitter):  # noqa: F811
     assert client.get("/parent/checklist", headers=auth_for(sitter)).status_code == 403
 
@@ -132,6 +145,9 @@ def test_sitter_checklist_moves_from_to_do_to_waiting(client, db_engine, storage
         "psych_test": "to_do",
     }
     assert body["live"] is False
+    assert [item["key"] for item in body["items"]][:2] == ["consent", "details"]
+    profile = next(item for item in body["items"] if item["key"] == "profile")
+    assert profile["note"] == "Add your date of birth and a few words about you"  # the exact next action
 
     upload(client, storage, sitter, "government_id")
     assert checklist(client, sitter, "sitter")[0]["identity_documents"] == "to_do"  # both IDs are needed

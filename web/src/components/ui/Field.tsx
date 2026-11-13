@@ -22,6 +22,9 @@ type FieldProps = {
   compact?: boolean;
 };
 
+/** A fixed part shown inside the input, before what's typed, e.g. "+91" (UX review 2026-11-13). */
+type PrefixProps = { prefix?: string };
+
 const control =
   "w-full border bg-surface-raised text-body text-ink transition-colors duration-200 ease-calm " +
   "placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60";
@@ -52,7 +55,7 @@ function FieldShell({
       )}
       {children}
       {error && (
-        <p id={`${id}-error`} className="flex items-start gap-2 text-small text-danger">
+        <p id={`${id}-error`} role="alert" className="flex items-start gap-2 text-small text-danger">
           <CircleAlert aria-hidden="true" size={20} strokeWidth={1.75} className="mt-px shrink-0" />
           <span>{error}</span>
         </p>
@@ -74,27 +77,44 @@ export function TextInput({
   error,
   optional,
   compact,
+  prefix,
   id,
   className,
   ...props
-}: FieldProps & InputHTMLAttributes<HTMLInputElement>) {
+}: FieldProps & PrefixProps & Omit<InputHTMLAttributes<HTMLInputElement>, "prefix">) {
   const { fieldId, describedBy } = useFieldIds(id, hint, error);
+  const input = (
+    <input
+      id={fieldId}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={describedBy}
+      required={!optional || undefined}
+      className={cx(
+        control,
+        "rounded-pill",
+        compact ? "px-[12px] py-[9px] text-small" : "px-5 py-3",
+        prefix && "pl-[3.75rem]",
+        borderFor(error),
+        className,
+      )}
+      {...props}
+    />
+  );
   return (
     <FieldShell id={fieldId} label={label} hint={hint} error={error} optional={optional} compact={compact}>
-      <input
-        id={fieldId}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy}
-        required={!optional || undefined}
-        className={cx(
-          control,
-          "rounded-pill",
-          compact ? "px-[12px] py-[9px] text-small" : "px-5 py-3",
-          borderFor(error),
-          className,
-        )}
-        {...props}
-      />
+      {prefix ? (
+        <div className="relative">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-5 -translate-y-1/2 text-body text-muted"
+          >
+            {prefix}
+          </span>
+          {input}
+        </div>
+      ) : (
+        input
+      )}
     </FieldShell>
   );
 }
@@ -174,14 +194,24 @@ export function Select({
 export function Checkbox({
   label,
   error,
+  tag,
+  highlight,
   id,
   className,
   ...props
-}: { label: ReactNode; error?: string } & Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+}: {
+  label: ReactNode;
+  error?: string;
+  /** Shown above the label, e.g. "Required" or "Optional" (UX review 2026-11-13). */
+  tag?: string;
+  /** Marks a required box that's still unticked after trying to continue. */
+  highlight?: boolean;
+} & Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
   const generated = useId();
   const boxId = id ?? generated;
   return (
-    <div className={cx("flex flex-col gap-2", className)}>
+    <div className={cx("flex flex-col gap-2", highlight && "-m-2 rounded-md border-2 border-danger p-2", className)}>
+      {tag && <span className="text-eyebrow text-muted uppercase">{tag}</span>}
       <label htmlFor={boxId} className="flex cursor-pointer items-start gap-3 text-body text-ink">
         <input
           id={boxId}
