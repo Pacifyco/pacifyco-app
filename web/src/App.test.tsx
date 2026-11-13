@@ -16,6 +16,10 @@ describe("routes", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Sign in or join/ }));
     expect(await screen.findByRole("heading", { name: "Sign in to Pacify." })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Sign in or join/ })).toBeNull();
+    // The photos come before the box on the page.
+    const box = screen.getByRole("heading", { name: "Sign in to Pacify." });
+    const photo = document.querySelector("main img")!;
+    expect(photo.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(router.state.location.pathname).toBe("/");
     expect(router.state.location.search).toBe("?signin=");
   });

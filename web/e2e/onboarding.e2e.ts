@@ -204,9 +204,10 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   await expect(page).toHaveURL(/\/sitter\/profile$/);
   await expect(page.getByRole("link", { name: /Psychology screening/ }).getByText("In review")).toBeVisible();
 
-  // Her usual week: Mornings on every weekday, in one tap, plus a day off.
+  // Her usual week: Monday 9 am - 1 pm and 1 - 4 pm, plus a day off.
   await page.goto("/sitter/availability");
-  await page.getByRole("button", { name: "Mornings" }).click();
+  await page.getByRole("checkbox", { name: "Free on Mondays" }).check();
+  await page.getByRole("button", { name: "Add a time on Monday" }).click();
   await page.getByRole("button", { name: "Save my week" }).click();
   await expect(page.getByText("Saved. It repeats every week until you change it.")).toBeVisible();
   const inAWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);

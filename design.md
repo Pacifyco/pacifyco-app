@@ -344,10 +344,10 @@ this file and CLAUDE.md win.
 - **Prices on sitter cards or bookings** ("Est. cost"), sitter earnings shown to parents, and
   occasions ("Date night", "Gym session") as a booking field.
 - **Skills taxonomy** beyond two fixed lists: age groups and languages are tapped from fixed lists (UX
-  review 2026-11-13). (Weekday availability is in: a week that repeats, with quick fills and days off,
+  review 2026-11-13). (Weekday availability is in: a week that repeats, times added one after another, and days off,
   decided 2026-11-09.)
 - Checks we don't do or name differently: show only CLAUDE.md 7's steps (ID, police certificate,
   references, psychology test, approval).
 - The prototype's login screen ("Choose a portal", demo account pickers, "Reset demo data") and its
-  hero copy and stats. Our sign-in (a box on the home page, opened by "Sign in or join"; no separate
+  hero copy and stats. Our sign-in (a box on the home page below the photos, opened by "Sign in or join"; no separate
   page since 2026-11-13, `/sign-in` redirects to `/?signin`) and `/join` already follow section 10.

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { ageRange } from "../lib/sitterLists";
 import { dayLabel, hourLabel, hoursLabel, kolkataTime, shortHour, todayInKolkata } from "../lib/times";
 import { jsonResponse } from "../test/renderApp";
-import { AvailabilityPage, addRange } from "./AvailabilityPage";
+import { AvailabilityPage, nextSlot } from "./AvailabilityPage";
 import { FindSittersPage } from "./FindSittersPage";
 import { SitterProfilePage } from "./SitterProfilePage";
 
@@ -94,23 +94,21 @@ describe("a sitter's weekly availability", () => {
     expect(screen.getByRole("button", { name: "Save my week" })).toHaveProperty("disabled", true);
   });
 
-  test("a quick fill sets Monday to Friday on an empty week, and saving sends the whole week", async () => {
+  test("ticking a day adds 9 am - 1 pm, each + adds the next time, and saving sends the whole week", async () => {
     const calls = mockApi({
       "GET /sitter/availability": () => jsonResponse({ week: [], days_off: [] }),
       "PUT /sitter/availability/week": (body) =>
         jsonResponse({ week: (body as { hours: unknown[] }).hours, days_off: [] }),
     });
     renderAt("/sitter/availability");
-    fireEvent.click(await screen.findByRole("button", { name: "Evenings" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Free on Saturdays" })); // adds 9 am - 1 pm
-    fireEvent.click(screen.getByRole("button", { name: "Add a time on Saturday" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Free on Saturdays" })); // 9 am - 1 pm
+    fireEvent.click(screen.getByRole("button", { name: "Add a time on Saturday" })); // 1 - 4 pm
     fireEvent.click(screen.getByRole("button", { name: "Save my week" }));
 
     await waitFor(() => expect(calls.some((call) => call.method === "PUT")).toBe(true));
     const put = calls.find((call) => call.method === "PUT")!;
     expect(put.body).toEqual({
       hours: [
-        ...[0, 1, 2, 3, 4].map((weekday) => ({ weekday, start_hour: 18, end_hour: 22 })),
         { weekday: 5, start_hour: 9, end_hour: 13 },
         { weekday: 5, start_hour: 13, end_hour: 16 },
       ],
@@ -118,31 +116,29 @@ describe("a sitter's weekly availability", () => {
     expect(await screen.findByText("Saved. It repeats every week until you change it.")).toBeTruthy();
   });
 
-  test("a quick fill adds to the days already ticked, never wiping a time", async () => {
-    // UX review 2026-11-13: "Afternoons" used to replace Monday's morning.
-    mockApi({ "GET /sitter/availability": () => jsonResponse(SAVED) });
+  test("+ steps through 9-1, 1-4, 4-7, 7-10 and 10-12, then stops: it never starts again at 9", async () => {
+    // Reuben, 2026-11-13: no quick fills (mornings, afternoons...); add times one after another.
+    mockApi({ "GET /sitter/availability": () => jsonResponse({ week: [], days_off: [] }) });
     renderAt("/sitter/availability");
-    fireEvent.click(await screen.findByRole("button", { name: "Afternoons" }));
-    // Monday 9-1 and the new 1-6 touch, so they join: 9 am to 6 pm.
-    expect(screen.getByLabelText("Monday from")).toHaveProperty("value", "9");
-    expect(screen.getByLabelText("Monday until")).toHaveProperty("value", "18");
-    // Saturday keeps its evening and gains the afternoon before it: 1 pm to 10 pm.
-    expect(screen.getByLabelText("Saturday from")).toHaveProperty("value", "13");
-    expect(screen.getByLabelText("Saturday until")).toHaveProperty("value", "22");
-    expect(screen.getByRole("checkbox", { name: "Free on Tuesdays" })).toHaveProperty("checked", false);
+    expect(await screen.findByRole("heading", { name: "Your week" })).toBeTruthy();
+    for (const name of ["Mornings", "Afternoons", "Evenings", "Nights"]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+    fireEvent.click(screen.getByRole("checkbox", { name: "Free on Mondays" }));
+    for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole("button", { name: "Add a time on Monday" }));
+    const starts = screen.getAllByLabelText("Monday from").map((select) => (select as HTMLSelectElement).value);
+    const ends = screen.getAllByLabelText("Monday until").map((select) => (select as HTMLSelectElement).value);
+    expect(starts).toEqual(["9", "13", "16", "19", "22"]);
+    expect(ends).toEqual(["13", "16", "19", "22", "24"]);
+    expect(screen.queryByRole("button", { name: "Add a time on Monday" })).toBeNull(); // full up to midnight
   });
 
-  test("the quick fills are the four parts of the day parents filter by", async () => {
-    mockApi({ "GET /sitter/availability": () => jsonResponse(SAVED) });
-    renderAt("/sitter/availability");
-    for (const name of ["Mornings", "Afternoons", "Evenings", "Nights"]) {
-      expect(await screen.findByRole("button", { name })).toBeTruthy();
-    }
-    expect(addRange([{ start: 9, end: 13 }], { start: 18, end: 22 })).toEqual([
-      { start: 9, end: 13 },
-      { start: 18, end: 22 },
-    ]);
-    expect(addRange([{ start: 9, end: 14 }], { start: 13, end: 18 })).toEqual([{ start: 9, end: 18 }]);
+  test("the next time follows her latest one, even after she changes it", () => {
+    expect(nextSlot([])).toEqual({ start: 9, end: 13 });
+    expect(nextSlot([{ start: 9, end: 13 }])).toEqual({ start: 13, end: 16 });
+    expect(nextSlot([{ start: 10, end: 17 }])).toEqual({ start: 19, end: 22 });
+    expect(nextSlot([{ start: 18, end: 23 }])).toEqual({ start: 23, end: 24 });
+    expect(nextSlot([{ start: 22, end: 24 }])).toBeNull();
   });
 
   test("unticking a day or removing its time clears it", async () => {
@@ -243,31 +239,59 @@ describe("finding a sitter", () => {
     expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
   });
 
-  test("filters start with when, and every filter applies straight away", async () => {
+  test("Pick a day comes first, then When?, then languages and first aid; each applies straight away", async () => {
     const calls = mockApi({
       "GET /parent/checklist": () => jsonResponse(FINISHED),
       "GET /parent/sitters": () => jsonResponse([LAKSHMI]),
     });
     renderAt("/parent/sitters");
     await screen.findByRole("heading", { name: "Lakshmi Nair" });
-    expect(screen.getByRole("group", { name: "When?" })).toBeTruthy();
+    const day = screen.getByLabelText("Pick a day");
+    const when = screen.getByRole("group", { name: "When?" });
+    expect(day.compareDocumentPosition(when) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const options = within(day).getAllByRole("option").map((option) => option.textContent);
+    expect(options.slice(0, 3)).toEqual(["Any day", "Today", "Tomorrow"]);
+    expect(options.at(-1)).toBe("Another date…");
 
     fireEvent.click(screen.getByRole("button", { name: "Evening" })); // no day yet: today
-    fireEvent.click(screen.getByRole("button", { name: "Kannada" }));
+    // Languages: a dropdown where several can be ticked.
+    fireEvent.click(screen.getByRole("button", { name: /Languages/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Kannada" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "English" }));
+    expect(screen.getByRole("button", { name: /Languages/ }).textContent).toBe("English, Kannada");
     fireEvent.click(screen.getByRole("button", { name: "First aid" }));
     fireEvent.change(screen.getByLabelText("Sort by"), { target: { value: "rating" } });
 
     await waitFor(() => expect(calls.at(-1)!.path).toContain("sort=rating"));
     const params = new URLSearchParams(calls.at(-1)!.path.split("?")[1]);
-    expect(Object.fromEntries(params)).toEqual({
+    expect(params.getAll("language")).toEqual(["English", "Kannada"]);
+    expect(Object.fromEntries(params)).toMatchObject({
       sort: "rating",
       day: todayInKolkata(),
       part: "evening",
-      language: "Kannada",
       first_aid: "true",
     });
+    expect((day as HTMLSelectElement).value).toBe(todayInKolkata()); // shows "Today"
     expect(screen.getByRole("button", { name: "Evening" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByText("1 sitter free today evening")).toBeTruthy();
+  });
+
+  test("another date is picked from a calendar and then shows in the Pick a day dropdown", async () => {
+    const calls = mockApi({
+      "GET /parent/checklist": () => jsonResponse(FINISHED),
+      "GET /parent/sitters": () => jsonResponse([LAKSHMI]),
+    });
+    renderAt("/parent/sitters");
+    await screen.findByRole("heading", { name: "Lakshmi Nair" });
+    const later = new Date(Date.now() + 9 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    fireEvent.change(screen.getByLabelText("Pick a day"), { target: { value: "other" } });
+    fireEvent.change(await screen.findByLabelText(/Choose a date/), { target: { value: later } });
+
+    await waitFor(() => expect(calls.at(-1)!.path).toContain(`day=${later}`));
+    const day = screen.getByLabelText("Pick a day") as HTMLSelectElement;
+    expect(day.value).toBe(later);
+    expect(day.selectedOptions[0]!.textContent).toBe(dayLabel(later));
+    expect(screen.queryByLabelText(/Choose a date/)).toBeNull();
   });
 
   test("filters are read from the address, so Back and refresh keep them", async () => {
@@ -275,10 +299,12 @@ describe("finding a sitter", () => {
       "GET /parent/checklist": () => jsonResponse(FINISHED),
       "GET /parent/sitters": () => jsonResponse([LAKSHMI]),
     });
-    renderAt("/parent/sitters?day=2026-11-20&time=morning&firstaid=1");
+    renderAt("/parent/sitters?day=2026-11-20&time=morning&firstaid=1&language=Tamil&language=Hindi");
     await screen.findByRole("heading", { name: "Lakshmi Nair" });
     const params = new URLSearchParams(calls.find((call) => call.path.startsWith("/parent/sitters"))!.path.split("?")[1]);
-    expect(Object.fromEntries(params)).toEqual({ sort: "distance", day: "2026-11-20", part: "morning", first_aid: "true" });
+    expect(params.getAll("language")).toEqual(["Hindi", "Tamil"]);
+    expect(Object.fromEntries(params)).toMatchObject({ sort: "distance", day: "2026-11-20", part: "morning", first_aid: "true" });
+    expect(screen.getByRole("button", { name: /Languages/ }).textContent).toBe("Hindi, Tamil");
     expect(screen.getByRole("button", { name: "First aid" }).getAttribute("aria-pressed")).toBe("true");
   });
 

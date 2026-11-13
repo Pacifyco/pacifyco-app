@@ -21,8 +21,9 @@ INDIA = ZoneInfo("Asia/Kolkata")
 BOOK_AHEAD_DAYS = 14  # parents see and book free times up to two weeks ahead (decided 2026-11-09)
 MAX_DAYS_OFF_AHEAD = 365
 
-# One set of parts of the day everywhere (UX review 2026-11-13): the sitter's quick fills, the parent's
-# "When?" filter and the week on her profile. India time, whole hours; night ends at midnight, the
+# The parts of the day parents see (UX review 2026-11-13): the "When?" filter and the week on her
+# profile. (Sitters add their own times in 9-1, 1-4, 4-7, 7-10, 10-12 steps; decided 2026-11-13.)
+# India time, whole hours; night ends at midnight, the
 # latest any plan runs (CLAUDE.md 6.1). web/src/lib/times.ts has the same list.
 PARTS_OF_DAY = {"morning": (9, 13), "afternoon": (13, 18), "evening": (18, 22), "night": (22, 24)}
 

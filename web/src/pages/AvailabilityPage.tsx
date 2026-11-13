@@ -4,7 +4,6 @@ import { useState, type FormEvent } from "react";
 import { BackLink, Button, TextInput } from "../components/ui";
 import { cx } from "../components/ui/cx";
 import { ApiError, apiFetch } from "../lib/api";
-import { PARTS_OF_DAY } from "../lib/sitterLists";
 import {
   END_HOURS,
   START_HOURS,
@@ -27,23 +26,24 @@ type Draft = Range[][]; // one list per weekday, Monday first
 
 const KEY = ["sitter-availability"];
 
-/** Quick fills: the same parts of the day parents filter by (UX review 2026-11-13). */
-export const PRESETS: { label: string; range: Range }[] = PARTS_OF_DAY.map((part) => ({
-  label: part.key === "night" ? "Nights" : `${part.label}s`,
-  range: { start: part.start, end: part.end },
-}));
+/** The times "+" adds, in order (Reuben, 2026-11-13): 9 am–1 pm, then 1–4, 4–7, 7–10 and 10 pm–12 am.
+Each "+" adds the next one after her latest time on that day; after 10 pm–12 am there's nothing left to add,
+so it never starts again at 9 am. She can still change any time with the selects. */
+export const SLOTS: Range[] = [
+  { start: 9, end: 13 },
+  { start: 13, end: 16 },
+  { start: 16, end: 19 },
+  { start: 19, end: 22 },
+  { start: 22, end: 24 },
+];
 
-/** Adds a time to a day's times, joining any it overlaps or touches, so a quick fill never wipes
-an earlier time (UX review 2026-11-13: "Afternoons" replaced Monday's morning). */
-export function addRange(ranges: Range[], range: Range): Range[] {
-  const sorted = [...ranges, range].sort((a, b) => a.start - b.start);
-  const joined: Range[] = [];
-  for (const next of sorted) {
-    const last = joined.at(-1);
-    if (last && next.start <= last.end) last.end = Math.max(last.end, next.end);
-    else joined.push({ ...next });
-  }
-  return joined;
+/** The next time to add after a day's times, or null when the day is full up to midnight. */
+export function nextSlot(ranges: Range[]): Range | null {
+  if (!ranges.length) return SLOTS[0]!;
+  const latest = Math.max(...ranges.map((range) => range.end));
+  const slot = SLOTS.find((item) => item.start >= latest);
+  if (slot) return slot;
+  return latest < 24 ? { start: latest, end: 24 } : null;
 }
 
 function toDraft(week: WeekHours[]): Draft {
@@ -109,11 +109,7 @@ function DayRow({
   const day = WEEKDAYS[weekday]!;
   const free = ranges.length > 0;
   const update = (index: number, range: Range) => onChange(ranges.map((item, at) => (at === index ? range : item)));
-  const nextRange = (): Range => {
-    const last = ranges.at(-1);
-    if (!last || last.end >= 23) return { start: 9, end: 13 };
-    return { start: last.end, end: Math.min(last.end + 3, 24) };
-  };
+  const next = nextSlot(ranges);
 
   return (
     <li className="flex items-start gap-2 border-t border-line py-2 first:border-t-0">
@@ -154,12 +150,12 @@ function DayRow({
             >
               <X aria-hidden="true" size={18} strokeWidth={1.75} />
             </button>
-            {index === ranges.length - 1 && (
+            {index === ranges.length - 1 && next && (
               <button
                 type="button"
                 aria-label={`Add a time on ${day}`}
                 title="Add a time"
-                onClick={() => onChange([...ranges, nextRange()])}
+                onClick={() => onChange([...ranges, next])}
                 className="flex size-[32px] shrink-0 items-center justify-center rounded-pill text-coral-deep hover:bg-surface-sunken"
               >
                 <Plus aria-hidden="true" size={18} strokeWidth={1.75} />
@@ -183,14 +179,6 @@ function WeekCard({ saved }: { saved: WeekHours[] }) {
     onSuccess: (data) => queryClient.setQueryData(KEY, data),
   });
 
-  function fill(range: Range) {
-    const ticked = draft.some((ranges) => ranges.length > 0);
-    // With no day ticked yet, a quick fill sets Monday to Friday. It adds to each day's times.
-    setDraft(
-      draft.map((ranges, weekday) => ((ticked ? ranges.length > 0 : weekday < 5) ? addRange(ranges, range) : ranges)),
-    );
-  }
-
   function submit(event: FormEvent) {
     event.preventDefault();
     const week = toWeek(draft);
@@ -208,18 +196,6 @@ function WeekCard({ saved }: { saved: WeekHours[] }) {
           <h2 id="week-heading" className="mr-auto text-ui font-semibold">
             Your week
           </h2>
-          <span className="text-small text-muted">Add to ticked days:</span>
-          {PRESETS.map((preset) => (
-            <button
-              key={preset.label}
-              type="button"
-              onClick={() => fill(preset.range)}
-              title={hoursLabel(preset.range.start, preset.range.end)}
-              className="rounded-pill bg-surface-sunken px-3 py-1 text-small text-ink hover:bg-surface-tint"
-            >
-              {preset.label}
-            </button>
-          ))}
         </div>
         <ul className="mt-2">
           {draft.map((ranges, weekday) => (

@@ -22,16 +22,15 @@ export function HomePage() {
       <h1>A little help for you. A little more fun for them.</h1>
       <p className="mt-4 text-body-lg text-muted">Pacify is getting ready for families in Bengaluru.</p>
 
-      {/* The one action sits in the first screen, above the photos (UX review 2026-11-13). */}
-      <div className="mt-6">
-        {signingIn ? (
-          <SignInBox autoFocus />
-        ) : (
+      {/* "Sign in or join" sits in the first screen, above the photos (UX review 2026-11-13). Once
+          pressed, the sign-in box opens below the photos (Reuben, 2026-11-13). */}
+      {!signingIn && (
+        <div className="mt-6">
           <Button arrow fullWidthOnPhone={false} onClick={() => setParams({ signin: "" })}>
             Sign in or join
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="mx-auto mt-7 grid max-w-[40rem] grid-cols-2 gap-4 sm:gap-5">
         <Photo name="parentsDinnerCouple" aspect="4 / 5" sizes="(min-width: 640px) 20rem, 50vw" priority />
@@ -43,6 +42,12 @@ export function HomePage() {
           className="mt-7 [animation-delay:120ms]"
         />
       </div>
+
+      {signingIn && (
+        <div className="mt-7">
+          <SignInBox autoFocus />
+        </div>
+      )}
     </section>
   );
 }

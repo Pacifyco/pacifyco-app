@@ -41,7 +41,8 @@ class Filters:
     ends_at: datetime | None = None
     min_rating: Decimal | None = None
     min_years: int | None = None
-    language: str | None = None
+    # Speaks any of these (several can be chosen, Reuben 2026-11-13); empty means any language.
+    languages: tuple[str, ...] = ()
     part: str | None = None  # a part of the day (availability.PARTS_OF_DAY), on `day`
     first_aid: bool = False
     sort: SortBy = SortBy.distance
@@ -78,11 +79,11 @@ def search(db: Session, parent: Profile, filters: Filters, now: datetime) -> lis
     if filters.first_aid:
         query = query.where(Sitter.first_aid.is_(True))
 
-    language = filters.language.strip().lower() if filters.language else None
+    wanted = {language.strip().lower() for language in filters.languages if language.strip()}
     rows = [
         (profile, sitter)
         for profile, sitter in db.execute(query).all()
-        if not language or language in (spoken.lower() for spoken in sitter.languages)
+        if not wanted or wanted & {spoken.lower() for spoken in sitter.languages}
     ]
     # Free times come from each sitter's weekly hours and days off (worked out, not stored).
     if filters.day is not None or (filters.starts_at is not None and filters.ends_at is not None):
