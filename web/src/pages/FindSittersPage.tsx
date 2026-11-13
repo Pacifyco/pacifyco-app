@@ -320,7 +320,7 @@ function Suggestions({ search, set }: { search: Search; set: (patch: Partial<Sea
           Clear all filters
         </button>
         <a href="mailto:founders@pacifyco.in?subject=Please%20help%20me%20find%20a%20sitter">
-          Ask the Pacify team to match you
+          Ask the Pacifyco team to match you
         </a>
       </div>
     </div>
@@ -371,7 +371,7 @@ function Results({ search, set }: { search: Search; set: (patch: Partial<Search>
           {results.data.map((sitter) => (
             <li key={sitter.id}>
               <SitterCard
-                name={sitter.full_name ?? "Pacify sitter"}
+                name={sitter.full_name ?? "Pacifyco sitter"}
                 firstName={firstNameOf(sitter.full_name)}
                 photoUrl={sitter.photo_url ?? undefined}
                 yearsExperience={sitter.years_experience ?? 0}
@@ -422,7 +422,7 @@ export function FindSittersPage() {
       <div>
         <h1 className="text-h3">Find a sitter</h1>
         <p className="mt-1 text-small text-muted">
-          Every sitter here is ID and police verified and referenced by Pacify. With someone new, start with a 1-hour
+          Every sitter here is ID and police verified and referenced by Pacifyco. With someone new, start with a 1-hour
           booking while you're at home.
         </p>
       </div>

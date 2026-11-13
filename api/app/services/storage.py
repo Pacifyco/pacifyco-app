@@ -27,7 +27,7 @@ class StorageClient(Protocol):
     def delete(self, path: str) -> None: ...
 
 
-UNAVAILABLE_MESSAGE = "Pacify's file storage isn't available right now. Please try again."
+UNAVAILABLE_MESSAGE = "Pacifyco's file storage isn't available right now. Please try again."
 
 
 class SupabaseStorage:

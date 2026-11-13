@@ -26,7 +26,7 @@ AUDIENCE = "authenticated"
 
 @dataclass(frozen=True)
 class Identity:
-    """A verified Supabase user. They may not have a Pacify profile yet (sign-up comes next)."""
+    """A verified Supabase user. They may not have a Pacifyco profile yet (sign-up comes next)."""
 
     user_id: uuid.UUID
     email: str | None
@@ -123,9 +123,9 @@ def current_profile(user: Annotated[CurrentUser, Depends(current_user)]) -> Prof
     """A signed-in person who has finished sign-up and whose account isn't suspended or removed.
     Pending accounts (not yet verified) pass; verification gates come with the features that need them."""
     if user.profile is None:
-        raise AppError(403, "profile_required", "Please finish joining Pacify first")
+        raise AppError(403, "profile_required", "Please finish joining Pacifyco first")
     if user.profile.status in BLOCKED_STATUSES:
-        raise AppError(403, "account_blocked", "Your account is on hold. Please contact Pacify.")
+        raise AppError(403, "account_blocked", "Your account is on hold. Please contact Pacifyco.")
     return user.profile
 
 

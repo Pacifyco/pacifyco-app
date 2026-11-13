@@ -4,11 +4,11 @@ version: 0.2-draft
 
 # Parental consent form
 
-**DRAFT — NOT LEGALLY REVIEWED.** This is placeholder text until Pacify's legal review. The final form will replace it as a new version, and you'll be asked to accept that version.
+**DRAFT — NOT LEGALLY REVIEWED.** This is placeholder text until Pacifyco's legal review. The final form will replace it as a new version, and you'll be asked to accept that version.
 
 ## Why we ask
 
-Family Terms of Use section 11.2 asks you to tick five things separately before you add your family's details, documents and children to Pacify. Four are required to use Pacify; the fifth is optional, and you can change your mind about it at any time.
+Family Terms of Use section 11.2 asks you to tick five things separately before you add your family's details, documents and children to Pacifyco. Four are required to use Pacifyco; the fifth is optional, and you can change your mind about it at any time.
 
 ## What we collect and why
 
@@ -18,7 +18,7 @@ Family Terms of Use section 11.2 asks you to tick five things separately before 
 
 ## Who sees it
 
-- The Pacify team, to verify your family and to help in an emergency. Every time the team opens a document, it's recorded.
+- The Pacifyco team, to verify your family and to help in an emergency. Every time the team opens a document, it's recorded.
 - The sitter you book sees the care details you choose to share for that booking. Sitters never see your identity or verification documents.
 
 ## Your choices

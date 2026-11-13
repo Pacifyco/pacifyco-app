@@ -13,7 +13,7 @@ def test_the_email_has_one_button_and_the_sign_off():
     page = email_service.render_html(EMAIL)
     assert page.count("<a ") == 1
     assert "https://pacifyco.in/parent/sitters" in page
-    assert "Warmly, the Pacify team" in page
+    assert "Warmly, the Pacifyco team" in page
     assert "max-width:600px" in page
     assert "<b>" not in page  # names are escaped
 
@@ -31,5 +31,5 @@ def test_a_resend_failure_doesnt_raise(monkeypatch):
 
     monkeypatch.setattr(httpx, "post", fail)
     email_service.ResendEmail(
-        Settings(_env_file=None, resend_api_key="re_test", email_from="Pacify <hello@pacifyco.in>")
+        Settings(_env_file=None, resend_api_key="re_test", email_from="Pacifyco <hello@pacifyco.in>")
     ).send(EMAIL)

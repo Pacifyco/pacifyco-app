@@ -198,7 +198,7 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   }
   await page.getByRole("button", { name: "Submit" }).click();
   // Submitting confirms the application is in; from there she goes to her profile checklist, where the
-  // screening is now with Pacify.
+  // screening is now with Pacifyco.
   await expect(page.getByText("Your application is submitted.")).toBeVisible();
   await page.getByRole("link", { name: "Go to your profile" }).click();
   await expect(page).toHaveURL(/\/sitter\/profile$/);
@@ -223,7 +223,7 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
 
 test("an admin rejects a step with a reason; the sitter sees it and uploads again", async ({ browser }) => {
   admin = await signIn(browser, "admin");
-  execFileSync(python, ["-m", "app.cli", "create-admin", "--email", admin.email, "--name", "Pacify Admin", "--user-id", admin.id], {
+  execFileSync(python, ["-m", "app.cli", "create-admin", "--email", admin.email, "--name", "Pacifyco Admin", "--user-id", admin.id], {
     cwd: "../api",
     env: { ...process.env, ...apiEnv },
   });

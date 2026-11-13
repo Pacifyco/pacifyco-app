@@ -17,7 +17,7 @@ from app.services import encryption
 
 MAX_REFERENCES = 2
 
-# Fixed lists the sitter picks from (UX review 2026-11-13). Pacify takes children from 18 months
+# Fixed lists the sitter picks from (UX review 2026-11-13). Pacifyco takes children from 18 months
 # (CLAUDE.md 6.4), so there's no infant group.
 AGE_GROUPS = ("Toddler", "Preschool", "School age")
 LANGUAGES = ("English", "Kannada", "Hindi", "Tamil", "Malayalam", "Telugu")

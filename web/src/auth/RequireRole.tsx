@@ -30,8 +30,8 @@ export function AccountOnHold({ removed }: { removed: boolean }) {
       <h1>{removed ? "This account is closed." : "Your account is on hold."}</h1>
       <p className="mt-4 text-muted">
         {removed
-          ? "The Pacify team has closed this account, so it can't be used any more."
-          : "The Pacify team has paused this account, so it can't be used for now."}{" "}
+          ? "The Pacifyco team has closed this account, so it can't be used any more."
+          : "The Pacifyco team has paused this account, so it can't be used for now."}{" "}
         If you think this is a mistake, you can appeal within 15 days of the decision.
       </p>
       <p className="mt-4 text-muted">

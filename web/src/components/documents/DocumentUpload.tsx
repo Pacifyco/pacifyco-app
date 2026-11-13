@@ -101,7 +101,7 @@ function UploadSlot({
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string>();
   // The file just sent, shown by name (and as a thumbnail if it's a picture) so people can see what
-  // they uploaded (UX review 2026-11-13). Only in this browser: stored files are for Pacify's eyes.
+  // they uploaded (UX review 2026-11-13). Only in this browser: stored files are for Pacifyco's eyes.
   const [sent, setSent] = useState<{ name: string; preview?: string }>();
   useEffect(() => () => {
     if (sent?.preview) URL.revokeObjectURL(sent.preview);

@@ -33,7 +33,7 @@ export function EmergencyButton({ onConfirm, sending = false }: EmergencyButtonP
       className="flex flex-col gap-4 rounded-lg bg-surface-inverse p-5 text-surface-default"
     >
       <h2 id={headingId} className="text-h3">
-        Alert the Pacify team now?
+        Alert the Pacifyco team now?
       </h2>
       <p className="text-body">
         We'll be told straight away and will call you. If anyone is in danger, call 112 first.
@@ -47,7 +47,7 @@ export function EmergencyButton({ onConfirm, sending = false }: EmergencyButtonP
           autoFocus
           className="inline-flex w-full items-center justify-center rounded-pill bg-surface-default px-5 py-3 text-ui text-ink disabled:opacity-60 sm:w-auto"
         >
-          {sending ? "Alerting the team…" : "Yes, alert Pacify"}
+          {sending ? "Alerting the team…" : "Yes, alert Pacifyco"}
         </button>
         <button
           type="button"

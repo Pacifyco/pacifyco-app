@@ -56,7 +56,7 @@ def sign_up(
     if db.get(Profile, user_id) is not None:
         raise _already_signed_up()
     if db.scalar(select(Profile.id).where(Profile.email == email)) is not None:
-        raise AppError(409, "email_in_use", "This email already has a Pacify account")
+        raise AppError(409, "email_in_use", "This email already has a Pacifyco account")
 
     profile = Profile(id=user_id, role=role, email=email)
     db.add(profile)
@@ -153,11 +153,11 @@ def is_empty(db: Session, profile: Profile) -> bool:
 
 
 def delete_empty_profile(db: Session, email: str) -> Profile:
-    """Remove a Pacify profile that holds nothing yet, e.g. a test account or one left behind when its
+    """Remove a Pacifyco profile that holds nothing yet, e.g. a test account or one left behind when its
     Supabase sign-in account was deleted. Refuses anything with real records."""
     profile = db.scalar(select(Profile).where(func.lower(Profile.email) == email.lower()))
     if profile is None:
-        raise AppError(404, "not_found", "No Pacify profile with this email")
+        raise AppError(404, "not_found", "No Pacifyco profile with this email")
     if not is_empty(db, profile):
         raise AppError(409, "profile_not_empty", "This account has records, so it can't be deleted this way")
     # Terms acceptances alone don't make an account non-empty: nothing happened under those terms. The

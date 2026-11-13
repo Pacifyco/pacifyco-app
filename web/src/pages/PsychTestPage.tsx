@@ -25,7 +25,7 @@ type Attempt = {
   status: AttemptStatus;
   submitted_at: string | null;
   answers: Record<string, string>;
-  /** After a fail, Pacify has allowed her to try again (decided 2026-11-08). */
+  /** After a fail, Pacifyco has allowed her to try again (decided 2026-11-08). */
   retake_allowed: boolean;
 };
 
@@ -185,14 +185,14 @@ function FailedView({ retakeAllowed, onRetake }: { retakeAllowed: boolean; onRet
     return (
       <div className="rounded-lg bg-surface-sunken p-5">
         <p className="text-ink">
-          You didn't pass this time. Pacify will be in touch about whether you can take the screening again.
+          You didn't pass this time. Pacifyco will be in touch about whether you can take the screening again.
         </p>
       </div>
     );
   }
   return (
     <div className="flex flex-col items-start gap-4 rounded-lg bg-surface-sunken p-5">
-      <p className="text-ink">You didn't pass this time, and Pacify has said you can try again.</p>
+      <p className="text-ink">You didn't pass this time, and Pacifyco has said you can try again.</p>
       <Button variant="secondary" onClick={onRetake}>
         Try again
       </Button>

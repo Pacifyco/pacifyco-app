@@ -122,7 +122,7 @@ def _profile_out(row: Sitter) -> SitterProfileOut:
 class SitterChecklist(BaseModel):
     items: list[ChecklistItem]
     live: bool  # approved, level set and active: shown to parents (CLAUDE.md 7)
-    # Set when Pacify turned down her whole application, with the reason it gave.
+    # Set when Pacifyco turned down her whole application, with the reason it gave.
     application_rejected_reason: str | None
 
 
@@ -286,7 +286,7 @@ class ReferenceOut(BaseModel):
     relationship: str
     phone: str
     outcome: VerificationStatus
-    rejection_reason: str | None  # why Pacify couldn't accept this reference
+    rejection_reason: str | None  # why Pacifyco couldn't accept this reference
 
 
 def _reference_out(row: Reference) -> ReferenceOut:

@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabase";
 
 type SupabaseError = { status?: number; name?: string };
 
-const NETWORK = "We couldn't reach Pacify. Check your connection and try again.";
+const NETWORK = "We couldn't reach Pacifyco. Check your connection and try again.";
 const EMAIL_NEEDED = "Enter your email to continue.";
 const EMAIL_INCOMPLETE = "Enter a full email, like name@gmail.com.";
 
@@ -80,7 +80,7 @@ export function SignInBox({ autoFocus = false }: { autoFocus?: boolean }) {
   if (!supabase) {
     return (
       <section className="mx-auto max-w-[28rem] rounded-lg bg-surface-raised p-5 text-center shadow-soft sm:p-6">
-        <h2 className="text-h3">Sign in to Pacify.</h2>
+        <h2 className="text-h3">Sign in to Pacifyco.</h2>
         <p className="mt-3 text-muted">Sign-in isn't set up in this environment yet.</p>
       </section>
     );
@@ -134,12 +134,12 @@ export function SignInBox({ autoFocus = false }: { autoFocus?: boolean }) {
       <div>
         <div>
           <h2 id="sign-in-heading" className="text-h3">
-            Sign in to Pacify.
+            Sign in to Pacifyco.
           </h2>
 
           {step === "email" ? (
             <>
-              <p className="mt-2 text-muted">New to Pacify? This creates your account too.</p>
+              <p className="mt-2 text-muted">New to Pacifyco? This creates your account too.</p>
               <form onSubmit={sendCode} className="mt-6 flex flex-col gap-5 text-left" noValidate>
                 <TextInput
                   label="Email"

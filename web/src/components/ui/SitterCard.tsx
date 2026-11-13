@@ -86,7 +86,7 @@ export function SitterCard(props: SitterCardProps) {
       )}
 
       {familiesServed > 0 && (
-        <p className="text-small text-muted">Trusted by {plural(familiesServed, "Pacify family", "Pacify families")}</p>
+        <p className="text-small text-muted">Trusted by {plural(familiesServed, "Pacifyco family", "Pacifyco families")}</p>
       )}
 
       <ButtonLink to={actionHref} variant="primary">

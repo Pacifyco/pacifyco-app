@@ -2,7 +2,7 @@
 2026-11-13 (Reuben): approval emails, so people hear when their profile or child is approved.
 
 design.md 2: a 600px single column on Blush with a white card, one primary button, signed "Warmly, the
-Pacify team". Only a first name and a link: no dates of birth, health or document details.
+Pacifyco team". Only a first name and a link: no dates of birth, health or document details.
 
 Swappable in tests via the `get_email` dependency, the same way `get_storage` is. Sending never fails
 the request that triggered it: the decision is already saved, so a failed email is logged (and reaches
@@ -58,13 +58,13 @@ def render_html(email: Email) -> str:
         f'<p style="margin:24px 0"><a href="{text(email.button_url)}" '
         'style="display:inline-block;background:#F5695A;color:#2D221D;text-decoration:none;'
         f'padding:12px 24px;border-radius:999px;font-weight:500">{text(email.button_label)}</a></p>'
-        '<p style="margin:0;font-size:16px;line-height:26px;color:#2D221D">Warmly, the Pacify team</p>'
+        '<p style="margin:0;font-size:16px;line-height:26px;color:#2D221D">Warmly, the Pacifyco team</p>'
         "</td></tr></table></td></tr></table></body></html>"
     )
 
 
 def render_text(email: Email) -> str:
-    return f"{email.heading}\n\n{email.body}\n\n{email.button_label}: {email.button_url}\n\nWarmly, the Pacify team\n"
+    return f"{email.heading}\n\n{email.body}\n\n{email.button_label}: {email.button_url}\n\nWarmly, the Pacifyco team\n"
 
 
 class ResendEmail:
@@ -108,14 +108,14 @@ def _first_name(full_name: str | None) -> str:
 def sitter_approved(to: str, full_name: str | None, web_url: str) -> Email:
     return Email(
         to=to,
-        subject="You're approved on Pacify",
+        subject="You're approved on Pacifyco",
         heading=f"You're approved, {_first_name(full_name)}.",
         body=(
-            "Pacify has checked everything you sent, and your profile is now live. "
+            "Pacifyco has checked everything you sent, and your profile is now live. "
             "Families near you can find you and book you.\n"
             "Keep your usual week up to date, so families can book you inside the times you're free."
         ),
-        button_label="Open Pacify",
+        button_label="Open Pacifyco",
         button_url=f"{web_url.rstrip('/')}/sitter",
     )
 
@@ -129,10 +129,10 @@ def child_verified(to: str, full_name: str | None, child_name: str, family_verif
     )
     return Email(
         to=to,
-        subject=f"{child} is verified on Pacify",
+        subject=f"{child} is verified on Pacifyco",
         heading=f"{child} is verified.",
         body=(
-            f"Hi {_first_name(full_name)}, Pacify has checked {child}'s birth certificate and deleted it, "
+            f"Hi {_first_name(full_name)}, Pacifyco has checked {child}'s birth certificate and deleted it, "
             f"as promised. We keep only the result.\n{ending}"
         ),
         button_label="Find a sitter",

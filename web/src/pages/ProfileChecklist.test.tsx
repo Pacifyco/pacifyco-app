@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import { ChecklistCard, SITTER_STEPS } from "./ProfileChecklist";
 
 describe("the finish-your-profile checklist", () => {
-  test("a rejected item shows the reason Pacify gave", () => {
+  test("a rejected item shows the reason Pacifyco gave", () => {
     render(
       <MemoryRouter>
         <ChecklistCard

@@ -376,6 +376,20 @@ It only deletes accounts that hold nothing yet (no children, no sitter applicati
 history), so real records are never removed this way. Then delete the user in Supabase if you want the
 sign-in account gone too.
 
+### Starting staging again with no parents or sitters
+
+To remove **every** parent and sitter on staging (admins stay), with their children, documents and
+files, consents and terms acceptances, references, availability, audit rows and Supabase sign-in
+accounts, so the same emails can sign up fresh. Staging only: it refuses when `ENVIRONMENT` is
+`production`. From `api/`, in your own terminal, with staging's values (never paste them into chat):
+
+```
+MIGRATION_DATABASE_URL=<staging owner URI> SUPABASE_URL=<staging project URL> SUPABASE_SERVICE_ROLE_KEY=<staging service role key> python -m app.cli reset-staging-accounts        # counts only, and shows which database
+python -m app.cli reset-staging-accounts --yes  # removes them
+```
+
+Check the database host it prints before adding `--yes`. It can't be undone.
+
 ## Legal pages
 
 `/terms/sitter`, `/terms/parent` and `/privacy` are public. The texts live in `web/src/content/`. The

@@ -61,7 +61,7 @@ def start_or_resume_attempt(db: Session, sitter_id: uuid.UUID) -> PsychAttempt:
     if current is not None and current.status in (PsychAttemptStatus.submitted, PsychAttemptStatus.passed):
         return current
     if current is not None and current.status == PsychAttemptStatus.failed and current.retake_allowed_at is None:
-        raise AppError(409, "retake_not_allowed", "Pacify will let you know if you can take the screening again")
+        raise AppError(409, "retake_not_allowed", "Pacifyco will let you know if you can take the screening again")
     test = get_active_test(db)
     attempt = PsychAttempt(sitter_id=sitter_id, test_id=test.id)
     db.add(attempt)

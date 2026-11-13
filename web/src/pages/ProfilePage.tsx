@@ -24,7 +24,7 @@ function ParentProfile() {
     ? "Finish these to book a sitter."
     : childrenVerified
       ? "Your profile is finished."
-      : "Your profile is finished, so you can book. A booking is confirmed once Pacify has checked your children's birth certificates.";
+      : "Your profile is finished, so you can book. A booking is confirmed once Pacifyco has checked your children's birth certificates.";
   return (
     <ChecklistCard
       heading={finished ? "Your profile" : "Finish your profile"}
@@ -41,12 +41,12 @@ function SitterProfile() {
   const { items, live, application_rejected_reason: rejectedReason } = checklist.data;
   const allPassed = items.every((item) => item.status === "done" || item.status === "approved");
   const intro = rejectedReason
-    ? `Pacify couldn't approve your application: ${rejectedReason}`
+    ? `Pacifyco couldn't approve your application: ${rejectedReason}`
     : live
       ? "Your profile is live. Families can now find and book you."
       : allPassed
-        ? "Every step has passed. Pacify will review your profile and let you know when it's live."
-        : "Families can find you once every step passes and Pacify approves your profile.";
+        ? "Every step has passed. Pacifyco will review your profile and let you know when it's live."
+        : "Families can find you once every step passes and Pacifyco approves your profile.";
   return (
     <>
       <ChecklistCard

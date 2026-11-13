@@ -219,7 +219,7 @@ class ChildOut(BaseModel):
     medical_notes: str | None
     routines: str | None
     verification_status: VerificationStatus
-    rejection_reason: str | None  # why Pacify couldn't accept the birth certificate
+    rejection_reason: str | None  # why Pacifyco couldn't accept the birth certificate
     verified_at: datetime | None  # shown as "Verified 13 Nov" (UX review 2026-11-13)
 
 
@@ -293,7 +293,7 @@ class WeekHours(BaseModel):
 
 
 class SharedReference(BaseModel):
-    # Never the referee's phone number (UX review 2026-11-13): parents contact sitters through Pacify.
+    # Never the referee's phone number (UX review 2026-11-13): parents contact sitters through Pacifyco.
     name: str
     relationship: str
 

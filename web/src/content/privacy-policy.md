@@ -4,11 +4,11 @@ version: 0.1-draft
 
 # Privacy policy
 
-**DRAFT — NOT LEGALLY REVIEWED.** This is placeholder text until Pacify's legal review. The reviewed policy will replace it as a new version.
+**DRAFT — NOT LEGALLY REVIEWED.** This is placeholder text until Pacifyco's legal review. The reviewed policy will replace it as a new version.
 
 ## Who we are
 
-Pacify is run by Pacifyco LLP. Contact us at founders@pacifyco.in or +91 8848873841.
+Pacifyco is run by Pacifyco LLP. Contact us at founders@pacifyco.in or +91 8848873841.
 
 ## What this policy will cover
 
@@ -20,7 +20,7 @@ Pacify is run by Pacifyco LLP. Contact us at founders@pacifyco.in or +91 8848873
 ## Where your information is processed
 
 - Accounts, profiles and documents: Supabase, in Mumbai, India.
-- The Pacify service itself: Render, in Singapore.
+- The Pacifyco service itself: Render, in Singapore.
 - The website: Cloudflare.
 - Sign-in emails: Resend, in Tokyo, Japan.
 - Error reports: Sentry, in Germany. Error reports contain no names, emails, addresses or other personal details.

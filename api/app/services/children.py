@@ -74,11 +74,11 @@ def update_child(
     child = _owned_child(db, parent_id, child_id)
     verified = child.verification_status == VerificationStatus.approved
     if verified and (name != child.name or date_of_birth != child.date_of_birth):
-        # Checked against a birth certificate that's since been deleted; only Pacify can change them.
+        # Checked against a birth certificate that's since been deleted; only Pacifyco can change them.
         raise AppError(
             409,
             "child_verified",
-            "This child's name and date of birth are verified. Please contact Pacify to change them.",
+            "This child's name and date of birth are verified. Please contact Pacifyco to change them.",
         )
     child.name = name
     child.date_of_birth = date_of_birth
@@ -93,6 +93,6 @@ def remove_child(db: Session, parent_id: uuid.UUID, child_id: uuid.UUID) -> None
     child = _owned_child(db, parent_id, child_id)
     if db.scalar(select(Document.id).where(Document.child_id == child_id).limit(1)) is not None:
         # documents.child_id is ON DELETE RESTRICT; refuse cleanly instead of a raw database error.
-        raise AppError(409, "child_has_documents", "This child has documents on file. Please contact Pacify.")
+        raise AppError(409, "child_has_documents", "This child has documents on file. Please contact Pacifyco.")
     db.delete(child)
     db.commit()

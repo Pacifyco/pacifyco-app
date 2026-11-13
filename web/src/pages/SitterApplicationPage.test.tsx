@@ -157,7 +157,7 @@ describe("the sitter application page", () => {
     for (const language of ["English", "Kannada", "Hindi", "Tamil", "Malayalam", "Telugu"]) {
       expect(screen.getByRole("button", { name: language }).getAttribute("aria-pressed")).toBe("false");
     }
-    expect(screen.queryByRole("button", { name: /Infant/ })).toBeNull(); // Pacify starts at 18 months
+    expect(screen.queryByRole("button", { name: /Infant/ })).toBeNull(); // Pacifyco starts at 18 months
     await clickContinue();
     expect(await screen.findByText("Please write a few words for parents.")).toBeTruthy();
     expect(screen.getByText("Please choose at least one age group.")).toBeTruthy();
@@ -175,7 +175,7 @@ describe("the sitter application page", () => {
   test("sharing a reference with parents is unticked unless she ticks it", async () => {
     const calls = mockApi();
     renderPage();
-    const tick = await screen.findByRole("checkbox", { name: /Pacify may show parents one of my references/ });
+    const tick = await screen.findByRole("checkbox", { name: /Pacifyco may show parents one of my references/ });
     expect((tick as HTMLInputElement).checked).toBe(false);
     // Parents never see a referee's phone number (UX review 2026-11-13).
     expect(tick.closest("label")!.textContent).toContain("never their phone number");

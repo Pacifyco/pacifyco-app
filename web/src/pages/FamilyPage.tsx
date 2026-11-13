@@ -76,9 +76,9 @@ type Child = {
   medical_notes: string | null;
   routines: string | null;
   verification_status: VerificationStatus;
-  /** Why Pacify couldn't accept the birth certificate, if it was rejected. */
+  /** Why Pacifyco couldn't accept the birth certificate, if it was rejected. */
   rejection_reason: string | null;
-  /** When Pacify verified the child. */
+  /** When Pacifyco verified the child. */
   verified_at: string | null;
 };
 
@@ -272,7 +272,7 @@ function ChildStatus({ child }: { child: Child }) {
   if (child.verification_status === "rejected") {
     return (
       <div role="status" className="text-small text-danger">
-        <p>Pacify couldn't accept this birth certificate. Please upload a new one below.</p>
+        <p>Pacifyco couldn't accept this birth certificate. Please upload a new one below.</p>
         {child.rejection_reason && <p>Reason: {child.rejection_reason}</p>}
       </div>
     );
@@ -421,7 +421,7 @@ function contactInput(contact: Contact | undefined): ContactInput {
     : EMPTY_CONTACT;
 }
 
-/** Problems Pacify can spot before sending: empty fields, a wrong number, the parent's own number. */
+/** Problems Pacifyco can spot before sending: empty fields, a wrong number, the parent's own number. */
 function checkContact(contact: ContactInput, ownPhone: string | null | undefined): Partial<ContactInput> {
   const problems: Partial<ContactInput> = {};
   if (!contact.name.trim()) problems.name = "Please enter their name.";
@@ -444,7 +444,7 @@ function EmergencyContactsSection({ onContinue }: { onContinue: () => void }) {
       <div>
         <h2 className="text-h3">Emergency contacts</h2>
         <p className="mt-1 text-small text-muted">
-          Two people Pacify can reach if you and your authorised adults can't be. Both are required. Please get their
+          Two people Pacifyco can reach if you and your authorised adults can't be. Both are required. Please get their
           permission before adding their details.
         </p>
       </div>

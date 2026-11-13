@@ -47,8 +47,8 @@ export function ToggleChip({
   );
 }
 
-// Only the checks Pacify actually does (CLAUDE.md section 7; design.md section 11). The label is fixed
-// per check so copy can never claim something we don't do (no address checks, no Pacify Plus).
+// Only the checks Pacifyco actually does (CLAUDE.md section 7; design.md section 11). The label is fixed
+// per check so copy can never claim something we don't do (no address checks, no Pacifyco Plus).
 export const VERIFIED_LABELS = {
   id_police: "ID & police verified",
   references: "References checked",

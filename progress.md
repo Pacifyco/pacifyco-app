@@ -431,6 +431,12 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-13 — The brand is "Pacifyco" in all copy, emails and messages (was "Pacify"); migration
+  `c4e8b2a6d1f3` updates the placeholder psych questions. Privacy policy has a Back button to the page
+  before (home if opened directly). API 425, web 243, e2e 5 passed.
+- 2026-11-13 — `python -m app.cli reset-staging-accounts [--yes]` (`reset-staging-accounts`): removes every
+  parent and sitter on staging with their records, files and sign-in accounts; admins stay; refuses
+  production (Reuben). README "Starting staging again". API 424 passed.
 - 2026-11-13 — Availability and filters (`availability-and-filters`, with `signin-box-below-photos`): quick fills removed; ticking a day adds 9–1 and each "+"
   adds the next of 1–4, 4–7, 7–10, 10–12, then stops (Reuben). Find a sitter (Reuben): "Pick a day"
   dropdown first (Today, Tomorrow, the day after, another date from a calendar, shown in the dropdown),

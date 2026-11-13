@@ -107,7 +107,7 @@ describe("sign in with an email code", () => {
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12 34-56" } });
     fireEvent.click(screen.getByRole("button", { name: /Sign in/ }));
 
-    expect(await screen.findByRole("heading", { name: "How will you use Pacify?" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "How will you use Pacifyco?" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/join");
     expect(fake.auth.verifyOtp).toHaveBeenCalledWith({ email: "asha@example.com", token: "123456", type: "email" });
     const meCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/me"))!;
@@ -150,7 +150,7 @@ describe("sign in with an email code", () => {
 
   test("the sign-in page has no Sign in link in its header, and Google shows its mark", async () => {
     renderApp("/sign-in");
-    await screen.findByRole("heading", { name: "Sign in to Pacify." });
+    await screen.findByRole("heading", { name: "Sign in to Pacifyco." });
     expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
     expect(screen.getByRole("button", { name: "Continue with Google" }).querySelector("svg")).toBeTruthy();
   });
@@ -179,7 +179,7 @@ describe("sign in with an email code", () => {
     fake.auth.signInWithOtp.mockResolvedValue({ error: { status: 0, name: "AuthRetryableFetchError" } });
     renderApp("/sign-in");
     await enterEmail();
-    expect(await screen.findByText(/We couldn't reach Pacify/)).toBeTruthy();
+    expect(await screen.findByText(/We couldn't reach Pacifyco/)).toBeTruthy();
   });
 });
 
@@ -226,7 +226,7 @@ describe("signed-in state", () => {
     await screen.findByRole("heading", { level: 1, name: "Find a sitter" });
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
-    expect(await screen.findByRole("heading", { name: "Sign in to Pacify." })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Sign in to Pacifyco." })).toBeTruthy();
     expect(fake.auth.signOut).toHaveBeenCalled();
   });
 });
@@ -306,7 +306,7 @@ describe("joining after the first sign-in", () => {
     renderApp("/join");
     await choose(/I'm a parent/);
     fireEvent.click(screen.getByRole("button", { name: "Go back" }));
-    expect(screen.getByRole("heading", { name: "How will you use Pacify?" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "How will you use Pacifyco?" })).toBeTruthy();
     expect(calls.some((call) => call.url.endsWith("/me/profile"))).toBe(false);
   });
 
@@ -325,7 +325,7 @@ describe("joining after the first sign-in", () => {
     renderApp("/join");
     await choose(/I'm a parent/);
     await create();
-    expect(await screen.findByText(/This email already has a Pacify account/)).toBeTruthy();
+    expect(await screen.findByText(/This email already has a Pacifyco account/)).toBeTruthy();
   });
 
   test("people who have joined skip this page", async () => {
@@ -425,14 +425,14 @@ describe("finishing a profile after sign-up", () => {
           : jsonResponse({ email: "asha@example.com", profile: PARENT_PROFILE }),
       )) as typeof fetch);
     renderApp("/parent/profile");
-    expect(await screen.findByText(/a booking is confirmed once Pacify has checked/i)).toBeTruthy();
+    expect(await screen.findByText(/a booking is confirmed once Pacifyco has checked/i)).toBeTruthy();
     expect(within(screen.getByRole("link", { name: /Your children/ })).getByText("In review")).toBeTruthy();
   });
 
   test("the sitter's profile page lists every onboarding step", async () => {
     detailsApi("sitter");
     renderApp("/sitter/profile");
-    expect(await screen.findByText(/once every step passes and Pacify approves your profile/)).toBeTruthy();
+    expect(await screen.findByText(/once every step passes and Pacifyco approves your profile/)).toBeTruthy();
     expect(screen.getByRole("link", { name: /Your details/ }).getAttribute("href")).toBe("/sitter/details");
     // Each row opens the exact step (UX review 2026-11-13).
     expect(screen.getByRole("link", { name: /Police clearance certificate/ }).getAttribute("href")).toBe(
@@ -477,7 +477,7 @@ describe("finishing a profile after sign-up", () => {
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/service-area"))).toBe(true));
     await fill("Asha K", "9876543210", "560002");
     expect(
-      await screen.findByText("Pacify isn't in 560002 yet. For now we're in these parts of Bengaluru: MG Road (560001), Koramangala (560034)."),
+      await screen.findByText("Pacifyco isn't in 560002 yet. For now we're in these parts of Bengaluru: MG Road (560001), Koramangala (560034)."),
     ).toBeTruthy();
   });
 
@@ -492,7 +492,7 @@ describe("finishing a profile after sign-up", () => {
     detailsApi("parent", { status: 422, code: "outside_service_area" });
     renderApp("/parent/details");
     await fill("Asha K", "9876543210", "560034");
-    expect(await screen.findByText(/Pacify isn't in 560034 yet/)).toBeTruthy();
+    expect(await screen.findByText(/Pacifyco isn't in 560034 yet/)).toBeTruthy();
   });
 
   test("if the API refuses a field, the form marks that field", async () => {
@@ -557,7 +557,7 @@ describe("role-gated areas", () => {
     liveSitter([]);
     renderApp("/sitter");
     expect(await screen.findByText("You're approved")).toBeTruthy();
-    expect(screen.getByText("Families near 560034 can now find you on Pacify.")).toBeTruthy();
+    expect(screen.getByText("Families near 560034 can now find you on Pacifyco.")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Get your first booking" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Set your availability/ }).getAttribute("href")).toBe("/sitter/availability");
 
@@ -620,7 +620,7 @@ describe("role-gated areas", () => {
     signedInAs("parent", "suspended");
     renderApp("/parent");
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
-    expect(await screen.findByRole("heading", { name: "Sign in to Pacify." })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Sign in to Pacifyco." })).toBeTruthy();
   });
 });
 
@@ -990,7 +990,7 @@ describe("the profile button and its bubble", () => {
     expect(screen.queryByRole("link", { name: "Finish your profile" })).toBeNull();
   });
 
-  test("no bubble once nothing is left to do (items only waiting for Pacify count as done)", async () => {
+  test("no bubble once nothing is left to do (items only waiting for Pacifyco count as done)", async () => {
     signedIn(
       { ...PARENT_PROFILE, role: "sitter" },
       { ...SITTER_CHECKLIST, items: SITTER_CHECKLIST.items.map((item) => ({ ...item, status: "waiting" })) },

@@ -15,7 +15,7 @@ const OPTIONS: { role: ChosenRole; label: string; detail: string; icon: LucideIc
   {
     role: "sitter",
     label: "I'm a sitter",
-    detail: "Care is skilled work. Join the Pacify team.",
+    detail: "Care is skilled work. Join the Pacifyco team.",
     icon: HeartHandshake,
     photo: "sitterHomePlay",
   },
@@ -26,7 +26,7 @@ const OPTIONS: { role: ChosenRole; label: string; detail: string; icon: LucideIc
 // 2026-11-13).
 export function RoleChooser({ value, onChange }: { value: ChosenRole | null; onChange: (role: ChosenRole) => void }) {
   return (
-    <div role="group" aria-label="Choose how you'll use Pacify" className="grid grid-cols-2 gap-3 sm:gap-4">
+    <div role="group" aria-label="Choose how you'll use Pacifyco" className="grid grid-cols-2 gap-3 sm:gap-4">
       {OPTIONS.map(({ role, label, detail, icon: Icon, photo }) => {
         const selected = value === role;
         return (

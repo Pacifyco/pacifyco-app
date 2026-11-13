@@ -226,7 +226,7 @@ def test_sentry_accepts_our_privacy_options():
 
 
 def test_crashes_still_carry_cors_headers_and_say_nothing():
-    """So the web app shows "something went wrong" rather than "couldn't reach Pacify"."""
+    """So the web app shows "something went wrong" rather than "couldn't reach Pacifyco"."""
     from fastapi.testclient import TestClient
 
     from app.main import create_app
