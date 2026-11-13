@@ -32,10 +32,10 @@ function ApplicationProgress({ checklist }: { checklist: SitterChecklist }) {
       <h2 className="text-h3">{toDo ? "Finish your application" : "Your application is in review"}</h2>
       <p className="text-small text-muted">
         {done} of {checklist.items.length} steps done
-        {waiting ? `, ${waiting} with Pacify for review` : ""}.{" "}
+        {waiting ? `, ${waiting} with Pacifyco for review` : ""}.{" "}
         {toDo
-          ? "Families can find you once every step passes and Pacify approves your profile."
-          : "Pacify is checking what you've sent. We'll let you know as soon as your profile is live."}
+          ? "Families can find you once every step passes and Pacifyco approves your profile."
+          : "Pacifyco is checking what you've sent. We'll let you know as soon as your profile is live."}
       </p>
       <ButtonLink to="/sitter/profile" arrow={toDo > 0} variant={toDo ? "primary" : "secondary"}>
         {toDo ? "Continue your application" : "See your steps"}
@@ -60,7 +60,7 @@ function ApprovedWelcome({ pinCode, onClose }: { pinCode: string | null; onClose
         You're approved
       </p>
       <p className="pr-7 text-ink">
-        Families {pinCode ? `near ${pinCode}` : "near you"} can now find you on Pacify.
+        Families {pinCode ? `near ${pinCode}` : "near you"} can now find you on Pacifyco.
       </p>
     </Card>
   );

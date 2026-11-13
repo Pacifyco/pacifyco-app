@@ -7,7 +7,7 @@ Do not re-read the whole codebase to find your place: `progress.md` says where w
 
 ## 1. What Pacifyco is
 
-Pacify (company: Pacifyco) is a babysitter marketplace for parents in Bengaluru. Parents browse vetted
+Pacifyco (company: Pacifyco LLP; in all app copy the brand is "Pacifyco", never "Pacify", decided 2026-11-13) is a babysitter marketplace for parents in Bengaluru. Parents browse vetted
 sitter profiles and book scheduled care, paid by the hour at the plan the parent picks (a short first
 booking with the parent at home is encouraged with a new sitter). Pacify vets everyone, can suspend or remove any user,
 and pays sitters within 12 hours of each booking.

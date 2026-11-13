@@ -25,7 +25,7 @@ export function isIndianMobile(raw: string): boolean {
 
 export function outsideAreaMessage(pinCode: string, pinCodes: string[] | undefined): string {
   const list = pinCodes?.length ? ` For now we're in these parts of Bengaluru: ${areaList(pinCodes)}.` : "";
-  return `Pacify isn't in ${pinCode} yet.${list}`;
+  return `Pacifyco isn't in ${pinCode} yet.${list}`;
 }
 
 const FIELD_MESSAGES: Record<keyof Details, string> = {
@@ -98,14 +98,14 @@ function DetailsForm({ initial, home, role }: { initial: Details; home: string; 
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  // The pin codes Pacify serves, up front, so nobody types one only to be turned away.
+  // The pin codes Pacifyco serves, up front, so nobody types one only to be turned away.
   const served = serviceArea.data?.pin_codes;
   const pinHint =
     role === "sitter"
       ? `Where you live. We're matching sitters with families in ${served?.length ? areaList(served) : "a few Bengaluru neighbourhoods"}.`
       : served?.length
-        ? `For now Pacify is in ${areaList(served)}.`
-        : "Pacify is starting in a few Bengaluru neighbourhoods.";
+        ? `For now Pacifyco is in ${areaList(served)}.`
+        : "Pacifyco is starting in a few Bengaluru neighbourhoods.";
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -148,8 +148,8 @@ function DetailsForm({ initial, home, role }: { initial: Details; home: string; 
         maxLength={10}
         hint={
           role === "sitter"
-            ? "Pacify uses it to reach you about your work."
-            : "Pacify uses it to reach you about your bookings."
+            ? "Pacifyco uses it to reach you about your work."
+            : "Pacifyco uses it to reach you about your bookings."
         }
         value={form.phone}
         onChange={(event) => set("phone", event.target.value.replace(/\D/g, ""))}
@@ -205,8 +205,8 @@ export function DetailsPage() {
       <h1>Your details.</h1>
       <p className="mt-4 text-muted">
         {profile.role === "parent"
-          ? "So your sitter knows where to come, and Pacify can reach you."
-          : "So Pacify can reach you about your work."}
+          ? "So your sitter knows where to come, and Pacifyco can reach you."
+          : "So Pacifyco can reach you about your work."}
       </p>
       <DetailsForm
         initial={initial}

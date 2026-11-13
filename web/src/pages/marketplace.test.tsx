@@ -377,7 +377,7 @@ describe("a sitter's profile page", () => {
     const { container } = renderAt("/parent/sitters/s1");
     expect(await screen.findByRole("heading", { level: 1, name: "Lakshmi Nair" })).toBeTruthy();
     expect(screen.getByText("4 years' experience · under 1 km away · Joined Nov 2026")).toBeTruthy();
-    expect(screen.queryByText("New to Pacify")).toBeNull();
+    expect(screen.queryByText("New to Pacifyco")).toBeNull();
     expect(screen.getByText("I love storytime.")).toBeTruthy();
     expect(screen.getByText("Comfortable with ages 3–5")).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Languages" })).getByText("Tamil")).toBeTruthy();
@@ -395,7 +395,7 @@ describe("a sitter's profile page", () => {
     expect(container.textContent).not.toMatch(/₹|per hour|\/hour/);
   });
 
-  test("each check opens to say what Pacify checked", async () => {
+  test("each check opens to say what Pacifyco checked", async () => {
     mockApi({ "GET /parent/sitters/s1": () => jsonResponse(DETAIL), "GET /parent/children": CHILDREN });
     renderAt("/parent/sitters/s1");
     const badge = (await screen.findByText("ID & police verified")).closest("details")!;

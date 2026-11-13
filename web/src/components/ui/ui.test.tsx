@@ -134,7 +134,7 @@ describe("chips", () => {
     expect(chip.querySelector("svg")).toBeTruthy();
   });
 
-  test("verified labels only claim checks Pacify does", () => {
+  test("verified labels only claim checks Pacifyco does", () => {
     const labels = Object.values(VERIFIED_LABELS).join(" ").toLowerCase();
     for (const claim of ["address", "plus", "100%", "vetted", "background"]) {
       expect(labels).not.toContain(claim);
@@ -180,7 +180,7 @@ describe("SitterCard", () => {
     expect(screen.getByRole("heading", { name: "Priya Raman" })).toBeTruthy();
     expect(screen.getByText("6 yrs · Indiranagar · Ages 1–8")).toBeTruthy();
     expect(screen.getByText("ID & police verified")).toBeTruthy();
-    expect(screen.getByText("Trusted by 14 Pacify families")).toBeTruthy();
+    expect(screen.getByText("Trusted by 14 Pacifyco families")).toBeTruthy();
     expect(screen.getByRole("link", { name: "See Priya's profile" }).getAttribute("href")).toBe("/sitters/priya");
   });
 
@@ -199,7 +199,7 @@ describe("SitterCard", () => {
       <SitterCard {...sitter} rating={null} reviewCount={0} familiesServed={0} yearsExperience={1} />,
     );
     expect(screen.getByText("PR")).toBeTruthy();
-    expect(container.textContent).not.toContain("New to Pacify"); // the card stays short (UX review)
+    expect(container.textContent).not.toContain("New to Pacifyco"); // the card stays short (UX review)
     expect(screen.getByText("1 yr · Indiranagar · Ages 1–8")).toBeTruthy();
     expect(container.textContent).not.toContain("Trusted by");
   });
@@ -260,9 +260,9 @@ describe("EmergencyButton", () => {
 
     fireEvent.click(button);
     expect(onConfirm).not.toHaveBeenCalled();
-    expect(screen.getByRole("alertdialog", { name: "Alert the Pacify team now?" })).toBeTruthy();
+    expect(screen.getByRole("alertdialog", { name: "Alert the Pacifyco team now?" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Yes, alert Pacify" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, alert Pacifyco" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 

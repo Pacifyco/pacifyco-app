@@ -14,10 +14,10 @@ describe("routes", () => {
   test("the home page opens the sign-in box in place of its button; there's no sign-in page", async () => {
     const { router } = renderApp("/");
     fireEvent.click(await screen.findByRole("button", { name: /Sign in or join/ }));
-    expect(await screen.findByRole("heading", { name: "Sign in to Pacify." })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Sign in to Pacifyco." })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Sign in or join/ })).toBeNull();
     // The photos come before the box on the page.
-    const box = screen.getByRole("heading", { name: "Sign in to Pacify." });
+    const box = screen.getByRole("heading", { name: "Sign in to Pacifyco." });
     const photo = document.querySelector("main img")!;
     expect(photo.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(router.state.location.pathname).toBe("/");
@@ -26,20 +26,20 @@ describe("routes", () => {
 
   test("the old /sign-in address lands on the home page with the box open", async () => {
     const { router } = renderApp("/sign-in");
-    expect(await screen.findByRole("heading", { name: "Sign in to Pacify." })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Sign in to Pacifyco." })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "A little help for you. A little more fun for them." })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/");
   });
 
   test.each(["/parent", "/sitter", "/admin"])("%s needs sign-in", async (path) => {
     const { router } = renderApp(path);
-    expect(await screen.findByRole("heading", { name: "Sign in to Pacify." })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Sign in to Pacifyco." })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/");
   });
 
   test("the layout links home and has a main landmark", async () => {
     renderApp("/");
-    expect(await screen.findByRole("link", { name: "Pacify home" })).toBeTruthy();
+    expect(await screen.findByRole("link", { name: "Pacifyco home" })).toBeTruthy();
     expect(screen.getByRole("main")).toBeTruthy();
   });
 });

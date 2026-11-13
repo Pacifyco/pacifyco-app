@@ -32,8 +32,8 @@ REQUIRED_EMERGENCY_CONTACTS = 2  # per family (CLAUDE.md 7)
 
 class ItemStatus(StrEnum):
     to_do = "to_do"  # something for them to fill in or upload
-    waiting = "waiting"  # sent; Pacify hasn't reviewed it yet
-    done = "done"  # filled in (items Pacify doesn't review)
+    waiting = "waiting"  # sent; Pacifyco hasn't reviewed it yet
+    done = "done"  # filled in (items Pacifyco doesn't review)
     approved = "approved"
     rejected = "rejected"  # reviewed and turned down; they need to fix it
 

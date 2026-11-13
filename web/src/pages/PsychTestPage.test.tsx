@@ -131,7 +131,7 @@ describe("the psychology screening page", () => {
     expect(await screen.findByText("You've passed the psychology screening.")).toBeTruthy();
   });
 
-  test("a failed attempt waits for Pacify to allow a retake", async () => {
+  test("a failed attempt waits for Pacifyco to allow a retake", async () => {
     mockApi({
       status: "failed",
       submitted_at: "2026-11-04T10:00:00Z",
@@ -139,11 +139,11 @@ describe("the psychology screening page", () => {
       retake_allowed: false,
     });
     renderPage();
-    expect(await screen.findByText(/Pacify will be in touch about whether you can take the screening again/)).toBeTruthy();
+    expect(await screen.findByText(/Pacifyco will be in touch about whether you can take the screening again/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 
-  test("once Pacify allows it, a failed attempt offers to try again with a fresh form", async () => {
+  test("once Pacifyco allows it, a failed attempt offers to try again with a fresh form", async () => {
     mockApi({
       status: "failed",
       submitted_at: "2026-11-04T10:00:00Z",
@@ -151,7 +151,7 @@ describe("the psychology screening page", () => {
       retake_allowed: true,
     });
     renderPage();
-    expect(await screen.findByText("You didn't pass this time, and Pacify has said you can try again.")).toBeTruthy();
+    expect(await screen.findByText("You didn't pass this time, and Pacifyco has said you can try again.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 

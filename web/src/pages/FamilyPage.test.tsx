@@ -182,7 +182,7 @@ describe("the family page", () => {
     });
     renderFamilyPage();
     expect(
-      await screen.findByText("Pacify couldn't accept this birth certificate. Please upload a new one below."),
+      await screen.findByText("Pacifyco couldn't accept this birth certificate. Please upload a new one below."),
     ).toBeTruthy();
     expect(screen.getByText("Reason: The name doesn't match")).toBeTruthy();
     expect(screen.getByText("Verified 13 Nov. The birth certificate has been deleted.")).toBeTruthy();

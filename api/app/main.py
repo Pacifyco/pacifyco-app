@@ -41,7 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     init_sentry(settings)
 
-    app = FastAPI(title="Pacify API")
+    app = FastAPI(title="Pacifyco API")
     app.dependency_overrides[get_settings] = lambda: settings
 
     # Added first so it sits inside CORS: even crashes get CORS headers (app/errors.py).

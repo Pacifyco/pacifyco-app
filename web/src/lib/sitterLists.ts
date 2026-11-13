@@ -1,7 +1,7 @@
 // The fixed lists a sitter picks from (UX review 2026-11-13; same lists as api/app/services/sitters.py),
 // and the parts of the day parents filter by (api/app/services/availability.py PARTS_OF_DAY).
 
-/** Pacify takes children from 18 months (CLAUDE.md 6.4), so there's no infant group. Ages in months. */
+/** Pacifyco takes children from 18 months (CLAUDE.md 6.4), so there's no infant group. Ages in months. */
 export const AGE_GROUPS = [
   { name: "Toddler", from: 18, to: 36, low: "1½", high: "3", label: "Toddler (18 months–3)" },
   { name: "Preschool", from: 36, to: 72, low: "3", high: "5", label: "Preschool (3–5)" },

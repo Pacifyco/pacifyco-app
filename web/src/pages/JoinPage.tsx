@@ -48,11 +48,11 @@ export function JoinPage() {
                 Care that's <span className="text-coral-display">met</span>, checked and ready.
               </>
             }
-            body="Every sitter is ID and police verified, referenced and screened by Pacify, and you can start with a short booking while you're at home."
+            body="Every sitter is ID and police verified, referenced and screened by Pacifyco, and you can start with a short booking while you're at home."
             photo="parentsDinnerCouple"
           />
           <div className="mx-auto w-full max-w-[44rem] text-center lg:mx-0 lg:max-w-none lg:text-left">
-            <h1>How will you use Pacify?</h1>
+            <h1>How will you use Pacifyco?</h1>
             <p className="mt-4 text-muted">Choose one. Each account is either a parent or a sitter.</p>
             <div className="mt-6">
               <RoleChooser value={role} onChange={setRole} />
@@ -104,11 +104,11 @@ export function JoinPage() {
   return (
     <section className="mx-auto max-w-[36rem] text-center">
       <h1>You're joining as {roleLabel}.</h1>
-      <p className="mt-4 text-muted">Is that right? Once your account is set up, only the Pacify team can change this.</p>
+      <p className="mt-4 text-muted">Is that right? Once your account is set up, only the Pacifyco team can change this.</p>
       {failure && failure.code !== "already_signed_up" && (
         <p role="alert" className="mt-4 text-small text-danger">
           {failure.code === "email_in_use"
-            ? "This email already has a Pacify account. Please sign in with a different email, or contact us."
+            ? "This email already has a Pacifyco account. Please sign in with a different email, or contact us."
             : failure.code === "validation_error"
               ? "Something didn't go through. Please reload the page and try again."
               : failure.message}

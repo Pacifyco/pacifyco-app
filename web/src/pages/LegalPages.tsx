@@ -1,4 +1,6 @@
+import { ArrowLeft } from "lucide-react";
 import { useMemo } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
 import { PRIVACY_POLICY, fillFamilyTerms, fillSitterTerms, type FilledTerms } from "../lib/legal";
 import { Markdown, sections } from "../lib/markdown";
 
@@ -71,6 +73,37 @@ export function ParentTermsPage() {
   return <FinalTerms name="Family Terms" fill={fillFamilyTerms} />;
 }
 
+/** "← Back" to the page they came from (the footer link is on every page); home if they opened the
+policy directly, e.g. from a bookmark (Reuben, 2026-11-13). */
+function BackToPrevious() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const cameFromApp = location.key !== "default";
+  const content = (
+    <>
+      <ArrowLeft aria-hidden="true" size={18} strokeWidth={1.75} />
+      Back
+    </>
+  );
+  const className = "mb-4 inline-flex items-center gap-2 text-small text-coral-deep underline-offset-4 hover:underline";
+  return cameFromApp ? (
+    <button type="button" onClick={() => navigate(-1)} className={className}>
+      {content}
+    </button>
+  ) : (
+    <Link to="/" className={className}>
+      {content}
+    </Link>
+  );
+}
+
 export function PrivacyPolicyPage() {
-  return <LegalArticle body={PRIVACY_POLICY.body} version={PRIVACY_POLICY.meta.version} />;
+  return (
+    <>
+      <div className="mx-auto max-w-[72rem]">
+        <BackToPrevious />
+      </div>
+      <LegalArticle body={PRIVACY_POLICY.body} version={PRIVACY_POLICY.meta.version} />
+    </>
+  );
 }

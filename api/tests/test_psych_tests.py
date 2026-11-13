@@ -255,3 +255,14 @@ def test_cannot_claim_another_sitters_attempt_by_guessing_the_id(client, db_engi
     missing = uuid.uuid4()
     response = client.post(f"/admin/psych-attempts/{missing}/decision", json={"passed": True}, headers=auth_for(admin))
     assert response.status_code == 404
+
+
+def test_the_placeholder_questions_say_pacifyco(client, db_engine):  # noqa: F811
+    # The brand is "Pacifyco" everywhere (Reuben, 2026-11-13; migration c4e8b2a6d1f3).
+    with db_engine.connect() as conn:
+        texts = conn.execute(
+            text("SELECT prompt || ' ' || coalesce(array_to_string(options, ' '), '') FROM psych_questions")
+        ).scalars()
+        words = " ".join(texts)
+    assert "Pacifyco" in words
+    assert " Pacify " not in f" {words} ".replace(",", " ").replace("?", " ")

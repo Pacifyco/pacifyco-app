@@ -259,7 +259,7 @@ def test_cli_wont_turn_a_parent_into_an_admin(client, db_engine, database_url, u
     assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
     assert cli.create_admin(user["email"], "X", user["id"], database_url) == 1
     assert row(db_engine, "SELECT role FROM profiles WHERE id = :id", user["id"])["role"] == "parent"
-    assert "already has a Pacify profile" in capsys.readouterr().err
+    assert "already has a Pacifyco profile" in capsys.readouterr().err
 
 
 def test_cli_with_user_id_works_without_supabase(db_engine, database_url, user, capsys):
@@ -350,7 +350,7 @@ def test_cli_keeps_someone_with_audit_history(client, db_engine, database_url, u
 
 def test_cli_delete_unknown_email(database_url, capsys):
     assert cli.delete_empty_profile("nobody@example.com", True, database_url) == 1
-    assert "No Pacify profile" in capsys.readouterr().err
+    assert "No Pacifyco profile" in capsys.readouterr().err
 
 
 def test_cli_explains_a_connection_problem_in_one_line(monkeypatch, capsys):

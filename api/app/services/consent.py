@@ -89,7 +89,7 @@ def accept(
     if version != CONSENT_VERSION:
         raise AppError(409, "consent_outdated", "The consent form has been updated. Please read the new version.")
     if db.get(Parent, parent_id) is None:  # a parent profile without its parent record: edited outside the app
-        raise AppError(409, "account_incomplete", "Your account isn't fully set up. Please contact Pacify.")
+        raise AppError(409, "account_incomplete", "Your account isn't fully set up. Please contact Pacifyco.")
     documents = legal.check_accepted(db, Role.parent, terms, legal.outstanding(db, parent_id, Role.parent))
 
     for kind in REQUIRED_KINDS:

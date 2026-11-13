@@ -233,7 +233,7 @@ function ProfileForm({
       />
       <ChipPicker
         label="Age groups you care for"
-        hint="Pacify looks after children from 18 months."
+        hint="Pacifyco looks after children from 18 months."
         options={AGE_OPTIONS}
         value={form.age_groups}
         error={fields.age_groups}
@@ -252,7 +252,7 @@ function ProfileForm({
         onChange={(event) => setForm({ ...form, first_aid: event.target.checked })}
       />
       <Checkbox
-        label="When I reach the most experienced level, Pacify may show parents one of my references (their name and how they know me, never their phone number)."
+        label="When I reach the most experienced level, Pacifyco may show parents one of my references (their name and how they know me, never their phone number)."
         checked={form.reference_shared_consent}
         onChange={(event) => setForm({ ...form, reference_shared_consent: event.target.checked })}
       />
@@ -316,7 +316,7 @@ function HealthDisclosureForm({ initial, onContinue }: { initial: string; onCont
       <Textarea
         label="Health disclosure"
         optional
-        hint="Any serious or long-term condition or allergy that could affect safe care. Only Pacify admins can see this — never shown to parents, and used only to match you safely."
+        hint="Any serious or long-term condition or allergy that could affect safe care. Only Pacifyco admins can see this — never shown to parents, and used only to match you safely."
         value={value}
         onChange={(event) => setValue(event.target.value)}
       />
@@ -468,7 +468,7 @@ function PayoutDetailsSection({ onContinue }: { onContinue: () => void }) {
     <Card as="section" className="flex flex-col gap-5">
       <div>
         <h2 className="text-h3">Payout details</h2>
-        <p className="mt-1 text-small text-muted">How Pacify pays you, within 12 hours of each booking.</p>
+        <p className="mt-1 text-small text-muted">How Pacifyco pays you, within 12 hours of each booking.</p>
       </div>
       {details.isPending && <p className="text-small text-muted">Loading…</p>}
       {details.data && <PayoutDetailsForm initial={payoutInput(details.data)} onContinue={onContinue} />}
@@ -485,7 +485,7 @@ type Reference = {
   relationship: string;
   phone: string;
   outcome: ReferenceOutcome;
-  /** Why Pacify couldn't accept it, if it was rejected. */
+  /** Why Pacifyco couldn't accept it, if it was rejected. */
   rejection_reason: string | null;
 };
 type ReferenceInput = { name: string; relationship: string; phone: string };
@@ -539,7 +539,7 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
     <Card as="section" className="flex flex-col gap-5">
       <div>
         <h2 className="text-h3">References</h2>
-        <p className="mt-1 text-small text-muted">Two people who can vouch for you. Pacify will contact them.</p>
+        <p className="mt-1 text-small text-muted">Two people who can vouch for you. Pacifyco will contact them.</p>
       </div>
       {references.isSuccess && references.data.length > 0 && (
         <ul className="flex flex-col gap-2">
@@ -552,7 +552,7 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
                 </p>
                 {reference.outcome === "rejected" && (
                   <div className="mt-1 text-small text-danger">
-                    <p>Pacify couldn't accept this reference. Please remove it and add someone else.</p>
+                    <p>Pacifyco couldn't accept this reference. Please remove it and add someone else.</p>
                     {reference.rejection_reason && <p>Reason: {reference.rejection_reason}</p>}
                   </div>
                 )}
@@ -618,7 +618,7 @@ function DocumentsSection({ onContinue }: { onContinue: () => void }) {
     <Card as="section" className="flex flex-col gap-5">
       <div>
         <h2 className="text-h3">Documents</h2>
-        <p className="mt-1 text-small text-muted">Only Pacify admins view these, and every view is logged.</p>
+        <p className="mt-1 text-small text-muted">Only Pacifyco admins view these, and every view is logged.</p>
       </div>
       <DocumentUpload
         type="photo"

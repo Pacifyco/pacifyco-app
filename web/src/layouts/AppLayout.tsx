@@ -16,7 +16,7 @@ export function AppLayout() {
         <div className="mx-auto flex max-w-content items-center justify-between gap-3 px-4 py-2 sm:px-5 sm:py-3">
           {/* Wordmark: 24px tall on phones, 28px on desktop; reversed version in dark mode (design.md
               section 6). PNG copies of the supplied files (sources in /assets); swap for SVGs when supplied. */}
-          <Link to="/" aria-label="Pacify home" className="inline-flex shrink-0 py-1 no-underline">
+          <Link to="/" aria-label="Pacifyco home" className="inline-flex shrink-0 py-1 no-underline">
             <img src={wordmarkUrl} alt="" width={426} height={112} className="h-6 w-auto sm:h-7 dark:hidden" />
             <img
               src={wordmarkReversedUrl}

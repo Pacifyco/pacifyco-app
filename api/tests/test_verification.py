@@ -251,7 +251,7 @@ def test_approving_emails_her_and_rejecting_does_not(client, db_engine, sitter, 
     assert review(client, reviewer, f"/admin/sitters/{sitter['id']}/decision").status_code == 200
     [email] = mailbox.sent
     assert email.to == scalar(db_engine, "SELECT email FROM profiles WHERE id = :id", id=sitter["id"])
-    assert email.subject == "You're approved on Pacify"
+    assert email.subject == "You're approved on Pacifyco"
     assert email.button_url.endswith("/sitter")
 
 
@@ -361,7 +361,7 @@ def test_approving_a_child_emails_the_parent(client, db_engine, storage, parent,
     review(client, reviewer, f"/admin/children/{child_id}/decision")
     [email] = mailbox.sent
     assert email.to == scalar(db_engine, "SELECT email FROM profiles WHERE id = :id", id=parent["id"])
-    assert email.subject == "Asha is verified on Pacify"
+    assert email.subject == "Asha is verified on Pacifyco"
     assert "Every child on your account is now verified" in email.body
     # Only a first name and a link: never a date of birth.
     assert "2023" not in email.body

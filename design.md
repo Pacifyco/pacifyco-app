@@ -41,7 +41,7 @@ people *feel* Pacify.
   2026-11-09): the theme switch in the header is a ☀️ / 🌙 pair, light and dark only (no "System").
 - British/Indian spelling (colour, neighbourhood, organise). No Oxford comma.
 - Numerals: 6 years, 6:30 pm, 12 Oct 2026, ₹250/hour.
-- In copy the brand is **Pacify**; the wordmark reads **pacifyco**.
+- In copy the brand is **Pacifyco**, never "Pacify" (Reuben, 2026-11-13); the wordmark reads **pacifyco**.
 
 | Use | Avoid |
 | --- | --- |

@@ -11,7 +11,7 @@ type AuthHeroProps = {
 // Decorative split-screen panel for the sign-in and join pages: a gradient ground, two soft blobs
 // (design.md's calm, never-bouncy motion applies to nothing here -- they're static), the brand
 // promise and a photo. Hidden below `lg` so the form is the first thing people see on a phone.
-// Not a heading: the page's own <h1> (e.g. "Sign in to Pacify.") is the one real heading on the page.
+// Not a heading: the page's own <h1> (e.g. "Sign in to Pacifyco.") is the one real heading on the page.
 export function AuthHero({ eyebrow, heading, body, photo }: AuthHeroProps) {
   return (
     <div className="relative hidden flex-col justify-between gap-8 overflow-hidden rounded-lg bg-gradient-to-br from-surface-tint via-surface-sunken to-surface-raised p-8 lg:flex">

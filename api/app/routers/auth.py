@@ -102,7 +102,7 @@ class ServiceArea(BaseModel):
 
 @router.get("/service-area")
 def get_service_area(db: DbSession) -> ServiceArea:
-    """The pin codes Pacify works in, so the sign-up form can check before sending. Public."""
+    """The pin codes Pacifyco works in, so the sign-up form can check before sending. Public."""
     return ServiceArea(pin_codes=service_area.active_pin_codes(db))
 
 

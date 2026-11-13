@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { renderApp } from "../test/renderApp";
 import { MemoryRouter } from "react-router";
 import { describe, expect, test } from "vitest";
 import { sections } from "../lib/markdown";
@@ -30,6 +31,21 @@ describe("legal pages", () => {
       { id: "1-who", text: "1. Who" },
       { id: "2-what", text: "2. What" },
     ]);
+  });
+});
+
+describe("the privacy policy's Back button", () => {
+  test("goes back to the page the footer link was pressed on", async () => {
+    const { router } = renderApp("/terms/sitter");
+    fireEvent.click(await screen.findByRole("link", { name: "Privacy policy" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/privacy"));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/terms/sitter"));
+  });
+
+  test("opened directly, it leads home", async () => {
+    renderApp("/privacy");
+    expect((await screen.findByRole("link", { name: "Back" })).getAttribute("href")).toBe("/");
   });
 });
 

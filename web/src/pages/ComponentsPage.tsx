@@ -163,7 +163,7 @@ export function ComponentsPage() {
       <Section title="Emergency button">
         <div className="max-w-[480px]">
           {alerted ? (
-            <p className="text-trust">Preview only: the Pacify team would now be alerted.</p>
+            <p className="text-trust">Preview only: the Pacifyco team would now be alerted.</p>
           ) : (
             <EmergencyButton onConfirm={() => setAlerted(true)} />
           )}

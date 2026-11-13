@@ -18,7 +18,7 @@ export class ApiError extends Error {
   }
 }
 
-const NETWORK_MESSAGE = "We couldn't reach Pacify. Check your connection and try again.";
+const NETWORK_MESSAGE = "We couldn't reach Pacifyco. Check your connection and try again.";
 const GENERIC_MESSAGE = "Something went wrong on our side. Please try again.";
 
 type ErrorBody = { error?: { code?: unknown; message?: unknown; details?: unknown } };

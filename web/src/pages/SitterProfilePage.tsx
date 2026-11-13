@@ -25,13 +25,13 @@ type SitterDetail = SitterSummary & {
 
 type Child = { id: string; name: string; date_of_birth: string };
 
-// What each check means, for the expandable badges (only the checks Pacify does, CLAUDE.md 7).
+// What each check means, for the expandable badges (only the checks Pacifyco does, CLAUDE.md 7).
 const CHECK_DETAILS: Record<VerifiedCheck, string> = {
   id_police:
-    "Pacify checked her government ID, a college or work ID and her police clearance certificate before her profile went live.",
-  references: "Pacify spoke to two people who know her work before her profile went live.",
-  psychology: "She took Pacify's psychology screening, and a Pacify admin reviewed her answers.",
-  first_aid: "She has a first-aid certificate and sent it to Pacify with her application.",
+    "Pacifyco checked her government ID, a college or work ID and her police clearance certificate before her profile went live.",
+  references: "Pacifyco spoke to two people who know her work before her profile went live.",
+  psychology: "She took Pacifyco's psychology screening, and a Pacifyco admin reviewed her answers.",
+  first_aid: "She has a first-aid certificate and sent it to Pacifyco with her application.",
 };
 
 function TrustBadge({ check }: { check: VerifiedCheck }) {
@@ -168,14 +168,14 @@ export function SitterProfilePage() {
         {sitter.photo_url ? (
           <img
             src={sitter.photo_url}
-            alt={sitter.full_name ?? "Pacify sitter"}
+            alt={sitter.full_name ?? "Pacifyco sitter"}
             className="mb-5 size-[120px] rounded-pill object-cover md:size-[160px]"
           />
         ) : (
           <span aria-hidden="true" className="hidden md:block" />
         )}
         <div className="min-w-0">
-          <h1 className="break-words">{sitter.full_name ?? "Pacify sitter"}</h1>
+          <h1 className="break-words">{sitter.full_name ?? "Pacifyco sitter"}</h1>
           <p className="mt-2 text-muted">{facts.join(" · ")}</p>
           {sitter.avg_rating !== null && sitter.review_count > 0 && (
             <p className="mt-2 flex items-center gap-1 text-small text-muted">
@@ -239,7 +239,7 @@ export function SitterProfilePage() {
               {sitter.reference.name} · {sitter.reference.relationship}
             </figcaption>
           </figure>
-          <p className="mt-3 text-small text-muted">Checked by Pacify and shared with {firstName}'s permission.</p>
+          <p className="mt-3 text-small text-muted">Checked by Pacifyco and shared with {firstName}'s permission.</p>
         </Card>
       )}
 
