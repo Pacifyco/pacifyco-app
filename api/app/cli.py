@@ -2,6 +2,7 @@
 
     python -m app.cli create-admin --email someone@example.com --name "Full Name"
     python -m app.cli delete-empty-profile --email someone@example.com [--yes]
+    python -m app.cli reset-staging-accounts [--yes]
 
 The person signs in to the web app once first (that creates their Supabase sign-in account), then this
 gives them an admin profile. Connects with MIGRATION_DATABASE_URL (the database owner), falling back to
@@ -12,7 +13,10 @@ import argparse
 import os
 import sys
 import uuid
+from collections.abc import Callable
+from urllib.parse import urlsplit
 
+import httpx2 as httpx
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
@@ -20,7 +24,7 @@ from sqlalchemy.orm import Session
 from app.db import sqlalchemy_url
 from app.errors import AppError
 from app.models import Profile
-from app.services import accounts
+from app.services import accounts, staging_reset
 from app.settings import get_settings
 
 
@@ -44,7 +48,7 @@ def create_admin(email: str, name: str, user_id: uuid.UUID | None, database_url:
             try:
                 accounts.create_admin(db, user_id=user_id, email=email, full_name=name)
             except AppError:
-                print(f"{email} already has a Pacify profile, so it can't become an admin.", file=sys.stderr)
+                print(f"{email} already has a Pacifyco profile, so it can't become an admin.", file=sys.stderr)
                 return 1
     finally:
         engine.dispose()
@@ -59,7 +63,7 @@ def delete_empty_profile(email: str, confirmed: bool, database_url: str) -> int:
         with Session(engine) as db:
             profile = db.scalar(select(Profile).where(func.lower(Profile.email) == email.lower()))
             if profile is None:
-                print(f"No Pacify profile for {email}.", file=sys.stderr)
+                print(f"No Pacifyco profile for {email}.", file=sys.stderr)
                 return 1
             if not accounts.is_empty(db, profile):
                 print(
@@ -76,6 +80,93 @@ def delete_empty_profile(email: str, confirmed: bool, database_url: str) -> int:
     return 0
 
 
+def _supabase() -> tuple[str, str]:
+    """Staging's Supabase URL and service-role key, from the environment (never from code or chat)."""
+    return os.environ.get("SUPABASE_URL", "").rstrip("/"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+
+
+def _remove_file(path: str) -> None:
+    url, key = _supabase()
+    response = httpx.request(
+        "DELETE",
+        f"{url}/storage/v1/object/documents",
+        headers={"apikey": key, "Authorization": f"Bearer {key}"},
+        json={"prefixes": [path]},
+        timeout=10,
+    )
+    response.raise_for_status()
+
+
+def _remove_sign_in(user_id: uuid.UUID) -> None:
+    url, key = _supabase()
+    response = httpx.request(
+        "DELETE",
+        f"{url}/auth/v1/admin/users/{user_id}",
+        headers={"apikey": key, "Authorization": f"Bearer {key}"},
+        timeout=10,
+    )
+    if response.status_code != 404:  # already gone is fine
+        response.raise_for_status()
+
+
+def reset_staging_accounts(
+    confirmed: bool,
+    database_url: str,
+    remove_file: Callable[[str], None] | None = _remove_file,
+    remove_sign_in: Callable[[uuid.UUID], None] | None = _remove_sign_in,
+) -> int:
+    """Removes every parent and sitter on a staging database (admins stay). Without --yes, only counts."""
+    if os.environ.get("ENVIRONMENT", "").strip().lower() == "production":
+        print("Refused: ENVIRONMENT is production. This is for staging only.", file=sys.stderr)
+        return 1
+    host = urlsplit(database_url).hostname or "?"
+    url, key = _supabase()
+    # Without them the profiles would go but the files and sign-in accounts would stay behind.
+    if confirmed and remove_file is _remove_file and not (url and key):
+        print(
+            "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for staging first, so the stored files and "
+            "sign-in accounts go too.",
+            file=sys.stderr,
+        )
+        return 1
+    engine = create_engine(database_url, connect_args={"connect_timeout": 10})
+    try:
+        with Session(engine) as db:
+            found = staging_reset.find(db)
+            summary = (
+                f"{found.parents} parents ({found.children} children) and {found.sitters} sitters, "
+                f"{found.documents} documents, on the database at {host}"
+            )
+            if not confirmed:
+                print(f"Would remove {summary}. Admins stay. Run again with --yes to remove them.")
+                return 0
+            staging_reset.delete_all(db, found)
+    finally:
+        engine.dispose()
+
+    problems = 0
+    for path in found.storage_paths:
+        try:
+            if remove_file:
+                remove_file(path)
+        except httpx.HTTPError:
+            problems += 1
+    for user_id in found.profile_ids:
+        try:
+            if remove_sign_in:
+                remove_sign_in(user_id)
+        except httpx.HTTPError:
+            problems += 1
+    print(f"Removed {summary}, with their files and sign-in accounts.")
+    if problems:
+        print(
+            f"{problems} files or sign-in accounts couldn't be removed; delete them in the Supabase dashboard.",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -86,8 +177,12 @@ def main(argv: list[str] | None = None) -> int:
     delete = commands.add_parser("delete-empty-profile", help="remove a profile that holds nothing yet")
     delete.add_argument("--email", required=True)
     delete.add_argument("--yes", action="store_true", help="actually delete (otherwise only checks)")
+    reset = commands.add_parser("reset-staging-accounts", help="staging only: remove every parent and sitter")
+    reset.add_argument("--yes", action="store_true", help="actually remove them (otherwise only counts)")
     args = parser.parse_args(argv)
     try:
+        if args.command == "reset-staging-accounts":
+            return reset_staging_accounts(args.yes, _database_url())
         if args.command == "delete-empty-profile":
             return delete_empty_profile(args.email.strip(), args.yes, _database_url())
         return create_admin(args.email.strip(), " ".join(args.name.split()), args.user_id, _database_url())

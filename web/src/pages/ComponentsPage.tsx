@@ -104,7 +104,7 @@ export function ComponentsPage() {
         </div>
         <div className="flex flex-wrap gap-6">
           <IconTile icon={ShieldCheck} label="ID & police checks" />
-          <IconTile icon={CalendarHeart} label="Meet first, free" />
+          <IconTile icon={CalendarHeart} label="Start with a short booking" />
           <IconTile icon={House} label="Care at home" />
           <IconTile icon={Sparkles} label="Play and learning" />
         </div>
@@ -117,13 +117,11 @@ export function ComponentsPage() {
             firstName="Priya"
             yearsExperience={6}
             area="Indiranagar"
-            ageGroups={["Ages 1–8"]}
-            interests={["Storytime", "Art"]}
+            ages="Ages 1–8"
             checks={["id_police", "references", "psychology", "first_aid"]}
             rating={4.8}
             reviewCount={23}
             familiesServed={14}
-            unlocked={false}
             actionHref="/dev/components"
           />
           <SitterCard
@@ -131,13 +129,11 @@ export function ComponentsPage() {
             firstName="Anjali"
             yearsExperience={1}
             area="Koramangala"
-            ageGroups={["Ages 2–5"]}
-            interests={["Music"]}
+            ages="Ages 2–5"
             checks={["id_police", "references", "psychology"]}
             rating={null}
             reviewCount={0}
             familiesServed={0}
-            unlocked
             actionHref="/dev/components"
           />
         </div>
@@ -167,7 +163,7 @@ export function ComponentsPage() {
       <Section title="Emergency button">
         <div className="max-w-[480px]">
           {alerted ? (
-            <p className="text-trust">Preview only: the Pacify team would now be alerted.</p>
+            <p className="text-trust">Preview only: the Pacifyco team would now be alerted.</p>
           ) : (
             <EmergencyButton onConfirm={() => setAlerted(true)} />
           )}

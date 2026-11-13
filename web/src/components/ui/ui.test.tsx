@@ -134,7 +134,7 @@ describe("chips", () => {
     expect(chip.querySelector("svg")).toBeTruthy();
   });
 
-  test("verified labels only claim checks Pacify does", () => {
+  test("verified labels only claim checks Pacifyco does", () => {
     const labels = Object.values(VERIFIED_LABELS).join(" ").toLowerCase();
     for (const claim of ["address", "plus", "100%", "vetted", "background"]) {
       expect(labels).not.toContain(claim);
@@ -166,24 +166,22 @@ const sitter: SitterCardProps = {
   firstName: "Priya",
   yearsExperience: 6,
   area: "Indiranagar",
-  ageGroups: ["Ages 1–8"],
-  interests: ["Storytime"],
+  ages: "Ages 1–8",
   checks: ["id_police", "first_aid"],
   rating: 4.8,
   reviewCount: 23,
   familiesServed: 14,
-  unlocked: false,
   actionHref: "/sitters/priya",
 };
 
 describe("SitterCard", () => {
-  test("shows who, checks, experience and the meet-first action", () => {
+  test("shows who, checks, experience and a link to the profile", () => {
     withRouter(<SitterCard {...sitter} />);
     expect(screen.getByRole("heading", { name: "Priya Raman" })).toBeTruthy();
-    expect(screen.getByText("6 years' experience · Indiranagar")).toBeTruthy();
+    expect(screen.getByText("6 yrs · Indiranagar · Ages 1–8")).toBeTruthy();
     expect(screen.getByText("ID & police verified")).toBeTruthy();
-    expect(screen.getByText("Trusted by 14 Pacify families")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Meet Priya first" }).getAttribute("href")).toBe("/sitters/priya");
+    expect(screen.getByText("Trusted by 14 Pacifyco families")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "See Priya's profile" }).getAttribute("href")).toBe("/sitters/priya");
   });
 
   test("never shows a price", () => {
@@ -191,9 +189,9 @@ describe("SitterCard", () => {
     expect(container.textContent).not.toMatch(/₹|\/hour|rate/i);
   });
 
-  test("unlocked pairs get 'Choose a time'", () => {
-    withRouter(<SitterCard {...sitter} unlocked />);
-    expect(screen.getByRole("link", { name: "Choose a time" })).toBeTruthy();
+  test("the area is left out when unknown", () => {
+    withRouter(<SitterCard {...sitter} area={undefined} />);
+    expect(screen.getByText("6 yrs · Ages 1–8")).toBeTruthy();
   });
 
   test("new sitters show initials, no rating and no family count", () => {
@@ -201,8 +199,8 @@ describe("SitterCard", () => {
       <SitterCard {...sitter} rating={null} reviewCount={0} familiesServed={0} yearsExperience={1} />,
     );
     expect(screen.getByText("PR")).toBeTruthy();
-    expect(screen.getByText("New to Pacify")).toBeTruthy();
-    expect(screen.getByText("1 year's experience · Indiranagar")).toBeTruthy();
+    expect(container.textContent).not.toContain("New to Pacifyco"); // the card stays short (UX review)
+    expect(screen.getByText("1 yr · Indiranagar · Ages 1–8")).toBeTruthy();
     expect(container.textContent).not.toContain("Trusted by");
   });
 });
@@ -262,9 +260,9 @@ describe("EmergencyButton", () => {
 
     fireEvent.click(button);
     expect(onConfirm).not.toHaveBeenCalled();
-    expect(screen.getByRole("alertdialog", { name: "Alert the Pacify team now?" })).toBeTruthy();
+    expect(screen.getByRole("alertdialog", { name: "Alert the Pacifyco team now?" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Yes, alert Pacify" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, alert Pacifyco" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 

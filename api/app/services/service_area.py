@@ -1,4 +1,4 @@
-"""Where Pacify works: sign-up (and later booking) only for active launch pin codes (CLAUDE.md 1)."""
+"""Where Pacifyco works: sign-up (and later booking) only for active launch pin codes (CLAUDE.md 1)."""
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,4 +20,4 @@ def active_pin_codes(db: Session) -> list[str]:
 def require_in_service_area(db: Session, pin_code: str) -> None:
     area = db.get(ServiceAreaPincode, pin_code)
     if area is None or not area.active:
-        raise AppError(422, "outside_service_area", "Pacify isn't available in this pin code yet")
+        raise AppError(422, "outside_service_area", "Pacifyco isn't available in this pin code yet")

@@ -17,6 +17,8 @@ from tests.test_migrations import alembic_config
 
 SUPABASE_URL = "https://testproject.supabase.co"
 ISSUER = f"{SUPABASE_URL}/auth/v1"
+# Test-only Fernet key for encrypted sitter fields (CLAUDE.md section 7); not a real secret.
+TEST_FIELD_ENCRYPTION_KEY = "XkEEsSjgkZsymSGMDk3Qj4eV7DJAXJmiwoCgJMSCKUQ="
 OUR_KEY = ec.generate_private_key(ec.SECP256R1())
 OTHER_KEY = ec.generate_private_key(ec.SECP256R1())
 
@@ -39,6 +41,7 @@ def make_settings(db_engine, supabase_url: str = SUPABASE_URL) -> Settings:
         cors_origins="https://staging.example",
         database_url=db_engine.url.render_as_string(hide_password=False),
         supabase_url=supabase_url,
+        field_encryption_key=TEST_FIELD_ENCRYPTION_KEY,
     )
 
 
@@ -86,7 +89,16 @@ def test_loads_the_profile_and_role(client, db_engine):
     try:
         response = client.get("/me", headers=bearer(token(sub=str(user_id))))
         assert response.status_code == 200
-        assert response.json()["profile"] == {"role": "sitter", "status": "pending", "full_name": "Asha K"}
+        assert response.json()["profile"] == {
+            "role": "sitter",
+            "status": "pending",
+            "full_name": "Asha K",
+            "phone": None,
+            "pin_code": None,
+            "address": None,
+            "relationship_to_child": None,
+            "details_complete": False,
+        }
     finally:
         with db_engine.begin() as conn:
             conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": user_id})

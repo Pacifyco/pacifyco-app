@@ -176,7 +176,7 @@ def test_api_role_cannot_touch_alembic_version(conn):
 
 
 # Records that must never be changed or removed by the API.
-APPEND_ONLY = {"audit_log", "consents", "legal_acceptances"}
+APPEND_ONLY = {"audit_log", "consents", "legal_acceptances", "document_access_log"}
 # Published by migrations only; the API reads them.
 READ_ONLY = {"legal_documents"}
 
@@ -231,23 +231,14 @@ def expect_rejected(conn, sql, params=None, errors=(IntegrityError, DataError)):
             conn.execute(text(sql), params or {})
 
 
-@pytest.mark.parametrize("rate", [7_999, 12_001])
-def test_sitter_rate_outside_80_to_120_rupees_rejected(conn, rate):
-    insert_profile(conn)
-    expect_rejected(
-        conn,
-        "INSERT INTO sitters (profile_id, hourly_rate_paise) VALUES (:id, :rate)",
-        {"id": PROFILE_ID, "rate": rate},
+def test_sitters_have_no_rate_column(conn):
+    # Sitters no longer set a rate (2026-11-03): pay is fixed by level.
+    columns = (
+        conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'sitters'"))
+        .scalars()
+        .all()
     )
-
-
-@pytest.mark.parametrize("rate", [8_000, 12_000])
-def test_sitter_rate_boundaries_accepted(conn, rate):
-    insert_profile(conn)
-    conn.execute(
-        text("INSERT INTO sitters (profile_id, hourly_rate_paise) VALUES (:id, :rate)"),
-        {"id": PROFILE_ID, "rate": rate},
-    )
+    assert "hourly_rate_paise" not in columns
 
 
 def test_unknown_role_rejected(conn):

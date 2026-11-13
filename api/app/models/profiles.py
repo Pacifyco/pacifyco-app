@@ -29,12 +29,16 @@ class Profile(Base):
         CheckConstraint("pin_code ~ '^[0-9]{6}$'", name="pin_code_format"),
         CheckConstraint("lat BETWEEN -90 AND 90", name="lat_range"),
         CheckConstraint("lng BETWEEN -180 AND 180", name="lng_range"),
+        CheckConstraint(
+            "relationship_to_child IS NULL OR relationship_to_child IN ('Mother', 'Father', 'Legal guardian')",
+            name="relationship_to_child",
+        ),
     )
 
     # Same id as the Supabase auth user (not a foreign key: auth lives in Supabase's own schema).
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     role: Mapped[Role] = mapped_column(enum_column(Role, "profile_role"))
-    full_name: Mapped[str] = mapped_column(Text)
+    full_name: Mapped[str | None] = mapped_column(Text)  # asked for after sign-up (CLAUDE.md 6.13)
     phone: Mapped[str | None] = mapped_column(String(20))
     email: Mapped[str] = mapped_column(Text, unique=True)
     status: Mapped[ProfileStatus] = mapped_column(
@@ -42,6 +46,8 @@ class Profile(Base):
     )
     pin_code: Mapped[str | None] = mapped_column(CHAR(6))
     address: Mapped[str | None] = mapped_column(Text)
+    # Parents only, asked for in "Your details" (Reuben, 2026-11-13): Mother, Father or Legal guardian.
+    relationship_to_child: Mapped[str | None] = mapped_column(Text)
     lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     created_at: Mapped[datetime] = created_at()

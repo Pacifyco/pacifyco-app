@@ -1,7 +1,8 @@
+import { SIGN_IN_PATH } from "../pages/SignInPage";
 import type { ReactNode } from "react";
 import { Navigate } from "react-router";
+import { LoadingScreen } from "../components/ui";
 import { useAuth } from "./AuthProvider";
-import { AcceptTermsPage } from "./TermsAgreement";
 import { AREA_PATH, useMe, type Role } from "./useMe";
 
 const BLOCKED = new Set(["suspended", "removed"]);
@@ -11,16 +12,14 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
   const { status } = useAuth();
   const me = useMe();
 
-  if (status === "signed_out") return <Navigate to="/sign-in" replace />;
-  if (status === "loading" || me.isPending) return <p className="text-center text-muted">Loading your account…</p>;
+  if (status === "signed_out") return <Navigate to={SIGN_IN_PATH} replace />;
+  if (status === "loading" || me.isPending) return <LoadingScreen />;
   if (me.isError) return <p className="text-center text-muted">{me.error.message}</p>;
 
   const profile = me.data.profile;
   if (!profile) return <Navigate to="/join" replace />;
   if (BLOCKED.has(profile.status)) return <AccountOnHold removed={profile.status === "removed"} />;
   if (profile.role !== role) return <Navigate to={AREA_PATH[profile.role]} replace />;
-  const toAccept = me.data.terms_to_accept ?? [];
-  if (toAccept.length) return <AcceptTermsPage toAccept={toAccept} />;
   return <>{children}</>;
 }
 
@@ -31,12 +30,12 @@ export function AccountOnHold({ removed }: { removed: boolean }) {
       <h1>{removed ? "This account is closed." : "Your account is on hold."}</h1>
       <p className="mt-4 text-muted">
         {removed
-          ? "The Pacify team has closed this account, so it can't be used any more."
-          : "The Pacify team has paused this account, so it can't be used for now."}{" "}
+          ? "The Pacifyco team has closed this account, so it can't be used any more."
+          : "The Pacifyco team has paused this account, so it can't be used for now."}{" "}
         If you think this is a mistake, you can appeal within 15 days of the decision.
       </p>
       <p className="mt-4 text-muted">
-        Contact us at <a href="mailto:query.pacifyco@gmail.com">query.pacifyco@gmail.com</a> or{" "}
+        Contact us at <a href="mailto:founders@pacifyco.in">founders@pacifyco.in</a> or{" "}
         <a href="tel:+918848873841">+91 8848873841</a>.
       </p>
     </section>

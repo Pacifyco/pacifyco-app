@@ -8,8 +8,22 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import AuditLog, Child, Consent, LegalAcceptance, Parent, Profile, ProfileStatus, Role, Sitter
-from app.services import legal
+from app.models import (
+    AuditLog,
+    AuthorisedAdult,
+    Child,
+    Consent,
+    EmergencyContact,
+    LegalAcceptance,
+    OnboardingStep,
+    Parent,
+    Profile,
+    ProfileStatus,
+    Reference,
+    Role,
+    Sitter,
+)
+from app.services import geocoding
 from app.services.service_area import require_in_service_area
 
 # Indian mobile numbers: 10 digits starting 6–9, optionally written with +91, 91 or a leading 0.
@@ -33,35 +47,70 @@ def sign_up(
     user_id: uuid.UUID,
     email: str,
     role: Role,
-    full_name: str,
-    phone: str,
-    pin_code: str,
-    accepted: list[legal.Accepted],
-    request: legal.RequestInfo,
 ) -> Profile:
-    """Create the profile, its parent or sitter record and the terms acceptances, all or nothing.
-    Status starts as pending (verification). Sign-up can't complete without accepting the terms."""
+    """Create the profile and its parent or sitter record, all or nothing. Only the role is asked for
+    here; the terms are accepted on the consent page, and name, mobile, pin code and address come
+    later too, in the person's area (CLAUDE.md 6.13, decided 2026-11-12). Status starts as pending."""
     if role not in SIGN_UP_ROLES:
         raise AppError(422, "role_not_allowed", "Choose parent or sitter")
-    require_in_service_area(db, pin_code)
-    documents = legal.check_accepted(db, role, accepted)
     if db.get(Profile, user_id) is not None:
         raise _already_signed_up()
     if db.scalar(select(Profile.id).where(Profile.email == email)) is not None:
-        raise AppError(409, "email_in_use", "This email already has a Pacify account")
+        raise AppError(409, "email_in_use", "This email already has a Pacifyco account")
 
-    profile = Profile(id=user_id, role=role, full_name=full_name, phone=phone, email=email, pin_code=pin_code)
+    profile = Profile(id=user_id, role=role, email=email)
     db.add(profile)
     db.flush()  # profile first: the parent or sitter row points at it
     db.add(Parent(profile_id=user_id) if role == Role.parent else Sitter(profile_id=user_id))
     db.flush()
-    legal.record_acceptances(db, user_id, documents, request)
     try:
         db.commit()
     except IntegrityError as exc:  # the same person signing up twice at once
         db.rollback()
         raise _already_signed_up() from exc
     return profile
+
+
+def update_details(
+    db: Session,
+    profile: Profile,
+    geocoder: geocoding.Geocoder,
+    *,
+    full_name: str,
+    phone: str,
+    pin_code: str,
+    address: str,
+    relationship_to_child: str | None = None,
+) -> Profile:
+    """The "your details" part of finishing a profile (CLAUDE.md 6.13). The home pin code must be in
+    the service area (CLAUDE.md 1). The home's map position is looked up when the address changes."""
+    if profile.role not in SIGN_UP_ROLES:
+        raise AppError(403, "forbidden", "This isn't available for your account")
+    if profile.role == Role.parent and not relationship_to_child:
+        raise AppError(
+            422,
+            "validation_error",
+            "Some fields need fixing",
+            [{"field": "body.relationship_to_child", "message": "Please choose your relationship to your child"}],
+        )
+    require_in_service_area(db, pin_code)
+    if profile.lat is None or (address, pin_code) != (profile.address, profile.pin_code):
+        position = geocoding.locate_home(db, geocoder, address, pin_code)
+        profile.lat, profile.lng = position if position else (None, None)
+    profile.full_name = full_name
+    profile.phone = phone
+    profile.pin_code = pin_code
+    profile.address = address
+    if profile.role == Role.parent:
+        profile.relationship_to_child = relationship_to_child
+    db.commit()
+    return profile
+
+
+def details_complete(profile: Profile) -> bool:
+    filled = all((profile.full_name, profile.phone, profile.pin_code, profile.address))
+    # Parents also say how they're related to their children (Reuben, 2026-11-13).
+    return filled and (profile.role != Role.parent or bool(profile.relationship_to_child))
 
 
 def find_auth_user_id(db: Session, email: str) -> uuid.UUID | None:
@@ -91,6 +140,10 @@ def is_empty(db: Session, profile: Profile) -> bool:
         return False
     if db.scalar(select(Consent.id).where(Consent.parent_id == profile.id).limit(1)) is not None:
         return False  # consent records are kept
+    if db.scalar(select(EmergencyContact.id).where(EmergencyContact.parent_id == profile.id).limit(1)) is not None:
+        return False
+    if db.scalar(select(AuthorisedAdult.id).where(AuthorisedAdult.parent_id == profile.id).limit(1)) is not None:
+        return False
     sitter = db.get(Sitter, profile.id)
     if sitter is not None:
         filled = (
@@ -101,19 +154,22 @@ def is_empty(db: Session, profile: Profile) -> bool:
             sitter.upi_id,
             sitter.bio,
             sitter.years_experience,
-            sitter.hourly_rate_paise,
         )
         if any(value is not None for value in filled) or sitter.age_groups or sitter.languages:
+            return False
+        if db.scalar(select(Reference.id).where(Reference.sitter_id == profile.id).limit(1)) is not None:
+            return False
+        if db.scalar(select(OnboardingStep.step).where(OnboardingStep.sitter_id == profile.id).limit(1)) is not None:
             return False
     return True
 
 
 def delete_empty_profile(db: Session, email: str) -> Profile:
-    """Remove a Pacify profile that holds nothing yet, e.g. a test account or one left behind when its
+    """Remove a Pacifyco profile that holds nothing yet, e.g. a test account or one left behind when its
     Supabase sign-in account was deleted. Refuses anything with real records."""
     profile = db.scalar(select(Profile).where(func.lower(Profile.email) == email.lower()))
     if profile is None:
-        raise AppError(404, "not_found", "No Pacify profile with this email")
+        raise AppError(404, "not_found", "No Pacifyco profile with this email")
     if not is_empty(db, profile):
         raise AppError(409, "profile_not_empty", "This account has records, so it can't be deleted this way")
     # Terms acceptances alone don't make an account non-empty: nothing happened under those terms. The

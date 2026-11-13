@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import parentsDinnerCouple640 from "../../assets/photos/parents-dinner-couple-640.jpg";
 import parentsDinnerCouple1200 from "../../assets/photos/parents-dinner-couple-1200.jpg";
 import parentsDinnerFriends640 from "../../assets/photos/parents-dinner-friends-640.jpg";
@@ -41,12 +41,20 @@ type PhotoProps = {
   className?: string;
 };
 
-/** A decorative photo: rounded, gently fades in, never carries information (so alt=""). */
+/** A decorative photo: rounded, gently fades in, never carries information (so alt=""). The fade starts
+once the file has arrived, so a photo already in view never sits faded until a scroll (UX review
+2026-11-13). */
 export function Photo({ name, aspect = "16 / 9", sizes = "(min-width: 640px) 36rem, 100vw", priority, className }: PhotoProps) {
   const photo = PHOTOS[name];
+  const ref = useRef<HTMLImageElement>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (ref.current?.complete) setLoaded(true); // already in the cache: no load event comes
+  }, []);
   const style: CSSProperties = { aspectRatio: aspect, objectPosition: photo.focus };
   return (
     <img
+      ref={ref}
       src={photo.small}
       srcSet={`${photo.small} 640w, ${photo.large} 1200w`}
       sizes={sizes}
@@ -54,7 +62,12 @@ export function Photo({ name, aspect = "16 / 9", sizes = "(min-width: 640px) 36r
       loading={priority ? "eager" : "lazy"}
       decoding="async"
       style={style}
-      className={cx("photo-in block w-full rounded-lg bg-surface-sunken object-cover shadow-soft", className)}
+      onLoad={() => setLoaded(true)}
+      className={cx(
+        "block w-full rounded-lg bg-surface-sunken object-cover shadow-soft",
+        loaded && "photo-in",
+        className,
+      )}
     />
   );
 }

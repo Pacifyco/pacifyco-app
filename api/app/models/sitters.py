@@ -1,22 +1,35 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import ARRAY, CheckConstraint, ForeignKey, LargeBinary, Numeric, Text, false
+from sqlalchemy import ARRAY, CheckConstraint, DateTime, ForeignKey, LargeBinary, Numeric, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
-from app.models.common import enum_column
-
-# Sitter rate limits in paise: ₹80–₹120 per hour, per child (CLAUDE.md 6.2).
-MIN_RATE_PAISE = 8_000
-MAX_RATE_PAISE = 12_000
+from app.models.common import VerificationStatus, enum_column, uuid_pk
 
 
 class PayoutMethod(StrEnum):
     bank = "bank"
     upi = "upi"
+
+
+class SitterLevel(StrEnum):
+    """CLAUDE.md 6.2: set by an admin; a sitter works only her own level's plan."""
+
+    pause = "pause"
+    unwind = "unwind"
+    recharge = "recharge"
+
+
+class OnboardingStepName(StrEnum):
+    """The onboarding steps an admin reviews directly (CLAUDE.md 7 steps 1-3). References (step 4)
+    and the psychology test (step 5) keep their own outcomes, on `references` and `psych_attempts`."""
+
+    profile = "profile"
+    identity_documents = "identity_documents"
+    police_certificate = "police_certificate"
 
 
 class OnboardingStatus(StrEnum):
@@ -28,7 +41,6 @@ class OnboardingStatus(StrEnum):
 class Sitter(Base):
     __tablename__ = "sitters"
     __table_args__ = (
-        CheckConstraint(f"hourly_rate_paise BETWEEN {MIN_RATE_PAISE} AND {MAX_RATE_PAISE}", name="hourly_rate_range"),
         CheckConstraint("years_experience >= 0", name="years_experience_not_negative"),
         CheckConstraint("avg_rating BETWEEN 1 AND 5", name="avg_rating_range"),
         CheckConstraint("review_count >= 0", name="review_count_not_negative"),
@@ -38,6 +50,8 @@ class Sitter(Base):
     date_of_birth: Mapped[date | None]
     # Encrypted by the API before storage (phase 3); admin-only, never shown to parents (CLAUDE.md 7).
     health_disclosure_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
+    # When she last saved her health disclosure, even empty ("nothing to declare"): the step is done.
+    health_disclosure_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     payout_method: Mapped[PayoutMethod | None] = mapped_column(enum_column(PayoutMethod, "sitter_payout_method"))
     bank_details_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
     upi_id: Mapped[str | None] = mapped_column(Text)
@@ -46,11 +60,53 @@ class Sitter(Base):
     age_groups: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
     languages: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
     first_aid: Mapped[bool] = mapped_column(server_default=false())
-    # Parents never see this (6.2).
-    hourly_rate_paise: Mapped[int | None]
     onboarding_status: Mapped[OnboardingStatus] = mapped_column(
         enum_column(OnboardingStatus, "sitter_onboarding_status"),
         server_default=OnboardingStatus.in_progress.value,
     )
+    # Null until an admin sets it; she can't go live without one (CLAUDE.md 6.2 and 7 step 6).
+    level: Mapped[SitterLevel | None] = mapped_column(enum_column(SitterLevel, "sitter_level"))
+    # Her tick in the application: at Recharge level, parents may see one of her references (CLAUDE.md 6.2).
+    reference_shared_consent: Mapped[bool] = mapped_column(server_default=false())
+    # Shown to the person when her application is rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
     avg_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     review_count: Mapped[int] = mapped_column(server_default="0")
+
+
+class Reference(Base):
+    """Two references per sitter (name, phone, relationship), CLAUDE.md section 7 step 4. An admin
+    records the outcome; `pending` until then (phase 3's admin verification queue)."""
+
+    __tablename__ = "references"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    sitter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sitters.profile_id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(Text)
+    phone: Mapped[str] = mapped_column(String(20))
+    relationship: Mapped[str] = mapped_column(Text)
+    outcome: Mapped[VerificationStatus] = mapped_column(
+        enum_column(VerificationStatus, "reference_outcome"), server_default=VerificationStatus.pending.value
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+    # Shown to the person when rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    # Removed by her: kept so the same number can't be given again (2026-11-13); hidden everywhere else.
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OnboardingStep(Base):
+    """An admin's review of one onboarding step (CLAUDE.md 7). No row means not reviewed yet."""
+
+    __tablename__ = "onboarding_steps"
+
+    sitter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sitters.profile_id", ondelete="CASCADE"), primary_key=True)
+    step: Mapped[OnboardingStepName] = mapped_column(
+        enum_column(OnboardingStepName, "onboarding_step"), primary_key=True
+    )
+    status: Mapped[VerificationStatus] = mapped_column(enum_column(VerificationStatus, "onboarding_step_status"))
+    notes: Mapped[str | None] = mapped_column(Text)
+    # Shown to the person when rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"))
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

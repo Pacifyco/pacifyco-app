@@ -9,18 +9,22 @@ from app import cli
 from app.services.accounts import normalise_mobile
 from tests.test_auth import bearer, client, token  # noqa: F401  (client is a fixture)
 
-# Ticked at sign-up. Covers both roles (each role's required documents are checked; others are ignored).
+# Ticked on the consent pages. Covers both roles (each role's required documents are checked; others
+# are ignored).
 ACCEPTED = [
-    {"kind": "parent_terms", "version": "0.1-draft"},
+    {"kind": "parent_terms", "version": "1.0"},
     {"kind": "sitter_terms", "version": "1.1"},
     {"kind": "privacy_policy", "version": "0.1-draft"},
+    {"kind": "sitter_consent", "version": "1.0"},
 ]
-PARENT = {
-    "role": "parent",
+# Sign-up asks only the role (CLAUDE.md 6.13); the terms and details come later, in the area.
+PARENT = {"role": "parent"}
+DETAILS = {
     "full_name": "  Meera   Rao ",
     "phone": "+91 98765-43210",
     "pin_code": "560034",
-    "accepted": ACCEPTED,
+    "address": " 12, 4th Cross \n\n  Koramangala ",
+    "relationship_to_child": "Mother",  # parents only; sitters' is ignored (Reuben, 2026-11-13)
 }
 
 
@@ -40,6 +44,17 @@ def auth_for(user, **claims) -> dict[str, str]:
     return bearer(token(**{"sub": str(user["id"]), "email": user["email"], **claims}))
 
 
+def accept_terms(client, user):  # noqa: F811
+    """What a sitter's consent page sends (and a parent's, after a new terms version)."""
+    response = client.post("/me/terms", json={"accepted": ACCEPTED}, headers=auth_for(user))
+    assert response.status_code == 200
+    return response
+
+
+def fill_details(client, user, **changes):  # noqa: F811
+    return client.put("/me/details", json={**DETAILS, **changes}, headers=auth_for(user))
+
+
 def row(db_engine, sql: str, user_id):
     with db_engine.connect() as conn:
         return conn.execute(text(sql), {"id": user_id}).mappings().first()
@@ -50,20 +65,95 @@ def test_parent_sign_up_creates_profile_and_parent(client, db_engine, user):  # 
     assert response.status_code == 201
     assert response.json() == {
         "email": user["email"],
-        "profile": {"role": "parent", "status": "pending", "full_name": "Meera Rao"},
-        "terms_to_accept": [],  # accepted at sign-up
+        "profile": {
+            "role": "parent",
+            "status": "pending",
+            "full_name": None,
+            "phone": None,
+            "pin_code": None,
+            "address": None,
+            "relationship_to_child": None,
+            "details_complete": False,
+        },
+        # Ticked on the parental consent page, not at sign-up (decided 2026-11-12).
+        "terms_to_accept": [
+            {"kind": "parent_terms", "version": "1.0"},
+            {"kind": "privacy_policy", "version": "0.1-draft"},
+        ],
     }
-    profile = row(db_engine, "SELECT role, phone, email, status, pin_code FROM profiles WHERE id = :id", user["id"])
-    assert dict(profile) == {
-        "role": "parent",
-        "phone": "+919876543210",
-        "email": user["email"],
-        "status": "pending",
-        "pin_code": "560034",
-    }
+    profile = row(db_engine, "SELECT role, email, status, full_name FROM profiles WHERE id = :id", user["id"])
+    assert dict(profile) == {"role": "parent", "email": user["email"], "status": "pending", "full_name": None}
     assert row(db_engine, "SELECT 1 FROM parents WHERE profile_id = :id", user["id"]) is not None
     assert row(db_engine, "SELECT 1 FROM sitters WHERE profile_id = :id", user["id"]) is None
     assert client.get("/me", headers=auth_for(user)).json()["profile"]["role"] == "parent"
+
+
+def test_sign_up_ignores_details(client, db_engine, user):  # noqa: F811
+    """Only the role is taken at sign-up."""
+    response = client.post("/me/profile", json={**PARENT, **DETAILS}, headers=auth_for(user))
+    assert response.status_code == 201
+    assert response.json()["profile"]["full_name"] is None
+
+
+@pytest.mark.parametrize("role", ["parent", "sitter"])
+def test_details_are_filled_in_after_sign_up(client, db_engine, user, role):  # noqa: F811
+    assert client.post("/me/profile", json={**PARENT, "role": role}, headers=auth_for(user)).status_code == 201
+    response = fill_details(client, user)
+    assert response.status_code == 200
+    assert response.json()["profile"] == {
+        "role": role,
+        "status": "pending",
+        "full_name": "Meera Rao",
+        "phone": "+919876543210",
+        "pin_code": "560034",
+        "address": "12, 4th Cross\nKoramangala",
+        "relationship_to_child": "Mother" if role == "parent" else None,
+        "details_complete": True,
+    }
+    stored = row(db_engine, "SELECT phone, address FROM profiles WHERE id = :id", user["id"])
+    assert dict(stored) == {"phone": "+919876543210", "address": "12, 4th Cross\nKoramangala"}
+
+
+def test_a_parent_must_say_their_relationship_to_the_child(client, user):  # noqa: F811
+    assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    response = fill_details(client, user, relationship_to_child=None)
+    assert response.status_code == 422
+    assert response.json()["error"]["details"][0]["field"] == "body.relationship_to_child"
+    assert fill_details(client, user, relationship_to_child="Grandmother").status_code == 422  # not a choice
+    response = fill_details(client, user, relationship_to_child="Legal guardian")
+    assert response.status_code == 200
+    assert response.json()["profile"]["relationship_to_child"] == "Legal guardian"
+
+
+def test_details_need_a_profile(client, user):  # noqa: F811
+    response = fill_details(client, user)
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "profile_required"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"full_name": "   "},
+        {"full_name": "x" * 101},
+        {"full_name": "Meera\x00Rao"},
+        {"phone": "12345"},
+        {"phone": "5876543210"},  # Indian mobiles start 6-9
+        {"phone": "+1 415 555 0100"},
+        {"pin_code": "56003"},
+        {"pin_code": "56003A"},
+        {"pin_code": None},
+        {"address": "  \n "},
+        {"address": "x" * 301},
+        {"address": "12\x00 Road"},
+    ],
+)
+def test_invalid_details_are_422_and_change_nothing(client, db_engine, user, change):  # noqa: F811
+    assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
+    response = fill_details(client, user, **change)
+    assert response.status_code == 422
+    assert "98765" not in response.text  # submitted values aren't echoed
+    assert row(db_engine, "SELECT full_name FROM profiles WHERE id = :id", user["id"])["full_name"] is None
 
 
 def test_sitter_sign_up_creates_sitter_in_onboarding(client, db_engine, user):  # noqa: F811
@@ -105,25 +195,9 @@ def test_email_already_used_by_another_account(client, db_engine, user):  # noqa
             conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": other})
 
 
-@pytest.mark.parametrize(
-    "change",
-    [
-        {"full_name": "   "},
-        {"full_name": "x" * 101},
-        {"full_name": "Meera\x00Rao"},
-        {"phone": "12345"},
-        {"phone": "5876543210"},  # Indian mobiles start 6–9
-        {"phone": "+1 415 555 0100"},
-        {"role": "nanny"},
-        {"pin_code": "56003"},
-        {"pin_code": "56003A"},
-        {"pin_code": None},
-    ],
-)
-def test_invalid_details_are_422_and_create_nothing(client, db_engine, user, change):  # noqa: F811
-    response = client.post("/me/profile", json={**PARENT, **change}, headers=auth_for(user))
+def test_unknown_role_is_422_and_creates_nothing(client, db_engine, user):  # noqa: F811
+    response = client.post("/me/profile", json={**PARENT, "role": "nanny"}, headers=auth_for(user))
     assert response.status_code == 422
-    assert "98765" not in response.text  # submitted values aren't echoed
     assert row(db_engine, "SELECT 1 FROM profiles WHERE id = :id", user["id"]) is None
 
 
@@ -199,7 +273,7 @@ def test_cli_wont_turn_a_parent_into_an_admin(client, db_engine, database_url, u
     assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
     assert cli.create_admin(user["email"], "X", user["id"], database_url) == 1
     assert row(db_engine, "SELECT role FROM profiles WHERE id = :id", user["id"])["role"] == "parent"
-    assert "already has a Pacify profile" in capsys.readouterr().err
+    assert "already has a Pacifyco profile" in capsys.readouterr().err
 
 
 def test_cli_with_user_id_works_without_supabase(db_engine, database_url, user, capsys):
@@ -255,6 +329,24 @@ def test_cli_keeps_a_sitter_with_application_details(client, db_engine, database
     assert profile_exists(db_engine, user["id"])
 
 
+def test_cli_keeps_a_sitter_with_references(client, db_engine, database_url, user, capsys):  # noqa: F811
+    assert client.post("/me/profile", json={**PARENT, "role": "sitter"}, headers=auth_for(user)).status_code == 201
+    with db_engine.begin() as conn:
+        conn.execute(
+            text(
+                'INSERT INTO "references" (sitter_id, name, phone, relationship) '
+                "VALUES (:id, 'Asha', '+919876543210', 'Friend')"
+            ),
+            {"id": user["id"]},
+        )
+    try:
+        assert cli.delete_empty_profile(user["email"], True, database_url) == 1
+        assert profile_exists(db_engine, user["id"])
+    finally:
+        with db_engine.begin() as conn:
+            conn.execute(text('DELETE FROM "references" WHERE sitter_id = :id'), {"id": user["id"]})
+
+
 def test_cli_keeps_someone_with_audit_history(client, db_engine, database_url, user, capsys):  # noqa: F811
     assert client.post("/me/profile", json=PARENT, headers=auth_for(user)).status_code == 201
     with db_engine.begin() as conn:
@@ -272,7 +364,7 @@ def test_cli_keeps_someone_with_audit_history(client, db_engine, database_url, u
 
 def test_cli_delete_unknown_email(database_url, capsys):
     assert cli.delete_empty_profile("nobody@example.com", True, database_url) == 1
-    assert "No Pacify profile" in capsys.readouterr().err
+    assert "No Pacifyco profile" in capsys.readouterr().err
 
 
 def test_cli_explains_a_connection_problem_in_one_line(monkeypatch, capsys):

@@ -1,7 +1,7 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -34,13 +34,34 @@ class Child(Base):
         enum_column(VerificationStatus, "child_verification_status"),
         server_default=VerificationStatus.pending.value,
     )
+    # Kept after the birth certificate is deleted on approval (CLAUDE.md 7: status, verifier and date).
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verification_notes: Mapped[str | None] = mapped_column(Text)
+    # Shown to the person when rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class EmergencyContact(Base):
+    """Exactly two per family, not per child (Family Terms 2.5). Enforced by the API (set_emergency_contacts
+    always replaces both together), not by a database constraint."""
+
     __tablename__ = "emergency_contacts"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    child_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("children.id", ondelete="CASCADE"), index=True)
+    parent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parents.profile_id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(Text)
+    relationship: Mapped[str] = mapped_column(Text)
+    phone: Mapped[str] = mapped_column(String(20))
+
+
+class AuthorisedAdult(Base):
+    """Any number per family; may hand over or receive the child during a booking (Family Terms 2.5)."""
+
+    __tablename__ = "authorised_adults"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    parent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("parents.profile_id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(Text)
     relationship: Mapped[str] = mapped_column(Text)
     phone: Mapped[str] = mapped_column(String(20))

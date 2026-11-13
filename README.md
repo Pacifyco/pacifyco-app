@@ -1,8 +1,8 @@
 # Pacify
 
 Pacify (Pacifyco LLP) is a babysitter marketplace for parents in Bengaluru. Parents browse vetted
-sitter profiles, meet a sitter in a free introduction call, then book care paid from pre-bought hour
-packs.
+sitter profiles and book care by the hour at the plan they pick, starting with a short first booking
+while a parent is at home.
 
 Build rules, stack and business rules: [CLAUDE.md](CLAUDE.md). Design system: [design.md](design.md).
 Where the build is up to: [progress.md](progress.md).
@@ -124,6 +124,20 @@ The app runs at http://localhost:5173.
 | `npm run lint` | Lint with ESLint |
 | `npm run typecheck` | Type-check with TypeScript |
 | `npm run build` | Type-check and build to `web/dist` |
+| `npm run e2e` | End-to-end tests in a real browser (Playwright; see below) |
+
+#### End-to-end tests
+
+`web/e2e` walks through the main journeys in a real (phone-sized) Chrome: a parent and a sitter sign up and
+finish their profiles, an admin rejects a step with a reason and the sitter fixes it, the admin approves the
+sitter and the family, and the parent finds the sitter. It runs the real web app and API against a fresh
+`pacifyco_e2e` database (recreated every run by `api/e2e_database.py`). Only the outside services are
+stand-ins (`web/e2e/fake-services.mjs`): Supabase sign-in keys and file storage, and OpenStreetMap. No `.env`
+or real keys are needed.
+
+Needs the local database running (`docker compose up -d --wait`) and the API's `.venv`. The first time, install
+the browser: `npx playwright install chromium`. Then, from `web/`: `npm run e2e`. CI runs it on every pull request
+("End-to-end tests"); if it fails there, the run keeps a report with screenshots and a trace.
 
 ### 5. Run everything with one command
 
@@ -286,6 +300,29 @@ digits):
 The `jobs-*` environments hold only the jobs secret and the API address, never database passwords, and
 allow `develop` because GitHub runs schedules from the default branch.
 
+## Document uploads and the encryption key
+
+Two **secret** Render variables, set on each service (`pacifyco` and `pacifyco-api`) with a different
+value per environment. Saving a variable makes Render redeploy.
+
+| Variable | Used for | Where to get it |
+| --- | --- | --- |
+| `SUPABASE_SERVICE_ROLE_KEY` | Signed upload and view links for the private `documents` bucket | Supabase → the project → Project Settings → API Keys → a **secret** key (`sb_secret_…`) |
+| `FIELD_ENCRYPTION_KEY` | Encrypting sitters' health disclosures and bank details | Generate it yourself (below) |
+
+### Encryption key
+
+Generate one key for staging and a **different** one for production, in your own terminal from `api`:
+
+```powershell
+.venv\Scripts\python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Paste it straight into Render (Environment → Add environment variable → `FIELD_ENCRYPTION_KEY`), then
+save a copy in your password manager. **Never change or lose a key once data is saved with it:** data
+encrypted with it can't be read with any other key, and nobody can recover it. Don't put it in chat,
+email, the repo or `.env.example`.
+
 ## Sign-in
 
 People sign in with an emailed code or Google, through Supabase Auth. The web app gets a Supabase
@@ -339,19 +376,34 @@ It only deletes accounts that hold nothing yet (no children, no sitter applicati
 history), so real records are never removed this way. Then delete the user in Supabase if you want the
 sign-in account gone too.
 
+### Starting staging again with no parents or sitters
+
+To remove **every** parent and sitter on staging (admins stay), with their children, documents and
+files, consents and terms acceptances, references, availability, audit rows and Supabase sign-in
+accounts, so the same emails can sign up fresh. Staging only: it refuses when `ENVIRONMENT` is
+`production`. From `api/`, in your own terminal, with staging's values (never paste them into chat):
+
+```
+MIGRATION_DATABASE_URL=<staging owner URI> SUPABASE_URL=<staging project URL> SUPABASE_SERVICE_ROLE_KEY=<staging service role key> python -m app.cli reset-staging-accounts        # counts only, and shows which database
+python -m app.cli reset-staging-accounts --yes  # removes them
+```
+
+Check the database host it prints before adding `--yes`. It can't be undone.
+
 ## Legal pages
 
 `/terms/sitter`, `/terms/parent` and `/privacy` are public. The texts live in `web/src/content/`. The
-Sitter Terms of Use v1.1 is final and a test fails if its wording changes; its blanks are filled from
-these Cloudflare Pages variables (public information, set on each project, then redeploy):
+Sitter Terms of Use v1.1 and the Family Terms of Use v1.0 are final, and a test fails if their wording
+changes. Their blanks are filled from these Cloudflare Pages variables (public information, set on each
+project, then redeploy):
 
 | Variable | Fills |
 | --- | --- |
-| `VITE_PACIFY_LLPIN` | LLPIN |
-| `VITE_PACIFY_REGISTERED_ADDRESS` | registered office (both places) |
-| `VITE_GRIEVANCE_OFFICER_NAME`, `_EMAIL`, `_PHONE` | Grievance Officer (section 6.3) |
-| `VITE_EMERGENCY_LINE` | emergency line during bookings |
-| `VITE_SITTER_TERMS_DATE` | "Last updated" date, as `yyyy-mm-dd` |
+| Variable | Sitter Terms | Family Terms |
+| --- | --- | --- |
+| `VITE_GRIEVANCE_OFFICER_NAME`, `_EMAIL`, `_PHONE` | Grievance Officer (6.3) | Grievance Officer (9.3) |
+| `VITE_FAMILY_INTRO_FEE` | | introduction fee in 7.2, e.g. `15,000` (shown as ₹15,000) |
 
-Outside production a blank value shows as a TEST marker. Production shows "The Sitter Terms aren't
-available yet" until every one is set. The privacy policy link fills itself.
+Outside production a blank value shows as a TEST marker. In production each document stays hidden, and
+that role's sign-up shows "… sign-up opens soon", until every value it uses is set. The privacy policy
+link fills itself.

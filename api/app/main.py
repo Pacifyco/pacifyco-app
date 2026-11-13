@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.errors import CatchUnhandledErrors, register_error_handlers
-from app.routers import admin, auth, health, jobs, parents, sitters
+from app.routers import admin, auth, documents, health, jobs, parents, sitters
 from app.settings import Settings, get_settings
 
 # Collect nothing about parents, children or sitters beyond the error itself: no user details, cookies,
@@ -41,7 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     init_sentry(settings)
 
-    app = FastAPI(title="Pacify API")
+    app = FastAPI(title="Pacifyco API")
     app.dependency_overrides[get_settings] = lambda: settings
 
     # Added first so it sits inside CORS: even crashes get CORS headers (app/errors.py).
@@ -57,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(health.router)
     app.include_router(jobs.router)
+    app.include_router(documents.router)
     # Role-gated areas: each router requires its role (app.auth.require_role).
     for area in (parents, sitters, admin):
         app.include_router(area.router)

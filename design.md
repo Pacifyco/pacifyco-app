@@ -24,7 +24,7 @@ people *feel* Pacify.
 1. Who is looking after my child? — real name, face and a short story.
 2. Are they verified? — the checks we actually do, stated plainly.
 3. What experience do they have? — years, age groups, families served, first aid.
-4. Can I meet them first? — yes, always: a free introduction before the first booking.
+4. Can I try them first? — yes: we suggest a short first booking (about an hour) while you're at home.
 5. Additional safety — reserved for Pacify Plus, **not in v1** (see section 11).
 
 ---
@@ -37,10 +37,11 @@ people *feel* Pacify.
   uppercase.
 - **Full stops** on headline statements; never on buttons, labels or nav.
 - **The arrow →** only on the single primary forward action.
-- **No exclamation marks, no emoji, no urgency, no guilt, no superlatives.**
+- **No exclamation marks, no emoji, no urgency, no guilt, no superlatives.** One exception (Reuben,
+  2026-11-09): the theme switch in the header is a ☀️ / 🌙 pair, light and dark only (no "System").
 - British/Indian spelling (colour, neighbourhood, organise). No Oxford comma.
 - Numerals: 6 years, 6:30 pm, 12 Oct 2026, ₹250/hour.
-- In copy the brand is **Pacify**; the wordmark reads **pacifyco**.
+- In copy the brand is **Pacifyco**, never "Pacify" (Reuben, 2026-11-13); the wordmark reads **pacifyco**.
 
 | Use | Avoid |
 | --- | --- |
@@ -198,7 +199,18 @@ Generous whitespace is part of the calm: when in doubt, add space, not elements.
 Rounded line icons, 24px grid, 1.75px stroke, round caps and joins, no fills. Use Lucide with
 `strokeWidth={1.75}` until the final drawn set exists. Sizes: 20–22px inline in ink; 28px on a 64px
 peach disc in `--text-coral-deep`. `--status-trust` only for verification ticks. **Every icon has a
-visible text label** — no icon-only controls except the close button (which still has an aria-label).
+visible text label** — no icon-only controls except the close button (which still has an aria-label),
+and, decided 2026-11-09, the header's theme switch and profile button (both with an aria-label and a
+title). While a parent or sitter has something left to do, a small coral speech bubble comes out of the
+profile button ("Finish your profile", or "Something needs another look" after a rejection) and leads
+to "Your profile" (`/parent/profile`, `/sitter/profile`), which holds the checklist; the home pages no
+longer show it. Keep pages short enough to avoid scrolling on a phone where possible.
+UX review 2026-11-13: the bubble shows only on the home page (Find a sitter, the sitter's home), never
+over the profile pages; the dot on the button stays. Header controls are 44px. On phones the header
+holds only the logo and the profile button: the theme switch and Sign out are in a "Settings" card on
+"Your profile". Saves confirm with a toast at the bottom ("Details saved").
+The header is pinned (Reuben, 2026-11-13): it slides away while scrolling down and comes back on
+scrolling up, showing the page's Back link once the page is scrolled (layouts/headerBack.ts).
 
 ---
 
@@ -237,11 +249,13 @@ spring overshoot, spin, fast parallax or autoplaying video with sound. Respect
 - **Card** — white, `radius-lg`, `shadow-soft`, `space-5`/`space-6` padding.
 - **SitterCard** — photo or initials avatar on peach, name, years of experience and area (caption),
   chips for age groups and interests, VerifiedChips, rating and "Trusted by N Pacify families", primary
-  action "Meet [first name] first" (or "Choose a time" for unlocked pairs). **No price on the card** —
+  action "See [first name]'s profile" (introductions were dropped 2026-11-08). **No price on the card** —
   parents don't see sitter rates.
 - **BookingCard** — "Next booking" eyebrow, date and time ("Sat, 11 Oct · 10:00 am – 1:00 pm"), "[Sitter]
   is looking after [child] at home."
-- **HourBalance** — child-hours remaining per child, nearest expiry, carried-forward hours.
+- **HourBalance** — no longer used: hour packs were dropped (CLAUDE.md 6.1, 2026-11-03). Remove it
+  when phase 6 is reworked. Instead, a **PlanPicker**: Pause, Unwind and Recharge with their price per
+  hour for the chosen children, what each includes (latest end, bath time, outings) and the total.
 - **IconTile** — 28px icon on 64px peach disc with label.
 - **RoleChooser** — "I'm a parent" / "I'm a sitter".
 - **EmergencyButton** — always visible on active bookings; chocolate surface with clear label
@@ -257,8 +271,85 @@ spring overshoot, spin, fast parallax or autoplaying video with sound. Respect
 1. **Pacify Plus** (enhanced checks, live check-ins, support line) isn't in v1. Don't show the badge or
    the fifth trust pillar.
 2. **Address verification** is mentioned in the guide, but v1 checks are ID, police verification,
-   references, a psychology test and interviews. Only claim those.
-3. **Sitter card price** — the guide shows "₹450/hour · 1 child"; v1 parents pay pack rates and never
-   see a sitter's rate. Show no hourly price on sitter cards.
+   references and a psychology test. Only claim those (no interview, dropped 2026-11-08).
+3. **Sitter card price** — the guide shows "₹450/hour · 1 child"; v1 sitter cards show no price.
+   Plan prices appear only when the parent picks a plan (CLAUDE.md 6.1).
 4. **"Join the waitlist"** belongs to the marketing site (scrollytelling, phase 13). In the app the
    primary actions are signing up, meeting a sitter and choosing a time.
+
+---
+
+## 12. Portal layout reference (the "Admin, Parent & Sitter Portals" prototype)
+
+Reuben's clickable prototype (claude.ai artifact `25mxMe9kk8qpc1o6fWp7RL`) is the reference for **how app
+screens are laid out**. It is a mock-up with made-up data and its own CSS; this file still decides
+colours, type, shape and copy, and CLAUDE.md still decides what the product does. When they disagree,
+this file and CLAUDE.md win.
+
+### Take from the prototype (layout and structure)
+
+- **Portal shell** for signed-in areas: a white left sidebar (logo, a small pill naming the area —
+  "Parent portal", "Sitter portal", "Admin console" — nav items with icon **and** label, a count badge
+  for things waiting, the person's name and a sign-out button at the bottom), and a main column with a
+  sticky top bar (small area name above the page title, page actions on the right). On phones the
+  sidebar becomes a top bar with the nav scrolling sideways.
+- **Nav per role** (only items whose features exist; add the rest with their phase):
+  parent — Home, Bookings, My family; sitter — Home, Requests, Availability, My profile; admin —
+  Overview, Sitters, Parents, plus the queues each phase adds (verification, payouts, incidents).
+- **Welcome band** on each home page: a soft peach-to-blush gradient panel with the greeting (design.md
+  10's "Time for you, [first name]." for parents), one line under it, and decorative circles that stay
+  behind the text.
+- **Note card** for status messages ("Your account is being verified."): white, a coral bar on the left,
+  the key words bold.
+- **KPI row** on admin and sitter home pages: 4 cards across (2 on tablets, 1 on phones), each with a
+  label and an icon on a disc, a large number and a one-line footnote.
+- **Two-column page grid** (wider left, narrower right; one column below 1100px) made of cards with a
+  header row (title, then a small action such as "View all" on the right).
+- **List rows** inside cards: avatar or icon, name and a caption line, then a status or action on the
+  right, separated by hairlines.
+- **Admin tables**: a toolbar with a search field and segmented filters above a card holding the table;
+  uppercase small column headings; clickable rows; a "N of M" count under the table.
+- **Side drawer** for an admin's detail view (a sitter or a family): header with avatar, name and
+  status; sections with small uppercase headings and label/value lists; the decisions (approve, reject)
+  in a footer bar. Used for the verification queue.
+- **Verification checklist**: a progress bar, then one row per step with a tick or clock disc and its
+  status in words.
+- **Status pills** with a dot and words, **avatars with initials**, **empty states** with one line, and a
+  **toast** at the bottom for "Saved".
+- **Modals** for short multi-step tasks, with a step bar at the top.
+
+### Adapt to this file (the prototype's styling loses)
+
+- Colours: use the section 3 tokens only. The prototype's `--choc`, `--coral`, `--blush` and so on map
+  to `ink`, `coral`, `surface-default`; its greys and status colours (green, amber, red) aren't ours —
+  status is `trust` and `danger` with words, and "waiting" uses muted text on a sunken surface.
+- **Never white text on coral.** The prototype's coral buttons have white labels; ours are chocolate.
+- Every button, input and chip is a pill (the prototype's inputs and segment buttons use 10px
+  corners). Inputs use `--border-strong`, not a light hairline.
+- Type: Poppins at the section 4 sizes. The prototype's 12–14px body text is too small: body is 16px,
+  captions 12px Light, and nothing a person has to read is under 12px.
+- Focus rings, 360px width, 200% zoom, dark mode and reduced motion all still apply.
+- Icons are Lucide at stroke 1.75, with visible labels (the prototype has icon-only buttons in tables;
+  ours always show a text label, except the close button, which has an aria-label).
+
+### Don't take from the prototype (not in v1, or against CLAUDE.md)
+
+- **The prototype's tiers** (Basic, Standard, Premium) with their rates (₹180–400+) and shared tier
+  boards. Our equivalent is plans and levels (CLAUDE.md 6.1–6.2): Pause, Unwind, Recharge. Their badge
+  and the admin's level board can follow the prototype's layout, with our colours and our names; sitters
+  see their pay, never a plan name, and parents never see a sitter's pay.
+- **Share links** (admins sending parents a time-limited list of sitters), view counts and expiry
+  countdowns. In v1 parents search and browse sitters themselves.
+- **Pacify Plus** anywhere (section 11).
+- **Accept / decline booking requests** and "respond within 2 hours". v1 bookings confirm
+  automatically (CLAUDE.md 6.4).
+- **Prices on sitter cards or bookings** ("Est. cost"), sitter earnings shown to parents, and
+  occasions ("Date night", "Gym session") as a booking field.
+- **Skills taxonomy** beyond two fixed lists: age groups and languages are tapped from fixed lists (UX
+  review 2026-11-13). (Weekday availability is in: a week that repeats, times added one after another, and days off,
+  decided 2026-11-09.)
+- Checks we don't do or name differently: show only CLAUDE.md 7's steps (ID, police certificate,
+  references, psychology test, approval).
+- The prototype's login screen ("Choose a portal", demo account pickers, "Reset demo data") and its
+  hero copy and stats. Our sign-in (a box on the home page below the photos, opened by "Sign in or join"; no separate
+  page since 2026-11-13, `/sign-in` redirects to `/?signin`) and `/join` already follow section 10.

@@ -26,7 +26,11 @@ PUBLIC = {
     "/service-area",
     "/me",  # signed in, no profile needed
     "/me/profile",  # signed in, no profile needed (sign-up)
+    "/me/details",  # any signed-up parent or sitter; checked by current_profile and accounts.update_details
     "/internal/jobs/{run}",  # JOBS_SECRET
+    "/documents/mine",  # any signed-up parent or sitter; checked by current_profile
+    "/documents/upload-url",  # any signed-up parent or sitter; checked by current_profile
+    "/documents/{document_id}/confirm",  # ownership checked inside (IDOR guard)
 }
 
 
