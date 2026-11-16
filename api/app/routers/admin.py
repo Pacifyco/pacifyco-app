@@ -294,6 +294,8 @@ class SitterReview(BaseModel):
     date_of_birth: date | None
     bio: str | None
     years_experience: int | None
+    university: str | None
+    semester: int | None
     age_groups: list[str]
     languages: list[str]
     first_aid: bool
@@ -323,6 +325,8 @@ def get_sitter_review(sitter_id: uuid.UUID, admin: Admin, db: DbSession) -> Sitt
         date_of_birth=sitter.date_of_birth,
         bio=sitter.bio,
         years_experience=sitter.years_experience,
+        university=sitter.university,
+        semester=sitter.semester,
         age_groups=sitter.age_groups,
         languages=sitter.languages,
         first_aid=sitter.first_aid,

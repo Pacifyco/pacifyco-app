@@ -339,6 +339,8 @@ describe("a sitter's profile page", () => {
     distance_km: 0.4,
     photo_url: null,
     bio: "I love storytime.",
+    university: "Christ University",
+    semester: 4,
     plan: "pause",
     week: [
       { weekday: 0, start_hour: 9, end_hour: 13 },
@@ -358,6 +360,7 @@ describe("a sitter's profile page", () => {
     expect(screen.getByText("4 years' experience · under 1 km away · Joined Nov 2026")).toBeTruthy();
     expect(screen.queryByText("New to Pacifyco")).toBeNull();
     expect(screen.getByText("I love storytime.")).toBeTruthy();
+    expect(screen.getByText(/Studying at Christ University/).textContent).toBe("Studying at Christ University · Semester 4");
     expect(screen.getByText("Comfortable with ages 3–5")).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Languages" })).getByText("Tamil")).toBeTruthy();
     expect(await screen.findByText(/Suits Diya \(4\)/)).toBeTruthy();

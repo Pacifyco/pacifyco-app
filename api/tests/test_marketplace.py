@@ -72,6 +72,7 @@ def make_sitter(client, db_engine):  # noqa: F811
             conn.execute(
                 text(
                     "UPDATE sitters SET level = :level, onboarding_status = :onboarding, bio = 'Loves stories',"
+                    " university = 'Christ University', semester = 4,"
                     " years_experience = :years_experience, languages = :languages, first_aid = :first_aid,"
                     " avg_rating = :avg_rating, review_count = :review_count WHERE profile_id = :id"
                 ),
@@ -431,6 +432,7 @@ def test_profile_page_shows_her_week_and_days_off(client, finished_parent, make_
     body = response.json()
     assert body["full_name"] == "Lakshmi Nair"
     assert body["bio"] == "Loves stories"
+    assert (body["university"], body["semester"]) == ("Christ University", 4)  # shown to parents
     assert body["plan"] == "pause"
     assert body["languages"] == ["English", "Tamil"]
     assert body["joined_at"]  # "Joined Nov 2026" on her profile

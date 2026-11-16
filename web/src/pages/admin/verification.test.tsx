@@ -49,6 +49,8 @@ const SITTER = {
   date_of_birth: "1998-04-02",
   bio: "I love storytime.",
   years_experience: 4,
+  university: "Christ University",
+  semester: 4,
   age_groups: ["2-5"],
   languages: ["English", "Kannada"],
   first_aid: true,

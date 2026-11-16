@@ -28,6 +28,8 @@ const FILLED_PROFILE = {
   date_of_birth: "1995-06-15",
   bio: "I love storytime.",
   years_experience: 5,
+  university: "Christ University",
+  semester: 4,
   age_groups: ["Toddler"],
   languages: ["English"],
   first_aid: false,
@@ -45,6 +47,8 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       date_of_birth: null as string | null,
       bio: null as string | null,
       years_experience: null as number | null,
+      university: null as string | null,
+      semester: null as number | null,
       age_groups: [] as string[],
       languages: [] as string[],
       first_aid: false,
@@ -61,6 +65,7 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       upi_id: null as string | null,
     },
     references: [] as unknown[],
+    referencesConfirmed: false,
     // Uploaded so far (the upload itself is tested in DocumentUpload.test.tsx).
     documents: ["photo", "government_id", "college_or_work_id"] as string[],
     ...overrides,
@@ -75,12 +80,12 @@ function mockApi(overrides: Record<string, unknown> = {}) {
       { key: "details", status: "done" },
       {
         key: "profile",
-        status: status(!!(p.date_of_birth && p.bio && p.years_experience !== null && p.age_groups.length && p.languages.length && has("photo"))),
+        status: status(!!(p.date_of_birth && p.bio && p.years_experience !== null && p.university && p.semester && p.age_groups.length && p.languages.length && has("photo"))),
       },
       { key: "identity_documents", status: status(has("government_id") && has("college_or_work_id")) },
       { key: "health_disclosure", status: status(state.healthSaved, "done") },
-      // Optional (2026-11-13): none given counts as done.
-      { key: "references", status: state.references.length ? "waiting" : "done" },
+      // Optional, but done only once she pressed Continue on it (Reuben, 2026-11-16).
+      { key: "references", status: state.references.length ? "waiting" : state.referencesConfirmed ? "done" : "to_do" },
       { key: "payout", status: status(!!state["payout-details"].method, "done") },
       { key: "psych_test", status: "to_do" },
     ];
@@ -108,6 +113,10 @@ function mockApi(overrides: Record<string, unknown> = {}) {
         upi_id: body.upi_id ?? null,
       };
       return Promise.resolve(jsonResponse(state["payout-details"]));
+    }
+    if (path === "/sitter/references/confirmed" && init?.method === "PUT") {
+      state.referencesConfirmed = true;
+      return Promise.resolve(new Response(null, { status: 204 }));
     }
     if (path === "/sitter/references" && init?.method === "POST") {
       const body = JSON.parse(init.body as string);
@@ -152,6 +161,8 @@ async function clickContinue(name = "Continue") {
 async function fillProfileAndContinue() {
   fireEvent.change(await screen.findByLabelText("Date of birth"), { target: { value: "1995-06-15" } });
   fireEvent.change(screen.getByLabelText("Years of experience"), { target: { value: "5" } });
+  fireEvent.change(screen.getByLabelText("University"), { target: { value: "Christ University" } });
+  fireEvent.change(screen.getByLabelText("Semester"), { target: { value: "4" } });
   fireEvent.change(screen.getByLabelText(/About you/), { target: { value: "I love storytime." } });
   fireEvent.click(screen.getByRole("button", { name: /Toddler/ }));
   fireEvent.click(screen.getByRole("button", { name: "English" }));
@@ -181,7 +192,7 @@ describe("the sitter application page", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Your application" })).toBeTruthy();
     expect(await screen.findByText(/Step 3 of 8/)).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Steps done" }).getAttribute("aria-valuetext")).toBe(
-      "4 of 8 steps done", // consent, details, ID verification (the mock's uploads) and references (optional)
+      "3 of 8 steps done", // consent, details and ID verification (the mock's uploads)
     );
     expect(await screen.findByRole("heading", { name: "Your profile" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "ID verification" })).toBeNull();
@@ -199,6 +210,8 @@ describe("the sitter application page", () => {
       date_of_birth: "1995-06-15",
       bio: "I love storytime.",
       years_experience: 5,
+      university: "Christ University",
+      semester: 4,
       age_groups: ["Toddler"],
       languages: ["English"],
       first_aid: false,
@@ -220,6 +233,10 @@ describe("the sitter application page", () => {
     expect(await screen.findByText("Please write a few words for parents.")).toBeTruthy();
     expect(screen.getByText("Please choose at least one age group.")).toBeTruthy();
     expect(screen.getByText("Please choose at least one language.")).toBeTruthy();
+    // University and semester are required for every sitter (Reuben, 2026-11-16).
+    expect(screen.getByText("Please enter your university's name.")).toBeTruthy();
+    expect(screen.getByText("Please choose your semester.")).toBeTruthy();
+    expect(within(screen.getByLabelText("Semester")).getAllByRole("option")).toHaveLength(11); // prompt + 1 to 10
     expect(calls.some((call) => call.init?.method === "PUT")).toBe(false);
   });
 
@@ -231,6 +248,8 @@ describe("the sitter application page", () => {
     expect(input.accept).toBe(".jpg,.jpeg,.png,image/jpeg,image/png");
     fireEvent.change(screen.getByLabelText("Date of birth"), { target: { value: "1995-06-15" } });
     fireEvent.change(screen.getByLabelText("Years of experience"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("University"), { target: { value: "Christ University" } });
+    fireEvent.change(screen.getByLabelText("Semester"), { target: { value: "4" } });
     fireEvent.change(screen.getByLabelText(/About you/), { target: { value: "I love storytime." } });
     fireEvent.click(screen.getByRole("button", { name: /Toddler/ }));
     fireEvent.click(screen.getByRole("button", { name: "English" }));
@@ -316,12 +335,21 @@ describe("the sitter application page", () => {
 
   test("a reference is optional: 1 person, and she can continue without one", async () => {
     // Reuben, 2026-11-13: optional but good to have.
-    mockApi(UP_TO_REFERENCES);
+    const calls = mockApi(UP_TO_REFERENCES);
     renderPage("/sitter/application?step=references");
     await screen.findByRole("heading", { name: "References" });
     expect(screen.getByText(/1 person who can vouch for you. Optional/)).toBeTruthy();
+    expect(screen.getByRole("progressbar", { name: "Steps done" }).getAttribute("aria-valuetext")).toBe(
+      "5 of 8 steps done", // References isn't done until she continues past it (Reuben, 2026-11-16)
+    );
     await clickContinue();
     expect(await screen.findByText(/Step 7 of 8/)).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByRole("progressbar", { name: "Steps done" }).getAttribute("aria-valuetext")).toBe(
+        "6 of 8 steps done",
+      ),
+    );
+    expect(calls.some((call) => call.url.endsWith("/sitter/references/confirmed") && call.init?.method === "PUT")).toBe(true);
   });
 
   test("a number she has given before is refused, on the number field", async () => {

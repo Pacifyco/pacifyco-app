@@ -3,7 +3,18 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import ARRAY, CheckConstraint, DateTime, ForeignKey, LargeBinary, Numeric, String, Text, false
+from sqlalchemy import (
+    ARRAY,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    LargeBinary,
+    Numeric,
+    SmallInteger,
+    String,
+    Text,
+    false,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -44,6 +55,7 @@ class Sitter(Base):
         CheckConstraint("years_experience >= 0", name="years_experience_not_negative"),
         CheckConstraint("avg_rating BETWEEN 1 AND 5", name="avg_rating_range"),
         CheckConstraint("review_count >= 0", name="review_count_not_negative"),
+        CheckConstraint("semester BETWEEN 1 AND 10", name="semester_range"),
     )
 
     profile_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"), primary_key=True)
@@ -52,11 +64,17 @@ class Sitter(Base):
     health_disclosure_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
     # When she last saved her health disclosure, even empty ("nothing to declare"): the step is done.
     health_disclosure_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When she pressed Continue on References (optional): only then is the step done (Reuben, 2026-11-16).
+    references_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     payout_method: Mapped[PayoutMethod | None] = mapped_column(enum_column(PayoutMethod, "sitter_payout_method"))
     bank_details_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
     upi_id: Mapped[str | None] = mapped_column(Text)
     bio: Mapped[str | None] = mapped_column(Text)
     years_experience: Mapped[int | None]
+    # Asked in "About you", required, seen by admins and parents (Reuben, 2026-11-16). Null for sitters
+    # who saved their profile before then.
+    university: Mapped[str | None] = mapped_column(Text)
+    semester: Mapped[int | None] = mapped_column(SmallInteger)
     age_groups: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
     languages: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
     first_aid: Mapped[bool] = mapped_column(server_default=false())
