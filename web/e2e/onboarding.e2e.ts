@@ -154,6 +154,8 @@ test("a sitter signs up, applies and sets her week", async ({ browser }) => {
   await expect(page.getByText(/Step 3 of 8/)).toBeVisible();
   await page.getByLabel("Date of birth").fill("1996-04-02");
   await page.getByLabel("Years of experience").fill("4");
+  await page.getByLabel("University").fill("Christ University");
+  await page.getByLabel("Semester").selectOption("4");
   await page.getByLabel(/About you/).fill("I love storytime and long walks.");
   // Ages and languages are tapped from fixed lists.
   await page.getByRole("button", { name: /Toddler/ }).click();

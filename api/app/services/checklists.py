@@ -189,6 +189,7 @@ def sitter_checklist(db: Session, profile: Profile, sitter: Sitter) -> list[Item
                 "Add your date of birth, experience and a few words about you",
                 sitter.date_of_birth and sitter.bio and sitter.years_experience is not None,
             ),
+            ("Add your university and semester", sitter.university and sitter.semester),
             ("Choose the ages you care for and the languages you speak", sitter.age_groups and sitter.languages),
             ("Add your photo", _uploaded(db, profile.id, DocumentType.photo)),
         )
@@ -221,10 +222,11 @@ def sitter_checklist(db: Session, profile: Profile, sitter: Sitter) -> list[Item
         Item("identity_documents", ids, note=ids_note if ids != ItemStatus.to_do else None),
         # Optional to fill in, but she confirms it (saving it empty means "nothing to declare").
         Item("health_disclosure", _done(sitter.health_disclosure_confirmed_at is not None)),
-        # Optional, but good to have (Reuben, 2026-11-13): with none, the step counts as done.
+        # Optional, but good to have (Reuben, 2026-11-13). With none, it's done only once she has been on
+        # the step and pressed Continue (Reuben, 2026-11-16).
         Item(
             "references",
-            _reviewed(reviews["references"], True) if references else ItemStatus.done,
+            _reviewed(reviews["references"], True) if references else _done(sitter.references_confirmed_at is not None),
             note=None if references else "Optional: a reference helps families trust you",
         ),
         Item("payout", _done(sitter.payout_method is not None)),

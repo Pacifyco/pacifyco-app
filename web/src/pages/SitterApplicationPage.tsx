@@ -96,6 +96,8 @@ type SitterProfile = {
   date_of_birth: string | null;
   bio: string | null;
   years_experience: number | null;
+  university: string | null;
+  semester: number | null;
   age_groups: string[];
   languages: string[];
   first_aid: boolean;
@@ -107,17 +109,23 @@ type ProfileInput = {
   date_of_birth: string;
   bio: string;
   years_experience: string;
+  university: string;
+  semester: string;
   age_groups: string[];
   languages: string[];
   first_aid: boolean;
   reference_shared_consent: boolean;
 };
 
+const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
 function profileInput(profile: SitterProfile): ProfileInput {
   return {
     date_of_birth: profile.date_of_birth ?? "",
     bio: profile.bio ?? "",
     years_experience: profile.years_experience !== null ? String(profile.years_experience) : "",
+    university: profile.university ?? "",
+    semester: profile.semester !== null ? String(profile.semester) : "",
     age_groups: profile.age_groups,
     languages: profile.languages,
     first_aid: profile.first_aid,
@@ -130,6 +138,8 @@ function toProfileBody(input: ProfileInput) {
     date_of_birth: input.date_of_birth,
     bio: input.bio.trim() || null,
     years_experience: Number(input.years_experience),
+    university: input.university.trim(),
+    semester: Number(input.semester),
     age_groups: input.age_groups,
     languages: input.languages,
     first_aid: input.first_aid,
@@ -142,6 +152,8 @@ function checkProfile(input: ProfileInput): FieldErrors {
   const errors: FieldErrors = {};
   if (!input.date_of_birth) errors.date_of_birth = "Please enter your date of birth.";
   if (input.years_experience === "") errors.years_experience = "Please enter your years of experience (0 is fine).";
+  if (input.university.trim().length < 2) errors.university = "Please enter your university's name.";
+  if (!input.semester) errors.semester = "Please choose your semester.";
   if (!input.bio.trim()) errors.bio = "Please write a few words for parents.";
   if (!input.age_groups.length) errors.age_groups = "Please choose at least one age group.";
   if (!input.languages.length) errors.languages = "Please choose at least one language.";
@@ -225,6 +237,27 @@ function ProfileForm({
           error={fields.years_experience}
           onChange={(event) => setForm({ ...form, years_experience: event.target.value })}
         />
+        <TextInput
+          label="University"
+          autoComplete="organization"
+          maxLength={200}
+          value={form.university}
+          error={fields.university}
+          onChange={(event) => setForm({ ...form, university: event.target.value })}
+        />
+        <Select
+          label="Semester"
+          value={form.semester}
+          error={fields.semester}
+          onChange={(event) => setForm({ ...form, semester: event.target.value })}
+        >
+          <option value="">Choose your semester</option>
+          {SEMESTERS.map((semester) => (
+            <option key={semester} value={String(semester)}>
+              Semester {semester}
+            </option>
+          ))}
+        </Select>
       </div>
       <Textarea
         label="About you"
@@ -571,10 +604,17 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
   const count = references.data?.length ?? 0;
   const [continueError, setContinueError] = useState<string>();
 
-  // Optional: she can continue without one.
+  // Optional: she can continue without one. The step shows as done once she has (Reuben, 2026-11-16).
+  const confirm = useMutation({
+    mutationFn: () => apiFetch<void>("/sitter/references/confirmed", { method: "PUT" }),
+    onSuccess: () => onContinue(),
+    onError: (err) =>
+      setContinueError(err instanceof ApiError ? err.message : "Something went wrong. Please try again."),
+  });
+
   function next() {
     setContinueError(undefined);
-    onContinue();
+    confirm.mutate();
   }
 
   return (
@@ -648,7 +688,7 @@ function ReferencesSection({ onContinue }: { onContinue: () => void }) {
       )}
       <ErrorLine message={continueError} />
       <StepActions>
-        <Button type="button" fullWidthOnPhone={false} onClick={next}>
+        <Button type="button" fullWidthOnPhone={false} loading={confirm.isPending} onClick={next}>
           Continue
         </Button>
       </StepActions>

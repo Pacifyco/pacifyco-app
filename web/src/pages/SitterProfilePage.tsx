@@ -14,6 +14,8 @@ import { PLAN_LABELS, PLAN_NAMES, checksFor, distanceText, firstNameOf, type Sit
 
 type SitterDetail = SitterSummary & {
   bio: string | null;
+  university: string | null;
+  semester: number | null;
   /** Her usual week, repeating (weekday 0 is Monday). */
   week: WeekHours[];
   /** Days she isn't free in the next two weeks. */
@@ -199,6 +201,12 @@ export function SitterProfilePage() {
           About {firstName}
         </h2>
         {sitter.bio && <p className="mt-3 whitespace-pre-line text-ink">{sitter.bio}</p>}
+        {sitter.university && (
+          <p className="mt-4 text-ui text-ink">
+            Studying at {sitter.university}
+            {sitter.semester !== null && <span className="text-muted"> · Semester {sitter.semester}</span>}
+          </p>
+        )}
         {ages && (
           <>
             <p className="mt-4 text-ui text-ink">Comfortable with {ages.toLowerCase()}</p>

@@ -42,6 +42,8 @@ type SitterReview = {
   date_of_birth: string | null;
   bio: string | null;
   years_experience: number | null;
+  university: string | null;
+  semester: number | null;
   age_groups: string[];
   languages: string[];
   first_aid: boolean;
@@ -299,6 +301,8 @@ export function SitterReviewPage() {
           <Field label="Experience">
             {sitter.years_experience === null ? "Not given" : `${sitter.years_experience} years`}
           </Field>
+          <Field label="University">{sitter.university ?? "Not given"}</Field>
+          <Field label="Semester">{sitter.semester === null ? "Not given" : `Semester ${sitter.semester}`}</Field>
           <Field label="Age groups">{sitter.age_groups.join(", ") || "Not given"}</Field>
           <Field label="Languages">{sitter.languages.join(", ") || "Not given"}</Field>
           <Field label="First aid">{sitter.first_aid ? "Certified" : "No"}</Field>
