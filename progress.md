@@ -446,6 +446,11 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-16 — Reuben: sitters give their university and semester (1–10) in "About you", required;
+  admins see them on the review page and parents on her profile page (migration `d4a6c8e0f2b1`; sitters who
+  saved before are asked for them on the checklist). References, still optional, show "Done" only once she
+  presses Continue on that step (`references_confirmed_at`, migration `e5b7d9f1a3c4`; sitters already past it
+  are marked). Branch `sitter-university`. API 442, web 238 passed.
 - 2026-11-13 — Reuben: after the emergency contact, parents see only "Your profile is under review";
   a sitter's reference is optional, one only, never her own number or one she gave before (removed
   references kept: migration `c1f3a5b7d9e2`); "References checked" shows only with an approved one.

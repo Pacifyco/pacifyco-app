@@ -295,6 +295,9 @@ class SharedReference(BaseModel):
 
 class SitterDetail(SitterSummary):
     bio: str | None
+    # Shown to parents on her profile page (Reuben, 2026-11-16).
+    university: str | None
+    semester: int | None
     week: list[WeekHours]  # her usual week, repeating
     days_off: list[date]  # days she isn't free within the booking window (the next two weeks)
     # Recharge sitters only, with her consent (CLAUDE.md 6.2).
@@ -384,6 +387,8 @@ def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Sto
     return SitterDetail(
         **_summary_fields(db, found, _photo_url(db, storage, sitter_id)),
         bio=found.sitter.bio,
+        university=found.sitter.university,
+        semester=found.sitter.semester,
         week=[WeekHours(**vars(hours)) for hours in availability_service.week(db, sitter_id)],
         days_off=[day for day in availability_service.days_off(db, sitter_id, today) if day <= last_day],
         reference=(SharedReference(name=shared.name, relationship=shared.relationship) if shared else None),

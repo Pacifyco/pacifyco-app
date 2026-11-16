@@ -15,6 +15,8 @@ PROFILE_BODY = {
     "date_of_birth": "1995-06-15",
     "bio": "I love looking after kids.",
     "years_experience": 5,
+    "university": "Christ University",
+    "semester": 4,
     "age_groups": ["Preschool", "Toddler"],
     "languages": ["English", "Kannada"],
     "first_aid": True,
@@ -60,8 +62,29 @@ def test_saving_a_profile(client, db_engine, sitter):  # noqa: F811
     assert body["bio"] == "I love looking after kids."
     assert body["age_groups"] == ["Toddler", "Preschool"]  # in the list's order
 
-    stored = row(db_engine, "SELECT years_experience FROM sitters WHERE profile_id = :id", id=sitter["id"])
+    assert body["university"] == "Christ University"
+    assert body["semester"] == 4
+
+    stored = row(
+        db_engine, "SELECT years_experience, university, semester FROM sitters WHERE profile_id = :id", id=sitter["id"]
+    )
     assert stored["years_experience"] == 5
+    assert (stored["university"], stored["semester"]) == ("Christ University", 4)
+
+
+@pytest.mark.parametrize("missing", ["university", "semester"])
+def test_university_and_semester_are_required(client, sitter, missing):  # noqa: F811
+    """Reuben, 2026-11-16: every sitter gives her university and semester."""
+    body = {key: value for key, value in PROFILE_BODY.items() if key != missing}
+    assert client.put("/sitter/profile", json=body, headers=auth_for(sitter)).status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("university", "   "), ("university", "x" * 201), ("semester", 0), ("semester", 11)]
+)
+def test_bad_university_or_semester_rejected(client, sitter, field, value):  # noqa: F811
+    response = client.put("/sitter/profile", json={**PROFILE_BODY, field: value}, headers=auth_for(sitter))
+    assert response.status_code == 422
 
 
 def test_sharing_a_reference_is_off_unless_she_ticks_it(client, db_engine, sitter):  # noqa: F811

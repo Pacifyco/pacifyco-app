@@ -423,7 +423,8 @@ Emergency button instead.
 ## 7. Trust and safety (vetting)
 
 **Sitter onboarding steps** (each has a status; the profile goes live only when all pass):
-1. Application and profile: photo, date of birth (must be **18+**), bio, years of experience, age
+1. Application and profile: photo, date of birth (must be **18+**), bio, years of experience,
+   university and semester (1–10; required, shown to admins and parents, Reuben 2026-11-16), age
    groups, languages, first-aid certification, home address, payout details (bank account or UPI).
    Health disclosure: any serious or long-term condition or allergy that could affect safe care. This is
    health data: store it encrypted, admin-only, access logged, never shown to parents, used only for
@@ -447,10 +448,11 @@ Emergency button instead.
 
 **How she goes through them (Reuben, 2026-11-13):** eight steps, in this order, each opening only once the
 ones before it are filled in, with a "Step N of 8" bar on every step page: 1 Sitter consent, 2 Your
-details, 3 About you (photo, date of birth, experience, bio, ages, languages, first aid; all required),
+details, 3 About you (photo, date of birth, experience, university and semester, bio, ages, languages, first aid; all required),
 4 ID verification (government ID and college or work ID; her first-aid certificate if she says she has
 one; the **police certificate can come later** but is needed before approval), 5 Health disclosure
-(optional to fill in, but she saves it, even empty), 6 References (optional, one), 7 Payment details (bank or UPI,
+(optional to fill in, but she saves it, even empty), 6 References (optional, one; shown as done only once she has pressed Continue on it, with or without
+one, Reuben 2026-11-16), 7 Payment details (bank or UPI,
 all fields required; approval needs them), 8 Psychology screening. After submitting the screening the
 page shows only the "submitted" message.
 
@@ -573,7 +575,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status, verified_by, verified_at, verification_notes) — name and date of birth locked once verified
 - `emergency_contacts` **(created)** (id, parent_id, name, relationship, phone) — exactly one per family (was two)
 - `authorised_adults` **(created)** (id, parent_id, name, relationship, phone) — no longer asked for (2026-11-13)
-- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), reference_shared_consent, avg_rating, review_count) — no rate column (dropped 2026-11-03). Age groups (Toddler, Preschool, School age) and languages (English, Kannada, Hindi, Tamil, Malayalam, Telugu) come from fixed lists (`AGE_GROUPS`, `LANGUAGES` in `app/services/sitters.py`, UX review 2026-11-13); older free text is never shown to parents
+- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, university, semester (1-10), age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), reference_shared_consent, avg_rating, review_count) — no rate column (dropped 2026-11-03). Age groups (Toddler, Preschool, School age) and languages (English, Kannada, Hindi, Tamil, Malayalam, Telugu) come from fixed lists (`AGE_GROUPS`, `LANGUAGES` in `app/services/sitters.py`, UX review 2026-11-13); older free text is never shown to parents
 - `onboarding_steps` **(created)** (sitter_id, step: `profile|identity_documents|police_certificate`, status, notes, reviewed_by, reviewed_at) — admin reviews of steps 1-3; references and the psych test keep their own outcomes; `app/services/verification.py` combines them. Health disclosure views are logged in `audit_log` (`health_disclosure_viewed`)
 - `documents` **(created)** (id, owner_profile_id, child_id null, type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)
 - `document_access_log` **(created)** (id, document_id, admin_id, accessed_at)

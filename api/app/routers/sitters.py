@@ -56,6 +56,9 @@ class SitterProfileIn(BaseModel):
     date_of_birth: date
     bio: str | None = Field(default=None, max_length=2000)
     years_experience: int = Field(ge=0, le=80)
+    # Required for everyone (Reuben, 2026-11-16); semester 1 to 10.
+    university: str = Field(min_length=2, max_length=200)
+    semester: int = Field(ge=1, le=10)
     age_groups: list[str] = Field(default_factory=list, max_length=10)
     languages: list[str] = Field(default_factory=list, max_length=10)
     first_aid: bool
@@ -69,6 +72,14 @@ class SitterProfileIn(BaseModel):
             raise ValueError("That date hasn't happened yet")
         if sitters_service.age_years(value, date.today()) < MIN_AGE_YEARS:
             raise ValueError("Sitters must be at least 18 years old")
+        return value
+
+    @field_validator("university")
+    @classmethod
+    def _university_given(cls, value: str) -> str:
+        value = _clean_text(value)
+        if len(value) < 2:
+            raise ValueError("Please enter your university's name")
         return value
 
     @field_validator("bio")
@@ -99,6 +110,8 @@ class SitterProfileOut(BaseModel):
     date_of_birth: date | None
     bio: str | None
     years_experience: int | None
+    university: str | None
+    semester: int | None
     age_groups: list[str]
     languages: list[str]
     first_aid: bool
@@ -111,6 +124,8 @@ def _profile_out(row: Sitter) -> SitterProfileOut:
         date_of_birth=row.date_of_birth,
         bio=row.bio,
         years_experience=row.years_experience,
+        university=row.university,
+        semester=row.semester,
         age_groups=sitters_service.known(row.age_groups, sitters_service.AGE_GROUPS),
         languages=sitters_service.known(row.languages, sitters_service.LANGUAGES),
         first_aid=row.first_aid,
@@ -152,6 +167,8 @@ def put_profile(body: SitterProfileIn, sitter: SitterProfile, db: DbSession) -> 
         date_of_birth=body.date_of_birth,
         bio=body.bio,
         years_experience=body.years_experience,
+        university=body.university,
+        semester=body.semester,
         age_groups=body.age_groups,
         languages=body.languages,
         first_aid=body.first_aid,
@@ -309,6 +326,12 @@ def get_references(sitter: SitterProfile, db: DbSession) -> list[ReferenceOut]:
 def post_reference(body: ReferenceIn, sitter: SitterProfile, db: DbSession) -> ReferenceOut:
     reference = sitters_service.add_reference(db, sitter.id, body.name, body.phone, body.relationship)
     return _reference_out(reference)
+
+
+@router.put("/references/confirmed", status_code=204)
+def confirm_references(sitter: SitterProfile, db: DbSession) -> None:
+    """She pressed Continue on References (optional): only then does the step show as done."""
+    sitters_service.confirm_references(db, sitter.id)
 
 
 @router.delete("/references/{reference_id}", status_code=204)

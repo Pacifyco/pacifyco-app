@@ -144,8 +144,8 @@ def test_sitter_checklist_moves_from_to_do_to_waiting(client, db_engine, storage
         "psych_test",
     ]
     assert items["details"] == "done"  # the fixture fills them in
-    # References are optional (2026-11-13): with none, that step is already done.
-    assert {key for key, status in items.items() if status == "to_do"} == set(items) - {"details", "references"}
+    # References are optional, but the step isn't done until she has been on it (Reuben, 2026-11-16).
+    assert {key for key, status in items.items() if status == "to_do"} == set(items) - {"details"}
     assert body["live"] is False
     profile = next(item for item in body["items"] if item["key"] == "profile")
     assert profile["note"] == "Add your date of birth, experience and a few words about you"  # the next action
@@ -166,6 +166,18 @@ def test_sitter_checklist_moves_from_to_do_to_waiting(client, db_engine, storage
     items, _ = checklist(client, sitter, "sitter")
     assert items["identity_documents"] == items["references"] == items["psych_test"] == "waiting"
     assert items["health_disclosure"] == items["payout"] == "done"
+
+
+def test_references_are_done_only_once_she_continues_past_them(client, sitter):  # noqa: F811
+    """Reuben, 2026-11-16: optional, but "Done" only after she pressed Continue, with or without one."""
+    assert checklist(client, sitter, "sitter")[0]["references"] == "to_do"
+    for _ in range(2):  # pressing Continue again changes nothing
+        assert client.put("/sitter/references/confirmed", headers=auth_for(sitter)).status_code == 204
+    assert checklist(client, sitter, "sitter")[0]["references"] == "done"
+
+
+def test_only_sitters_confirm_references(client, parent):  # noqa: F811
+    assert client.put("/sitter/references/confirmed", headers=auth_for(parent)).status_code == 403
 
 
 def test_a_rejected_police_certificate_shows_on_id_verification(client, sitter, reviewer):  # noqa: F811

@@ -57,6 +57,8 @@ def update_profile(
     date_of_birth: date,
     bio: str | None,
     years_experience: int,
+    university: str,
+    semester: int,
     age_groups: list[str],
     languages: list[str],
     first_aid: bool,
@@ -66,6 +68,8 @@ def update_profile(
     sitter.date_of_birth = date_of_birth
     sitter.bio = bio
     sitter.years_experience = years_experience
+    sitter.university = university
+    sitter.semester = semester
     sitter.age_groups = age_groups
     sitter.languages = languages
     sitter.first_aid = first_aid
@@ -82,6 +86,14 @@ def set_health_disclosure(db: Session, sitter_id: uuid.UUID, disclosure: str | N
     # Saving it, even empty, completes the "Health disclosure" step (Reuben, 2026-11-13).
     sitter.health_disclosure_confirmed_at = datetime.now(UTC)
     db.commit()
+
+
+def confirm_references(db: Session, sitter_id: uuid.UUID) -> None:
+    """She moved on from References, with or without one: the step is done (Reuben, 2026-11-16)."""
+    sitter = _get_sitter(db, sitter_id)
+    if sitter.references_confirmed_at is None:
+        sitter.references_confirmed_at = datetime.now(UTC)
+        db.commit()
 
 
 def get_health_disclosure(db: Session, sitter_id: uuid.UUID, encryption_key: str) -> str | None:
