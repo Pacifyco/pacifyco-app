@@ -284,7 +284,7 @@ test("the admin approves the sitter and the family", async () => {
   await expect(page.getByText(/The birth certificate has been deleted/)).toBeVisible();
 });
 
-test("the parent finds the sitter, with her photo and no prices", async () => {
+test("the parent finds the sitter, with her photo and her rate, never a plan name", async () => {
   const page = parent.page;
   await page.goto("/parent/profile");
   await expect(page.getByRole("link", { name: /Your children/ }).getByText("Approved")).toBeVisible();
@@ -298,7 +298,9 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
   const photo = card.getByRole("img", { name: "Lakshmi Nair" });
   await expect(photo).toBeVisible();
   expect(await photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
-  await expect(page.locator("body")).not.toContainText("₹");
+  // Her rate, never her plan's name or her pay (Reuben, 2026-11-17).
+  await expect(card.getByText("₹499/hour")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
 
   await card.getByRole("link", { name: "See Lakshmi's profile" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Lakshmi Nair" })).toBeVisible();
@@ -307,5 +309,6 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
   await expect(page.getByRole("rowheader", { name: "Mon" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Sun/ }).getByText("Not available")).toBeVisible();
   await expect(page.getByText(/Start with a 1-hour booking while you're at home/)).toBeVisible();
-  await expect(page.locator("body")).not.toContainText("₹");
+  await expect(page.getByText("₹499 an hour, for one child")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
 });
