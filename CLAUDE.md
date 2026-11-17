@@ -214,8 +214,8 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   a sitter's card and profile page show the hourly rate of the plan she works (Pause "₹499/hour";
   Unwind "₹699/hour" on her profile, "from ₹699/hour" on her card, +₹150 for each extra child; Recharge
   "₹899/hour" for any number of children) with what it includes. The names Pause, Unwind and Recharge
-  are never shown to parents anywhere (cards, profile, booking, payments); admins and the code still use
-  them. Sitter pay is never shown to parents.
+  are never shown to parents anywhere in the app (cards, profile, booking, payments); admins and the code
+  still use them. The legal terms keep the names (Reuben, 2026-11-17). Sitter pay is never shown to parents.
 
 ### 6.2 Sitter levels and pay
 
