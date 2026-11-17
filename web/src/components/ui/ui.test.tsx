@@ -184,9 +184,13 @@ describe("SitterCard", () => {
     expect(screen.getByRole("link", { name: "See Priya's profile" }).getAttribute("href")).toBe("/sitters/priya");
   });
 
-  test("never shows a price", () => {
-    const { container } = withRouter(<SitterCard {...sitter} />);
-    expect(container.textContent).not.toMatch(/₹|\/hour|rate/i);
+  test("shows the rate it's given, and nothing about price without one", () => {
+    // Parents see her rate on the card (Reuben, 2026-11-17).
+    const { container, unmount } = withRouter(<SitterCard {...sitter} />);
+    expect(container.textContent).not.toMatch(/₹|\/hour/);
+    unmount();
+    withRouter(<SitterCard {...sitter} price="from ₹699/hour" />);
+    expect(screen.getByText("from ₹699/hour")).toBeTruthy();
   });
 
   test("the area is left out when unknown", () => {

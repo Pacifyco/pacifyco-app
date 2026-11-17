@@ -194,20 +194,28 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   once each of them is verified (6.4).
 - Booking price = the plan's hourly price (for that number of children) × booked hours. Example:
   Recharge, 3 hours = ₹2,697. No GST for now.
-- Booked time is counted in **whole hours only** (no half-hours); no minimum length; no earliest start
-  time. (Decided 2026-11-03, replaces half-hour rounding.)
+- Booked time is counted in **whole hours only** (no half-hours); no minimum length. A booking must start
+  **at least 4 hours from now** (Reuben, 2026-11-17), so there is time to pay and confirm before the
+  3-hour payment deadline. (Decided 2026-11-03, replaces half-hour rounding.)
 - **No match deposit.** (Decided 2026-11-03; the idea is dropped.) The parent pays the full price up
   front. Product flow: parents are encouraged to make a short first (e.g. 1-hour) booking with a new
   sitter to assess fit before booking longer sessions — a UX nudge, not an enforced rule.
-- **Paying for a booking (beta, manual UPI):** the parent picks the plan, children and hours, sees the
-  full price, and pays all of it by UPI to `PACIFY_UPI_ID`, entering the UPI reference. The booking is
+- **Paying for a booking (beta, manual UPI):** the parent picks the sitter (and so her plan), children and
+  hours, sees the full price, and pays all of it by UPI to `PACIFY_UPI_ID` (a `upi://pay` link and a QR code
+  of it, payee name "Pacifyco"; Reuben 2026-11-17 approved the `qrcode` library), entering the 12-digit UPI
+  reference. The booking is
   `pending_payment` until an admin confirms the payment, then it's `confirmed`. Admins can reject with a
   reason.
 - **Payment deadline:** if payment isn't confirmed by **3 hours before the booking's start**, the
   `pending_payment` booking is auto-cancelled (same boundary as the parent late-cancellation rule in
   6.5). Decided 2026-11-03 — parents should pay as soon as they book, since slots aren't held (6.4).
 - Refunds are money, paid back by UPI or bank transfer (beta: manual, recorded with a reference).
-- Plan prices appear when the parent picks a plan; sitter cards never show a price.
+- **Parents see rates, never plan names (Reuben, 2026-11-17; replaces "sitter cards never show a price"):**
+  a sitter's card and profile page show the hourly rate of the plan she works (Pause "₹499/hour";
+  Unwind "₹699/hour" on her profile, "from ₹699/hour" on her card, +₹150 for each extra child; Recharge
+  "₹899/hour" for any number of children) with what it includes. The names Pause, Unwind and Recharge
+  are never shown to parents anywhere (cards, profile, booking, payments); admins and the code still use
+  them. Sitter pay is never shown to parents.
 
 ### 6.2 Sitter levels and pay
 

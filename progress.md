@@ -349,8 +349,11 @@ at home (CLAUDE.md 6.3).
 
 ## Phase 6 — Plans and payments (was hour packs and ledger; changed 2026-11-03)
 
-- [ ] Pricing service (plans, children, whole hours only)
-- [ ] Plan picker: prices per plan for the chosen children, what each includes, the total
+- [x] Pricing service (plans, children, whole hours only): `app/services/pricing.py`
+- [x] Rates on sitter cards and profiles, never plan names (Reuben, 2026-11-17; replaces the plan picker:
+  the sitter's level sets the plan, so parents pick a sitter, not a plan)
+- [ ] Book this sitter (simple form, from Phase 7 item 1, needed to pay): her free times, children, bath
+  time, cameras, live price; starts at least 4 hours from now
 - [ ] Booking payment: UPI instructions, UPI reference entry, `pending_payment` (no match deposit)
 - [ ] Frequent job: auto-cancel `pending_payment` bookings 3 hours before start; first confirmed payment
   wins a slot and auto-cancels the others
@@ -446,6 +449,9 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-17 — Phase 6 started (`plans-and-payments`). Reuben: parents see rates on sitter cards and
+  profiles, never plan names; bookings start 4+ hours ahead; QR code approved (`qrcode`); test UPI ID for
+  staging given. Pricing service and rates done. API 459, web 241 (one timing flake locally).
 - 2026-11-16 — Reuben: sitters give their university and semester (1–10) in "About you", required;
   admins see them on the review page and parents on her profile page (migration `d4a6c8e0f2b1`; sitters who
   saved before are asked for them on the checklist). References, still optional, show "Done" only once she

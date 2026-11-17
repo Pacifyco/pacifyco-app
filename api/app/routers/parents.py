@@ -14,7 +14,7 @@ from app.errors import AppError
 from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, SitterLevel, VerificationStatus
 from app.routers.auth import TermsVersion, request_info
 from app.services import availability as availability_service
-from app.services import checklists, consent, family, legal
+from app.services import checklists, consent, family, legal, pricing
 from app.services import children as children_service
 from app.services import search as search_service
 from app.services import sitters as sitters_service
@@ -261,6 +261,24 @@ def delete_child(child_id: uuid.UUID, parent: Parent, db: DbSession) -> None:
 # ---------- finding sitters (CLAUDE.md 9 "Search and filters") ----------
 
 
+class Price(BaseModel):
+    """What the parent pays per hour with this sitter (her plan's price, CLAUDE.md 6.1). Parents see the
+    rate, never the plan's name (Reuben, 2026-11-17)."""
+
+    per_hour_paise: int  # for one child
+    extra_child_paise: int  # added per hour for each extra child; 0 means the same for any number
+    one_child_only: bool
+
+
+def _price(plan: SitterLevel) -> Price:
+    rate = pricing.RATES[plan]
+    return Price(
+        per_hour_paise=rate.first_child_paise,
+        extra_child_paise=rate.extra_child_paise,
+        one_child_only=rate.max_children == 1,
+    )
+
+
 class SitterSummary(BaseModel):
     """What parents see of a sitter. Never her pay, level pay, address, phone or email (CLAUDE.md 6.2)."""
 
@@ -274,7 +292,8 @@ class SitterSummary(BaseModel):
     review_count: int
     distance_km: float | None  # straight line from the parent's home, to 0.1 km
     photo_url: str | None  # short-lived signed URL; live sitters only
-    plan: SitterLevel  # the plan she works (her level), shown as a label; its price only when booking
+    plan: SitterLevel  # the plan she works (her level); never shown to parents by name
+    price: Price  # her plan's price per hour, shown on her card and profile
     # References are optional (2026-11-13): "References checked" only when one has been approved.
     references_checked: bool
 
@@ -329,6 +348,7 @@ def _summary_fields(db: DbSession, found: search_service.Found, photo_url: str |
         "distance_km": round(found.distance_km, 1) if found.distance_km is not None else None,
         "photo_url": photo_url,
         "plan": sitter.level,
+        "price": _price(sitter.level),
         "references_checked": search_service.has_approved_reference(db, sitter.profile_id),
     }
 
