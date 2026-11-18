@@ -11,7 +11,6 @@ import {
   Chip,
   EmergencyButton,
   EmptyState,
-  HourBalance,
   IconTile,
   RoleChooser,
   Select,
@@ -222,24 +221,6 @@ describe("BookingCard", () => {
     expect(screen.getByText("Next booking")).toBeTruthy();
     expect(screen.getByText("Sat, 10 Oct · 10:00 am – 1:00 pm")).toBeTruthy();
     expect(screen.getByText("Priya is looking after Asha, Rohan and Meera at home.")).toBeTruthy();
-  });
-});
-
-describe("HourBalance", () => {
-  test("shows hours per child, nearest expiry and carried-forward hours", () => {
-    render(
-      <HourBalance
-        balances={[
-          { childName: "Asha", units: 25, nearestExpiry: new Date("2026-11-12T06:00:00Z"), carriedForwardUnits: 4 },
-          { childName: "Rohan", units: 2, nearestExpiry: null, carriedForwardUnits: 2 },
-        ]}
-      />,
-    );
-    expect(screen.getByText("12.5 hours left")).toBeTruthy();
-    expect(screen.getByText("Next expiry: 12 Nov 2026")).toBeTruthy();
-    expect(screen.getByText("Includes 2 hours carried forward, which don't expire")).toBeTruthy();
-    expect(screen.getByText("1 hour left")).toBeTruthy();
-    expect(screen.getAllByText(/Next expiry/)).toHaveLength(1);
   });
 });
 

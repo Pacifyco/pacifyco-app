@@ -395,7 +395,7 @@ at home (CLAUDE.md 6.3).
   payments being checked and refunds aren't owed. Owing anything refuses a new booking (409
   `money_owed`) and the booking page says so, with a link to Your payments. How a parent pays a charge
   comes with overtime (phase 8)
-- [ ] Remove the unused HourBalance component
+- [x] Remove the unused HourBalance component (and `formatHours`, which counted half-hour units)
 - [ ] Tests for this phase
 
 ## Phase 7 — Bookings, cancellations, strikes
@@ -485,6 +485,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — Removed HourBalance and the half-hour `formatHours`. Web 269.
 - 2026-11-18 — Parent payment history (`/parent/payments`) and money owed blocking new bookings.
   API 533, web 271, e2e 8.
 - 2026-11-18 — Admin payments: confirm, reject, refunds with a reference, `awaiting_verification` (paid

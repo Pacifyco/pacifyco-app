@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatBookingTime, formatDate, formatHours, formatTime, joinNames, plural } from "./format";
+import { formatBookingTime, formatDate, formatTime, joinNames, plural } from "./format";
 
 describe("format (always Asia/Kolkata)", () => {
   test("dates", () => {
@@ -20,13 +20,6 @@ describe("format (always Asia/Kolkata)", () => {
     expect(formatBookingTime(new Date("2026-10-10T14:30:00Z"), new Date("2026-10-10T19:30:00Z"))).toBe(
       "Sat, 10 Oct · 8:00 pm – Sun, 11 Oct · 1:00 am",
     );
-  });
-
-  test("hours from half-hour units", () => {
-    expect(formatHours(0)).toBe("0 hours");
-    expect(formatHours(1)).toBe("0.5 hours");
-    expect(formatHours(2)).toBe("1 hour");
-    expect(formatHours(5)).toBe("2.5 hours");
   });
 
   test("names without an Oxford comma", () => {
