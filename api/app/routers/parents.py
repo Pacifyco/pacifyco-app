@@ -564,8 +564,10 @@ def post_booking(body: BookingIn, parent: Parent, db: DbSession, settings: AppSe
 @router.get("/bookings/{booking_id}")
 def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings) -> BookingOut:
     booking = bookings_service.parents_booking(db, parent.id, booking_id)
-    # Past its payment deadline with nothing sent: cancelled now, not at the next job run.
-    if bookings_service.cancel_unpaid(db, datetime.now(UTC), booking.id):
+    # Past its payment deadline with nothing sent, or started with a child still unverified: cancelled
+    # now, not at the next job run.
+    now = datetime.now(UTC)
+    if bookings_service.cancel_unpaid(db, now, booking.id) or bookings_service.cancel_unverified(db, now, booking.id):
         db.commit()
         db.refresh(booking)
     return _booking_out(db, booking, settings)

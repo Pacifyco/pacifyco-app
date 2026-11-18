@@ -483,8 +483,12 @@ export function BookingPage() {
       {data.status === "awaiting_verification" && (
         <Card as="section" padding="roomy" className="flex flex-col gap-3">
           <p className="text-ink">
-            Thank you, we've received your payment and kept this time with {firstName} for you. The booking is
-            confirmed once Pacifyco has checked every child's birth certificate.
+            Thank you, we've received your payment. The booking is confirmed once Pacifyco has checked every
+            child's birth certificate.
+          </p>
+          <p className="text-ink">
+            Until then, this time with {firstName} isn't kept for you. If another booking for it is confirmed
+            first, or the check isn't done by the start, we'll cancel this booking and refund you in full.
           </p>
         </Card>
       )}
@@ -501,8 +505,14 @@ export function BookingPage() {
       )}
       {data.status === "cancelled_slot_taken" && (
         <CancelledCard sitterId={data.sitter_id}>
-          Another booking for this time with {firstName} was paid for first, so this one was cancelled.
+          Another booking for this time with {firstName} was confirmed first, so this one was cancelled.
           {data.payment ? " If you've paid, Pacifyco will refund you." : ""}
+        </CancelledCard>
+      )}
+      {data.status === "cancelled_unverified" && (
+        <CancelledCard sitterId={data.sitter_id}>
+          This booking was cancelled because not every child on it was verified by the start time. Pacifyco will
+          refund you in full.
         </CancelledCard>
       )}
     </article>

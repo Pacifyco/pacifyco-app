@@ -166,8 +166,9 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   and called by a GitHub Actions schedule: strike expiry
   (daily), overdue check-out alerts (every 30 minutes, 6 am–midnight IST — keep each run short to stay
   inside GitHub Actions free minutes), payouts-due alerts (every 30 minutes, in the same run as overdue
-  check-outs), and auto-cancelling `pending_payment` bookings once their 3-hour payment deadline passes
-  (6.1; same frequent run).
+  check-outs), auto-cancelling `pending_payment` bookings once their 3-hour payment deadline passes
+  (6.1; same frequent run), and cancelling and refunding `awaiting_verification` bookings whose start has
+  come (6.4; same frequent run).
   Two runs, `daily` and `frequent`, each a list of tasks in `api/app/services/jobs.py`. Before launch the
   frequent run targets production only, to save Render's shared free hours (README "Scheduled jobs").
 
@@ -211,7 +212,9 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   6.5). Decided 2026-11-03 — parents should pay as soon as they book, since slots aren't held (6.4).
   **A UPI reference sent before the deadline keeps the booking** for an admin to confirm or reject, even
   if it isn't checked by then (Reuben, 2026-11-18); a rejected payment doesn't. Auto-cancelled bookings
-  are `cancelled_unpaid`; ones that lose the slot to another confirmed booking are `cancelled_slot_taken`.
+  are `cancelled_unpaid`; ones that lose the slot to another confirmed booking are `cancelled_slot_taken`;
+  paid ones whose start comes with a child still unverified are `cancelled_unverified` (6.4). A booking
+  cancelled after its payment was confirmed is refunded in full.
 - Refunds are money, paid back by UPI or bank transfer (beta: manual, recorded with a reference).
 - **Parents see rates, never plan names (Reuben, 2026-11-17; replaces "sitter cards never show a price"):**
   a sitter's card and profile page show the hourly rate of the plan she works (Pause "₹499/hour";
@@ -280,13 +283,18 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   approved by an admin, 7), as well as paid. Decided 2026-11-08: parents can book before that review
   is done; the booking waits until it is. Until it's confirmed, the booking doesn't show on the
   sitter's side (her bookings and schedule); she only sees confirmed bookings.
-  **Paid holds the slot (Reuben, 2026-11-18):** once its payment is confirmed, a booking with a child not
-  yet verified is `awaiting_verification`: it takes her time (and cancels overlapping unpaid bookings)
-  like a confirmed one, and becomes `confirmed` when an admin approves the last child.
+  **Unverified doesn't hold the slot (Reuben, 2026-11-18; replaces "paid holds the slot" from earlier
+  that day):** once its payment is confirmed, a booking with a child not yet verified is
+  `awaiting_verification`. It does **not** take her time: other parents can still book and pay for it.
+  It becomes `confirmed` (and takes her time) when an admin approves the last child, unless another
+  booking was confirmed for that time first; then it's `cancelled_slot_taken`. If the start comes with a
+  child still unverified (or rejected), it's `cancelled_unverified`. Every payment for a booking that
+  doesn't go ahead this way is refunded in full.
 - **No slot hold while payment is pending** (decided 2026-11-03): the sitter's availability for that
   slot is only removed once a booking is `confirmed`. More than one parent can have a `pending_payment`
-  booking for the same slot at once — whoever's payment is confirmed first wins it; any other
-  `pending_payment` booking for an overlapping slot is then auto-cancelled (the parent is told).
+  booking for the same slot at once — whoever's booking is confirmed first (paid and every child
+  verified) wins it; any other `pending_payment` or `awaiting_verification` booking for an overlapping
+  slot is then auto-cancelled (the parent is told, and refunded if they'd paid).
 
 ### 6.5 Cancellations, no-shows and the show-up fee
 
@@ -603,7 +611,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `geocode_cache` **(created)** (query, lat, lng) — Nominatim results (`app/services/geocoding.py`); a profile's
   lat/lng are looked up when its address is saved
 - `payments` **(created)** (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference (12 digits; one not-rejected row per reference), due_by, confirmed_by, confirmed_at, rejection_reason, transfer_reference (a refund's UPI or bank transfer reference, required to mark it paid), created_at) — append-only: the API's role can add rows and update only the decision columns (status, confirmed_by, confirmed_at, rejection_reason, transfer_reference), never an amount, and can't delete; a rejected payment stays and a new reference is a new row. A refund is a row of its own (negative amount, `pending` until paid back, then `confirmed`), made when money arrives for a booking that can't go ahead. **Money owed** = the parent's `pending` overtime and cancellation-charge rows (`bookings.amount_owed`); a booking payment being checked isn't owed money. Replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
-- `bookings` **(created; check-in, location and closing columns come in phases 7-8)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show|cancelled_unpaid|cancelled_slot_taken|awaiting_verification`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
+- `bookings` **(created; check-in, location and closing columns come in phases 7-8)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show|cancelled_unpaid|cancelled_slot_taken|awaiting_verification|cancelled_unverified`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
 - `booking_children` **(created)** (booking_id, child_id)
 - `booking_home_info` **(created)** (booking_id, cameras_on, camera_locations)
 - `outing_requests` (id, booking_id, description, status: `pending|approved|declined`, decided_at)

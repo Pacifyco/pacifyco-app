@@ -49,10 +49,10 @@ LATEST_END: dict[Plan, timedelta] = {
 }
 BATH_TIME: dict[Plan, bool] = {Plan.pause: False, Plan.unwind: True, Plan.recharge: True}
 
-# Bookings that hold the sitter's time.
-# Bookings that hold the sitter's time: paid ones too, while a child's verification is awaited (Reuben,
+# Bookings that hold the sitter's time. A paid booking waiting for a child's verification
+# (`awaiting_verification`) doesn't: until every child on it is verified her time stays free (Reuben,
 # 2026-11-18).
-HOLDS_TIME = (BookingStatus.awaiting_verification, BookingStatus.confirmed, BookingStatus.in_progress)
+HOLDS_TIME = (BookingStatus.confirmed, BookingStatus.in_progress)
 
 
 def _hour_up(moment: datetime) -> datetime:
@@ -304,20 +304,28 @@ def home_info(db: Session, booking_id: uuid.UUID) -> BookingHomeInfo | None:
 KEEPS_BOOKING = (PaymentStatus.pending, PaymentStatus.confirmed)
 
 
-def _cancel(db: Session, booking_ids: list[uuid.UUID], status: BookingStatus, reason: dict) -> None:
-    if not booking_ids:
-        return
-    db.execute(update(Booking).where(Booking.id.in_(booking_ids)).values(status=status))
-    for booking_id in booking_ids:
+def _cancel(db: Session, found: list, status: BookingStatus, reason: dict) -> list[uuid.UUID]:
+    """Cancels the bookings in `found` (rows of id and status). Paid ones (`awaiting_verification`) are
+    owed a full refund (Reuben, 2026-11-18). Returns their ids."""
+    # Read before the update, which also changes any of these bookings already loaded in the session.
+    earlier = [(item.id, item.status) for item in found]
+    ids = [booking_id for booking_id, _ in earlier]
+    if not ids:
+        return ids
+    db.execute(update(Booking).where(Booking.id.in_(ids)).values(status=status))
+    for booking_id, was in earlier:
         audit.record(
             db,
             None,  # Pacifyco itself, not a person
             "booking_cancelled",
             "booking",
             str(booking_id),
-            before={"status": BookingStatus.pending_payment.value},
+            before={"status": was.value},
             after={"status": status.value, **reason},
         )
+        if was == BookingStatus.awaiting_verification:
+            refund_booking(db, None, booking_id)
+    return ids
 
 
 def cancel_unpaid(db: Session, now: datetime, booking_id: uuid.UUID | None = None) -> list[uuid.UUID]:
@@ -328,7 +336,7 @@ def cancel_unpaid(db: Session, now: datetime, booking_id: uuid.UUID | None = Non
     paid = exists().where(
         Payment.booking_id == Booking.id, Payment.kind == PaymentKind.booking, Payment.status.in_(KEEPS_BOOKING)
     )
-    query = select(Booking.id).where(
+    query = select(Booking.id, Booking.status).where(
         Booking.status == BookingStatus.pending_payment,
         Booking.starts_at <= now + PAYMENT_DEADLINE,
         ~paid,
@@ -337,30 +345,80 @@ def cancel_unpaid(db: Session, now: datetime, booking_id: uuid.UUID | None = Non
         query = query.where(Booking.id == booking_id)
     # Rows another transaction holds (a payment being sent or confirmed right now) are left for the
     # next run.
-    ids = list(db.scalars(query.with_for_update(skip_locked=True)))
-    _cancel(db, ids, BookingStatus.cancelled_unpaid, {"reason": "not_paid_by_deadline"})
-    return ids
+    found = list(db.execute(query.with_for_update(skip_locked=True)))
+    return _cancel(db, found, BookingStatus.cancelled_unpaid, {"reason": "not_paid_by_deadline"})
 
 
-def cancel_overlapping_unpaid(db: Session, confirmed: Booking) -> list[uuid.UUID]:
-    """Once a booking is confirmed it takes her time: every other `pending_payment` booking with her
-    for an overlapping time is cancelled (6.4, first confirmed payment wins). Called when an admin
-    confirms a payment; the caller commits."""
-    ids = list(
-        db.scalars(
-            select(Booking.id)
+def cancel_unverified(db: Session, now: datetime, booking_id: uuid.UUID | None = None) -> list[uuid.UUID]:
+    """Paid bookings whose start has come while a child on them still isn't verified (or was rejected)
+    can't go ahead: cancelled (`cancelled_unverified`) and refunded in full (Reuben, 2026-11-18).
+    Idempotent; the caller commits. With `booking_id`, only that booking."""
+    query = select(Booking.id, Booking.status).where(
+        Booking.status == BookingStatus.awaiting_verification, Booking.starts_at <= now
+    )
+    if booking_id is not None:
+        query = query.where(Booking.id == booking_id)
+    found = list(db.execute(query.with_for_update(skip_locked=True)))
+    return _cancel(db, found, BookingStatus.cancelled_unverified, {"reason": "children_not_verified_by_start"})
+
+
+def cancel_overlapping(db: Session, confirmed: Booking) -> list[uuid.UUID]:
+    """Once a booking is confirmed it takes her time: every other booking with her for an overlapping
+    time that is still unpaid (`pending_payment`) or paid but waiting for a child's verification
+    (`awaiting_verification`, refunded) is cancelled (6.4, first confirmed booking wins). The caller
+    commits."""
+    found = list(
+        db.execute(
+            select(Booking.id, Booking.status)
             .where(
                 Booking.sitter_id == confirmed.sitter_id,
                 Booking.id != confirmed.id,
-                Booking.status == BookingStatus.pending_payment,
+                Booking.status.in_((BookingStatus.pending_payment, BookingStatus.awaiting_verification)),
                 Booking.starts_at < confirmed.ends_at,
                 Booking.ends_at > confirmed.starts_at,
             )
             .with_for_update()
         )
     )
-    _cancel(db, ids, BookingStatus.cancelled_slot_taken, {"taken_by": str(confirmed.id)})
-    return ids
+    return _cancel(db, found, BookingStatus.cancelled_slot_taken, {"taken_by": str(confirmed.id)})
+
+
+# ---------- refunds (6.1) ----------
+
+
+def owe_refund(db: Session, actor_id: uuid.UUID | None, paid: Payment) -> Payment:
+    """Money received for a booking that won't go ahead is paid back (6.1): a pending refund row for the
+    full amount, for an admin to pay by UPI or bank transfer and mark paid."""
+    refund = Payment(
+        booking_id=paid.booking_id,
+        parent_id=paid.parent_id,
+        kind=PaymentKind.refund,
+        amount_paise=-paid.amount_paise,
+        status=PaymentStatus.pending,
+    )
+    db.add(refund)
+    db.flush()
+    audit.record(
+        db,
+        actor_id,
+        "refund_owed",
+        "payment",
+        str(refund.id),
+        after={"booking_id": str(paid.booking_id), "amount_paise": refund.amount_paise, "for_payment": str(paid.id)},
+    )
+    return refund
+
+
+def refund_booking(db: Session, actor_id: uuid.UUID | None, booking_id: uuid.UUID) -> list[Payment]:
+    """A refund for each confirmed booking payment of a booking that won't go ahead."""
+    paid = db.scalars(
+        select(Payment).where(
+            Payment.booking_id == booking_id,
+            Payment.kind == PaymentKind.booking,
+            Payment.status == PaymentStatus.confirmed,
+        )
+    ).all()
+    return [owe_refund(db, actor_id, payment) for payment in paid]
 
 
 # ---------- once paid (6.1 and 6.4) ----------
@@ -397,10 +455,9 @@ def slot_taken(db: Session, booking: Booking) -> bool:
 
 
 def mark_paid(db: Session, admin_id: uuid.UUID, booking: Booking) -> list[uuid.UUID]:
-    """The booking's payment is confirmed and it can go ahead: `confirmed` if every child on it is
-    verified, else `awaiting_verification` (it holds her time either way, Reuben 2026-11-18). Other
-    unpaid bookings for an overlapping time with her are cancelled; their ids are returned. The caller
-    commits."""
+    """The booking's payment is confirmed: `confirmed` if every child on it is verified, and then other
+    bookings for an overlapping time with her are cancelled (their ids are returned). Otherwise it's
+    `awaiting_verification` and doesn't hold her time yet (Reuben, 2026-11-18). The caller commits."""
     status = BookingStatus.confirmed if children_verified(db, booking.id) else BookingStatus.awaiting_verification
     audit.record(
         db,
@@ -413,29 +470,76 @@ def mark_paid(db: Session, admin_id: uuid.UUID, booking: Booking) -> list[uuid.U
     )
     booking.status = status
     db.flush()
-    return cancel_overlapping_unpaid(db, booking)
+    if status != BookingStatus.confirmed:
+        return []
+    return cancel_overlapping(db, booking)
 
 
-def confirm_verified(db: Session, admin_id: uuid.UUID, parent_id: uuid.UUID) -> list[uuid.UUID]:
+@dataclass(frozen=True)
+class AfterVerification:
+    # This parent's paid bookings now confirmed.
+    confirmed: list[uuid.UUID]
+    # This parent's paid bookings whose time another booking took first: cancelled and refunded.
+    lost: list[uuid.UUID]
+    # Other bookings for the same time as a newly confirmed one, cancelled (paid ones refunded).
+    cancelled: list[uuid.UUID]
+
+
+def confirm_verified(db: Session, admin_id: uuid.UUID, parent_id: uuid.UUID, now: datetime) -> AfterVerification:
     """After a child is approved: this parent's paid bookings whose children are now all verified are
-    confirmed (6.4). The caller commits."""
+    confirmed and take her time (6.4), unless another booking was confirmed for it first; then they're
+    cancelled and refunded (Reuben, 2026-11-18). Bookings already started are left to
+    `cancel_unverified`. The caller commits."""
     waiting = db.scalars(
         select(Booking)
-        .where(Booking.parent_id == parent_id, Booking.status == BookingStatus.awaiting_verification)
+        .where(
+            Booking.parent_id == parent_id,
+            Booking.status == BookingStatus.awaiting_verification,
+            Booking.starts_at > now,
+        )
+        .order_by(Booking.starts_at)
         .with_for_update()
     ).all()
-    confirmed = []
+    confirmed: list[uuid.UUID] = []
+    lost: list[uuid.UUID] = []
+    cancelled: list[uuid.UUID] = []
     for booking in waiting:
-        if children_verified(db, booking.id):
-            audit.record(
+        if booking.id in cancelled or not children_verified(db, booking.id):
+            continue
+        if slot_taken(db, booking):
+            _cancel(
                 db,
-                admin_id,
-                "booking_confirmed",
-                "booking",
-                str(booking.id),
-                before={"status": booking.status.value},
-                after={"status": BookingStatus.confirmed.value, "reason": "children_verified"},
+                [booking],
+                BookingStatus.cancelled_slot_taken,
+                {"taken_by": str(_holder(db, booking))},
             )
-            booking.status = BookingStatus.confirmed
-            confirmed.append(booking.id)
-    return confirmed
+            db.refresh(booking)
+            lost.append(booking.id)
+            continue
+        audit.record(
+            db,
+            admin_id,
+            "booking_confirmed",
+            "booking",
+            str(booking.id),
+            before={"status": booking.status.value},
+            after={"status": BookingStatus.confirmed.value, "reason": "children_verified"},
+        )
+        booking.status = BookingStatus.confirmed
+        db.flush()
+        confirmed.append(booking.id)
+        cancelled.extend(cancel_overlapping(db, booking))
+    return AfterVerification(confirmed, lost, cancelled)
+
+
+def _holder(db: Session, booking: Booking) -> uuid.UUID | None:
+    """The booking that holds her time over this one's."""
+    return db.scalar(
+        select(Booking.id).where(
+            Booking.sitter_id == booking.sitter_id,
+            Booking.id != booking.id,
+            Booking.status.in_(HOLDS_TIME),
+            Booking.starts_at < booking.ends_at,
+            Booking.ends_at > booking.starts_at,
+        )
+    )

@@ -314,26 +314,37 @@ describe("paying for the booking", () => {
     expect(screen.queryByRole("heading", { name: /Pay ₹/ })).toBeNull();
   });
 
-  test("another booking was paid for first: cancelled, and a refund if they'd paid", async () => {
+  test("another booking was confirmed first: cancelled, and a refund if they'd paid", async () => {
     api(UNWIND, TIMES, {
       "GET /parent/bookings/b1": () =>
         jsonResponse({ ...BOOKING, status: "cancelled_slot_taken", pay_by_upi: null, payment: SENT }),
     });
     renderAt("/parent/bookings/b1");
     expect(
-      await screen.findByText(/Another booking for this time with Lakshmi was paid for first.*Pacifyco will refund you/),
+      await screen.findByText(/Another booking for this time with Lakshmi was confirmed first.*Pacifyco will refund you/),
     ).toBeTruthy();
   });
 
-  test("paid while a child waits for verification: the time is kept", async () => {
+  test("paid while a child waits for verification: the time isn't kept yet", async () => {
     api(UNWIND, TIMES, {
       "GET /parent/bookings/b1": () =>
         jsonResponse({ ...BOOKING, status: "awaiting_verification", pay_by_upi: null, payment: { ...SENT, status: "confirmed" } }),
     });
     renderAt("/parent/bookings/b1");
     expect(await screen.findByText("Paid")).toBeTruthy();
-    expect(screen.getByText(/kept this time with Lakshmi for you/)).toBeTruthy();
+    expect(screen.getByText(/this time with Lakshmi isn't kept for you/)).toBeTruthy();
+    expect(screen.getByText(/refund you in full/)).toBeTruthy();
     expect(screen.queryByRole("heading", { name: /Pay ₹/ })).toBeNull();
+  });
+
+  test("a child still unverified at the start: cancelled and refunded", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () =>
+        jsonResponse({ ...BOOKING, status: "cancelled_unverified", pay_by_upi: null, payment: { ...SENT, status: "confirmed" } }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("Cancelled")).toBeTruthy();
+    expect(screen.getByText(/not every child on it was verified by the start time.*refund you in full/)).toBeTruthy();
   });
 
   test("confirmed", async () => {

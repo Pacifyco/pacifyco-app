@@ -35,6 +35,8 @@ class BookingStatus(StrEnum):
     # the start; or another booking for an overlapping time with her was confirmed first.
     cancelled_unpaid = "cancelled_unpaid"
     cancelled_slot_taken = "cancelled_slot_taken"
+    # Paid, but a child on it still wasn't verified when it started: refunded (Reuben, 2026-11-18).
+    cancelled_unverified = "cancelled_unverified"
 
 
 class Booking(Base):

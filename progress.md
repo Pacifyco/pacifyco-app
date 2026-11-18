@@ -21,9 +21,10 @@ tests.
   keeps the booking for an admin, but if nobody checks it before the start, what happens? For now the
   API refuses to confirm it (`booking_started`) and the admin contacts the parent; the payment stays
   pending, with no way yet to record it as received and refund it.
-- [ ] **A paid booking whose child isn't verified by the start** (added 2026-11-18). It holds her time as
-  `awaiting_verification`; if the child is still unverified (or rejected) when it starts, is it
-  cancelled and refunded, and does the sitter go? Nothing happens automatically yet.
+- [x] **A paid booking whose child isn't verified by the start** (Reuben, 2026-11-18): until every child
+  is verified the booking isn't confirmed or shown to the sitter, and doesn't block her time. If it loses
+  the time to another confirmed booking, or the start comes first, it's cancelled and every payment is
+  refunded. Built in "Unverified bookings don't hold the sitter's time" below.
 - [x] Carry-forward cap: per child
 - [x] Overtime shortfall: ₹300 per child per hour
 - [x] Domain: pacifyco.in
@@ -388,6 +389,12 @@ at home (CLAUDE.md 6.3).
   `bookings.confirm_verified`), and cancels overlapping unpaid bookings (their parents are emailed). Money
   for a booking that lost its slot is recorded and a refund is owed. Rejected after the deadline cancels
   the booking at once. Emails: paid, rejected, slot taken, refunded. Migration b2d4f6a8c0e1
+- [x] Unverified bookings don't hold the sitter's time (Reuben, 2026-11-18). `awaiting_verification`
+  left `HOLDS_TIME`; confirming a booking (`bookings.cancel_overlapping`) also cancels overlapping
+  `awaiting_verification` bookings and refunds them; approving the last child confirms the booking or,
+  if the time was taken, cancels and refunds it (`bookings.confirm_verified`); `cancelled_unverified` at
+  the start, refunded (`bookings.cancel_unverified`, frequent job and on opening). Migration c3e5a7b9d1f4.
+  Not emailed yet when the job cancels (jobs have no mailer); the parent sees it on the booking page
 - [x] Parent payment history; outstanding amounts block new bookings. `/parent/payments` ("Your
   payments", from the parent's profile): every payment, charge and refund, newest first, linked to its
   booking, in plain words ("Pacifyco is checking it", "Paid", "Pacifyco is refunding you"). Money owed
@@ -494,6 +501,8 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — Unverified bookings no longer hold the sitter's time; cancelled and refunded if the time
+  is taken first or the start comes (`cancelled_unverified`).
 - 2026-11-18 — Phase 6 test check: booking now checks the service area and asks for new terms first;
   money-owed sum test. API 536, web 272, e2e 8. Phase 6 done.
 - 2026-11-18 — Removed HourBalance and the half-hour `formatHours`. Web 269.
