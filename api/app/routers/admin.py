@@ -517,8 +517,16 @@ def decide_child(
     mailer: Mailer,
     settings: AppSettings,
 ) -> StatusOut:
-    child = verification.decide_child(db, storage, admin.id, child_id, body.approved, body.notes, body.rejection_reason)
+    decided = verification.decide_child(
+        db, storage, admin.id, child_id, body.approved, body.notes, body.rejection_reason
+    )
+    child = decided.child
     profile, parent = verification.get_parent(db, child.parent_id)
+    if decided.after is not None:  # paid bookings that lost their time, and others it took
+        for lost_id in decided.after.lost:
+            _tell_slot_taken(db, mailer, settings, _booking(db, lost_id), paid=True)
+        for cancelled_id in decided.after.cancelled:
+            _tell_cancelled_for(db, mailer, settings, cancelled_id)
     if body.approved:  # the parent hears their child is verified (brought forward, 2026-11-13)
         family_verified = parent.verification_status == VerificationStatus.approved
         mailer.send(
@@ -659,6 +667,18 @@ def _tell_slot_taken(db: DbSession, mailer: Mailer, settings: Settings, booking:
     )
 
 
+def _booking(db: DbSession, booking_id: uuid.UUID) -> Booking:
+    booking = db.get(Booking, booking_id)
+    assert booking is not None
+    return booking
+
+
+def _tell_cancelled_for(db: DbSession, mailer: Mailer, settings: Settings, booking_id: uuid.UUID) -> None:
+    """Another booking was confirmed for this one's time."""
+    sent = payments_service.latest_booking_payment(db, booking_id)
+    _tell_slot_taken(db, mailer, settings, _booking(db, booking_id), paid=sent is not None)
+
+
 @router.post("/payments/{payment_id}/confirm")
 def confirm_payment(
     payment_id: uuid.UUID, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
@@ -680,10 +700,7 @@ def confirm_payment(
             )
         )
     for cancelled_id in done.cancelled:
-        cancelled = db.get(Booking, cancelled_id)
-        assert cancelled is not None
-        sent = payments_service.latest_booking_payment(db, cancelled_id)
-        _tell_slot_taken(db, mailer, settings, cancelled, paid=sent is not None)
+        _tell_cancelled_for(db, mailer, settings, cancelled_id)
     return PaymentDecisionOut(
         status=done.payment.status,
         booking_status=booking.status,

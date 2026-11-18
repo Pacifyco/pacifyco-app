@@ -5,8 +5,8 @@
 - With no payment sent by 3 hours before the start, a `pending_payment` booking is cancelled
   (`cancelled_unpaid`) by the frequent job, or as soon as the parent opens it. One whose UPI reference
   was sent in time waits for an admin (Reuben, 2026-11-18); a rejected payment doesn't keep it.
-- Once a booking is confirmed, other `pending_payment` bookings with her for an overlapping time are
-  cancelled (`cancelled_slot_taken`).
+- Once a booking is confirmed, other `pending_payment` (and paid `awaiting_verification`) bookings with
+  her for an overlapping time are cancelled (`cancelled_slot_taken`).
 """
 
 from datetime import UTC, datetime, timedelta
@@ -53,7 +53,7 @@ def test_the_frequent_run_cancels_unpaid_bookings_past_the_deadline(client, db_e
     move(db_engine, booking["id"], datetime.now(UTC) + timedelta(hours=2))
     response = jobs_client(db_engine).post("/internal/jobs/frequent", headers=bearer(SECRET))
     assert response.status_code == 200
-    assert response.json() == {"run": "frequent", "ran": ["cancel_unpaid_bookings"]}
+    assert response.json() == {"run": "frequent", "ran": ["cancel_unpaid_bookings", "cancel_unverified_bookings"]}
     assert status(db_engine, booking["id"]) == "cancelled_unpaid"
     audit = row(
         db_engine,
@@ -152,7 +152,7 @@ def test_a_confirmed_booking_cancels_overlapping_unpaid_ones(client, db_engine, 
         conn.execute(text("UPDATE bookings SET status = 'confirmed' WHERE id = :b"), {"b": winner})
 
     with Session(db_engine) as db:
-        cancelled = bookings.cancel_overlapping_unpaid(db, db.get(Booking, winner))
+        cancelled = bookings.cancel_overlapping(db, db.get(Booking, winner))
         db.commit()
     assert sorted(str(item) for item in cancelled) == sorted([overlapping, inside])
     assert status(db_engine, overlapping) == status(db_engine, inside) == "cancelled_slot_taken"

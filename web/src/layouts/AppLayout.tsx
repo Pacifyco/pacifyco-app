@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { SIGN_IN_PATH } from "../pages/SignInPage";
 import wordmarkReversedUrl from "../assets/brand/wordmark-reversed.png";
 import wordmarkUrl from "../assets/brand/wordmark.png";
@@ -83,6 +83,7 @@ export function AppLayout() {
           </Link>
           <HeaderActions />
         </div>
+        <AreaNav />
       </header>
 
       <main id="main" className="mx-auto w-full max-w-content flex-1 px-4 py-5 sm:px-5 sm:py-7">
@@ -116,6 +117,36 @@ function HeaderActions() {
       </div>
       <ProfileButton />
     </div>
+  );
+}
+
+// The parent's tabs (design.md 12: Home and Bookings; more come with their phases). A row under the header
+// on every size, scrolling sideways on narrow phones.
+const PARENT_TABS = [
+  { to: "/parent/sitters", label: "Find a sitter" },
+  { to: "/parent/bookings", label: "Bookings" },
+] as const;
+
+function AreaNav() {
+  const me = useMe();
+  if (me.data?.profile?.role !== "parent") return null;
+  return (
+    <nav aria-label="Parent" className="mx-auto flex max-w-content gap-1 overflow-x-auto px-2 sm:px-3">
+      {PARENT_TABS.map((tab) => (
+        <NavLink
+          key={tab.to}
+          to={tab.to}
+          className={({ isActive }) =>
+            cx(
+              "inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-3 text-ui no-underline transition-colors duration-200 ease-calm",
+              isActive ? "border-coral text-ink" : "border-transparent text-muted hover:text-ink",
+            )
+          }
+        >
+          {tab.label}
+        </NavLink>
+      ))}
+    </nav>
   );
 }
 

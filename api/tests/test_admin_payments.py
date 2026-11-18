@@ -2,9 +2,11 @@
 """Admins confirm or reject booking payments, and pay refunds back (CLAUDE.md 6.1, 6.4 and 9 "Plans and
 pricing", "Payments", "Bookings"; phase 6).
 
-- Confirming: the booking is `confirmed` if every child on it is verified, else `awaiting_verification`
-  (paid holds her time, Reuben 2026-11-18), which becomes `confirmed` when the last child is approved.
-  Other unpaid bookings with her for an overlapping time are cancelled and their parents told.
+- Confirming: the booking is `confirmed` if every child on it is verified, else `awaiting_verification`,
+  which becomes `confirmed` when the last child is approved. Until then it doesn't hold her time (Reuben,
+  2026-11-18). Once confirmed, other unpaid or unverified bookings with her for an overlapping time are
+  cancelled (paid ones refunded) and their parents told.
+- A paid booking whose start comes with a child still unverified is cancelled and refunded.
 - If another booking already holds the time, the money is still recorded, the booking is cancelled and a
   refund is owed; an admin pays it back and records the transfer reference.
 - Rejecting needs a reason the parent sees; they can send a new reference before the deadline.
@@ -133,22 +135,30 @@ def test_confirmed_and_verified_the_booking_is_confirmed(
     assert email.button_url.endswith(f"/parent/bookings/{booking['id']}")
 
 
-def test_paid_with_a_child_unverified_it_holds_the_time_until_the_child_is_approved(
+def offered(client, who, booking) -> bool:
+    """The booking's start is still among her bookable times."""
+    path = f"/parent/sitters/{booking['sitter_id']}/booking-options"
+    times = client.get(path, headers=auth_for(who)).json()["times"]
+    start = datetime.fromisoformat(booking["starts_at"])
+    return any(datetime.fromisoformat(t["starts_at"]) <= start < datetime.fromisoformat(t["ends_at"]) for t in times)
+
+
+def refunds(db_engine, booking_id):
+    return rows(db_engine, "SELECT * FROM payments WHERE booking_id = :b AND kind = 'refund'", b=booking_id)
+
+
+def test_paid_with_a_child_unverified_it_doesnt_hold_the_time_until_the_child_is_approved(
     client, reviewer, db_engine, mailbox, booking, finished_parent, paid
 ):
     assert confirm(client, reviewer, paid).json()["booking_status"] == "awaiting_verification"
-    assert "Pacifyco has checked every child" in mailbox.sent[-1].body
-    # It holds her time: the booking page no longer offers it.
-    path = f"/parent/sitters/{booking['sitter_id']}/booking-options"
-    times = client.get(path, headers=auth_for(finished_parent)).json()["times"]
-    start = datetime.fromisoformat(booking["starts_at"])
-    assert not any(
-        datetime.fromisoformat(t["starts_at"]) <= start < datetime.fromisoformat(t["ends_at"]) for t in times
-    )
+    assert "isn't kept for you" in mailbox.sent[-1].body
+    # Her time stays free until every child is verified (Reuben, 2026-11-18).
+    assert offered(client, finished_parent, booking)
 
     child = children_of(db_engine, finished_parent["id"])[0]
     assert review(client, reviewer, f"/admin/children/{child}/decision").status_code == 200
     assert status(db_engine, booking["id"]) == "confirmed"
+    assert not offered(client, finished_parent, booking)
     audit = row(
         db_engine,
         "SELECT actor_id, after FROM audit_log WHERE action = 'booking_confirmed' AND entity_id = :b",
@@ -187,7 +197,7 @@ def test_the_first_confirmed_payment_wins_and_the_others_are_cancelled(
     assert result["booking_status"] == "confirmed" and result["cancelled_bookings"] == 1
     assert status(db_engine, theirs["id"]) == "cancelled_slot_taken"
     told = [email for email in mailbox.sent if email.to == other["email"]]
-    assert told and "paid for first" in told[-1].body and "refund you in full" in told[-1].body
+    assert told and "confirmed first" in told[-1].body and "refund you in full" in told[-1].body
 
     # Their payment, confirmed later, is money in for a booking that can't go ahead: a refund.
     late = confirm(client, reviewer, payment_id(db_engine, theirs["id"])).json()
@@ -214,6 +224,112 @@ def test_the_first_confirmed_payment_wins_and_the_others_are_cancelled(
         f"/admin/refunds/{refund['id']}/paid", json={"transfer_reference": "x"}, headers=as_user(reviewer)
     )
     assert again.status_code == 409
+
+
+def test_a_paid_booking_waiting_for_verification_loses_the_time_to_one_confirmed_first(
+    client, reviewer, db_engine, mailbox, booking, finished_parent, paid, another_family
+):
+    assert confirm(client, reviewer, paid).json()["booking_status"] == "awaiting_verification"
+    other, kid = another_family
+    # Her time is still free, so the other family can book it, and their children are verified.
+    theirs = book(client, other, {"id": booking["sitter_id"]}, child_ids=[kid])
+    assert theirs.status_code == 201, theirs.text
+    theirs = theirs.json()
+    assert pay(client, other, theirs["id"], "999999999999").status_code == 201
+    verify_children(db_engine, other["id"])
+
+    result = confirm(client, reviewer, payment_id(db_engine, theirs["id"])).json()
+    assert result["booking_status"] == "confirmed" and result["cancelled_bookings"] == 1
+    assert status(db_engine, booking["id"]) == "cancelled_slot_taken"
+    (refund,) = refunds(db_engine, booking["id"])
+    assert refund["amount_paise"] == -booking["price_paise"] and refund["status"] == "pending"
+    told = [email for email in mailbox.sent if email.to == finished_parent["email"]]
+    assert "confirmed first" in told[-1].body and "refund you in full" in told[-1].body
+
+    # Approving their child later changes nothing.
+    child = children_of(db_engine, finished_parent["id"])[0]
+    assert review(client, reviewer, f"/admin/children/{child}/decision").status_code == 200
+    assert status(db_engine, booking["id"]) == "cancelled_slot_taken"
+    assert len(refunds(db_engine, booking["id"])) == 1
+
+
+def test_once_the_child_is_approved_the_booking_takes_the_time(
+    client, reviewer, db_engine, mailbox, booking, finished_parent, paid, another_family
+):
+    assert confirm(client, reviewer, paid).json()["booking_status"] == "awaiting_verification"
+    other, kid = another_family
+    theirs = book(client, other, {"id": booking["sitter_id"]}, child_ids=[kid]).json()
+
+    child = children_of(db_engine, finished_parent["id"])[0]
+    assert review(client, reviewer, f"/admin/children/{child}/decision").status_code == 200
+    assert status(db_engine, booking["id"]) == "confirmed"
+    assert status(db_engine, theirs["id"]) == "cancelled_slot_taken"
+    assert refunds(db_engine, theirs["id"]) == []  # they hadn't paid
+    told = [email for email in mailbox.sent if email.to == other["email"]]
+    assert told and "confirmed first" in told[-1].body and "refund" not in told[-1].body
+
+
+def test_a_child_approved_after_another_booking_took_the_time_is_refunded(
+    client, reviewer, db_engine, mailbox, booking, finished_parent, paid, another_family
+):
+    assert confirm(client, reviewer, paid).json()["booking_status"] == "awaiting_verification"
+    other, kid = another_family
+    theirs = book(client, other, {"id": booking["sitter_id"]}, child_ids=[kid]).json()
+    with db_engine.begin() as conn:  # confirmed some other way, leaving ours waiting
+        conn.execute(text("UPDATE bookings SET status = 'confirmed' WHERE id = :b"), {"b": theirs["id"]})
+
+    child = children_of(db_engine, finished_parent["id"])[0]
+    assert review(client, reviewer, f"/admin/children/{child}/decision").status_code == 200
+    assert status(db_engine, booking["id"]) == "cancelled_slot_taken"
+    assert len(refunds(db_engine, booking["id"])) == 1
+    audit = row(
+        db_engine,
+        "SELECT before, after FROM audit_log WHERE action = 'booking_cancelled' AND entity_id = :b",
+        b=booking["id"],
+    )
+    assert audit["before"] == {"status": "awaiting_verification"}
+    assert audit["after"] == {"status": "cancelled_slot_taken", "taken_by": theirs["id"]}
+    told = [email.body for email in mailbox.sent if email.to == finished_parent["email"]]
+    assert any("confirmed first" in body and "refund you in full" in body for body in told)
+
+
+def test_paid_but_unverified_at_the_start_it_is_cancelled_and_refunded(
+    client, reviewer, db_engine, booking, finished_parent, paid
+):
+    assert confirm(client, reviewer, paid).json()["booking_status"] == "awaiting_verification"
+    move(db_engine, booking["id"], datetime.now(UTC) - timedelta(minutes=5))
+    # Opened by the parent: cancelled at once, not at the next job run.
+    assert get(client, finished_parent, booking["id"]).json()["status"] == "cancelled_unverified"
+    (refund,) = refunds(db_engine, booking["id"])
+    assert refund["amount_paise"] == -booking["price_paise"] and refund["status"] == "pending"
+    audit = row(
+        db_engine,
+        "SELECT actor_id, before, after FROM audit_log WHERE action = 'booking_cancelled' AND entity_id = :b",
+        b=booking["id"],
+    )
+    assert audit["actor_id"] is None and audit["before"] == {"status": "awaiting_verification"}
+    assert audit["after"] == {"status": "cancelled_unverified", "reason": "children_not_verified_by_start"}
+    # Approving the child now confirms nothing, and nothing is refunded twice.
+    child = children_of(db_engine, finished_parent["id"])[0]
+    assert review(client, reviewer, f"/admin/children/{child}/decision").status_code == 200
+    assert status(db_engine, booking["id"]) == "cancelled_unverified"
+    assert len(refunds(db_engine, booking["id"])) == 1
+
+
+def test_the_frequent_run_cancels_unverified_bookings_at_the_start(client, reviewer, db_engine, booking, paid):
+    from tests.test_jobs import SECRET, bearer
+    from tests.test_jobs import client as jobs_client
+
+    assert confirm(client, reviewer, paid).json()["booking_status"] == "awaiting_verification"
+    move(db_engine, booking["id"], datetime.now(UTC) + timedelta(minutes=30))
+    run = jobs_client(db_engine).post("/internal/jobs/frequent", headers=bearer(SECRET))
+    assert run.status_code == 200
+    assert status(db_engine, booking["id"]) == "awaiting_verification"  # not started yet
+    move(db_engine, booking["id"], datetime.now(UTC) - timedelta(minutes=1))
+    for _ in range(2):  # idempotent
+        assert jobs_client(db_engine).post("/internal/jobs/frequent", headers=bearer(SECRET)).status_code == 200
+    assert status(db_engine, booking["id"]) == "cancelled_unverified"
+    assert len(refunds(db_engine, booking["id"])) == 1
 
 
 def test_a_payment_is_decided_once(client, reviewer, db_engine, finished_parent, paid):

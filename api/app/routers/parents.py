@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
+from sqlalchemy import select
 
 from app.auth import require_role
 from app.deps import DbSession
@@ -16,6 +17,9 @@ from app.models import (
     BookingStatus,
     Child,
     EmergencyContact,
+    Payment,
+    PaymentKind,
+    PaymentStatus,
     Profile,
     Role,
     SitterLevel,
@@ -561,11 +565,82 @@ def post_booking(body: BookingIn, parent: Parent, db: DbSession, settings: AppSe
     return _booking_out(db, booking, settings)
 
 
+class BookingListItem(BaseModel):
+    """A line in the parent's bookings list: never the plan's name or the sitter's pay (6.1)."""
+
+    id: uuid.UUID
+    sitter_id: uuid.UUID
+    sitter_name: str | None
+    starts_at: datetime
+    ends_at: datetime
+    hours: int
+    children: list[str]
+    price_paise: int
+    status: str
+    pay_by: datetime
+    # A UPI reference sent and waiting for Pacifyco to check it.
+    payment_sent: bool
+
+
+class BookingList(BaseModel):
+    upcoming: list[BookingListItem]  # soonest first
+    past: list[BookingListItem]  # ended or cancelled, most recent first
+
+
+@router.get("/bookings")
+def get_bookings(parent: Parent, db: DbSession) -> BookingList:
+    """Every booking the parent has made (phase 7 "Parent booking lists")."""
+    now = datetime.now(UTC)
+    # Overdue ones are cancelled now, not at the next job run (as when one booking is opened).
+    if bookings_service.cancel_unpaid(db, now, parent_id=parent.id) or bookings_service.cancel_unverified(
+        db, now, parent_id=parent.id
+    ):
+        db.commit()
+    upcoming, past = bookings_service.parents_bookings(db, parent.id, now)
+    everything = [*upcoming, *past]
+    ids = [item.id for item in everything]
+    names = bookings_service.child_names_for(db, ids)
+    sitters = {
+        row.id: row.full_name
+        for row in db.execute(
+            select(Profile.id, Profile.full_name).where(Profile.id.in_({item.sitter_id for item in everything}))
+        )
+    }
+    sent = set(
+        db.scalars(
+            select(Payment.booking_id).where(
+                Payment.booking_id.in_(ids),
+                Payment.kind == PaymentKind.booking,
+                Payment.status == PaymentStatus.pending,
+            )
+        )
+    )
+
+    def item(booking) -> BookingListItem:
+        return BookingListItem(
+            id=booking.id,
+            sitter_id=booking.sitter_id,
+            sitter_name=sitters.get(booking.sitter_id),
+            starts_at=booking.starts_at,
+            ends_at=booking.ends_at,
+            hours=booking.units,
+            children=names[booking.id],
+            price_paise=booking.price_paise,
+            status=booking.status.value,
+            pay_by=bookings_service.pay_by(booking),
+            payment_sent=booking.id in sent,
+        )
+
+    return BookingList(upcoming=[item(b) for b in upcoming], past=[item(b) for b in past])
+
+
 @router.get("/bookings/{booking_id}")
 def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings) -> BookingOut:
     booking = bookings_service.parents_booking(db, parent.id, booking_id)
-    # Past its payment deadline with nothing sent: cancelled now, not at the next job run.
-    if bookings_service.cancel_unpaid(db, datetime.now(UTC), booking.id):
+    # Past its payment deadline with nothing sent, or started with a child still unverified: cancelled
+    # now, not at the next job run.
+    now = datetime.now(UTC)
+    if bookings_service.cancel_unpaid(db, now, booking.id) or bookings_service.cancel_unverified(db, now, booking.id):
         db.commit()
         db.refresh(booking)
     return _booking_out(db, booking, settings)

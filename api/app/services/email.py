@@ -244,8 +244,9 @@ def booking_paid(
     else:
         heading = "We've received your payment."
         ending = (
-            f"The time with {sitter} is kept for you. The booking is confirmed once Pacifyco has checked "
-            "every child's birth certificate."
+            "The booking is confirmed once Pacifyco has checked every child's birth certificate. Until then "
+            f"the time with {sitter} isn't kept for you: if another booking for it is confirmed first, or the "
+            "check isn't done by the start, the booking is cancelled and you're refunded in full."
         )
     return Email(
         to=to,
@@ -282,7 +283,7 @@ def booking_slot_taken(
         subject="Your Pacifyco booking was cancelled",
         heading="This time has been taken.",
         body=(
-            f"Hi {_first_name(full_name)}, another booking with {sitter} for the same time was paid for first, "
+            f"Hi {_first_name(full_name)}, another booking with {sitter} for the same time was confirmed first, "
             f"so yours was cancelled.{refund}\nYou can choose another time with her."
         ),
         button_label="Open your booking",

@@ -3,7 +3,8 @@ is a list of tasks. Every task must be idempotent: running it twice, or late, ch
 
 Later phases add their tasks here:
 - daily: pack expiry and carry-forward (phase 6), strike expiry (phase 7)
-- frequent (every 30 minutes, 6 am to midnight IST): cancelling unpaid bookings (phase 6), overdue
+- frequent (every 30 minutes, 6 am to midnight IST): cancelling unpaid bookings and paid ones that
+  started with a child unverified (phase 6), overdue
   check-out alerts (phase 8), payouts-due alerts (phase 9). Keep these quick.
 """
 
@@ -31,7 +32,18 @@ def cancel_unpaid_bookings(conn: Connection) -> None:
         db.commit()  # the task's own transaction commits it (jobs router)
 
 
+def cancel_unverified_bookings(conn: Connection) -> None:
+    """Paid bookings that started with a child still unverified, cancelled and refunded (Reuben,
+    2026-11-18). Also checked when the booking is opened (`bookings.cancel_unverified`)."""
+    with Session(bind=conn) as db:
+        bookings.cancel_unverified(db, datetime.now(UTC))
+        db.commit()
+
+
 RUNS: dict[str, list[tuple[str, Task]]] = {
     "daily": [("keep_database_active", keep_database_active)],
-    "frequent": [("cancel_unpaid_bookings", cancel_unpaid_bookings)],
+    "frequent": [
+        ("cancel_unpaid_bookings", cancel_unpaid_bookings),
+        ("cancel_unverified_bookings", cancel_unverified_bookings),
+    ],
 }

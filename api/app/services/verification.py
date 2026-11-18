@@ -350,6 +350,13 @@ def birth_certificates(db: Session, child_id: uuid.UUID) -> list[Document]:
     )
 
 
+@dataclass(frozen=True)
+class ChildDecision:
+    child: Child
+    # What approving the child did to the parent's paid bookings (None when rejected).
+    after: bookings.AfterVerification | None = None
+
+
 def decide_child(
     db: Session,
     storage: StorageClient,
@@ -358,7 +365,7 @@ def decide_child(
     approved: bool,
     notes: str | None,
     rejection_reason: str | None = None,
-) -> Child:
+) -> ChildDecision:
     child = db.get(Child, child_id)
     if child is None:
         raise AppError(404, "not_found", "That child doesn't exist")
@@ -367,6 +374,7 @@ def decide_child(
         raise AppError(409, "no_birth_certificate", "There's no birth certificate to check for this child")
 
     before = {"verification_status": child.verification_status.value}
+    after = None
     child.verification_status = _decision(approved)
     child.verified_by = admin_id
     child.verified_at = _now()
@@ -389,10 +397,11 @@ def decide_child(
             storage.delete(document.storage_path)
             document.deleted_at = _now()
         _approve_parent(db, admin_id, child.parent_id)
-        # Paid bookings waiting only for this child are now confirmed (6.4).
-        bookings.confirm_verified(db, admin_id, child.parent_id)
+        # Paid bookings waiting only for this child are now confirmed (6.4), or refunded if their time
+        # was taken first.
+        after = bookings.confirm_verified(db, admin_id, child.parent_id, _now())
     db.commit()
-    return child
+    return ChildDecision(child, after)
 
 
 def _approve_parent(db: Session, admin_id: uuid.UUID, parent_id: uuid.UUID) -> None:

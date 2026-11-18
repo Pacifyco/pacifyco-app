@@ -145,10 +145,10 @@ def _pending_booking_payment(db: Session, payment_id: uuid.UUID) -> tuple[Paymen
 
 
 def confirm(db: Session, admin_id: uuid.UUID, payment_id: uuid.UUID, now: datetime) -> Confirmed:
-    """The money is in Pacifyco's account. If the booking can still go ahead it's paid (`confirmed`, or
-    `awaiting_verification` until every child is verified) and wins her time; if another booking took
-    the time first, it's cancelled and a refund is owed. A booking whose start has passed can't be
-    confirmed (an open question in progress.md)."""
+    """The money is in Pacifyco's account. If the booking can still go ahead it's `confirmed` and wins
+    her time, or, with a child not yet verified, `awaiting_verification` (her time stays free until then,
+    Reuben 2026-11-18); if another booking took the time first, it's cancelled and a refund is owed.
+    A booking whose start has passed can't be confirmed (an open question in progress.md)."""
     payment, booking = _pending_booking_payment(db, payment_id)
     if booking.status == BookingStatus.pending_payment and booking.starts_at <= now:
         raise AppError(
@@ -182,15 +182,7 @@ def confirm(db: Session, admin_id: uuid.UUID, payment_id: uuid.UUID, now: dateti
 
 
 def _cancel_taken(db: Session, booking: Booking) -> None:
-    taken_by = db.scalar(
-        select(Booking.id).where(
-            Booking.sitter_id == booking.sitter_id,
-            Booking.id != booking.id,
-            Booking.status.in_(bookings_service.HOLDS_TIME),
-            Booking.starts_at < booking.ends_at,
-            Booking.ends_at > booking.starts_at,
-        )
-    )
+    taken_by = bookings_service._holder(db, booking)
     audit.record(
         db,
         None,
@@ -204,26 +196,7 @@ def _cancel_taken(db: Session, booking: Booking) -> None:
 
 
 def _owe_refund(db: Session, admin_id: uuid.UUID, paid: Payment) -> Payment:
-    """Money received for a booking that won't go ahead is paid back (6.1): a pending refund row for the
-    full amount, for an admin to pay by UPI or bank transfer and mark paid."""
-    refund = Payment(
-        booking_id=paid.booking_id,
-        parent_id=paid.parent_id,
-        kind=PaymentKind.refund,
-        amount_paise=-paid.amount_paise,
-        status=PaymentStatus.pending,
-    )
-    db.add(refund)
-    db.flush()
-    audit.record(
-        db,
-        admin_id,
-        "refund_owed",
-        "payment",
-        str(refund.id),
-        after={"booking_id": str(paid.booking_id), "amount_paise": refund.amount_paise, "for_payment": str(paid.id)},
-    )
-    return refund
+    return bookings_service.owe_refund(db, admin_id, paid)
 
 
 def reject(db: Session, admin_id: uuid.UUID, payment_id: uuid.UUID, reason: str, now: datetime) -> Payment:
