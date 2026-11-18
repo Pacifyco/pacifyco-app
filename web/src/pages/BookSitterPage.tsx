@@ -374,19 +374,37 @@ export function BookSitterPage() {
   const failed = sitter.error ?? options.error ?? children.error;
   if (failed) {
     const code = failed instanceof ApiError ? failed.code : null;
+    // What stops this parent booking, and where to sort it out (CLAUDE.md 1, 6.13 and 7).
+    const blocked: Record<string, { message: string; to: string; label: string }> = {
+      profile_unfinished: {
+        message: "Finish your profile first, then you can book a sitter.",
+        to: "/parent/profile",
+        label: "Finish your profile",
+      },
+      terms_required: {
+        message: "Our terms have changed. Please read and accept them, then you can book.",
+        to: "/parent/consent",
+        label: "Read the new terms",
+      },
+      outside_service_area: {
+        message: "Pacifyco isn't available in your pin code yet, so bookings can't be made there.",
+        to: "/parent/details",
+        label: "Your details",
+      },
+      not_found: { message: "This sitter isn't available right now.", to: "/parent/sitters", label: "Find a sitter" },
+    };
+    const shown = (code && blocked[code]) || {
+      message: "Something went wrong. Please try again.",
+      to: "/parent/sitters",
+      label: "Find a sitter",
+    };
     return (
       <section className="mx-auto max-w-[40rem]">
         <EmptyState
-          message={
-            code === "profile_unfinished"
-              ? "Finish your profile first, then you can book a sitter."
-              : code === "not_found"
-                ? "This sitter isn't available right now."
-                : "Something went wrong. Please try again."
-          }
+          message={shown.message}
           action={
-            <ButtonLink to={code === "profile_unfinished" ? "/parent/profile" : "/parent/sitters"} arrow>
-              {code === "profile_unfinished" ? "Finish your profile" : "Find a sitter"}
+            <ButtonLink to={shown.to} arrow>
+              {shown.label}
             </ButtonLink>
           }
         />

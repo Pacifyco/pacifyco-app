@@ -396,7 +396,16 @@ at home (CLAUDE.md 6.3).
   `money_owed`) and the booking page says so, with a link to Your payments. How a parent pays a charge
   comes with overtime (phase 8)
 - [x] Remove the unused HourBalance component (and `formatHours`, which counted half-hour units)
-- [ ] Tests for this phase
+- [x] Tests for this phase (checked against CLAUDE.md 9, 2026-11-18). Covered: price per plan and
+  children, whole hours, `pending_payment` until an admin confirms, unpaid-by-deadline and rejected
+  payments freeing the booking, append-only payment rows (grants), money owed = sum of unpaid charges,
+  owing blocks booking, plan's latest end, bath time, two pending bookings for one slot with the first
+  confirmed winning, unconfirmed until every child is verified, child age and camera declaration, audit
+  rows, IDOR on every booking and payment endpoint. **Gaps found and fixed:** booking now refuses parents
+  outside the service area (CLAUDE.md 1; it was only checked when the pin code was entered) and asks for a
+  new terms version first (`terms_required`, not "finish your profile"); the booking page says why and
+  links to where to fix it. **Left for their phases:** blocked-by-strike (7), refunds and cancellation
+  charges per 6.5 (7), rate limiting on booking endpoints (12)
 
 ## Phase 7 — Bookings, cancellations, strikes
 
@@ -485,6 +494,8 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — Phase 6 test check: booking now checks the service area and asks for new terms first;
+  money-owed sum test. API 536, web 272, e2e 8. Phase 6 done.
 - 2026-11-18 — Removed HourBalance and the half-hour `formatHours`. Web 269.
 - 2026-11-18 — Parent payment history (`/parent/payments`) and money owed blocking new bookings.
   API 533, web 271, e2e 8.

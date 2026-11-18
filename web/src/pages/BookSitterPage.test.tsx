@@ -201,6 +201,20 @@ describe("Book this sitter", () => {
     await waitFor(() => expect(screen.getByText("She isn't free for all of that time.")).toBeTruthy());
   });
 
+  test.each([
+    ["terms_required", "Our terms have changed. Please read and accept them, then you can book.", "/parent/consent"],
+    ["outside_service_area", "Pacifyco isn't available in your pin code yet, so bookings can't be made there.", "/parent/details"],
+    ["profile_unfinished", "Finish your profile first, then you can book a sitter.", "/parent/profile"],
+  ])("when %s stops the booking, it says why and where to fix it", async (code, message, to) => {
+    api(UNWIND, TIMES, {
+      "GET /parent/sitters/s1/booking-options": () =>
+        jsonResponse({ error: { code, message: "From the API.", details: null } }, code === "terms_required" ? 403 : 422),
+    });
+    renderAt("/parent/sitters/s1/book");
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /./ }).getAttribute("href")).toBe(to);
+  });
+
   test("money owed: no booking until it's paid", async () => {
     mockApi({
       "GET /parent/sitters/s1": () => jsonResponse({ id: "s1", full_name: "Lakshmi Nair", plan: "unwind" }),

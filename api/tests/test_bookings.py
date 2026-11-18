@@ -343,3 +343,33 @@ def test_hidden_sitters_cant_be_booked(client, db_engine, finished_parent, make_
     kids = children_of(db_engine, finished_parent["id"])
     response = book(client, finished_parent, hidden, child_ids=kids)
     assert response.status_code == 404
+
+
+# ---------- who may book (CLAUDE.md 1, 7 and 9 "Service area", "Terms click-wrap") ----------
+
+
+def test_parents_outside_the_service_area_cant_book(client, db_engine, finished_parent, free_sitter):
+    from tests.test_service_area import paused
+
+    sitter = free_sitter("unwind")
+    kids = children_of(db_engine, finished_parent["id"])
+    with paused(db_engine, "560034"):  # the parent's pin code
+        response = book(client, finished_parent, sitter, child_ids=kids[:1])
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "outside_service_area"
+        path = f"/parent/sitters/{sitter['id']}/booking-options"
+        assert client.get(path, headers=auth_for(finished_parent)).status_code == 422
+    assert book(client, finished_parent, sitter, child_ids=kids[:1]).status_code == 201
+
+
+def test_a_new_terms_version_must_be_accepted_before_booking(client, db_engine, finished_parent, free_sitter):
+    from tests.test_terms import published
+
+    sitter = free_sitter("unwind")
+    kids = children_of(db_engine, finished_parent["id"])
+    with published(db_engine, "parent_terms", "0.2-test"):
+        response = book(client, finished_parent, sitter, child_ids=kids[:1])
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "terms_required"
+        path = f"/parent/sitters/{sitter['id']}/booking-options"
+        assert client.get(path, headers=auth_for(finished_parent)).json()["error"]["code"] == "terms_required"

@@ -451,7 +451,8 @@ class BookingOptions(BaseModel):
 
 @router.get("/sitters/{sitter_id}/booking-options")
 def get_booking_options(sitter_id: uuid.UUID, parent: Parent, db: DbSession) -> BookingOptions:
-    checklists.require_finished_parent_profile(db, parent)
+    # Money owed doesn't stop the page: it shows what's owed instead of the form (`owed_paise`).
+    bookings_service.require_terms_then_profile(db, parent)
     found = search_service.live_sitter(db, parent, sitter_id)
     plan = found.sitter.level
     times = bookings_service.bookable_times(db, found.sitter, datetime.now(UTC))

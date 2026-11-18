@@ -31,9 +31,17 @@ def charge(db_engine, booking, parent_id, kind="overtime", amount=69_900, status
     with db_engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO payments (booking_id, parent_id, kind, amount_paise, status) VALUES (:b, :p, :k, :a, :s)"
+                "INSERT INTO payments (booking_id, parent_id, kind, amount_paise, status, rejection_reason) "
+                "VALUES (:b, :p, :k, :a, :s, :r)"
             ),
-            {"b": booking["id"], "p": parent_id, "k": kind, "a": amount, "s": status},
+            {
+                "b": booking["id"],
+                "p": parent_id,
+                "k": kind,
+                "a": amount,
+                "s": status,
+                "r": "Not received" if status == "rejected" else None,
+            },
         )
 
 
@@ -116,3 +124,16 @@ def test_sitters_and_admins_cant_open_it(client, admin):
     from tests.test_documents import as_user
 
     assert client.get("/parent/payments", headers=as_user(admin)).status_code == 403
+
+
+def test_money_owed_is_the_sum_of_unpaid_charges(client, db_engine, booking, finished_parent):
+    charge(db_engine, booking, finished_parent["id"], kind="overtime", amount=69_900)
+    charge(db_engine, booking, finished_parent["id"], kind="cancellation_charge", amount=139_800)
+    charge(db_engine, booking, finished_parent["id"], kind="overtime", amount=84_900, status="confirmed")
+    charge(db_engine, booking, finished_parent["id"], kind="overtime", amount=10_000, status="rejected")
+    with db_engine.begin() as conn:  # a refund owed to them doesn't lower what they owe
+        conn.execute(
+            text("INSERT INTO payments (booking_id, parent_id, kind, amount_paise) VALUES (:b, :p, 'refund', -50000)"),
+            {"b": booking["id"], "p": finished_parent["id"]},
+        )
+    assert history(client, finished_parent)["owed_paise"] == 69_900 + 139_800

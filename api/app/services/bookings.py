@@ -6,7 +6,8 @@ the plan's latest end and doesn't overlap a booking of hers that's confirmed. It
 until an admin confirms the payment. Slots aren't held while payment is pending (decided 2026-11-03), so
 only confirmed bookings take time away.
 
-Money owed blocks new bookings (`amount_owed`). Strikes aren't checked yet: they come in phase 7.
+The parent must have accepted the current terms, finished their profile, live inside the service
+area and owe nothing (`require_can_book`). Strikes aren't checked yet: they come in phase 7.
 """
 
 import uuid
@@ -23,6 +24,7 @@ from app.models import (
     BookingHomeInfo,
     BookingStatus,
     Child,
+    LegalAcceptance,
     Payment,
     PaymentKind,
     PaymentStatus,
@@ -31,7 +33,7 @@ from app.models import (
     VerificationStatus,
 )
 from app.models import SitterLevel as Plan
-from app.services import audit, availability, checklists, legal, pricing, search
+from app.services import audit, availability, checklists, legal, pricing, search, service_area
 from app.services.availability import INDIA, FreeTime
 
 MIN_NOTICE = timedelta(hours=4)  # Reuben, 2026-11-17: time to pay before the 3-hour deadline
@@ -170,6 +172,17 @@ def _children(db: Session, parent_id: uuid.UUID, child_ids: list[uuid.UUID], day
     return children
 
 
+def require_terms_then_profile(db: Session, parent: Profile) -> None:
+    """A parent who accepted earlier terms and now has a new version to accept hears exactly that
+    (`terms_required`, 7); anyone else still filling in their profile hears "finish your profile" (the
+    terms are part of its consent step)."""
+    accepted_before = db.scalar(select(exists().where(LegalAcceptance.profile_id == parent.id)))
+    if accepted_before:
+        legal.require_current_terms(db, parent)
+    checklists.require_finished_parent_profile(db, parent)
+    service_area.require_in_service_area(db, parent.pin_code or "")
+
+
 # Charges a parent must pay after a booking (6.5 and 6.8): unpaid, they're money owed.
 OWED_KINDS = (PaymentKind.overtime, PaymentKind.cancellation_charge)
 
@@ -190,10 +203,15 @@ def require_nothing_owed(db: Session, parent_id: uuid.UUID) -> None:
         raise AppError(409, "money_owed", "Please pay what you owe Pacifyco first. You'll find it under Your payments.")
 
 
-def create(db: Session, parent: Profile, new: NewBooking, now: datetime) -> Booking:
-    checklists.require_finished_parent_profile(db, parent)
-    legal.require_current_terms(db, parent)
+def require_can_book(db: Session, parent: Profile) -> None:
+    """The parent may book at all (6.4, 6.13, 7): the current terms accepted, the profile finished, a
+    home inside the service area (1) and nothing owed."""
+    require_terms_then_profile(db, parent)
     require_nothing_owed(db, parent.id)
+
+
+def create(db: Session, parent: Profile, new: NewBooking, now: datetime) -> Booking:
+    require_can_book(db, parent)
     sitter = db.scalar(select(Sitter).where(Sitter.profile_id == new.sitter_id).with_for_update())
     if sitter is None or sitter.level is None:
         raise AppError(404, "not_found", "That sitter isn't available")

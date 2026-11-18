@@ -1,5 +1,5 @@
 """Service area: a home pin code is only accepted in the launch pin codes (CLAUDE.md 1 and 9). It is
-entered after sign-up with the rest of the details (6.13). Booking checks come with booking."""
+entered after sign-up with the rest of the details (6.13). Booking checks it too (test_bookings.py)."""
 
 from contextlib import contextmanager
 
