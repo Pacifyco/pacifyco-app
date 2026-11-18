@@ -298,6 +298,26 @@ describe("paying for the booking", () => {
     ).toBeTruthy();
   });
 
+  test("paid while a child waits for verification: the time is kept", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () =>
+        jsonResponse({ ...BOOKING, status: "awaiting_verification", pay_by_upi: null, payment: { ...SENT, status: "confirmed" } }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("Paid")).toBeTruthy();
+    expect(screen.getByText(/kept this time with Lakshmi for you/)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /Pay ₹/ })).toBeNull();
+  });
+
+  test("confirmed", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () => jsonResponse({ ...BOOKING, status: "confirmed", pay_by_upi: null }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("Your booking is confirmed and paid.")).toBeTruthy();
+    expect(screen.getByText("Confirmed")).toBeTruthy();
+  });
+
   test("no UPI details yet: says payments aren't open", async () => {
     api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...BOOKING, pay_by_upi: null }) });
     renderAt("/parent/bookings/b1");

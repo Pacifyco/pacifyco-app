@@ -17,6 +17,13 @@ tests.
 
 ## Open questions (ask Reuben; don't guess)
 
+- [ ] **A payment still unchecked when the booking starts** (added 2026-11-18). A reference sent in time
+  keeps the booking for an admin, but if nobody checks it before the start, what happens? For now the
+  API refuses to confirm it (`booking_started`) and the admin contacts the parent; the payment stays
+  pending, with no way yet to record it as received and refund it.
+- [ ] **A paid booking whose child isn't verified by the start** (added 2026-11-18). It holds her time as
+  `awaiting_verification`; if the child is still unverified (or rejected) when it starts, is it
+  cancelled and refunded, and does the sitter go? Nothing happens automatically yet.
 - [x] Carry-forward cap: per child
 - [x] Overtime shortfall: ₹300 per child per hour
 - [x] Domain: pacifyco.in
@@ -373,7 +380,14 @@ at home (CLAUDE.md 6.3).
   booking, since the run skips midnight–6 am IST. `bookings.cancel_overlapping_unpaid` →
   `cancelled_slot_taken`, written and tested now; the admin's payment confirmation (next item) calls it.
   Statuses added in migration a1c3e5f7b9d2 (its downgrade refuses while such bookings exist)
-- [ ] Admin confirms/rejects payments; refunds recorded with a reference
+- [x] Admin confirms/rejects payments; refunds recorded with a reference. `/admin/payments`
+  (`PaymentsPage`): payments to check (with the plan, the UPI reference and note, and whether every child
+  is verified), Confirm received or Reject with a reason the parent sees; refunds to pay, marked refunded
+  with the transfer reference. Confirming makes the booking `confirmed`, or `awaiting_verification` if a
+  child isn't verified (paid holds the slot, Reuben 2026-11-18; confirmed when the last child is approved,
+  `bookings.confirm_verified`), and cancels overlapping unpaid bookings (their parents are emailed). Money
+  for a booking that lost its slot is recorded and a refund is owed. Rejected after the deadline cancels
+  the booking at once. Emails: paid, rejected, slot taken, refunded. Migration b2d4f6a8c0e1
 - [ ] Parent payment history; outstanding amounts block new bookings
 - [ ] Remove the unused HourBalance component
 - [ ] Tests for this phase
@@ -465,6 +479,8 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — Admin payments: confirm, reject, refunds with a reference, `awaiting_verification` (paid
+  holds the slot), the admin Payments page and parent emails. API 525, web 266, e2e 7.
 - 2026-11-18 — "Frequent job": unpaid bookings cancelled at the 3-hour deadline (job and on opening),
   overlapping unpaid bookings cancelled when one is confirmed; cancelled states on the booking page.
   API 512, web 257, e2e 6.

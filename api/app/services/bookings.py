@@ -29,6 +29,7 @@ from app.models import (
     PaymentStatus,
     Profile,
     Sitter,
+    VerificationStatus,
 )
 from app.models import SitterLevel as Plan
 from app.services import audit, availability, checklists, legal, pricing, search
@@ -48,7 +49,9 @@ LATEST_END: dict[Plan, timedelta] = {
 BATH_TIME: dict[Plan, bool] = {Plan.pause: False, Plan.unwind: True, Plan.recharge: True}
 
 # Bookings that hold the sitter's time.
-HOLDS_TIME = (BookingStatus.confirmed, BookingStatus.in_progress)
+# Bookings that hold the sitter's time: paid ones too, while a child's verification is awaited (Reuben,
+# 2026-11-18).
+HOLDS_TIME = (BookingStatus.awaiting_verification, BookingStatus.confirmed, BookingStatus.in_progress)
 
 
 def _hour_up(moment: datetime) -> datetime:
@@ -320,3 +323,81 @@ def cancel_overlapping_unpaid(db: Session, confirmed: Booking) -> list[uuid.UUID
     )
     _cancel(db, ids, BookingStatus.cancelled_slot_taken, {"taken_by": str(confirmed.id)})
     return ids
+
+
+# ---------- once paid (6.1 and 6.4) ----------
+
+
+def children_verified(db: Session, booking_id: uuid.UUID) -> bool:
+    """Every child on the booking has an approved birth certificate (7)."""
+    return not db.scalar(
+        select(
+            exists().where(
+                BookingChild.booking_id == booking_id,
+                BookingChild.child_id == Child.id,
+                Child.verification_status != VerificationStatus.approved,
+            )
+        )
+    )
+
+
+def slot_taken(db: Session, booking: Booking) -> bool:
+    """Another booking with her for an overlapping time already holds it."""
+    return bool(
+        db.scalar(
+            select(
+                exists().where(
+                    Booking.sitter_id == booking.sitter_id,
+                    Booking.id != booking.id,
+                    Booking.status.in_(HOLDS_TIME),
+                    Booking.starts_at < booking.ends_at,
+                    Booking.ends_at > booking.starts_at,
+                )
+            )
+        )
+    )
+
+
+def mark_paid(db: Session, admin_id: uuid.UUID, booking: Booking) -> list[uuid.UUID]:
+    """The booking's payment is confirmed and it can go ahead: `confirmed` if every child on it is
+    verified, else `awaiting_verification` (it holds her time either way, Reuben 2026-11-18). Other
+    unpaid bookings for an overlapping time with her are cancelled; their ids are returned. The caller
+    commits."""
+    status = BookingStatus.confirmed if children_verified(db, booking.id) else BookingStatus.awaiting_verification
+    audit.record(
+        db,
+        admin_id,
+        "booking_paid",
+        "booking",
+        str(booking.id),
+        before={"status": booking.status.value},
+        after={"status": status.value},
+    )
+    booking.status = status
+    db.flush()
+    return cancel_overlapping_unpaid(db, booking)
+
+
+def confirm_verified(db: Session, admin_id: uuid.UUID, parent_id: uuid.UUID) -> list[uuid.UUID]:
+    """After a child is approved: this parent's paid bookings whose children are now all verified are
+    confirmed (6.4). The caller commits."""
+    waiting = db.scalars(
+        select(Booking)
+        .where(Booking.parent_id == parent_id, Booking.status == BookingStatus.awaiting_verification)
+        .with_for_update()
+    ).all()
+    confirmed = []
+    for booking in waiting:
+        if children_verified(db, booking.id):
+            audit.record(
+                db,
+                admin_id,
+                "booking_confirmed",
+                "booking",
+                str(booking.id),
+                before={"status": booking.status.value},
+                after={"status": BookingStatus.confirmed.value, "reason": "children_verified"},
+            )
+            booking.status = BookingStatus.confirmed
+            confirmed.append(booking.id)
+    return confirmed

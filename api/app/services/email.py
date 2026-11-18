@@ -220,3 +220,85 @@ def sitter_application_rejected(to: str, full_name: str | None, reason: str | No
         button_label="Open Pacifyco",
         button_url=f"{web_url.rstrip('/')}/sitter/profile",
     )
+
+
+# ---------- booking payments (phase 6) ----------
+# Only first names, the amount and a link to the booking; no dates of birth or other details.
+
+
+def _booking_url(web_url: str, booking_id: object) -> str:
+    return f"{web_url.rstrip('/')}/parent/bookings/{booking_id}"
+
+
+def _rupees(paise: int) -> str:
+    rupees, rest = divmod(abs(paise), 100)
+    return f"₹{rupees:,}" + (f".{rest:02d}" if rest else "")
+
+
+def booking_paid(
+    to: str, full_name: str | None, sitter_name: str | None, verified: bool, booking_id: object, web_url: str
+) -> Email:
+    sitter = _first_name(sitter_name) if sitter_name else "your sitter"
+    if verified:
+        heading, ending = "Your booking is confirmed.", f"Your time with {sitter} is booked."
+    else:
+        heading = "We've received your payment."
+        ending = (
+            f"The time with {sitter} is kept for you. The booking is confirmed once Pacifyco has checked "
+            "every child's birth certificate."
+        )
+    return Email(
+        to=to,
+        subject="Your Pacifyco booking is paid",
+        heading=heading,
+        body=f"Hi {_first_name(full_name)}, thank you: Pacifyco has received your payment.\n{ending}",
+        button_label="See your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )
+
+
+def booking_payment_rejected(to: str, full_name: str | None, reason: str, booking_id: object, web_url: str) -> Email:
+    return Email(
+        to=to,
+        subject="We couldn't confirm your Pacifyco payment",
+        heading="We couldn't confirm your payment.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco couldn't confirm the payment for your booking.\n"
+            f"The reason: {reason}\n"
+            "Please check the UPI reference and send it again from your booking before the time to pay ends."
+        ),
+        button_label="Open your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )
+
+
+def booking_slot_taken(
+    to: str, full_name: str | None, sitter_name: str | None, paid: bool, booking_id: object, web_url: str
+) -> Email:
+    sitter = _first_name(sitter_name) if sitter_name else "your sitter"
+    refund = "\nYou've paid for it, so Pacifyco will refund you in full." if paid else ""
+    return Email(
+        to=to,
+        subject="Your Pacifyco booking was cancelled",
+        heading="This time has been taken.",
+        body=(
+            f"Hi {_first_name(full_name)}, another booking with {sitter} for the same time was paid for first, "
+            f"so yours was cancelled.{refund}\nYou can choose another time with her."
+        ),
+        button_label="Open your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )
+
+
+def refund_paid(to: str, full_name: str | None, amount_paise: int, booking_id: object, web_url: str) -> Email:
+    return Email(
+        to=to,
+        subject="Pacifyco has refunded you",
+        heading=f"We've refunded {_rupees(amount_paise)}.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco has paid back {_rupees(amount_paise)} for your cancelled "
+            "booking. It can take a little while to show in your account."
+        ),
+        button_label="Open your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )

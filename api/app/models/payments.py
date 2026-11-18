@@ -32,7 +32,7 @@ class PaymentStatus(StrEnum):
 
 
 # Columns an admin's decision writes; nothing else in a row can change (see the migration's grants).
-DECISION_COLUMNS = ("status", "confirmed_by", "confirmed_at", "rejection_reason")
+DECISION_COLUMNS = ("status", "confirmed_by", "confirmed_at", "rejection_reason", "transfer_reference")
 
 
 class Payment(Base):
@@ -41,6 +41,11 @@ class Payment(Base):
         CheckConstraint("amount_paise <> 0", name="amount_not_zero"),
         CheckConstraint("upi_reference IS NULL OR upi_reference ~ '^[0-9]{12}$'", name="upi_reference_12_digits"),
         CheckConstraint("status <> 'rejected' OR rejection_reason IS NOT NULL", name="rejection_has_reason"),
+        # A refund is paid back by UPI or bank transfer; marking it paid records that transfer's reference.
+        CheckConstraint(
+            "kind <> 'refund' OR status <> 'confirmed' OR transfer_reference IS NOT NULL",
+            name="refund_paid_has_reference",
+        ),
         Index("ix_payments_booking_id", "booking_id"),
         Index("ix_payments_parent_id", "parent_id"),
         # One UPI transaction pays for one thing: a reference can't be sent twice unless it was rejected.
@@ -66,4 +71,6 @@ class Payment(Base):
     confirmed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="RESTRICT"))
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     rejection_reason: Mapped[str | None] = mapped_column(Text)
+    # Refunds: the UPI or bank transfer reference Pacifyco paid the money back with.
+    transfer_reference: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = created_at()

@@ -117,3 +117,177 @@ def submit_upi_reference(db: Session, parent: Profile, booking_id: uuid.UUID, re
     )
     db.commit()
     return payment
+
+
+# ---------- an admin's decision (6.1) ----------
+
+
+@dataclass(frozen=True)
+class Confirmed:
+    payment: Payment
+    booking: Booking
+    # The payment was received but the booking can't go ahead (another booking took her time first):
+    # the refund now owed.
+    refund: Payment | None
+    # Other unpaid bookings for an overlapping time with her, cancelled because this one was paid first.
+    cancelled: list[uuid.UUID]
+
+
+def _pending_booking_payment(db: Session, payment_id: uuid.UUID) -> tuple[Payment, Booking]:
+    payment = db.scalar(select(Payment).where(Payment.id == payment_id).with_for_update())
+    if payment is None or payment.kind != PaymentKind.booking:
+        raise AppError(404, "not_found", "We couldn't find that payment.")
+    if payment.status != PaymentStatus.pending:
+        raise AppError(409, "payment_already_decided", "This payment has already been confirmed or rejected.")
+    booking = db.scalar(select(Booking).where(Booking.id == payment.booking_id).with_for_update())
+    assert booking is not None  # RESTRICT foreign key
+    return payment, booking
+
+
+def confirm(db: Session, admin_id: uuid.UUID, payment_id: uuid.UUID, now: datetime) -> Confirmed:
+    """The money is in Pacifyco's account. If the booking can still go ahead it's paid (`confirmed`, or
+    `awaiting_verification` until every child is verified) and wins her time; if another booking took
+    the time first, it's cancelled and a refund is owed. A booking whose start has passed can't be
+    confirmed (an open question in progress.md)."""
+    payment, booking = _pending_booking_payment(db, payment_id)
+    if booking.status == BookingStatus.pending_payment and booking.starts_at <= now:
+        raise AppError(
+            409,
+            "booking_started",
+            "This booking's start time has passed, so it can't be confirmed. Please contact the parent.",
+        )
+    payment.status = PaymentStatus.confirmed
+    payment.confirmed_by = admin_id
+    payment.confirmed_at = now
+    audit.record(
+        db,
+        admin_id,
+        "payment_confirmed",
+        "payment",
+        str(payment.id),
+        before={"status": PaymentStatus.pending.value},
+        after={"status": payment.status.value, "booking_id": str(booking.id), "amount_paise": payment.amount_paise},
+    )
+
+    cancelled: list[uuid.UUID] = []
+    refund = None
+    if booking.status == BookingStatus.pending_payment and bookings_service.slot_taken(db, booking):
+        _cancel_taken(db, booking)
+    if booking.status == BookingStatus.pending_payment:
+        cancelled = bookings_service.mark_paid(db, admin_id, booking)
+    else:
+        refund = _owe_refund(db, admin_id, payment)
+    db.commit()
+    return Confirmed(payment, booking, refund, cancelled)
+
+
+def _cancel_taken(db: Session, booking: Booking) -> None:
+    taken_by = db.scalar(
+        select(Booking.id).where(
+            Booking.sitter_id == booking.sitter_id,
+            Booking.id != booking.id,
+            Booking.status.in_(bookings_service.HOLDS_TIME),
+            Booking.starts_at < booking.ends_at,
+            Booking.ends_at > booking.starts_at,
+        )
+    )
+    audit.record(
+        db,
+        None,
+        "booking_cancelled",
+        "booking",
+        str(booking.id),
+        before={"status": booking.status.value},
+        after={"status": BookingStatus.cancelled_slot_taken.value, "taken_by": str(taken_by)},
+    )
+    booking.status = BookingStatus.cancelled_slot_taken
+
+
+def _owe_refund(db: Session, admin_id: uuid.UUID, paid: Payment) -> Payment:
+    """Money received for a booking that won't go ahead is paid back (6.1): a pending refund row for the
+    full amount, for an admin to pay by UPI or bank transfer and mark paid."""
+    refund = Payment(
+        booking_id=paid.booking_id,
+        parent_id=paid.parent_id,
+        kind=PaymentKind.refund,
+        amount_paise=-paid.amount_paise,
+        status=PaymentStatus.pending,
+    )
+    db.add(refund)
+    db.flush()
+    audit.record(
+        db,
+        admin_id,
+        "refund_owed",
+        "payment",
+        str(refund.id),
+        after={"booking_id": str(paid.booking_id), "amount_paise": refund.amount_paise, "for_payment": str(paid.id)},
+    )
+    return refund
+
+
+def reject(db: Session, admin_id: uuid.UUID, payment_id: uuid.UUID, reason: str, now: datetime) -> Payment:
+    """The money didn't arrive, or the reference is wrong. The parent sees the reason and can send a new
+    reference before the deadline; past it, the booking is cancelled at once."""
+    payment, booking = _pending_booking_payment(db, payment_id)
+    payment.status = PaymentStatus.rejected
+    payment.rejection_reason = reason
+    payment.confirmed_by = admin_id
+    payment.confirmed_at = now
+    audit.record(
+        db,
+        admin_id,
+        "payment_rejected",
+        "payment",
+        str(payment.id),
+        before={"status": PaymentStatus.pending.value},
+        after={"status": payment.status.value, "booking_id": str(booking.id)},
+    )
+    db.flush()
+    bookings_service.cancel_unpaid(db, now, booking.id)
+    db.commit()
+    return payment
+
+
+def mark_refunded(
+    db: Session, admin_id: uuid.UUID, refund_id: uuid.UUID, transfer_reference: str, now: datetime
+) -> Payment:
+    """Pacifyco has paid the refund back, recorded with the UPI or bank transfer reference."""
+    refund = db.scalar(select(Payment).where(Payment.id == refund_id).with_for_update())
+    if refund is None or refund.kind != PaymentKind.refund:
+        raise AppError(404, "not_found", "We couldn't find that refund.")
+    if refund.status != PaymentStatus.pending:
+        raise AppError(409, "refund_already_paid", "This refund has already been marked as paid.")
+    reference = transfer_reference.strip()
+    if not reference:
+        raise AppError(422, "transfer_reference_needed", "Please enter the UPI or bank transfer reference.")
+    refund.status = PaymentStatus.confirmed
+    refund.confirmed_by = admin_id
+    refund.confirmed_at = now
+    refund.transfer_reference = reference
+    audit.record(
+        db,
+        admin_id,
+        "refund_paid",
+        "payment",
+        str(refund.id),
+        before={"status": PaymentStatus.pending.value},
+        after={"status": refund.status.value, "amount_paise": refund.amount_paise},
+    )
+    db.commit()
+    return refund
+
+
+def waiting_for_admins(db: Session) -> tuple[list[Payment], list[Payment]]:
+    """Booking payments to check and refunds still to pay back, oldest first."""
+
+    def pending(kind: PaymentKind) -> list[Payment]:
+        return list(
+            db.scalars(
+                select(Payment)
+                .where(Payment.kind == kind, Payment.status == PaymentStatus.pending)
+                .order_by(Payment.created_at)
+            )
+        )
+
+    return pending(PaymentKind.booking), pending(PaymentKind.refund)

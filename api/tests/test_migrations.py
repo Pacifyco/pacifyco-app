@@ -178,7 +178,7 @@ def test_api_role_cannot_touch_alembic_version(conn):
 # Records that must never be changed or removed by the API.
 APPEND_ONLY = {"audit_log", "consents", "legal_acceptances", "document_access_log"}
 # Append-only too, except an admin's decision on a row (CLAUDE.md 5): these columns, and only these.
-DECIDED_ONLY = {"payments": {"status", "confirmed_by", "confirmed_at", "rejection_reason"}}
+DECIDED_ONLY = {"payments": {"status", "confirmed_by", "confirmed_at", "rejection_reason", "transfer_reference"}}
 # Published by migrations only; the API reads them.
 READ_ONLY = {"legal_documents"}
 

@@ -19,6 +19,9 @@ from app.models.sitters import SitterLevel
 
 class BookingStatus(StrEnum):
     pending_payment = "pending_payment"
+    # Paid, but a child on it isn't verified yet: it holds her time and becomes `confirmed` when the last
+    # child is approved (Reuben, 2026-11-18). The sitter doesn't see it until then (6.4).
+    awaiting_verification = "awaiting_verification"
     confirmed = "confirmed"
     in_progress = "in_progress"
     completed = "completed"

@@ -346,3 +346,20 @@ test("the parent books the sitter, pays by UPI and sends the reference", async (
   await expect(page.getByText(/UPI reference 432109876543/)).toBeVisible();
   await expect(page.getByText("Waiting for payment")).toBeVisible(); // until an admin confirms it
 });
+
+test("the admin confirms the payment and the parent's booking is confirmed", async () => {
+  const page = admin.page;
+  await page.goto("/admin");
+  await page.getByRole("link", { name: "Check payments" }).click();
+  const toCheck = page.getByRole("region", { name: "Payments to check" });
+  await expect(toCheck.getByText("432109876543")).toBeVisible();
+  await expect(toCheck.getByText("₹499")).toBeVisible();
+  await expect(toCheck.getByText("All verified")).toBeVisible(); // the family was approved earlier
+  await toCheck.getByRole("button", { name: "Confirm received" }).click();
+  await expect(page.getByText("Payment confirmed. The booking is confirmed.")).toBeVisible();
+  await expect(page.getByText("No payments are waiting.")).toBeVisible();
+
+  await parent.page.reload();
+  await expect(parent.page.getByText("Your booking is confirmed and paid.")).toBeVisible();
+  await expect(parent.page.getByRole("heading", { name: /Pay ₹/ })).toHaveCount(0);
+});

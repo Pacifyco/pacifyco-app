@@ -140,9 +140,12 @@ export function AdminHomePage() {
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Admin</h1>
       <p className="mt-3 text-muted">Verifications, payments, payouts and incidents will be here.</p>
-      <div className="mt-5 flex justify-center">
+      <div className="mt-5 flex flex-wrap justify-center gap-3">
         <ButtonLink to="/admin/verifications" arrow>
           Open the verification queue
+        </ButtonLink>
+        <ButtonLink to="/admin/payments" variant="secondary">
+          Check payments
         </ButtonLink>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">

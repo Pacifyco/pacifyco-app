@@ -455,6 +455,19 @@ export function BookingPage() {
         </p>
       </Card>
       {waiting && <PaymentCard booking={data} />}
+      {data.status === "awaiting_verification" && (
+        <Card as="section" padding="roomy" className="flex flex-col gap-3">
+          <p className="text-ink">
+            Thank you, we've received your payment and kept this time with {firstName} for you. The booking is
+            confirmed once Pacifyco has checked every child's birth certificate.
+          </p>
+        </Card>
+      )}
+      {data.status === "confirmed" && (
+        <Card as="section" padding="roomy" className="flex flex-col gap-3">
+          <p className="text-ink">Your booking is confirmed and paid.</p>
+        </Card>
+      )}
       {data.status === "cancelled_unpaid" && (
         <CancelledCard sitterId={data.sitter_id}>
           This booking was cancelled because it wasn't paid by {formatDay(new Date(data.pay_by))},{" "}
@@ -473,6 +486,8 @@ export function BookingPage() {
 
 function statusLabel(status: string): string {
   if (status === "pending_payment") return "Waiting for payment";
+  if (status === "awaiting_verification") return "Paid";
+  if (status === "confirmed") return "Confirmed";
   if (status.startsWith("cancelled")) return "Cancelled";
   return "Booking";
 }
