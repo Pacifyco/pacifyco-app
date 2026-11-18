@@ -130,7 +130,7 @@ test("a parent signs up and finishes their profile", async ({ browser }) => {
   await expect(page.getByText("Your profile is under review.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "My family" })).toHaveCount(0);
   // Nothing left to do, so the home (Find a sitter) has no bubble.
-  await page.getByRole("link", { name: "Find a sitter" }).click();
+  await page.getByRole("main").getByRole("link", { name: "Find a sitter" }).click();
   await expect(page.getByRole("heading", { name: "Find a sitter" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Finish your profile" })).toHaveCount(0);
 });
@@ -374,4 +374,17 @@ test("the parent sees the payment in their payment history", async () => {
   await expect(row).toContainText("Paid");
   await expect(row).toContainText("With Lakshmi");
   await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
+});
+
+test("the parent finds the booking under the Bookings tab", async () => {
+  const page = parent.page;
+  await page.getByRole("navigation", { name: "Parent" }).getByRole("link", { name: "Bookings" }).click();
+  await expect(page.getByRole("heading", { name: "Your bookings" })).toBeVisible();
+  const row = page.getByRole("tabpanel").getByRole("link").first();
+  await expect(row).toContainText("Lakshmi with");
+  await expect(row).toContainText("Confirmed");
+  await row.click();
+  await expect(page.getByText("Your booking is confirmed and paid.")).toBeVisible();
+  await page.getByRole("link", { name: "Your bookings" }).first().click();
+  await expect(page.getByRole("heading", { name: "Your bookings" })).toBeVisible();
 });

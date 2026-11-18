@@ -418,6 +418,11 @@ at home (CLAUDE.md 6.3).
 
 - [ ] Book a time: plan and level match, plan's latest end, Pause one child, bath time, children 18 months+, camera declaration, parent profile finished, `pending_payment` → confirmed only once paid **and** every child is verified, remove availability; "try a 1-hour first booking at home" nudge with a new sitter
 - [ ] Parent and sitter booking lists and detail pages (sitters see only confirmed bookings)
+  - Parent's side done 2026-11-18: a "Bookings" tab beside "Find a sitter" in the header (`AreaNav`),
+    `/parent/bookings` (`GET /parent/bookings`) with Upcoming (soonest first) and Past (ended or cancelled,
+    most recent first) tabs, each row opening the booking page (whose Back link now returns to the list).
+    Opening the list cancels the parent's overdue unpaid or unverified bookings, as opening one does.
+    Still to do: the sitter's list (confirmed bookings only)
 - [ ] Cancellations with 3-hour and 8-hour rules
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
 - [ ] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12)
@@ -501,6 +506,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — Parent "Bookings" tab: upcoming and past bookings. e2e 9.
 - 2026-11-18 — Unverified bookings no longer hold the sitter's time; cancelled and refunded if the time
   is taken first or the start comes (`cancelled_unverified`).
 - 2026-11-18 — Phase 6 test check: booking now checks the service area and asks for new terms first;

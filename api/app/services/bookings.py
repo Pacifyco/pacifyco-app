@@ -282,6 +282,43 @@ def parents_booking(db: Session, parent_id: uuid.UUID, booking_id: uuid.UUID) ->
     return booking
 
 
+# Bookings still on their way: listed under "Upcoming" until they end.
+ON_THE_WAY = (
+    BookingStatus.pending_payment,
+    BookingStatus.awaiting_verification,
+    BookingStatus.confirmed,
+    BookingStatus.in_progress,
+)
+
+
+def parents_bookings(db: Session, parent_id: uuid.UUID, now: datetime) -> tuple[list[Booking], list[Booking]]:
+    """The parent's bookings: upcoming ones (on their way and not yet ended) soonest first, and the rest
+    (ended or cancelled) most recent first."""
+    found = db.scalars(select(Booking).where(Booking.parent_id == parent_id)).all()
+    upcoming = sorted(
+        (item for item in found if item.status in ON_THE_WAY and item.ends_at > now), key=lambda item: item.starts_at
+    )
+    taken = {item.id for item in upcoming}
+    past = sorted((item for item in found if item.id not in taken), key=lambda item: item.starts_at, reverse=True)
+    return upcoming, past
+
+
+def child_names_for(db: Session, booking_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[str]]:
+    """Each booking's children's names, eldest first, in one query."""
+    names: dict[uuid.UUID, list[str]] = {booking_id: [] for booking_id in booking_ids}
+    if not booking_ids:
+        return names
+    rows = db.execute(
+        select(BookingChild.booking_id, Child.name)
+        .join(Child, BookingChild.child_id == Child.id)
+        .where(BookingChild.booking_id.in_(booking_ids))
+        .order_by(Child.date_of_birth)
+    )
+    for booking_id, name in rows:
+        names[booking_id].append(name)
+    return names
+
+
 def child_names(db: Session, booking_id: uuid.UUID) -> list[str]:
     return list(
         db.scalars(
@@ -328,7 +365,9 @@ def _cancel(db: Session, found: list, status: BookingStatus, reason: dict) -> li
     return ids
 
 
-def cancel_unpaid(db: Session, now: datetime, booking_id: uuid.UUID | None = None) -> list[uuid.UUID]:
+def cancel_unpaid(
+    db: Session, now: datetime, booking_id: uuid.UUID | None = None, parent_id: uuid.UUID | None = None
+) -> list[uuid.UUID]:
     """Cancels `pending_payment` bookings whose payment deadline (3 hours before the start) has passed
     with no payment sent (6.1). A booking whose UPI reference was sent in time waits for an admin, who
     confirms or rejects it (Reuben, 2026-11-18). Idempotent; the caller commits. With `booking_id`, only
@@ -343,13 +382,17 @@ def cancel_unpaid(db: Session, now: datetime, booking_id: uuid.UUID | None = Non
     )
     if booking_id is not None:
         query = query.where(Booking.id == booking_id)
+    if parent_id is not None:
+        query = query.where(Booking.parent_id == parent_id)
     # Rows another transaction holds (a payment being sent or confirmed right now) are left for the
     # next run.
     found = list(db.execute(query.with_for_update(skip_locked=True)))
     return _cancel(db, found, BookingStatus.cancelled_unpaid, {"reason": "not_paid_by_deadline"})
 
 
-def cancel_unverified(db: Session, now: datetime, booking_id: uuid.UUID | None = None) -> list[uuid.UUID]:
+def cancel_unverified(
+    db: Session, now: datetime, booking_id: uuid.UUID | None = None, parent_id: uuid.UUID | None = None
+) -> list[uuid.UUID]:
     """Paid bookings whose start has come while a child on them still isn't verified (or was rejected)
     can't go ahead: cancelled (`cancelled_unverified`) and refunded in full (Reuben, 2026-11-18).
     Idempotent; the caller commits. With `booking_id`, only that booking."""
@@ -358,6 +401,8 @@ def cancel_unverified(db: Session, now: datetime, booking_id: uuid.UUID | None =
     )
     if booking_id is not None:
         query = query.where(Booking.id == booking_id)
+    if parent_id is not None:
+        query = query.where(Booking.parent_id == parent_id)
     found = list(db.execute(query.with_for_update(skip_locked=True)))
     return _cancel(db, found, BookingStatus.cancelled_unverified, {"reason": "children_not_verified_by_start"})
 

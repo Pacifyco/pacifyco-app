@@ -464,7 +464,7 @@ export function BookingPage() {
   const waiting = data.status === "pending_payment";
   return (
     <article className="mx-auto flex max-w-[40rem] flex-col gap-6">
-      <BackLink to={`/parent/sitters/${data.sitter_id}`} label={`${firstName}'s profile`} />
+      <BackLink to="/parent/bookings" label="Your bookings" />
       <h1>Your booking with {firstName}</h1>
       <Card as="section" padding="roomy" className="flex flex-col gap-3">
         <p className="text-eyebrow text-muted uppercase">{statusLabel(data.status)}</p>
