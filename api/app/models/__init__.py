@@ -1,6 +1,7 @@
 """SQLAlchemy models. Import every model here so Alembic sees it (alembic/env.py uses Base.metadata)."""
 
 from app.models.audit import AuditLog
+from app.models.bookings import Booking, BookingChild, BookingHomeInfo, BookingStatus
 from app.models.common import VerificationStatus
 from app.models.consents import Consent, ConsentKind
 from app.models.documents import Document, DocumentAccessLog, DocumentStatus, DocumentType
@@ -30,6 +31,10 @@ __all__ = [
     "AcceptanceMethod",
     "AuditLog",
     "AuthorisedAdult",
+    "Booking",
+    "BookingChild",
+    "BookingHomeInfo",
+    "BookingStatus",
     "Child",
     "Consent",
     "ConsentKind",

@@ -263,8 +263,13 @@ export function SitterProfilePage() {
         )}
         <p className="mt-5 rounded-lg bg-surface-sunken p-5 text-small text-ink">
           New to {firstName}? Start with a 1-hour booking while you're at home, to see how {firstName} gets on with
-          your family. Booking from this page is coming soon.
+          your family.
         </p>
+        <div className="mt-5">
+          <ButtonLink to={`/parent/sitters/${sitter.id}/book`} arrow>
+            Choose a time
+          </ButtonLink>
+        </div>
       </Card>
     </article>
   );

@@ -31,3 +31,8 @@ export function priceOnProfile(price: Price): string {
   }
   return `${perHour}, for any number of children`;
 }
+
+/** Her price per hour for this many children (Unwind: +₹150 an hour for each extra child). */
+export function hourlyPaise(price: Price, children: number): number {
+  return price.per_hour_paise + price.extra_child_paise * Math.max(children - 1, 0);
+}

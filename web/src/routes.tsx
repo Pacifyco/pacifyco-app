@@ -7,6 +7,7 @@ import { config } from "./config";
 import { AppLayout } from "./layouts/AppLayout";
 import { AdminHomePage, SitterHomePage } from "./pages/AreaPages";
 import { AvailabilityPage } from "./pages/AvailabilityPage";
+import { BookSitterPage, BookingPage } from "./pages/BookSitterPage";
 import { ComponentsPage } from "./pages/ComponentsPage";
 import { ConsentPage } from "./pages/ConsentPage";
 import { DetailsPage } from "./pages/DetailsPage";
@@ -62,6 +63,8 @@ export const routes: RouteObject[] = [
         [
           ["parent/sitters", "parent", <FindSittersPage />],
           ["parent/sitters/:sitterId", "parent", <SitterProfilePage />],
+          ["parent/sitters/:sitterId/book", "parent", <BookSitterPage />],
+          ["parent/bookings/:bookingId", "parent", <BookingPage />],
           ["sitter/availability", "sitter", <AvailabilityPage />],
         ] as const
       ).map(([path, role, page]) => ({ path, element: <RequireRole role={role}>{page}</RequireRole> })),

@@ -312,3 +312,24 @@ test("the parent finds the sitter, with her photo and her rate, never a plan nam
   await expect(page.getByText("₹499 an hour, for one child")).toBeVisible();
   await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
 });
+
+test("the parent books the sitter, sees the price and waits to pay", async () => {
+  const page = parent.page;
+  // From her profile (the previous step left the parent there).
+  await page.getByRole("link", { name: "Choose a time" }).click();
+  await expect(page.getByRole("heading", { name: "Choose a time with Lakshmi" })).toBeVisible();
+  // Her free time is Monday 9 am - 4 pm; the first Monday at least 4 hours away is offered.
+  await expect(page.getByLabel("Day")).toHaveValue(/\d{4}-\d{2}-\d{2}/);
+  await expect(page.getByLabel("Asha")).toBeChecked();
+  await expect(page.getByLabel("Bath time")).toHaveCount(0); // not part of her bookings
+  await page.getByLabel("How long").selectOption("1");
+  await expect(page.getByText("1 hour × ₹499 an hour")).toBeVisible();
+  await page.getByLabel("No", { exact: true }).check();
+  await page.getByRole("button", { name: /Confirm this time/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Your booking with Lakshmi" })).toBeVisible();
+  await expect(page.getByText("Waiting for payment")).toBeVisible();
+  await expect(page.getByText("Lakshmi is looking after Asha at home.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pay ₹499 by UPI" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
+});

@@ -14,6 +14,7 @@ from app.errors import AppError
 from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, SitterLevel, VerificationStatus
 from app.routers.auth import TermsVersion, request_info
 from app.services import availability as availability_service
+from app.services import bookings as bookings_service
 from app.services import checklists, consent, family, legal, pricing
 from app.services import children as children_service
 from app.services import search as search_service
@@ -414,3 +415,96 @@ def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Sto
         reference=(SharedReference(name=shared.name, relationship=shared.relationship) if shared else None),
         joined_at=found.profile.created_at,
     )
+
+
+# ---------- booking a sitter (CLAUDE.md 6.1 and 6.4; phase 6 "Book this sitter") ----------
+
+
+class BookableTime(BaseModel):
+    """A stretch she's free that a booking can start in (whole hours, already cut to her plan's latest
+    end and starting 4+ hours from now)."""
+
+    starts_at: datetime
+    ends_at: datetime
+
+
+class BookingOptions(BaseModel):
+    price: Price
+    bath_time_allowed: bool
+    times: list[BookableTime]
+    # No earlier booking with her: the booking page asks for a 1-hour first booking at home (6.3).
+    first_booking: bool
+
+
+@router.get("/sitters/{sitter_id}/booking-options")
+def get_booking_options(sitter_id: uuid.UUID, parent: Parent, db: DbSession) -> BookingOptions:
+    checklists.require_finished_parent_profile(db, parent)
+    found = search_service.live_sitter(db, parent, sitter_id)
+    plan = found.sitter.level
+    times = bookings_service.bookable_times(db, found.sitter, datetime.now(UTC))
+    return BookingOptions(
+        price=_price(plan),
+        bath_time_allowed=bookings_service.BATH_TIME[plan],
+        times=[BookableTime(starts_at=item.starts_at, ends_at=item.ends_at) for item in times],
+        first_booking=bookings_service.first_booking_with(db, parent.id, sitter_id),
+    )
+
+
+class BookingIn(BaseModel):
+    sitter_id: uuid.UUID
+    starts_at: AwareDatetime
+    hours: int = Field(ge=1, le=24, strict=True)  # whole hours only (decided 2026-11-03)
+    child_ids: list[uuid.UUID] = Field(min_length=1, max_length=bookings_service.MAX_CHILDREN)
+    bath_time: bool = False
+    cameras_on: bool  # required: the parent must say (6.4)
+    camera_locations: str | None = Field(default=None, max_length=500)
+
+
+class BookingOut(BaseModel):
+    """The parent's view of a booking: never the plan's name or the sitter's pay (6.1)."""
+
+    id: uuid.UUID
+    sitter_id: uuid.UUID
+    sitter_name: str | None
+    starts_at: datetime
+    ends_at: datetime
+    hours: int
+    children: list[str]
+    price_paise: int
+    bath_time: bool
+    cameras_on: bool
+    camera_locations: str | None
+    status: str
+    pay_by: datetime  # unpaid bookings are cancelled at this time (6.1)
+
+
+def _booking_out(db: DbSession, booking) -> BookingOut:
+    home = bookings_service.home_info(db, booking.id)
+    sitter = db.get(Profile, booking.sitter_id)
+    return BookingOut(
+        id=booking.id,
+        sitter_id=booking.sitter_id,
+        sitter_name=sitter.full_name if sitter else None,
+        starts_at=booking.starts_at,
+        ends_at=booking.ends_at,
+        hours=booking.units,
+        children=bookings_service.child_names(db, booking.id),
+        price_paise=booking.price_paise,
+        bath_time=booking.bath_time,
+        cameras_on=home.cameras_on if home else False,
+        camera_locations=home.camera_locations if home else None,
+        status=booking.status.value,
+        pay_by=bookings_service.pay_by(booking),
+    )
+
+
+@router.post("/bookings", status_code=201)
+def post_booking(body: BookingIn, parent: Parent, db: DbSession) -> BookingOut:
+    new = bookings_service.NewBooking(**body.model_dump())
+    booking = bookings_service.create(db, parent, new, datetime.now(UTC))
+    return _booking_out(db, booking)
+
+
+@router.get("/bookings/{booking_id}")
+def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession) -> BookingOut:
+    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id))

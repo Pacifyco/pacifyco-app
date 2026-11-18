@@ -70,6 +70,17 @@ def client(db_engine, storage, mailbox):
 
 def cleanup_documents(db_engine, profile_id) -> None:
     with db_engine.begin() as conn:
+        # Bookings hold their parent, sitter and children (RESTRICT), so they go first.
+        booking_ids = [
+            str(item)
+            for item in conn.execute(
+                text("SELECT id FROM bookings WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id}
+            ).scalars()
+        ]
+        conn.execute(
+            text("DELETE FROM audit_log WHERE entity = 'booking' AND entity_id = ANY(:ids)"), {"ids": booking_ids}
+        )
+        conn.execute(text("DELETE FROM bookings WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM documents WHERE owner_profile_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM children WHERE parent_id = :id"), {"id": profile_id})
         for table, column in (("legal_acceptances", "profile_id"), ("consents", "parent_id")):

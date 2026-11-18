@@ -352,8 +352,12 @@ at home (CLAUDE.md 6.3).
 - [x] Pricing service (plans, children, whole hours only): `app/services/pricing.py`
 - [x] Rates on sitter cards and profiles, never plan names (Reuben, 2026-11-17; replaces the plan picker:
   the sitter's level sets the plan, so parents pick a sitter, not a plan)
-- [ ] Book this sitter (simple form, from Phase 7 item 1, needed to pay): her free times, children, bath
-  time, cameras, live price; starts at least 4 hours from now
+- [x] Book this sitter (simple form, from Phase 7 item 1, needed to pay): her free times, children, bath
+  time, cameras, live price; starts at least 4 hours from now (`/parent/sitters/:id/book`,
+  `app/services/bookings.py`; tables `bookings`, `booking_children`, `booking_home_info`). Checks whole
+  hours, 4 hours' notice, her free times minus confirmed bookings, the plan's latest end, Pause one child,
+  bath time, cameras, children 18 months+ and the parent's own. Money owed and strikes are checked once
+  those exist
 - [ ] Booking payment: UPI instructions, UPI reference entry, `pending_payment` (no match deposit)
 - [ ] Frequent job: auto-cancel `pending_payment` bookings 3 hours before start; first confirmed payment
   wins a slot and auto-cancels the others
@@ -449,6 +453,9 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — "Book this sitter": bookings tables (migration f6c8e0a2b4d5), booking options and create
+  endpoints, the booking page with a live price, and a booking page that waits for payment (UPI details
+  come next). API 484, web 250, e2e 6.
 - 2026-11-17 — Phase 6 started (`plans-and-payments`). Reuben: parents see rates on sitter cards and
   profiles, never plan names; bookings start 4+ hours ahead; QR code approved (`qrcode`); test UPI ID for
   staging given. Pricing service and rates done. API 459, web 241 (one timing flake locally).
