@@ -291,3 +291,25 @@ def waiting_for_admins(db: Session) -> tuple[list[Payment], list[Payment]]:
         )
 
     return pending(PaymentKind.booking), pending(PaymentKind.refund)
+
+
+# ---------- the parent's payment history (phase 6) ----------
+
+
+@dataclass(frozen=True)
+class HistoryItem:
+    payment: Payment
+    booking: Booking
+    sitter_name: str | None
+
+
+def history(db: Session, parent_id: uuid.UUID) -> list[HistoryItem]:
+    """Every payment, charge and refund of this parent's, newest first."""
+    rows = db.execute(
+        select(Payment, Booking, Profile.full_name)
+        .join(Booking, Booking.id == Payment.booking_id)
+        .join(Profile, Profile.id == Booking.sitter_id)
+        .where(Payment.parent_id == parent_id)
+        .order_by(Payment.created_at.desc(), Payment.id.desc())
+    )
+    return [HistoryItem(payment, booking, sitter_name) for payment, booking, sitter_name in rows]

@@ -34,6 +34,8 @@ type BookingOptions = {
   bath_time_allowed: boolean;
   times: BookableTime[];
   first_booking: boolean;
+  /** Unpaid charges: no new booking until they're paid (6.4). */
+  owed_paise: number;
 };
 
 type Child = { id: string; name: string; date_of_birth: string };
@@ -398,7 +400,12 @@ export function BookSitterPage() {
     <article className="mx-auto flex max-w-[40rem] flex-col gap-6">
       <BackLink to={`/parent/sitters/${sitterId}`} label={`${firstName}'s profile`} />
       <h1>Choose a time with {firstName}</h1>
-      {options.data!.times.length === 0 ? (
+      {options.data!.owed_paise > 0 ? (
+        <EmptyState
+          message={`You owe Pacifyco ${rupees(options.data!.owed_paise)}. Please pay it before making a new booking.`}
+          action={<ButtonLink to="/parent/payments">Your payments</ButtonLink>}
+        />
+      ) : options.data!.times.length === 0 ? (
         <EmptyState
           message={`${firstName} has no free times in the next two weeks that start at least 4 hours from now.`}
           action={<ButtonLink to="/parent/sitters">Find another sitter</ButtonLink>}

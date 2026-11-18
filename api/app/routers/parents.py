@@ -445,6 +445,8 @@ class BookingOptions(BaseModel):
     times: list[BookableTime]
     # No earlier booking with her: the booking page asks for a 1-hour first booking at home (6.3).
     first_booking: bool
+    # Unpaid charges: no new booking until they're paid (6.4).
+    owed_paise: int
 
 
 @router.get("/sitters/{sitter_id}/booking-options")
@@ -458,6 +460,7 @@ def get_booking_options(sitter_id: uuid.UUID, parent: Parent, db: DbSession) -> 
         bath_time_allowed=bookings_service.BATH_TIME[plan],
         times=[BookableTime(starts_at=item.starts_at, ends_at=item.ends_at) for item in times],
         first_booking=bookings_service.first_booking_with(db, parent.id, sitter_id),
+        owed_paise=bookings_service.amount_owed(db, parent.id),
     )
 
 
@@ -578,3 +581,52 @@ def post_booking_payment(
     """The parent has paid by UPI: record the reference for an admin to check (6.1)."""
     payments_service.submit_upi_reference(db, parent, booking_id, body.upi_reference, datetime.now(UTC))
     return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
+
+
+# ---------- the parent's payments (CLAUDE.md 6.1; phase 6 "Parent payment history") ----------
+
+
+class PaymentHistoryItem(BaseModel):
+    """One payment, charge or refund. Amounts are positive; `kind` says which way the money went."""
+
+    id: uuid.UUID
+    kind: str  # booking | overtime | refund | cancellation_charge
+    amount_paise: int
+    status: str  # pending | confirmed | rejected
+    upi_reference: str | None
+    transfer_reference: str | None  # a refund's
+    rejection_reason: str | None
+    created_at: datetime
+    decided_at: datetime | None
+    booking_id: uuid.UUID
+    booking_starts_at: datetime
+    sitter_name: str | None
+
+
+class PaymentHistory(BaseModel):
+    owed_paise: int
+    payments: list[PaymentHistoryItem]
+
+
+@router.get("/payments")
+def get_payments(parent: Parent, db: DbSession) -> PaymentHistory:
+    return PaymentHistory(
+        owed_paise=bookings_service.amount_owed(db, parent.id),
+        payments=[
+            PaymentHistoryItem(
+                id=item.payment.id,
+                kind=item.payment.kind.value,
+                amount_paise=abs(item.payment.amount_paise),
+                status=item.payment.status.value,
+                upi_reference=item.payment.upi_reference,
+                transfer_reference=item.payment.transfer_reference,
+                rejection_reason=item.payment.rejection_reason,
+                created_at=item.payment.created_at,
+                decided_at=item.payment.confirmed_at,
+                booking_id=item.booking.id,
+                booking_starts_at=item.booking.starts_at,
+                sitter_name=item.sitter_name,
+            )
+            for item in payments_service.history(db, parent.id)
+        ],
+    )

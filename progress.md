@@ -388,7 +388,13 @@ at home (CLAUDE.md 6.3).
   `bookings.confirm_verified`), and cancels overlapping unpaid bookings (their parents are emailed). Money
   for a booking that lost its slot is recorded and a refund is owed. Rejected after the deadline cancels
   the booking at once. Emails: paid, rejected, slot taken, refunded. Migration b2d4f6a8c0e1
-- [ ] Parent payment history; outstanding amounts block new bookings
+- [x] Parent payment history; outstanding amounts block new bookings. `/parent/payments` ("Your
+  payments", from the parent's profile): every payment, charge and refund, newest first, linked to its
+  booking, in plain words ("Pacifyco is checking it", "Paid", "Pacifyco is refunding you"). Money owed
+  (`bookings.amount_owed`) = unpaid overtime and cancellation charges, which phases 7–8 create; booking
+  payments being checked and refunds aren't owed. Owing anything refuses a new booking (409
+  `money_owed`) and the booking page says so, with a link to Your payments. How a parent pays a charge
+  comes with overtime (phase 8)
 - [ ] Remove the unused HourBalance component
 - [ ] Tests for this phase
 
@@ -479,6 +485,8 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — Parent payment history (`/parent/payments`) and money owed blocking new bookings.
+  API 533, web 271, e2e 8.
 - 2026-11-18 — Admin payments: confirm, reject, refunds with a reference, `awaiting_verification` (paid
   holds the slot), the admin Payments page and parent emails. API 525, web 266, e2e 7.
 - 2026-11-18 — "Frequent job": unpaid bookings cancelled at the 3-hour deadline (job and on opening),

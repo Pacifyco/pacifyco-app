@@ -363,3 +363,15 @@ test("the admin confirms the payment and the parent's booking is confirmed", asy
   await expect(parent.page.getByText("Your booking is confirmed and paid.")).toBeVisible();
   await expect(parent.page.getByRole("heading", { name: /Pay ₹/ })).toHaveCount(0);
 });
+
+test("the parent sees the payment in their payment history", async () => {
+  const page = parent.page;
+  await page.getByRole("link", { name: "Your profile" }).first().click();
+  await page.getByRole("link", { name: "Your payments" }).click();
+  await expect(page.getByRole("heading", { name: "Your payments" })).toBeVisible();
+  const row = page.getByRole("link", { name: /Booking payment/ });
+  await expect(row).toContainText("₹499");
+  await expect(row).toContainText("Paid");
+  await expect(row).toContainText("With Lakshmi");
+  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
+});

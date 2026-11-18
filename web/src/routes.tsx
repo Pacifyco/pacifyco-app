@@ -18,6 +18,7 @@ import { FindSittersPage } from "./pages/FindSittersPage";
 import { HomePage } from "./pages/HomePage";
 import { JoinPage } from "./pages/JoinPage";
 import { ParentTermsPage, PrivacyPolicyPage, SitterTermsPage } from "./pages/LegalPages";
+import { ParentPaymentsPage } from "./pages/ParentPaymentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PsychTestPage } from "./pages/PsychTestPage";
 import { AuthCallbackPage, SIGN_IN_PATH } from "./pages/SignInPage";
@@ -66,6 +67,7 @@ export const routes: RouteObject[] = [
           ["parent/sitters/:sitterId", "parent", <SitterProfilePage />],
           ["parent/sitters/:sitterId/book", "parent", <BookSitterPage />],
           ["parent/bookings/:bookingId", "parent", <BookingPage />],
+          ["parent/payments", "parent", <ParentPaymentsPage />],
           ["sitter/availability", "sitter", <AvailabilityPage />],
         ] as const
       ).map(([path, role, page]) => ({ path, element: <RequireRole role={role}>{page}</RequireRole> })),

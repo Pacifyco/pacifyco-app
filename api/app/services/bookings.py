@@ -6,15 +6,14 @@ the plan's latest end and doesn't overlap a booking of hers that's confirmed. It
 until an admin confirms the payment. Slots aren't held while payment is pending (decided 2026-11-03), so
 only confirmed bookings take time away.
 
-Not yet checked here, because what they need comes later in phase 6 and 7: money owed (payments) and
-strikes.
+Money owed blocks new bookings (`amount_owed`). Strikes aren't checked yet: they come in phase 7.
 """
 
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import exists, select, update
+from sqlalchemy import exists, func, select, update
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
@@ -171,9 +170,30 @@ def _children(db: Session, parent_id: uuid.UUID, child_ids: list[uuid.UUID], day
     return children
 
 
+# Charges a parent must pay after a booking (6.5 and 6.8): unpaid, they're money owed.
+OWED_KINDS = (PaymentKind.overtime, PaymentKind.cancellation_charge)
+
+
+def amount_owed(db: Session, parent_id: uuid.UUID) -> int:
+    """What the parent still owes Pacifyco, in paise: their unpaid charges (CLAUDE.md 6.4, 6.8). Booking
+    payments aren't owed money (the full price is paid before a booking goes ahead), and refunds are
+    money Pacifyco owes them."""
+    return db.scalar(
+        select(func.coalesce(func.sum(Payment.amount_paise), 0)).where(
+            Payment.parent_id == parent_id, Payment.kind.in_(OWED_KINDS), Payment.status == PaymentStatus.pending
+        )
+    )
+
+
+def require_nothing_owed(db: Session, parent_id: uuid.UUID) -> None:
+    if amount_owed(db, parent_id) > 0:
+        raise AppError(409, "money_owed", "Please pay what you owe Pacifyco first. You'll find it under Your payments.")
+
+
 def create(db: Session, parent: Profile, new: NewBooking, now: datetime) -> Booking:
     checklists.require_finished_parent_profile(db, parent)
     legal.require_current_terms(db, parent)
+    require_nothing_owed(db, parent.id)
     sitter = db.scalar(select(Sitter).where(Sitter.profile_id == new.sitter_id).with_for_update())
     if sitter is None or sitter.level is None:
         raise AppError(404, "not_found", "That sitter isn't available")

@@ -77,7 +77,7 @@ function api(price = UNWIND, times = TIMES, extra: Record<string, (body: unknown
   return mockApi({
     "GET /parent/sitters/s1": () => jsonResponse({ id: "s1", full_name: "Lakshmi Nair", plan: "unwind" }),
     "GET /parent/sitters/s1/booking-options": () =>
-      jsonResponse({ price, bath_time_allowed: !price.one_child_only, times, first_booking: true }),
+      jsonResponse({ price, bath_time_allowed: !price.one_child_only, times, first_booking: true, owed_paise: 0 }),
     "GET /parent/children": () => jsonResponse(CHILDREN),
     "POST /parent/bookings": () => jsonResponse(BOOKING, 201),
     "GET /parent/bookings/b1": () => jsonResponse(BOOKING),
@@ -199,6 +199,19 @@ describe("Book this sitter", () => {
     fireEvent.click(await screen.findByLabelText("No"));
     fireEvent.click(screen.getByRole("button", { name: /Confirm this time/ }));
     await waitFor(() => expect(screen.getByText("She isn't free for all of that time.")).toBeTruthy());
+  });
+
+  test("money owed: no booking until it's paid", async () => {
+    mockApi({
+      "GET /parent/sitters/s1": () => jsonResponse({ id: "s1", full_name: "Lakshmi Nair", plan: "unwind" }),
+      "GET /parent/sitters/s1/booking-options": () =>
+        jsonResponse({ price: UNWIND, bath_time_allowed: true, times: TIMES, first_booking: true, owed_paise: 69900 }),
+      "GET /parent/children": () => jsonResponse(CHILDREN),
+    });
+    renderAt("/parent/sitters/s1/book");
+    expect(await screen.findByText(/You owe Pacifyco ₹699\. Please pay it before making a new booking\./)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Your payments" }).getAttribute("href")).toBe("/parent/payments");
+    expect(screen.queryByRole("button", { name: /Confirm this time/ })).toBeNull();
   });
 
   test("no free times: a quiet message and a way back", async () => {
