@@ -72,7 +72,7 @@ def verify_children(db_engine, parent_id):
 
 
 @pytest.fixture
-def paid(reviewer, client, db_engine, booking, finished_parent):
+def paid(client, reviewer, db_engine, booking, finished_parent):
     """The booking's UPI reference has been sent and waits for an admin."""
     assert pay(client, finished_parent, booking["id"]).status_code == 201
     return payment_id(db_engine, booking["id"])
@@ -81,7 +81,7 @@ def paid(reviewer, client, db_engine, booking, finished_parent):
 # ---------- the queue ----------
 
 
-def test_admins_see_payments_to_check(reviewer, client, db_engine, booking, finished_parent, paid):
+def test_admins_see_payments_to_check(client, reviewer, db_engine, booking, finished_parent, paid):
     found = queue(client, reviewer)
     item = next(item for item in found["to_check"] if item["id"] == paid)
     assert item["booking_id"] == booking["id"]
@@ -108,7 +108,7 @@ def payment_booking(db_engine, pid):
 
 
 def test_confirmed_and_verified_the_booking_is_confirmed(
-    reviewer, client, db_engine, mailbox, booking, finished_parent, paid
+    client, reviewer, db_engine, mailbox, booking, finished_parent, paid
 ):
     verify_children(db_engine, finished_parent["id"])
     response = confirm(client, reviewer, paid)
@@ -134,7 +134,7 @@ def test_confirmed_and_verified_the_booking_is_confirmed(
 
 
 def test_paid_with_a_child_unverified_it_holds_the_time_until_the_child_is_approved(
-    reviewer, client, db_engine, mailbox, booking, finished_parent, paid
+    client, reviewer, db_engine, mailbox, booking, finished_parent, paid
 ):
     assert confirm(client, reviewer, paid).json()["booking_status"] == "awaiting_verification"
     assert "Pacifyco has checked every child" in mailbox.sent[-1].body
@@ -173,7 +173,7 @@ def another_family(client, db_engine, storage):
 
 
 def test_the_first_confirmed_payment_wins_and_the_others_are_cancelled(
-    reviewer, client, db_engine, mailbox, booking, finished_parent, paid, another_family
+    client, reviewer, db_engine, mailbox, booking, finished_parent, paid, another_family
 ):
     other, kid = another_family
     # The other family books the same time with her and pays too.
@@ -216,7 +216,7 @@ def test_the_first_confirmed_payment_wins_and_the_others_are_cancelled(
     assert again.status_code == 409
 
 
-def test_a_payment_is_decided_once(reviewer, client, db_engine, finished_parent, paid):
+def test_a_payment_is_decided_once(client, reviewer, db_engine, finished_parent, paid):
     verify_children(db_engine, finished_parent["id"])
     assert confirm(client, reviewer, paid).status_code == 200
     for again in (confirm(client, reviewer, paid), reject(client, reviewer, paid)):
@@ -224,7 +224,7 @@ def test_a_payment_is_decided_once(reviewer, client, db_engine, finished_parent,
         assert again.json()["error"]["code"] == "payment_already_decided"
 
 
-def test_a_booking_that_has_started_cant_be_confirmed(reviewer, client, db_engine, booking, paid):
+def test_a_booking_that_has_started_cant_be_confirmed(client, reviewer, db_engine, booking, paid):
     move(db_engine, booking["id"], datetime.now(UTC) - timedelta(minutes=5))
     response = confirm(client, reviewer, paid)
     assert response.status_code == 409
@@ -232,7 +232,7 @@ def test_a_booking_that_has_started_cant_be_confirmed(reviewer, client, db_engin
     assert scalar(db_engine, "SELECT status FROM payments WHERE id = :p", p=paid) == "pending"
 
 
-def test_unknown_payment_is_404(reviewer, client):
+def test_unknown_payment_is_404(client, reviewer):
     assert confirm(client, reviewer, uuid.uuid4()).status_code == 404
 
 
@@ -240,7 +240,7 @@ def test_unknown_payment_is_404(reviewer, client):
 
 
 def test_a_rejected_payment_shows_the_reason_and_can_be_sent_again(
-    reviewer, client, db_engine, mailbox, booking, finished_parent, paid
+    client, reviewer, db_engine, mailbox, booking, finished_parent, paid
 ):
     response = reject(client, reviewer, paid, "  The reference doesn't match any payment.  ")
     assert response.status_code == 200, response.text
@@ -258,11 +258,11 @@ def test_a_rejected_payment_shows_the_reason_and_can_be_sent_again(
 
 
 @pytest.mark.parametrize("reason", ["", "   "])
-def test_rejecting_needs_a_reason(reviewer, client, paid, reason):
+def test_rejecting_needs_a_reason(client, reviewer, paid, reason):
     assert reject(client, reviewer, paid, reason).status_code == 422
 
 
-def test_rejected_after_the_deadline_the_booking_is_cancelled(reviewer, client, db_engine, booking, paid):
+def test_rejected_after_the_deadline_the_booking_is_cancelled(client, reviewer, db_engine, booking, paid):
     move(db_engine, booking["id"], datetime.now(UTC) + timedelta(hours=2))
     assert reject(client, reviewer, paid).json()["booking_status"] == "cancelled_unpaid"
 
@@ -270,7 +270,7 @@ def test_rejected_after_the_deadline_the_booking_is_cancelled(reviewer, client, 
 # ---------- money rows ----------
 
 
-def test_a_refund_needs_a_transfer_reference(reviewer, client, db_engine, booking, finished_parent, paid):
+def test_a_refund_needs_a_transfer_reference(client, reviewer, db_engine, booking, finished_parent, paid):
     # A refund row is only made by a confirmation; this one is made directly for the check.
     with db_engine.begin() as conn:
         refund_id = conn.execute(

@@ -50,7 +50,7 @@ def test_nothing_yet(client, finished_parent):
 
 
 def test_the_history_lists_payments_and_refunds_newest_first(
-    reviewer, client, db_engine, booking, finished_parent, paid
+    client, reviewer, db_engine, booking, finished_parent, paid
 ):
     verify_children(db_engine, finished_parent["id"])
     assert confirm(client, reviewer, paid).status_code == 200
