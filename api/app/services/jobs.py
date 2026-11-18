@@ -4,27 +4,39 @@ is a list of tasks. Every task must be idempotent: running it twice, or late, ch
 Later phases add their tasks here:
 - daily: pack expiry and carry-forward (phase 6), strike expiry (phase 7)
 - frequent (every 30 minutes, 6 am to midnight IST): cancelling unpaid bookings and paid ones that
-  started with a child unverified (phase 6), overdue
+  started with a child unverified, and alerting admins to payments unchecked near the start (phase 6),
+  overdue
   check-out alerts (phase 8), payouts-due alerts (phase 9). Keep these quick.
 """
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import Connection, text
 from sqlalchemy.orm import Session
 
-from app.services import bookings
+from app.services import bookings, payments
+from app.services import email as email_service
+from app.services.email import EmailClient
+from app.settings import Settings
 
-Task = Callable[[Connection], None]
+
+@dataclass(frozen=True)
+class JobContext:
+    settings: Settings
+    mailer: EmailClient
 
 
-def keep_database_active(conn: Connection) -> None:
+Task = Callable[[Connection, JobContext], None]
+
+
+def keep_database_active(conn: Connection, _ctx: JobContext) -> None:
     """A tiny query, so the free staging database isn't paused after a week without use."""
     conn.execute(text("SELECT 1"))
 
 
-def cancel_unpaid_bookings(conn: Connection) -> None:
+def cancel_unpaid_bookings(conn: Connection, _ctx: JobContext) -> None:
     """`pending_payment` bookings with no payment sent by 3 hours before the start (6.1). The run doesn't
     reach midnight to 6 am, so bookings are also checked when opened (`bookings.cancel_unpaid`)."""
     with Session(bind=conn) as db:
@@ -32,7 +44,7 @@ def cancel_unpaid_bookings(conn: Connection) -> None:
         db.commit()  # the task's own transaction commits it (jobs router)
 
 
-def cancel_unverified_bookings(conn: Connection) -> None:
+def cancel_unverified_bookings(conn: Connection, _ctx: JobContext) -> None:
     """Paid bookings that started with a child still unverified, cancelled and refunded (Reuben,
     2026-11-18). Also checked when the booking is opened (`bookings.cancel_unverified`)."""
     with Session(bind=conn) as db:
@@ -40,10 +52,29 @@ def cancel_unverified_bookings(conn: Connection) -> None:
         db.commit()
 
 
+def alert_unchecked_payments(conn: Connection, ctx: JobContext) -> None:
+    """Booking payments still unchecked as their booking nears its start: the admins are emailed once
+    for each (Reuben, 2026-11-19), so a payment rarely reaches the start unchecked."""
+    recipients = ctx.settings.admin_alert_emails
+    with Session(bind=conn) as db:
+        found = payments.unchecked_near_start(db, datetime.now(UTC))
+        if not found:
+            return
+        if not recipients:  # nobody to tell: left unmarked, so they're sent once someone is set
+            return
+        payments.mark_alerted(db, found)
+        db.commit()
+    web_url = ctx.settings.public_web_url or "http://localhost:5173"
+    earliest = min(item.starts_at for item in found)
+    for to in recipients:
+        ctx.mailer.send(email_service.unchecked_payments_alert(to, len(found), earliest, web_url))
+
+
 RUNS: dict[str, list[tuple[str, Task]]] = {
     "daily": [("keep_database_active", keep_database_active)],
     "frequent": [
         ("cancel_unpaid_bookings", cancel_unpaid_bookings),
         ("cancel_unverified_bookings", cancel_unverified_bookings),
+        ("alert_unchecked_payments", alert_unchecked_payments),
     ],
 }

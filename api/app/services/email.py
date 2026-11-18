@@ -11,7 +11,9 @@ Sentry) instead."""
 import html
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Annotated, Protocol
+from zoneinfo import ZoneInfo
 
 import httpx2 as httpx
 from fastapi import Depends
@@ -20,6 +22,7 @@ from app.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
+INDIA = ZoneInfo("Asia/Kolkata")
 RESEND_URL = "https://api.resend.com/emails"
 REQUEST_TIMEOUT = 10
 
@@ -289,6 +292,31 @@ def booking_slot_taken(
         button_label="Open your booking",
         button_url=_booking_url(web_url, booking_id),
     )
+
+
+def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_url: str) -> Email:
+    """To an admin: payments to check before their bookings start. No names or amounts, only the count
+    and the earliest start."""
+    local = earliest_start.astimezone(INDIA)
+    when = f"{local:%a} {local.day} {local:%b}, {_clock(local)}"
+    payments = "1 payment" if count == 1 else f"{count} payments"
+    return Email(
+        to=to,
+        subject=f"{payments} to check before the booking starts",
+        heading=f"{payments} still to check.",
+        body=(
+            f"A parent has sent a UPI reference and the booking starts soon: the first at {when}.\n"
+            "Please confirm or reject it on the Payments page before then. A booking whose start has "
+            "passed can't be confirmed."
+        ),
+        button_label="Check payments",
+        button_url=f"{web_url.rstrip('/')}/admin/payments",
+    )
+
+
+def _clock(moment: datetime) -> str:
+    hour = moment.hour % 12 or 12
+    return f"{hour}:{moment.minute:02d} {'am' if moment.hour < 12 else 'pm'}"
 
 
 def refund_paid(to: str, full_name: str | None, amount_paise: int, booking_id: object, web_url: str) -> Email:

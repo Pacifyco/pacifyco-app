@@ -11,14 +11,14 @@ swaps out.
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote, urlencode
 
-from sqlalchemy import select
+from sqlalchemy import String, cast, exists, select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Booking, BookingStatus, Payment, PaymentKind, PaymentStatus, Profile
+from app.models import AuditLog, Booking, BookingStatus, Payment, PaymentKind, PaymentStatus, Profile
 from app.services import audit
 from app.services import bookings as bookings_service
 
@@ -249,6 +249,48 @@ def mark_refunded(
     )
     db.commit()
     return refund
+
+
+# Admins are emailed about a booking payment still unchecked this close to its booking's start (Reuben,
+# 2026-11-19: "about an hour before"). The frequent job runs every 30 minutes, so the email arrives
+# between 60 and 90 minutes before the start (bookings starting before 7:30 am India time are alerted at
+# the 6 am run).
+ALERT_BEFORE_START = timedelta(minutes=90)
+ALERTED = "unchecked_payment_alerted"
+
+
+@dataclass(frozen=True)
+class Unchecked:
+    payment_id: uuid.UUID
+    booking_id: uuid.UUID
+    starts_at: datetime
+
+
+def unchecked_near_start(db: Session, now: datetime) -> list[Unchecked]:
+    """Pending booking payments whose booking (still waiting for that payment) starts within
+    `ALERT_BEFORE_START`, or has started, and that admins haven't been alerted to yet."""
+    alerted = exists().where(
+        AuditLog.action == ALERTED, AuditLog.entity == "payment", AuditLog.entity_id == cast(Payment.id, String)
+    )
+    rows = db.execute(
+        select(Payment.id, Booking.id, Booking.starts_at)
+        .join(Booking, Booking.id == Payment.booking_id)
+        .where(
+            Payment.kind == PaymentKind.booking,
+            Payment.status == PaymentStatus.pending,
+            Booking.status == BookingStatus.pending_payment,
+            Booking.starts_at <= now + ALERT_BEFORE_START,
+            ~alerted,
+        )
+        .order_by(Booking.starts_at)
+    )
+    return [Unchecked(payment_id, booking_id, starts_at) for payment_id, booking_id, starts_at in rows]
+
+
+def mark_alerted(db: Session, found: list[Unchecked]) -> None:
+    """Remembers each alert (in the audit log), so no payment is alerted twice. The caller commits."""
+    for item in found:
+        audit.record(db, None, ALERTED, "payment", str(item.payment_id), after={"booking_id": str(item.booking_id)})
 
 
 def waiting_for_admins(db: Session) -> tuple[list[Payment], list[Payment]]:
