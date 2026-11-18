@@ -388,3 +388,15 @@ test("the parent finds the booking under the Bookings tab", async () => {
   await page.getByRole("link", { name: "Your bookings" }).first().click();
   await expect(page.getByRole("heading", { name: "Your bookings" })).toBeVisible();
 });
+
+test("the sitter sees the confirmed booking and her pay, never the price", async () => {
+  const page = sitter.page;
+  await page.goto("/sitter");
+  await expect(page.getByText("Next booking")).toBeVisible();
+  await expect(page.getByText(/Looking after .* at Priya's home\./)).toBeVisible();
+  await page.getByRole("navigation", { name: "Sitter" }).getByRole("link", { name: "Bookings" }).click();
+  await expect(page.getByRole("heading", { name: "Your bookings" })).toBeVisible();
+  const panel = page.getByRole("tabpanel");
+  await expect(panel).toContainText("Confirmed · ₹200 for 1 hour");
+  await expect(page.locator("body")).not.toContainText(/₹499|Pause|Unwind|Recharge/);
+});

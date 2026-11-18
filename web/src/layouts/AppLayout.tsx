@@ -120,22 +120,39 @@ function HeaderActions() {
   );
 }
 
-// The parent's tabs (design.md 12: Home and Bookings; more come with their phases). A row under the header
-// on every size, scrolling sideways on narrow phones.
-const PARENT_TABS = [
-  { to: "/parent/sitters", label: "Find a sitter" },
-  { to: "/parent/bookings", label: "Bookings" },
-] as const;
+// Each area's tabs (design.md 12; more come with their phases). A row under the header on every size,
+// scrolling sideways on narrow phones. Admins have none yet.
+type Tab = { to: string; label: string; end?: boolean };
+const TABS: Record<"parent" | "sitter", { label: string; tabs: Tab[] }> = {
+  parent: {
+    label: "Parent",
+    tabs: [
+      { to: "/parent/sitters", label: "Find a sitter" },
+      { to: "/parent/bookings", label: "Bookings" },
+    ],
+  },
+  sitter: {
+    label: "Sitter",
+    tabs: [
+      { to: "/sitter", label: "Home", end: true },
+      { to: "/sitter/bookings", label: "Bookings" },
+      { to: "/sitter/availability", label: "Availability" },
+    ],
+  },
+};
 
 function AreaNav() {
   const me = useMe();
-  if (me.data?.profile?.role !== "parent") return null;
+  const role = me.data?.profile?.role;
+  if (role !== "parent" && role !== "sitter") return null;
+  const area = TABS[role];
   return (
-    <nav aria-label="Parent" className="mx-auto flex max-w-content gap-1 overflow-x-auto px-2 sm:px-3">
-      {PARENT_TABS.map((tab) => (
+    <nav aria-label={area.label} className="mx-auto flex max-w-content gap-1 overflow-x-auto px-2 sm:px-3">
+      {area.tabs.map((tab) => (
         <NavLink
           key={tab.to}
           to={tab.to}
+          end={tab.end}
           className={({ isActive }) =>
             cx(
               "inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-3 text-ui no-underline transition-colors duration-200 ease-calm",

@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useMe } from "../auth/useMe";
 import { Link } from "react-router";
 import { ButtonLink, Card, EmptyState, IconTile } from "../components/ui";
+import { formatBookingTime } from "../lib/format";
 import { apiFetch } from "../lib/api";
 import { useChecklist, type SitterChecklist } from "./ProfileChecklist";
+import { sitterBookingLine, type SitterBookingList } from "./SitterBookingsPage";
 
 // Each role's home (gated by RequireRole in routes.tsx). Parents have none: they land on Find a sitter.
 // The sitter's home (UX review 2026-11-13): a greeting; while she isn't live, where her application
@@ -94,6 +96,34 @@ function FirstBooking({ hasWeek }: { hasWeek: boolean }) {
   );
 }
 
+/** Her next confirmed booking, and the way to all of them. */
+function NextBooking() {
+  const list = useQuery({ queryKey: ["sitter", "bookings"], queryFn: () => apiFetch<SitterBookingList>("/sitter/bookings") });
+  if (list.isPending) return <p className="text-muted">Loading…</p>;
+  const next = list.data?.upcoming[0];
+  if (!next) {
+    return (
+      <EmptyState
+        message="No bookings yet. Confirmed bookings will show here."
+        action={list.data?.past.length ? <Link to="/sitter/bookings?show=past">See past bookings</Link> : undefined}
+      />
+    );
+  }
+  const more = (list.data?.upcoming.length ?? 1) - 1;
+  return (
+    <div className="flex flex-col gap-2">
+      <Card as="article" className="flex flex-col gap-2">
+        <p className="text-eyebrow text-muted uppercase">Next booking</p>
+        <p className="text-h3">{formatBookingTime(new Date(next.starts_at), new Date(next.ends_at))}</p>
+        <p className="text-body text-ink">{sitterBookingLine(next)}</p>
+      </Card>
+      <Link to="/sitter/bookings" className="text-small">
+        {more > 0 ? `See all your bookings (${more} more coming up)` : "See all your bookings"}
+      </Link>
+    </div>
+  );
+}
+
 export function SitterHomePage() {
   const me = useMe();
   const checklist = useChecklist<SitterChecklist>("sitter");
@@ -127,7 +157,7 @@ export function SitterHomePage() {
         <>
           {!welcomed && <ApprovedWelcome pinCode={me.data?.profile?.pin_code ?? null} onClose={closeWelcome} />}
           <h2 className="mt-2 text-ui font-semibold">Your bookings</h2>
-          <EmptyState message="No bookings yet. Confirmed bookings will show here." />
+          <NextBooking />
           <FirstBooking hasWeek={hasWeek} />
         </>
       )}
