@@ -167,8 +167,9 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   (daily), overdue check-out alerts (every 30 minutes, 6 am–midnight IST — keep each run short to stay
   inside GitHub Actions free minutes), payouts-due alerts (every 30 minutes, in the same run as overdue
   check-outs), auto-cancelling `pending_payment` bookings once their 3-hour payment deadline passes
-  (6.1; same frequent run), and cancelling and refunding `awaiting_verification` bookings whose start has
-  come (6.4; same frequent run).
+  (6.1; same frequent run), cancelling and refunding `awaiting_verification` bookings whose start has
+  come (6.4; same frequent run), and emailing `ADMIN_ALERT_EMAILS` about booking payments still unchecked
+  within 90 minutes of the start (6.1; same frequent run, once per payment).
   Two runs, `daily` and `frequent`, each a list of tasks in `api/app/services/jobs.py`. Before launch the
   frequent run targets production only, to save Render's shared free hours (README "Scheduled jobs").
 
@@ -211,7 +212,8 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   `pending_payment` booking is auto-cancelled (same boundary as the parent late-cancellation rule in
   6.5). Decided 2026-11-03 — parents should pay as soon as they book, since slots aren't held (6.4).
   **A UPI reference sent before the deadline keeps the booking** for an admin to confirm or reject, even
-  if it isn't checked by then (Reuben, 2026-11-18); a rejected payment doesn't. Auto-cancelled bookings
+  if it isn't checked by then (Reuben, 2026-11-18); a rejected payment doesn't. Admins are emailed about
+  a payment still unchecked about an hour before its booking starts (Reuben, 2026-11-19). Auto-cancelled bookings
   are `cancelled_unpaid`; ones that lose the slot to another confirmed booking are `cancelled_slot_taken`;
   paid ones whose start comes with a child still unverified are `cancelled_unverified` (6.4). A booking
   cancelled after its payment was confirmed is refunded in full.

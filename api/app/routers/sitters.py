@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import require_role
@@ -26,7 +27,8 @@ from app.models import (
 )
 from app.routers.parents import ChecklistItem, WeekHours, checklist_out
 from app.services import availability as availability_service
-from app.services import checklists, verification
+from app.services import bookings as bookings_service
+from app.services import checklists, sitter_pay, verification
 from app.services import psych_tests as psych_tests_service
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
@@ -461,3 +463,62 @@ def post_day_off(body: DayOffIn, sitter: SitterProfile, db: DbSession) -> Availa
 @router.delete("/availability/days-off/{day}", status_code=204)
 def delete_day_off(day: date, sitter: SitterProfile, db: DbSession) -> None:
     availability_service.remove_day_off(db, sitter.id, day)
+
+
+# ---------- her bookings (CLAUDE.md 6.4; phase 7 "Sitter booking lists") ----------
+
+
+class SitterBookingItem(BaseModel):
+    """A booking in the sitter's list: only confirmed ones (6.4). Never the price the parent paid or the
+    plan's name; her pay for the booked hours instead (6.2)."""
+
+    id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+    hours: int
+    family_name: str  # the parent's first name
+    children: list[str]
+    bath_time: bool
+    cameras_on: bool
+    camera_locations: str | None
+    pay_paise: int
+    status: str
+
+
+class SitterBookingList(BaseModel):
+    upcoming: list[SitterBookingItem]  # soonest first
+    past: list[SitterBookingItem]  # ended or cancelled, most recent first
+
+
+@router.get("/bookings")
+def get_bookings(sitter: SitterProfile, db: DbSession) -> SitterBookingList:
+    now = datetime.now(UTC)
+    upcoming, past = bookings_service.sitters_bookings(db, sitter.id, now)
+    everything = [*upcoming, *past]
+    names = bookings_service.child_names_for(db, [item.id for item in everything])
+    parents = {
+        row.id: row.full_name
+        for row in db.execute(
+            select(Profile.id, Profile.full_name).where(Profile.id.in_({item.parent_id for item in everything}))
+        )
+    }
+
+    def item(booking) -> SitterBookingItem:
+        home = bookings_service.home_info(db, booking.id)
+        parent_name = (parents.get(booking.parent_id) or "").strip()
+        return SitterBookingItem(
+            id=booking.id,
+            starts_at=booking.starts_at,
+            ends_at=booking.ends_at,
+            hours=booking.units,
+            family_name=parent_name.split()[0] if parent_name else "The family",
+            children=names[booking.id],
+            bath_time=booking.bath_time,
+            cameras_on=home.cameras_on if home else False,
+            camera_locations=home.camera_locations if home else None,
+            # The plan is her level (6.2), so her level's pay for the booked hours.
+            pay_paise=sitter_pay.booking_pay_paise(booking.plan, booking.units),
+            status=booking.status.value,
+        )
+
+    return SitterBookingList(upcoming=[item(b) for b in upcoming], past=[item(b) for b in past])

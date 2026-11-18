@@ -17,10 +17,10 @@ tests.
 
 ## Open questions (ask Reuben; don't guess)
 
-- [ ] **A payment still unchecked when the booking starts** (added 2026-11-18). A reference sent in time
-  keeps the booking for an admin, but if nobody checks it before the start, what happens? For now the
-  API refuses to confirm it (`booking_started`) and the admin contacts the parent; the payment stays
-  pending, with no way yet to record it as received and refund it.
+- [x] **A payment still unchecked when the booking starts** (Reuben, 2026-11-19): admins are emailed about
+  it about an hour before the start (frequent job `alert_unchecked_payments`, once per payment), so it
+  rarely happens. If it still does, the API refuses to confirm it (`booking_started`) and the admin
+  contacts the parent; there's no way yet to record it as received and refund it.
 - [x] **A paid booking whose child isn't verified by the start** (Reuben, 2026-11-18): until every child
   is verified the booking isn't confirmed or shown to the sitter, and doesn't block her time. If it loses
   the time to another confirmed booking, or the start comes first, it's cancelled and every payment is
@@ -422,7 +422,11 @@ at home (CLAUDE.md 6.3).
     `/parent/bookings` (`GET /parent/bookings`) with Upcoming (soonest first) and Past (ended or cancelled,
     most recent first) tabs, each row opening the booking page (whose Back link now returns to the list).
     Opening the list cancels the parent's overdue unpaid or unverified bookings, as opening one does.
-    Still to do: the sitter's list (confirmed bookings only)
+  - Sitter's side done 2026-11-19: "Home", "Bookings" and "Availability" tabs; `/sitter/bookings`
+    (`GET /sitter/bookings`) with Upcoming and Past tabs, only bookings that were confirmed (never one
+    waiting for payment or a child's verification). Each shows who, bath time, the family's camera
+    answer and her pay for the booked hours (`services/sitter_pay.py`, 6.2), never the price or plan.
+    Her home shows her next booking. Still to do: detail pages (address, children's care notes)
 - [ ] Cancellations with 3-hour and 8-hour rules
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
 - [ ] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12)
@@ -506,6 +510,8 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-19 — Sitter bookings list and home card; admins emailed about payments unchecked about an
+  hour before the start. e2e 10.
 - 2026-11-18 — Parent "Bookings" tab: upcoming and past bookings. e2e 9.
 - 2026-11-18 — Unverified bookings no longer hold the sitter's time; cancelled and refunded if the time
   is taken first or the start comes (`cancelled_unverified`).

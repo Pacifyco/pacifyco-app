@@ -303,6 +303,35 @@ def parents_bookings(db: Session, parent_id: uuid.UUID, now: datetime) -> tuple[
     return upcoming, past
 
 
+# What a sitter sees (6.4): only bookings that were confirmed, so never one waiting for payment or a
+# child's verification, nor one cancelled before it was confirmed.
+SITTER_SEES = (
+    BookingStatus.confirmed,
+    BookingStatus.in_progress,
+    BookingStatus.completed,
+    BookingStatus.cancelled_parent,
+    BookingStatus.cancelled_parent_late,
+    BookingStatus.cancelled_sitter,
+    BookingStatus.cancelled_sitter_late,
+    BookingStatus.parent_absent,
+    BookingStatus.sitter_no_show,
+)
+SITTER_UPCOMING = (BookingStatus.confirmed, BookingStatus.in_progress)
+
+
+def sitters_bookings(db: Session, sitter_id: uuid.UUID, now: datetime) -> tuple[list[Booking], list[Booking]]:
+    """The sitter's confirmed bookings: upcoming ones (not yet ended) soonest first, and the rest most
+    recent first."""
+    found = db.scalars(select(Booking).where(Booking.sitter_id == sitter_id, Booking.status.in_(SITTER_SEES))).all()
+    upcoming = sorted(
+        (item for item in found if item.status in SITTER_UPCOMING and item.ends_at > now),
+        key=lambda item: item.starts_at,
+    )
+    taken = {item.id for item in upcoming}
+    past = sorted((item for item in found if item.id not in taken), key=lambda item: item.starts_at, reverse=True)
+    return upcoming, past
+
+
 def child_names_for(db: Session, booking_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[str]]:
     """Each booking's children's names, eldest first, in one query."""
     names: dict[uuid.UUID, list[str]] = {booking_id: [] for booking_id in booking_ids}

@@ -585,13 +585,15 @@ describe("role-gated areas", () => {
     expect(screen.queryByText(/No bookings yet/)).toBeNull();
   });
 
-  function liveSitter(week: unknown[]) {
+  function liveSitter(week: unknown[], upcoming: unknown[] = []) {
     fake.state.session = fake.session;
     const profile = { role: "sitter", status: "active", full_name: "Asha K", pin_code: "560034" };
     vi.mocked(fetch).mockImplementation(((url: string) =>
       url.endsWith("/sitter/availability")
         ? Promise.resolve(jsonResponse({ week, days_off: [] }))
-        : url.endsWith("/sitter/checklist")
+        : url.endsWith("/sitter/bookings")
+          ? Promise.resolve(jsonResponse({ upcoming, past: [] }))
+          : url.endsWith("/sitter/checklist")
           ? Promise.resolve(jsonResponse({ ...SITTER_CHECKLIST, live: true }))
           : meResponse(profile)(url)) as typeof fetch);
   }
@@ -610,6 +612,30 @@ describe("role-gated areas", () => {
     renderApp("/sitter");
     await screen.findByRole("heading", { name: "Get your first booking" });
     expect(screen.queryByText("You're approved")).toBeNull(); // only once
+  });
+
+  test("her next confirmed booking shows on her home", async () => {
+    const booking = {
+      id: "b1",
+      starts_at: "2030-01-07T03:30:00Z",
+      ends_at: "2030-01-07T05:30:00Z",
+      hours: 2,
+      family_name: "Meera",
+      children: ["Rohan"],
+      bath_time: false,
+      cameras_on: false,
+      camera_locations: null,
+      pay_paise: 60000,
+      status: "confirmed",
+    };
+    liveSitter([{ weekday: 0, start_hour: 9, end_hour: 13 }], [booking, { ...booking, id: "b2" }]);
+    renderApp("/sitter");
+    expect(await screen.findByText("Looking after Rohan at Meera's home.")).toBeTruthy();
+    expect(screen.getByText("Next booking")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "See all your bookings (1 more coming up)" }).getAttribute("href")).toBe(
+      "/sitter/bookings",
+    );
+    expect(screen.queryByText(/No bookings yet/)).toBeNull();
   });
 
   test("a sitter who has set her availability just sees her bookings, and changes it from her profile", async () => {

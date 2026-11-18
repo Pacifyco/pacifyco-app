@@ -5,20 +5,26 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.services import jobs
+from app.services.email import get_email
 from app.settings import Settings
 
 SECRET = "s3cret-for-tests-only"
 
 
-def client(db_engine, jobs_secret: str = SECRET) -> TestClient:
+def client(db_engine, jobs_secret: str = SECRET, mailbox=None, admin_alert_emails: str = "") -> TestClient:
     settings = Settings(
         _env_file=None,
         environment="staging",
         cors_origins="https://staging.example",
         database_url=db_engine.url.render_as_string(hide_password=False),
         jobs_secret=jobs_secret,
+        admin_alert_emails=admin_alert_emails,
+        public_web_url="https://staging.example",
     )
-    return TestClient(create_app(settings), raise_server_exceptions=False)
+    app = create_app(settings)
+    if mailbox is not None:
+        app.dependency_overrides[get_email] = lambda: mailbox
+    return TestClient(app, raise_server_exceptions=False)
 
 
 def bearer(token: str) -> dict[str, str]:
@@ -51,7 +57,10 @@ def test_daily_run_keeps_the_database_active(db_engine):
 
 def test_frequent_run_cancels_unpaid_bookings(db_engine):
     response = client(db_engine).post("/internal/jobs/frequent", headers=bearer(SECRET))
-    assert response.json() == {"run": "frequent", "ran": ["cancel_unpaid_bookings", "cancel_unverified_bookings"]}
+    assert response.json() == {
+        "run": "frequent",
+        "ran": ["cancel_unpaid_bookings", "cancel_unverified_bookings", "alert_unchecked_payments"],
+    }
 
 
 def test_unknown_run_is_404_once_authorised(db_engine):
