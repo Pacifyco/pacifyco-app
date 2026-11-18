@@ -63,6 +63,14 @@ const BOOKING: Booking = {
   camera_locations: null,
   status: "pending_payment",
   pay_by: kolkataTime("2030-01-07", 6),
+  pay_by_upi: {
+    upi_id: "pacifyco@okaxis",
+    payee_name: "Pacifyco",
+    amount_paise: 169800,
+    note: "Pacifyco booking B1",
+    upi_link: "upi://pay?pa=pacifyco@okaxis&pn=Pacifyco&am=1698.00&cu=INR&tn=Pacifyco%20booking%20B1",
+  },
+  payment: null,
 };
 
 function api(price = UNWIND, times = TIMES, extra: Record<string, (body: unknown) => Response> = {}) {
@@ -200,3 +208,74 @@ describe("Book this sitter", () => {
     expect(screen.getByRole("link", { name: "Find another sitter" })).toBeTruthy();
   });
 });
+
+describe("paying for the booking", () => {
+  const SENT = { status: "pending", upi_reference: "123456789012", sent_at: BOOKING.starts_at, rejection_reason: null };
+
+  test("shows the UPI ID, a link to pay in a UPI app and a QR code", async () => {
+    api();
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByRole("heading", { name: "Pay ₹1,698 by UPI" })).toBeTruthy();
+    expect(screen.getByText("pacifyco@okaxis")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(writeText).toHaveBeenCalledWith("pacifyco@okaxis");
+    expect(screen.getByRole("link", { name: "Pay in a UPI app" }).getAttribute("href")).toBe(BOOKING.pay_by_upi!.upi_link);
+    const qr = (await screen.findByAltText("QR code to pay ₹1,698 to Pacifyco")) as HTMLImageElement;
+    expect(qr.src).toMatch(/^data:image\/svg\+xml/);
+    expect(screen.getByText(/Please pay by Mon, 7 Jan, 6:00 am/)).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Pause|Unwind|Recharge/);
+  });
+
+  test("sends the 12-digit UPI reference and shows it being checked", async () => {
+    const calls = api(UNWIND, TIMES, {
+      "POST /parent/bookings/b1/payment": () => jsonResponse({ ...BOOKING, payment: SENT }, 201),
+    });
+    renderAt("/parent/bookings/b1");
+    const field = await screen.findByLabelText(/UPI reference/);
+    fireEvent.change(field, { target: { value: "12345" } });
+    fireEvent.click(screen.getByRole("button", { name: /Send the reference/ }));
+    expect(screen.getByText("Please enter the 12-digit UPI reference from your UPI app.")).toBeTruthy();
+    expect(calls.some((call) => call.method === "POST")).toBe(false);
+
+    fireEvent.change(field, { target: { value: "1234 5678 9012" } });
+    fireEvent.click(screen.getByRole("button", { name: /Send the reference/ }));
+    expect(await screen.findByRole("heading", { name: "Payment sent" })).toBeTruthy();
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ upi_reference: "123456789012" });
+    expect(screen.getByText(/We're checking your payment of ₹1,698 \(UPI reference 123456789012\)/)).toBeTruthy();
+    expect(screen.queryByLabelText(/UPI reference/)).toBeNull();
+  });
+
+  test("a rejected payment shows the reason and asks again", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () =>
+        jsonResponse({ ...BOOKING, payment: { ...SENT, status: "rejected", rejection_reason: "Not received." } }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText(/We couldn't confirm your payment: Not received\./)).toBeTruthy();
+    expect(screen.getByLabelText(/UPI reference/)).toBeTruthy();
+  });
+
+  test("shows the API's reason when the reference can't be taken", async () => {
+    api(UNWIND, TIMES, {
+      "POST /parent/bookings/b1/payment": () =>
+        jsonResponse(
+          { error: { code: "upi_reference_used", message: "That UPI reference has already been sent.", details: null } },
+          409,
+        ),
+    });
+    renderAt("/parent/bookings/b1");
+    fireEvent.change(await screen.findByLabelText(/UPI reference/), { target: { value: "123456789012" } });
+    fireEvent.click(screen.getByRole("button", { name: /Send the reference/ }));
+    expect(await screen.findByText("That UPI reference has already been sent.")).toBeTruthy();
+  });
+
+  test("no UPI details yet: says payments aren't open", async () => {
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...BOOKING, pay_by_upi: null }) });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("We can't take payments just yet. Please check back soon.")).toBeTruthy();
+    expect(screen.queryByLabelText(/UPI reference/)).toBeNull();
+  });
+});
+

@@ -3,7 +3,7 @@
 import re
 import uuid
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.errors import AppError
 from app.models import (
     AuditLog,
     AuthorisedAdult,
+    Booking,
     Child,
     Consent,
     EmergencyContact,
@@ -144,6 +145,9 @@ def is_empty(db: Session, profile: Profile) -> bool:
         return False
     if db.scalar(select(AuthorisedAdult.id).where(AuthorisedAdult.parent_id == profile.id).limit(1)) is not None:
         return False
+    booked = or_(Booking.parent_id == profile.id, Booking.sitter_id == profile.id)
+    if db.scalar(select(Booking.id).where(booked).limit(1)) is not None:
+        return False  # bookings and their payments are money records
     sitter = db.get(Sitter, profile.id)
     if sitter is not None:
         filled = (

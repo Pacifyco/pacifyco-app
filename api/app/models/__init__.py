@@ -8,6 +8,7 @@ from app.models.documents import Document, DocumentAccessLog, DocumentStatus, Do
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
 from app.models.marketplace import DayOff, GeocodeCache, WeeklyHours
 from app.models.parents import AuthorisedAdult, Child, EmergencyContact, Parent
+from app.models.payments import Payment, PaymentKind, PaymentStatus
 from app.models.profiles import Profile, ProfileStatus, Role, ServiceAreaPincode
 from app.models.psych_tests import (
     PsychAnswer,
@@ -52,6 +53,9 @@ __all__ = [
     "OnboardingStep",
     "OnboardingStepName",
     "Parent",
+    "Payment",
+    "PaymentKind",
+    "PaymentStatus",
     "PayoutMethod",
     "Profile",
     "ProfileStatus",

@@ -11,16 +11,27 @@ from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from app.auth import require_role
 from app.deps import DbSession
 from app.errors import AppError
-from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, SitterLevel, VerificationStatus
+from app.models import (
+    AuthorisedAdult,
+    BookingStatus,
+    Child,
+    EmergencyContact,
+    Profile,
+    Role,
+    SitterLevel,
+    VerificationStatus,
+)
 from app.routers.auth import TermsVersion, request_info
 from app.services import availability as availability_service
 from app.services import bookings as bookings_service
 from app.services import checklists, consent, family, legal, pricing
 from app.services import children as children_service
+from app.services import payments as payments_service
 from app.services import search as search_service
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
 from app.services.storage import StorageClient, get_storage
+from app.settings import Settings, get_settings
 
 Storage = Annotated[StorageClient, Depends(get_storage)]
 
@@ -460,6 +471,26 @@ class BookingIn(BaseModel):
     camera_locations: str | None = Field(default=None, max_length=500)
 
 
+class PayByUpi(BaseModel):
+    """Where and how to pay (6.1): Pacifyco's UPI ID and a `upi://pay` link (the page shows it as a QR
+    code too)."""
+
+    upi_id: str
+    payee_name: str
+    amount_paise: int
+    note: str
+    upi_link: str
+
+
+class PaymentOut(BaseModel):
+    """The latest payment the parent sent for this booking."""
+
+    status: str
+    upi_reference: str | None
+    sent_at: datetime
+    rejection_reason: str | None
+
+
 class BookingOut(BaseModel):
     """The parent's view of a booking: never the plan's name or the sitter's pay (6.1)."""
 
@@ -476,11 +507,23 @@ class BookingOut(BaseModel):
     camera_locations: str | None
     status: str
     pay_by: datetime  # unpaid bookings are cancelled at this time (6.1)
+    # Only while the booking waits for payment and Pacifyco's UPI ID is set.
+    pay_by_upi: PayByUpi | None
+    payment: PaymentOut | None
 
 
-def _booking_out(db: DbSession, booking) -> BookingOut:
+AppSettings = Annotated[Settings, Depends(get_settings)]
+
+
+def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
     home = bookings_service.home_info(db, booking.id)
     sitter = db.get(Profile, booking.sitter_id)
+    instructions = (
+        payments_service.payment_instructions(settings.pacify_upi_id, booking)
+        if booking.status == BookingStatus.pending_payment
+        else None
+    )
+    payment = payments_service.latest_booking_payment(db, booking.id)
     return BookingOut(
         id=booking.id,
         sitter_id=booking.sitter_id,
@@ -495,16 +538,38 @@ def _booking_out(db: DbSession, booking) -> BookingOut:
         camera_locations=home.camera_locations if home else None,
         status=booking.status.value,
         pay_by=bookings_service.pay_by(booking),
+        pay_by_upi=PayByUpi(**vars(instructions)) if instructions else None,
+        payment=PaymentOut(
+            status=payment.status.value,
+            upi_reference=payment.upi_reference,
+            sent_at=payment.created_at,
+            rejection_reason=payment.rejection_reason,
+        )
+        if payment
+        else None,
     )
 
 
 @router.post("/bookings", status_code=201)
-def post_booking(body: BookingIn, parent: Parent, db: DbSession) -> BookingOut:
+def post_booking(body: BookingIn, parent: Parent, db: DbSession, settings: AppSettings) -> BookingOut:
     new = bookings_service.NewBooking(**body.model_dump())
     booking = bookings_service.create(db, parent, new, datetime.now(UTC))
-    return _booking_out(db, booking)
+    return _booking_out(db, booking, settings)
 
 
 @router.get("/bookings/{booking_id}")
-def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession) -> BookingOut:
-    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id))
+def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings) -> BookingOut:
+    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
+
+
+class UpiReferenceIn(BaseModel):
+    upi_reference: str = Field(max_length=40)
+
+
+@router.post("/bookings/{booking_id}/payment", status_code=201)
+def post_booking_payment(
+    booking_id: uuid.UUID, body: UpiReferenceIn, parent: Parent, db: DbSession, settings: AppSettings
+) -> BookingOut:
+    """The parent has paid by UPI: record the reference for an admin to check (6.1)."""
+    payments_service.submit_upi_reference(db, parent, booking_id, body.upi_reference, datetime.now(UTC))
+    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)

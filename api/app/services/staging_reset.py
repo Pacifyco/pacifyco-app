@@ -21,6 +21,7 @@ from app.models import (
     Document,
     DocumentAccessLog,
     LegalAcceptance,
+    Payment,
     Profile,
     PsychAttempt,
     Reference,
@@ -70,11 +71,14 @@ def delete_all(db: Session, found: Found) -> None:
     booking_ids = db.scalars(
         select(Booking.id).where(or_(Booking.parent_id.in_(ids), Booking.sitter_id.in_(ids)))
     ).all()
+    payment_ids = db.scalars(select(Payment.id).where(Payment.booking_id.in_(booking_ids))).all()
     # Audit rows they made, and rows about them or their records (entity ids are stored as text).
-    about = [str(item) for item in [*ids, *child_ids, *document_ids, *reference_ids, *attempt_ids, *booking_ids]]
+    records = [*ids, *child_ids, *document_ids, *reference_ids, *attempt_ids, *booking_ids, *payment_ids]
+    about = [str(item) for item in records]
 
-    # Bookings first: they hold their parent, sitter and children (RESTRICT); their children and home
-    # info rows go with them.
+    # Payments, then bookings: they hold their parent, sitter and children (RESTRICT); a booking's
+    # children and home info rows go with it.
+    db.execute(delete(Payment).where(Payment.id.in_(payment_ids)))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
     db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
     db.execute(delete(Document).where(Document.id.in_(document_ids)))

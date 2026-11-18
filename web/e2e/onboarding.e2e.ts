@@ -313,7 +313,7 @@ test("the parent finds the sitter, with her photo and her rate, never a plan nam
   await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
 });
 
-test("the parent books the sitter, sees the price and waits to pay", async () => {
+test("the parent books the sitter, pays by UPI and sends the reference", async () => {
   const page = parent.page;
   // From her profile (the previous step left the parent there).
   await page.getByRole("link", { name: "Choose a time" }).click();
@@ -332,4 +332,17 @@ test("the parent books the sitter, sees the price and waits to pay", async () =>
   await expect(page.getByText("Lakshmi is looking after Asha at home.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pay ₹499 by UPI" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
+
+  // Pay by UPI: Pacifyco's UPI ID, a link for the UPI app and its QR code, then the 12-digit reference.
+  await expect(page.getByText("pacifyco-e2e@okaxis")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Pay in a UPI app" })).toHaveAttribute(
+    "href",
+    /^upi:\/\/pay\?pa=pacifyco-e2e@okaxis&pn=Pacifyco&am=499\.00&cu=INR&tn=Pacifyco%20booking%20/,
+  );
+  await expect(page.getByAltText("QR code to pay ₹499 to Pacifyco")).toBeVisible();
+  await page.getByLabel("UPI reference").fill("4321 0987 6543");
+  await page.getByRole("button", { name: /Send the reference/ }).click();
+  await expect(page.getByRole("heading", { name: "Payment sent" })).toBeVisible();
+  await expect(page.getByText(/UPI reference 432109876543/)).toBeVisible();
+  await expect(page.getByText("Waiting for payment")).toBeVisible(); // until an admin confirms it
 });

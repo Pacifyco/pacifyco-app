@@ -358,7 +358,14 @@ at home (CLAUDE.md 6.3).
   hours, 4 hours' notice, her free times minus confirmed bookings, the plan's latest end, Pause one child,
   bath time, cameras, children 18 months+ and the parent's own. Money owed and strikes are checked once
   those exist
-- [ ] Booking payment: UPI instructions, UPI reference entry, `pending_payment` (no match deposit)
+- [x] Booking payment: UPI instructions, UPI reference entry, `pending_payment` (no match deposit). The
+  booking page shows Pacifyco's UPI ID (copy button), a "Pay in a UPI app" `upi://pay` link (payee
+  Pacifyco, the amount and a "Pacifyco booking XXXXXXXX" note) and its QR code (`qrcode`), then takes the
+  12-digit UPI reference (`POST /parent/bookings/{id}/payment`, `app/services/payments.py`): a `pending`
+  `payments` row (migration f9ef16dd91b3) for an admin to check. Refused after the 3-hour deadline, twice
+  for one booking (unless the last one was rejected) and for a reference already sent. The API's role can
+  only add payment rows and update an admin's decision on them (status, confirmed_by, confirmed_at,
+  rejection_reason). Without `PACIFY_UPI_ID` the page says payments aren't open yet
 - [ ] Frequent job: auto-cancel `pending_payment` bookings 3 hours before start; first confirmed payment
   wins a slot and auto-cancels the others
 - [ ] Admin confirms/rejects payments; refunds recorded with a reference
@@ -453,6 +460,8 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — "Booking payment": `payments` table (append-only, decision columns only), UPI ID, link and
+  QR code on the booking page, 12-digit UPI reference sent for an admin to check. API 501, web 255, e2e 6.
 - 2026-11-18 — "Book this sitter": bookings tables (migration f6c8e0a2b4d5), booking options and create
   endpoints, the booking page with a live price, and a booking page that waits for payment (UPI details
   come next). API 484, web 250, e2e 6.

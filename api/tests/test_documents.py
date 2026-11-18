@@ -77,9 +77,17 @@ def cleanup_documents(db_engine, profile_id) -> None:
                 text("SELECT id FROM bookings WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id}
             ).scalars()
         ]
+        payment_ids = [
+            str(item)
+            for item in conn.execute(
+                text("SELECT id FROM payments WHERE booking_id::text = ANY(:ids)"), {"ids": booking_ids}
+            ).scalars()
+        ]
         conn.execute(
-            text("DELETE FROM audit_log WHERE entity = 'booking' AND entity_id = ANY(:ids)"), {"ids": booking_ids}
+            text("DELETE FROM audit_log WHERE entity IN ('booking', 'payment') AND entity_id = ANY(:ids)"),
+            {"ids": booking_ids + payment_ids},
         )
+        conn.execute(text("DELETE FROM payments WHERE booking_id::text = ANY(:ids)"), {"ids": booking_ids})
         conn.execute(text("DELETE FROM bookings WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM documents WHERE owner_profile_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM children WHERE parent_id = :id"), {"id": profile_id})

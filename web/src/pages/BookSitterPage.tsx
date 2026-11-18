@@ -1,7 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState, type FormEvent } from "react";
+import QRCode from "qrcode";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router";
-import { BackLink, Button, ButtonLink, Card, Checkbox, EmptyState, Select, Textarea } from "../components/ui";
+import {
+  BackLink,
+  Button,
+  ButtonLink,
+  Card,
+  Checkbox,
+  EmptyState,
+  Select,
+  TextInput,
+  Textarea,
+  buttonClasses,
+  showToast,
+} from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { formatDay, formatTime, joinNames, plural } from "../lib/format";
 import { hourlyPaise, rupees, type Price } from "../lib/prices";
@@ -39,6 +52,18 @@ export type Booking = {
   camera_locations: string | null;
   status: string;
   pay_by: string;
+  /** How to pay by UPI: only while it waits for payment and Pacifyco's UPI ID is set. */
+  pay_by_upi: PayByUpi | null;
+  /** The latest payment the parent sent for it. */
+  payment: Payment | null;
+};
+
+type PayByUpi = { upi_id: string; payee_name: string; amount_paise: number; note: string; upi_link: string };
+type Payment = {
+  status: "pending" | "confirmed" | "rejected";
+  upi_reference: string | null;
+  sent_at: string;
+  rejection_reason: string | null;
 };
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -390,7 +415,7 @@ export function BookSitterPage() {
   );
 }
 
-/** The booking, once made: what was booked and when to pay by. UPI payment is added here next (phase 6). */
+/** The booking, once made: what was booked, and paying for it by UPI (6.1). */
 export function BookingPage() {
   const { bookingId = "" } = useParams();
   const booking = useQuery({
@@ -411,15 +436,13 @@ export function BookingPage() {
   const data = booking.data;
   const firstName = firstNameOf(data.sitter_name);
   const startsAt = new Date(data.starts_at);
-  const payBy = new Date(data.pay_by);
+  const waiting = data.status === "pending_payment";
   return (
     <article className="mx-auto flex max-w-[40rem] flex-col gap-6">
       <BackLink to={`/parent/sitters/${data.sitter_id}`} label={`${firstName}'s profile`} />
       <h1>Your booking with {firstName}</h1>
       <Card as="section" padding="roomy" className="flex flex-col gap-3">
-        <p className="text-eyebrow text-muted uppercase">
-          {data.status === "pending_payment" ? "Waiting for payment" : "Booking"}
-        </p>
+        <p className="text-eyebrow text-muted uppercase">{waiting ? "Waiting for payment" : "Booking"}</p>
         <p className="text-h3 text-ink">
           {formatDay(startsAt)} · {formatTime(startsAt)} – {formatTime(new Date(data.ends_at))}
         </p>
@@ -431,18 +454,175 @@ export function BookingPage() {
           {plural(data.hours, "hour", "hours")} · {rupees(data.price_paise)}
         </p>
       </Card>
-      {data.status === "pending_payment" && (
-        <Card as="section" padding="roomy" className="flex flex-col gap-3">
-          <h2 className="text-h3">Pay {rupees(data.price_paise)} by UPI</h2>
-          <p className="text-ink">
-            Please pay by {formatDay(payBy)}, {formatTime(payBy)}. If it isn't paid by then, the booking is
-            cancelled.
-          </p>
-          <p className="text-small text-muted">
-            The booking is confirmed once Pacifyco has checked your payment and every child on it is verified.
-          </p>
-        </Card>
-      )}
+      {waiting && <PaymentCard booking={data} />}
     </article>
+  );
+}
+
+const CHECKING_NOTE =
+  "The booking is confirmed once Pacifyco has checked your payment and every child on it is verified.";
+
+/** Pay by UPI, then send the 12-digit UPI reference; or, once sent, that it's being checked. */
+function PaymentCard({ booking }: { booking: Booking }) {
+  const payBy = new Date(booking.pay_by);
+  const payment = booking.payment;
+
+  if (payment?.status === "pending") {
+    return (
+      <Card as="section" padding="roomy" className="flex flex-col gap-3">
+        <h2 className="text-h3">Payment sent</h2>
+        <p className="text-ink">
+          Thank you. We're checking your payment of {rupees(booking.price_paise)} (UPI reference{" "}
+          {payment.upi_reference}).
+        </p>
+        <p className="text-small text-muted">{CHECKING_NOTE}</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-4">
+      <h2 className="text-h3">Pay {rupees(booking.price_paise)} by UPI</h2>
+      {payment?.status === "rejected" && (
+        <p role="alert" className="text-danger">
+          We couldn't confirm your payment: {payment.rejection_reason} Please check the UPI reference and send it
+          again.
+        </p>
+      )}
+      <p className="text-ink">
+        Please pay by {formatDay(payBy)}, {formatTime(payBy)}. If it isn't paid by then, the booking is cancelled.
+      </p>
+      {booking.pay_by_upi ? (
+        <>
+          <UpiDetails upi={booking.pay_by_upi} />
+          <ReferenceForm bookingId={booking.id} />
+        </>
+      ) : (
+        <p className="text-ink">We can't take payments just yet. Please check back soon.</p>
+      )}
+      <p className="text-small text-muted">{CHECKING_NOTE}</p>
+    </Card>
+  );
+}
+
+function UpiDetails({ upi }: { upi: PayByUpi }) {
+  const qr = useQrCode(upi.upi_link);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(upi.upi_id);
+      showToast("UPI ID copied");
+    } catch {
+      showToast("Couldn't copy. Please select the UPI ID and copy it.");
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <ol className="flex list-decimal flex-col gap-1 pl-5 text-ink">
+        <li>
+          Pay {rupees(upi.amount_paise)} to {upi.payee_name} from any UPI app.
+        </li>
+        <li>Copy the 12-digit UPI reference from the payment details and enter it below.</li>
+      </ol>
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-ink">
+          <span className="text-small text-muted">UPI ID </span>
+          <span className="font-semibold select-all">{upi.upi_id}</span>
+        </p>
+        <Button variant="secondary" fullWidthOnPhone={false} onClick={() => void copy()}>
+          Copy
+        </Button>
+      </div>
+      <a href={upi.upi_link} className={buttonClasses({ variant: "secondary" })}>
+        Pay in a UPI app
+      </a>
+      {qr && (
+        <figure className="flex flex-col items-center gap-2">
+          <img
+            src={qr}
+            alt={`QR code to pay ${rupees(upi.amount_paise)} to ${upi.payee_name}`}
+            width={192}
+            height={192}
+            className="rounded-lg bg-white p-2"
+          />
+          <figcaption className="text-small text-muted">On a computer? Scan this with your phone.</figcaption>
+        </figure>
+      )}
+      <p className="text-small text-muted">Note on the payment: {upi.note}</p>
+    </div>
+  );
+}
+
+/** The `upi://pay` link as a QR code image (an SVG, so it works without a canvas). */
+function useQrCode(link: string): string | null {
+  const [image, setImage] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    QRCode.toString(link, { type: "svg", margin: 1, errorCorrectionLevel: "M" })
+      .then((svg) => {
+        if (current) setImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+      })
+      .catch(() => {
+        if (current) setImage(null);
+      });
+    return () => {
+      current = false;
+    };
+  }, [link]);
+  return image;
+}
+
+function ReferenceForm({ bookingId }: { bookingId: string }) {
+  const queryClient = useQueryClient();
+  const [reference, setReference] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const send = useMutation({
+    mutationFn: (upi_reference: string) =>
+      apiFetch<Booking>(`/parent/bookings/${bookingId}/payment`, {
+        method: "POST",
+        body: JSON.stringify({ upi_reference }),
+      }),
+    onSuccess: (booking) => {
+      queryClient.setQueryData(["booking", bookingId], booking);
+      showToast("Payment sent. We'll check it soon.");
+    },
+    onError: async (failed) => {
+      setError(failed instanceof ApiError ? failed.message : "Something went wrong. Please try again.");
+      if (failed instanceof ApiError && failed.status === 409) {
+        await queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
+      }
+    },
+  });
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const digits = reference.replace(/\s/g, "");
+    if (!/^\d{12}$/.test(digits)) {
+      setError("Please enter the 12-digit UPI reference from your UPI app.");
+      return;
+    }
+    setError(null);
+    send.mutate(digits);
+  }
+
+  return (
+    <form noValidate onSubmit={submit} className="flex flex-col gap-3">
+      <TextInput
+        label="UPI reference"
+        hint="12 digits. Your UPI app may call it the UTR or UPI transaction ID."
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={16}
+        value={reference}
+        error={error ?? undefined}
+        onChange={(event) => setReference(event.target.value)}
+      />
+      <div>
+        <Button type="submit" arrow loading={send.isPending}>
+          Send the reference
+        </Button>
+      </div>
+    </form>
   );
 }
