@@ -7,7 +7,6 @@ export { Chip, ToggleChip, VERIFIED_LABELS, VerifiedChip, type VerifiedCheck } f
 export { EmergencyButton } from "./EmergencyButton";
 export { EmptyState } from "./EmptyState";
 export { Checkbox, Select, TextInput, Textarea } from "./Field";
-export { HourBalance, type ChildBalance } from "./HourBalance";
 export { IconTile } from "./IconTile";
 export { LoadingScreen } from "./LoadingScreen";
 export { Photo, type PhotoName } from "./Photo";

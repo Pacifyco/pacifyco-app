@@ -49,9 +49,9 @@ def test_daily_run_keeps_the_database_active(db_engine):
     assert response.json() == {"run": "daily", "ran": ["keep_database_active"]}
 
 
-def test_frequent_run_has_no_tasks_yet(db_engine):
+def test_frequent_run_cancels_unpaid_bookings(db_engine):
     response = client(db_engine).post("/internal/jobs/frequent", headers=bearer(SECRET))
-    assert response.json() == {"run": "frequent", "ran": []}
+    assert response.json() == {"run": "frequent", "ran": ["cancel_unpaid_bookings"]}
 
 
 def test_unknown_run_is_404_once_authorised(db_engine):

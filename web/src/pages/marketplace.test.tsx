@@ -178,29 +178,34 @@ describe("finding a sitter", () => {
     distance_km: 2.37,
     photo_url: "https://storage.example/photo/s1?token=x",
     plan: "pause",
+    price: { per_hour_paise: 49900, extra_child_paise: 0, one_child_only: true },
   };
   const FINISHED = { items: [], finished: true };
 
-  test("each card shows the plan the sitter works, as a small label with no price", async () => {
+  test("each card shows the sitter's rate, never her plan's name (Reuben, 2026-11-17)", async () => {
     mockApi({
       "GET /parent/checklist": () => jsonResponse(FINISHED),
       "GET /parent/sitters": () =>
-        jsonResponse([LAKSHMI, { ...LAKSHMI, id: "s2", full_name: "Meena Rao", plan: "recharge" }]),
+        jsonResponse([
+          LAKSHMI,
+          { ...LAKSHMI, id: "s2", full_name: "Meena Rao", plan: "unwind", price: { per_hour_paise: 69900, extra_child_paise: 15000, one_child_only: false } },
+          { ...LAKSHMI, id: "s3", full_name: "Asha Iyer", plan: "recharge", price: { per_hour_paise: 89900, extra_child_paise: 0, one_child_only: false } },
+        ]),
     });
-    renderAt("/parent/sitters");
-    const lakshmi = within((await screen.findByRole("heading", { name: "Lakshmi Nair" })).closest("article")!);
-    const meena = within(screen.getByRole("heading", { name: "Meena Rao" }).closest("article")!);
-    // Seen as "Pause"; screen readers hear "Works the Pause plan".
-    expect(lakshmi.getByText("Pause").textContent).toBe("Works the Pause plan");
-    expect(meena.getByText("Recharge").textContent).toBe("Works the Recharge plan");
+    const { container } = renderAt("/parent/sitters");
+    const card = async (name: string) => within((await screen.findByRole("heading", { name })).closest("article")!);
+    expect((await card("Lakshmi Nair")).getByText("₹499/hour")).toBeTruthy();
+    expect((await card("Meena Rao")).getByText("from ₹699/hour")).toBeTruthy(); // more for extra children
+    expect((await card("Asha Iyer")).getByText("₹899/hour")).toBeTruthy();
+    expect(container.textContent).not.toMatch(/Pause|Unwind|Recharge|plan/);
   });
 
-  test("lists every live sitter with no prices, as the parent's home, on a short card", async () => {
+  test("lists every live sitter, as the parent's home, on a short card", async () => {
     const calls = mockApi({
       "GET /parent/checklist": () => jsonResponse(FINISHED),
       "GET /parent/sitters": () => jsonResponse([LAKSHMI]),
     });
-    const { container } = renderAt("/parent/sitters");
+    renderAt("/parent/sitters");
     const card = within((await screen.findByRole("heading", { name: "Lakshmi Nair" })).closest("article")!);
     expect(card.getByText("4 yrs · 2.4 km · Ages 1½–5")).toBeTruthy();
     expect(card.getByRole("img", { name: "Lakshmi Nair" }).getAttribute("src")).toBe(
@@ -210,7 +215,7 @@ describe("finding a sitter", () => {
     expect(card.queryByText("Psychology screening passed")).toBeNull(); // placeholder questions for now
     expect(card.queryByText("Kannada")).toBeNull(); // the card stays short (UX review 2026-11-13)
     expect(card.getByRole("link", { name: "See Lakshmi's profile" }).getAttribute("href")).toBe("/parent/sitters/s1");
-    expect(container.textContent).not.toMatch(/₹|per hour|\/hour/);
+    expect(card.getByText("₹499/hour")).toBeTruthy();
     expect(calls.find((call) => call.path.startsWith("/parent/sitters"))!.path).toBe("/parent/sitters?sort=distance");
     expect(screen.getByText("1 sitter")).toBeTruthy(); // a live count
     // It's the parent's home page, so there's no back link to a home.
@@ -342,6 +347,7 @@ describe("a sitter's profile page", () => {
     university: "Christ University",
     semester: 4,
     plan: "pause",
+    price: { per_hour_paise: 49900, extra_child_paise: 0, one_child_only: true },
     week: [
       { weekday: 0, start_hour: 9, end_hour: 13 },
       { weekday: 0, start_hour: 18, end_hour: 22 },
@@ -353,7 +359,7 @@ describe("a sitter's profile page", () => {
   };
   const CHILDREN = () => jsonResponse([{ id: "c1", name: "Diya", date_of_birth: "2022-05-01" }]);
 
-  test("shows who she is, when she's free and the 1-hour nudge, with no price", async () => {
+  test("shows who she is, when she's free, her rate and the 1-hour nudge", async () => {
     mockApi({ "GET /parent/sitters/s1": () => jsonResponse(DETAIL), "GET /parent/children": CHILDREN });
     const { container } = renderAt("/parent/sitters/s1");
     expect(await screen.findByRole("heading", { level: 1, name: "Lakshmi Nair" })).toBeTruthy();
@@ -364,7 +370,8 @@ describe("a sitter's profile page", () => {
     expect(screen.getByText("Comfortable with ages 3–5")).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Languages" })).getByText("Tamil")).toBeTruthy();
     expect(await screen.findByText(/Suits Diya \(4\)/)).toBeTruthy();
-    expect(screen.getByText(/works the Pause plan: one child, until 6 pm/)).toBeTruthy();
+    expect(screen.getByText("₹499 an hour, for one child")).toBeTruthy();
+    expect(screen.getByText("Bookings with Lakshmi run until 6 pm.")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "When Lakshmi is usually free" })).toBeTruthy();
     // A week grid: every day, with "Not available" where she isn't free.
     const monday = screen.getByRole("rowheader", { name: "Mon" }).closest("tr")!;
@@ -374,7 +381,7 @@ describe("a sitter's profile page", () => {
     expect(screen.getByText("Not free on Sun 15 Nov.")).toBeTruthy();
     expect(screen.getByText(/Start with a 1-hour booking while you're at home/)).toBeTruthy();
     expect(screen.queryByText("First-aid certified")).toBeNull();
-    expect(container.textContent).not.toMatch(/₹|per hour|\/hour/);
+    expect(container.textContent).not.toMatch(/Pause|Unwind|Recharge|plan/); // rate only (Reuben, 2026-11-17)
   });
 
   test("each check opens to say what Pacifyco checked", async () => {

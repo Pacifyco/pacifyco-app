@@ -7,6 +7,7 @@ import { cx } from "../components/ui/cx";
 import type { VerifiedCheck } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { plural } from "../lib/format";
+import { priceOnCard, type Price } from "../lib/prices";
 import { LANGUAGES, PARTS_OF_DAY, ageRange, type PartOfDay } from "../lib/sitterLists";
 import { dayLabel, todayInKolkata } from "../lib/times";
 import { useChecklist, type ParentChecklist } from "./ProfileChecklist";
@@ -30,20 +31,20 @@ export type SitterSummary = {
   distance_km: number | null;
   /** Short-lived signed link to her photo; null shows initials. */
   photo_url: string | null;
-  /** The plan she works (her level), shown as a label on her card. */
+  /** The plan she works (her level). Never shown to parents by name (Reuben, 2026-11-17). */
   plan: Plan;
+  /** Her plan's price per hour, shown on her card and profile. */
+  price: Price;
   /** One of her references has been approved by Pacifyco (references are optional). */
   references_checked: boolean;
 };
 
-/** What each plan means, in plain words (UX review 2026-11-13). */
-export const PLAN_LABELS: Record<Plan, string> = {
-  pause: "one child, until 6 pm",
-  unwind: "any number of children, until 10:30 pm, bath time if you ask",
-  recharge: "any number of children, until midnight, outings with your approval",
+/** What a booking with her includes, in plain words, without the plan's name (Reuben, 2026-11-17). */
+export const PLAN_INCLUDES: Record<Plan, string> = {
+  pause: "until 6 pm",
+  unwind: "until 10:30 pm, bath time if you ask",
+  recharge: "until midnight, outings with your approval",
 };
-
-export const PLAN_NAMES: Record<Plan, string> = { pause: "Pause", unwind: "Unwind", recharge: "Recharge" };
 
 export function firstNameOf(name: string | null): string {
   return name?.trim().split(/\s+/)[0] || "this sitter";
@@ -387,7 +388,7 @@ function Results({ search, set }: { search: Search; set: (patch: Partial<Search>
                 checks={checksFor(sitter)}
                 rating={sitter.avg_rating}
                 reviewCount={sitter.review_count}
-                plan={PLAN_NAMES[sitter.plan]}
+                price={priceOnCard(sitter.price)}
                 actionHref={`/parent/sitters/${sitter.id}`}
               />
             </li>

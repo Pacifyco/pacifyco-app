@@ -249,13 +249,12 @@ spring overshoot, spin, fast parallax or autoplaying video with sound. Respect
 - **Card** — white, `radius-lg`, `shadow-soft`, `space-5`/`space-6` padding.
 - **SitterCard** — photo or initials avatar on peach, name, years of experience and area (caption),
   chips for age groups and interests, VerifiedChips, rating and "Trusted by N Pacify families", primary
-  action "See [first name]'s profile" (introductions were dropped 2026-11-08). **No price on the card** —
-  parents don't see sitter rates.
+  action "See [first name]'s profile" (introductions were dropped 2026-11-08). Her rate, e.g.
+  "₹499/hour" or "from ₹699/hour" (Reuben, 2026-11-17), never a plan name or her pay.
 - **BookingCard** — "Next booking" eyebrow, date and time ("Sat, 11 Oct · 10:00 am – 1:00 pm"), "[Sitter]
   is looking after [child] at home."
-- **HourBalance** — no longer used: hour packs were dropped (CLAUDE.md 6.1, 2026-11-03). Remove it
-  when phase 6 is reworked. Instead, a **PlanPicker**: Pause, Unwind and Recharge with their price per
-  hour for the chosen children, what each includes (latest end, bath time, outings) and the total.
+- There is no HourBalance (hour packs were dropped, CLAUDE.md 6.1; removed 2026-11-18) and no plan picker: the sitter's level sets the plan (2026-11-17), and
+  the booking page shows her rate for the chosen children and the total, never a plan name.
 - **IconTile** — 28px icon on 64px peach disc with label.
 - **RoleChooser** — "I'm a parent" / "I'm a sitter".
 - **EmergencyButton** — always visible on active bookings; chocolate surface with clear label

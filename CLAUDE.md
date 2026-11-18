@@ -194,20 +194,31 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   once each of them is verified (6.4).
 - Booking price = the plan's hourly price (for that number of children) × booked hours. Example:
   Recharge, 3 hours = ₹2,697. No GST for now.
-- Booked time is counted in **whole hours only** (no half-hours); no minimum length; no earliest start
-  time. (Decided 2026-11-03, replaces half-hour rounding.)
+- Booked time is counted in **whole hours only** (no half-hours); no minimum length. A booking must start
+  **at least 4 hours from now** (Reuben, 2026-11-17), so there is time to pay and confirm before the
+  3-hour payment deadline. (Decided 2026-11-03, replaces half-hour rounding.)
 - **No match deposit.** (Decided 2026-11-03; the idea is dropped.) The parent pays the full price up
   front. Product flow: parents are encouraged to make a short first (e.g. 1-hour) booking with a new
   sitter to assess fit before booking longer sessions — a UX nudge, not an enforced rule.
-- **Paying for a booking (beta, manual UPI):** the parent picks the plan, children and hours, sees the
-  full price, and pays all of it by UPI to `PACIFY_UPI_ID`, entering the UPI reference. The booking is
+- **Paying for a booking (beta, manual UPI):** the parent picks the sitter (and so her plan), children and
+  hours, sees the full price, and pays all of it by UPI to `PACIFY_UPI_ID` (a `upi://pay` link and a QR code
+  of it, payee name "Pacifyco"; Reuben 2026-11-17 approved the `qrcode` library), entering the 12-digit UPI
+  reference. The booking is
   `pending_payment` until an admin confirms the payment, then it's `confirmed`. Admins can reject with a
   reason.
 - **Payment deadline:** if payment isn't confirmed by **3 hours before the booking's start**, the
   `pending_payment` booking is auto-cancelled (same boundary as the parent late-cancellation rule in
   6.5). Decided 2026-11-03 — parents should pay as soon as they book, since slots aren't held (6.4).
+  **A UPI reference sent before the deadline keeps the booking** for an admin to confirm or reject, even
+  if it isn't checked by then (Reuben, 2026-11-18); a rejected payment doesn't. Auto-cancelled bookings
+  are `cancelled_unpaid`; ones that lose the slot to another confirmed booking are `cancelled_slot_taken`.
 - Refunds are money, paid back by UPI or bank transfer (beta: manual, recorded with a reference).
-- Plan prices appear when the parent picks a plan; sitter cards never show a price.
+- **Parents see rates, never plan names (Reuben, 2026-11-17; replaces "sitter cards never show a price"):**
+  a sitter's card and profile page show the hourly rate of the plan she works (Pause "₹499/hour";
+  Unwind "₹699/hour" on her profile, "from ₹699/hour" on her card, +₹150 for each extra child; Recharge
+  "₹899/hour" for any number of children) with what it includes. The names Pause, Unwind and Recharge
+  are never shown to parents anywhere in the app (cards, profile, booking, payments); admins and the code
+  still use them. The legal terms keep the names (Reuben, 2026-11-17). Sitter pay is never shown to parents.
 
 ### 6.2 Sitter levels and pay
 
@@ -269,6 +280,9 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   approved by an admin, 7), as well as paid. Decided 2026-11-08: parents can book before that review
   is done; the booking waits until it is. Until it's confirmed, the booking doesn't show on the
   sitter's side (her bookings and schedule); she only sees confirmed bookings.
+  **Paid holds the slot (Reuben, 2026-11-18):** once its payment is confirmed, a booking with a child not
+  yet verified is `awaiting_verification`: it takes her time (and cancels overlapping unpaid bookings)
+  like a confirmed one, and becomes `confirmed` when an admin approves the last child.
 - **No slot hold while payment is pending** (decided 2026-11-03): the sitter's availability for that
   slot is only removed once a booking is `confirmed`. More than one parent can have a `pending_payment`
   booking for the same slot at once — whoever's payment is confirmed first wins it; any other
@@ -588,10 +602,10 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `weekly_hours` **(created)** (id, sitter_id, weekday 0=Monday, start_hour 0-23, end_hour 1-24) — her usual week, repeating; times on a day may touch but not overlap. `days_off` **(created)** (sitter_id, day). Replaced `availability_slots` (dated times, dropped 2026-11-09). Free times are worked out, not stored (`app/services/availability.py`)
 - `geocode_cache` **(created)** (query, lat, lng) — Nominatim results (`app/services/geocoding.py`); a profile's
   lat/lng are looked up when its address is saved
-- `payments` (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference, due_by, confirmed_by, confirmed_at, created_at) — append-only; replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
-- `bookings` (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
-- `booking_children` (booking_id, child_id)
-- `booking_home_info` (booking_id, cameras_on, camera_locations)
+- `payments` **(created)** (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference (12 digits; one not-rejected row per reference), due_by, confirmed_by, confirmed_at, rejection_reason, transfer_reference (a refund's UPI or bank transfer reference, required to mark it paid), created_at) — append-only: the API's role can add rows and update only the decision columns (status, confirmed_by, confirmed_at, rejection_reason, transfer_reference), never an amount, and can't delete; a rejected payment stays and a new reference is a new row. A refund is a row of its own (negative amount, `pending` until paid back, then `confirmed`), made when money arrives for a booking that can't go ahead. **Money owed** = the parent's `pending` overtime and cancellation-charge rows (`bookings.amount_owed`); a booking payment being checked isn't owed money. Replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
+- `bookings` **(created; check-in, location and closing columns come in phases 7-8)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show|cancelled_unpaid|cancelled_slot_taken|awaiting_verification`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
+- `booking_children` **(created)** (booking_id, child_id)
+- `booking_home_info` **(created)** (booking_id, cameras_on, camera_locations)
 - `outing_requests` (id, booking_id, description, status: `pending|approved|declined`, decided_at)
 - `complaints` (id, raised_by, booking_id null, type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed`, late, first_reply_at, resolved_at, assigned_to, decided_by)
 - `overtime_charges` (id, booking_id, minutes_over, hours_charged (rounded up), amount_paise, sitter_pay_paise, created_at) — computed at check-out (6.8); its payment is a `payments` row

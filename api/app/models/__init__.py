@@ -1,12 +1,14 @@
 """SQLAlchemy models. Import every model here so Alembic sees it (alembic/env.py uses Base.metadata)."""
 
 from app.models.audit import AuditLog
+from app.models.bookings import Booking, BookingChild, BookingHomeInfo, BookingStatus
 from app.models.common import VerificationStatus
 from app.models.consents import Consent, ConsentKind
 from app.models.documents import Document, DocumentAccessLog, DocumentStatus, DocumentType
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
 from app.models.marketplace import DayOff, GeocodeCache, WeeklyHours
 from app.models.parents import AuthorisedAdult, Child, EmergencyContact, Parent
+from app.models.payments import Payment, PaymentKind, PaymentStatus
 from app.models.profiles import Profile, ProfileStatus, Role, ServiceAreaPincode
 from app.models.psych_tests import (
     PsychAnswer,
@@ -30,6 +32,10 @@ __all__ = [
     "AcceptanceMethod",
     "AuditLog",
     "AuthorisedAdult",
+    "Booking",
+    "BookingChild",
+    "BookingHomeInfo",
+    "BookingStatus",
     "Child",
     "Consent",
     "ConsentKind",
@@ -47,6 +53,9 @@ __all__ = [
     "OnboardingStep",
     "OnboardingStepName",
     "Parent",
+    "Payment",
+    "PaymentKind",
+    "PaymentStatus",
     "PayoutMethod",
     "Profile",
     "ProfileStatus",

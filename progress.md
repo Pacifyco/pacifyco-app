@@ -17,6 +17,13 @@ tests.
 
 ## Open questions (ask Reuben; don't guess)
 
+- [ ] **A payment still unchecked when the booking starts** (added 2026-11-18). A reference sent in time
+  keeps the booking for an admin, but if nobody checks it before the start, what happens? For now the
+  API refuses to confirm it (`booking_started`) and the admin contacts the parent; the payment stays
+  pending, with no way yet to record it as received and refund it.
+- [ ] **A paid booking whose child isn't verified by the start** (added 2026-11-18). It holds her time as
+  `awaiting_verification`; if the child is still unverified (or rejected) when it starts, is it
+  cancelled and refunded, and does the sitter go? Nothing happens automatically yet.
 - [x] Carry-forward cap: per child
 - [x] Overtime shortfall: ₹300 per child per hour
 - [x] Domain: pacifyco.in
@@ -349,15 +356,56 @@ at home (CLAUDE.md 6.3).
 
 ## Phase 6 — Plans and payments (was hour packs and ledger; changed 2026-11-03)
 
-- [ ] Pricing service (plans, children, whole hours only)
-- [ ] Plan picker: prices per plan for the chosen children, what each includes, the total
-- [ ] Booking payment: UPI instructions, UPI reference entry, `pending_payment` (no match deposit)
-- [ ] Frequent job: auto-cancel `pending_payment` bookings 3 hours before start; first confirmed payment
-  wins a slot and auto-cancels the others
-- [ ] Admin confirms/rejects payments; refunds recorded with a reference
-- [ ] Parent payment history; outstanding amounts block new bookings
-- [ ] Remove the unused HourBalance component
-- [ ] Tests for this phase
+- [x] Pricing service (plans, children, whole hours only): `app/services/pricing.py`
+- [x] Rates on sitter cards and profiles, never plan names (Reuben, 2026-11-17; replaces the plan picker:
+  the sitter's level sets the plan, so parents pick a sitter, not a plan)
+- [x] Book this sitter (simple form, from Phase 7 item 1, needed to pay): her free times, children, bath
+  time, cameras, live price; starts at least 4 hours from now (`/parent/sitters/:id/book`,
+  `app/services/bookings.py`; tables `bookings`, `booking_children`, `booking_home_info`). Checks whole
+  hours, 4 hours' notice, her free times minus confirmed bookings, the plan's latest end, Pause one child,
+  bath time, cameras, children 18 months+ and the parent's own. Money owed and strikes are checked once
+  those exist
+- [x] Booking payment: UPI instructions, UPI reference entry, `pending_payment` (no match deposit). The
+  booking page shows Pacifyco's UPI ID (copy button), a "Pay in a UPI app" `upi://pay` link (payee
+  Pacifyco, the amount and a "Pacifyco booking XXXXXXXX" note) and its QR code (`qrcode`), then takes the
+  12-digit UPI reference (`POST /parent/bookings/{id}/payment`, `app/services/payments.py`): a `pending`
+  `payments` row (migration f9ef16dd91b3) for an admin to check. Refused after the 3-hour deadline, twice
+  for one booking (unless the last one was rejected) and for a reference already sent. The API's role can
+  only add payment rows and update an admin's decision on them (status, confirmed_by, confirmed_at,
+  rejection_reason). Without `PACIFY_UPI_ID` the page says payments aren't open yet
+- [x] Frequent job: auto-cancel `pending_payment` bookings 3 hours before start; first confirmed payment
+  wins a slot and auto-cancels the others. `cancel_unpaid_bookings` in the frequent run
+  (`bookings.cancel_unpaid`): no payment sent by the deadline → `cancelled_unpaid`; a reference sent in
+  time keeps the booking for an admin (Reuben, 2026-11-18). Also checked when the parent opens the
+  booking, since the run skips midnight–6 am IST. `bookings.cancel_overlapping_unpaid` →
+  `cancelled_slot_taken`, written and tested now; the admin's payment confirmation (next item) calls it.
+  Statuses added in migration a1c3e5f7b9d2 (its downgrade refuses while such bookings exist)
+- [x] Admin confirms/rejects payments; refunds recorded with a reference. `/admin/payments`
+  (`PaymentsPage`): payments to check (with the plan, the UPI reference and note, and whether every child
+  is verified), Confirm received or Reject with a reason the parent sees; refunds to pay, marked refunded
+  with the transfer reference. Confirming makes the booking `confirmed`, or `awaiting_verification` if a
+  child isn't verified (paid holds the slot, Reuben 2026-11-18; confirmed when the last child is approved,
+  `bookings.confirm_verified`), and cancels overlapping unpaid bookings (their parents are emailed). Money
+  for a booking that lost its slot is recorded and a refund is owed. Rejected after the deadline cancels
+  the booking at once. Emails: paid, rejected, slot taken, refunded. Migration b2d4f6a8c0e1
+- [x] Parent payment history; outstanding amounts block new bookings. `/parent/payments` ("Your
+  payments", from the parent's profile): every payment, charge and refund, newest first, linked to its
+  booking, in plain words ("Pacifyco is checking it", "Paid", "Pacifyco is refunding you"). Money owed
+  (`bookings.amount_owed`) = unpaid overtime and cancellation charges, which phases 7–8 create; booking
+  payments being checked and refunds aren't owed. Owing anything refuses a new booking (409
+  `money_owed`) and the booking page says so, with a link to Your payments. How a parent pays a charge
+  comes with overtime (phase 8)
+- [x] Remove the unused HourBalance component (and `formatHours`, which counted half-hour units)
+- [x] Tests for this phase (checked against CLAUDE.md 9, 2026-11-18). Covered: price per plan and
+  children, whole hours, `pending_payment` until an admin confirms, unpaid-by-deadline and rejected
+  payments freeing the booking, append-only payment rows (grants), money owed = sum of unpaid charges,
+  owing blocks booking, plan's latest end, bath time, two pending bookings for one slot with the first
+  confirmed winning, unconfirmed until every child is verified, child age and camera declaration, audit
+  rows, IDOR on every booking and payment endpoint. **Gaps found and fixed:** booking now refuses parents
+  outside the service area (CLAUDE.md 1; it was only checked when the pin code was entered) and asks for a
+  new terms version first (`terms_required`, not "finish your profile"); the booking page says why and
+  links to where to fix it. **Left for their phases:** blocked-by-strike (7), refunds and cancellation
+  charges per 6.5 (7), rate limiting on booking endpoints (12)
 
 ## Phase 7 — Bookings, cancellations, strikes
 
@@ -446,6 +494,24 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — Phase 6 test check: booking now checks the service area and asks for new terms first;
+  money-owed sum test. API 536, web 272, e2e 8. Phase 6 done.
+- 2026-11-18 — Removed HourBalance and the half-hour `formatHours`. Web 269.
+- 2026-11-18 — Parent payment history (`/parent/payments`) and money owed blocking new bookings.
+  API 533, web 271, e2e 8.
+- 2026-11-18 — Admin payments: confirm, reject, refunds with a reference, `awaiting_verification` (paid
+  holds the slot), the admin Payments page and parent emails. API 525, web 266, e2e 7.
+- 2026-11-18 — "Frequent job": unpaid bookings cancelled at the 3-hour deadline (job and on opening),
+  overlapping unpaid bookings cancelled when one is confirmed; cancelled states on the booking page.
+  API 512, web 257, e2e 6.
+- 2026-11-18 — "Booking payment": `payments` table (append-only, decision columns only), UPI ID, link and
+  QR code on the booking page, 12-digit UPI reference sent for an admin to check. API 501, web 255, e2e 6.
+- 2026-11-18 — "Book this sitter": bookings tables (migration f6c8e0a2b4d5), booking options and create
+  endpoints, the booking page with a live price, and a booking page that waits for payment (UPI details
+  come next). API 484, web 250, e2e 6.
+- 2026-11-17 — Phase 6 started (`plans-and-payments`). Reuben: parents see rates on sitter cards and
+  profiles, never plan names; bookings start 4+ hours ahead; QR code approved (`qrcode`); test UPI ID for
+  staging given. Pricing service and rates done. API 459, web 241 (one timing flake locally).
 - 2026-11-16 — Reuben: sitters give their university and semester (1–10) in "About you", required;
   admins see them on the review page and parents on her profile page (migration `d4a6c8e0f2b1`; sitters who
   saved before are asked for them on the checklist). References, still optional, show "Done" only once she

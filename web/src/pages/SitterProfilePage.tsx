@@ -4,12 +4,13 @@ import { useParams } from "react-router";
 import { BackLink, ButtonLink, Card, Chip, EmptyState, VERIFIED_LABELS, type VerifiedCheck } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { plural } from "../lib/format";
+import { priceOnProfile } from "../lib/prices";
 import { AGE_GROUPS, PARTS_OF_DAY, ageRange, monthsOld, suitsAge } from "../lib/sitterLists";
 import { WEEKDAYS_SHORT, dayLabel, type WeekHours } from "../lib/times";
-import { PLAN_LABELS, PLAN_NAMES, checksFor, distanceText, firstNameOf, type SitterSummary } from "./FindSittersPage";
+import { PLAN_INCLUDES, checksFor, distanceText, firstNameOf, type SitterSummary } from "./FindSittersPage";
 
 // One sitter's profile, for parents (CLAUDE.md 9): the moment a parent decides whether to trust someone.
-// No price or pay (CLAUDE.md 6.1, 6.2); the plan's price is shown when the parent books. Never a
+// Her rate, never her plan's name or her pay (CLAUDE.md 6.1, Reuben 2026-11-17). Never a
 // referee's phone number (UX review 2026-11-13).
 
 type SitterDetail = SitterSummary & {
@@ -233,7 +234,8 @@ export function SitterProfilePage() {
           </>
         )}
         <p className="mt-5 text-small text-muted">
-          {firstName} works the {PLAN_NAMES[sitter.plan]} plan: {PLAN_LABELS[sitter.plan]}.
+          <span className="text-ui font-medium text-ink">{priceOnProfile(sitter.price)}</span>
+          <span className="block">Bookings with {firstName} run {PLAN_INCLUDES[sitter.plan]}.</span>
         </p>
       </Card>
 
@@ -261,8 +263,13 @@ export function SitterProfilePage() {
         )}
         <p className="mt-5 rounded-lg bg-surface-sunken p-5 text-small text-ink">
           New to {firstName}? Start with a 1-hour booking while you're at home, to see how {firstName} gets on with
-          your family. Booking from this page is coming soon.
+          your family.
         </p>
+        <div className="mt-5">
+          <ButtonLink to={`/parent/sitters/${sitter.id}/book`} arrow>
+            Choose a time
+          </ButtonLink>
+        </div>
       </Card>
     </article>
   );

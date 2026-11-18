@@ -36,12 +36,6 @@ export function formatBookingTime(start: Date, end: Date): string {
   return `${formatDay(start)} · ${formatTime(start)} – ${endText}`;
 }
 
-/** Half-hour units to words: 1 → "0.5 hours", 2 → "1 hour", 5 → "2.5 hours". */
-export function formatHours(units: number): string {
-  const hours = units / 2;
-  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
-}
-
 /** "Asha", "Asha and Rohan", "Asha, Rohan and Meera" (no Oxford comma, design.md section 2). */
 export function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";

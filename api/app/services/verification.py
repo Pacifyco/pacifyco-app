@@ -37,7 +37,7 @@ from app.models import (
     SitterLevel,
     VerificationStatus,
 )
-from app.services import accounts, audit, encryption, legal, psych_tests
+from app.services import accounts, audit, bookings, encryption, legal, psych_tests
 from app.services.storage import StorageClient
 
 # Every step that must be approved before a sitter can be approved, in CLAUDE.md 7 order.
@@ -389,6 +389,8 @@ def decide_child(
             storage.delete(document.storage_path)
             document.deleted_at = _now()
         _approve_parent(db, admin_id, child.parent_id)
+        # Paid bookings waiting only for this child are now confirmed (6.4).
+        bookings.confirm_verified(db, admin_id, child.parent_id)
     db.commit()
     return child
 

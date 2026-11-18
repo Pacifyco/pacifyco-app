@@ -284,7 +284,7 @@ test("the admin approves the sitter and the family", async () => {
   await expect(page.getByText(/The birth certificate has been deleted/)).toBeVisible();
 });
 
-test("the parent finds the sitter, with her photo and no prices", async () => {
+test("the parent finds the sitter, with her photo and her rate, never a plan name", async () => {
   const page = parent.page;
   await page.goto("/parent/profile");
   await expect(page.getByRole("link", { name: /Your children/ }).getByText("Approved")).toBeVisible();
@@ -298,7 +298,9 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
   const photo = card.getByRole("img", { name: "Lakshmi Nair" });
   await expect(photo).toBeVisible();
   expect(await photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
-  await expect(page.locator("body")).not.toContainText("₹");
+  // Her rate, never her plan's name or her pay (Reuben, 2026-11-17).
+  await expect(card.getByText("₹499/hour")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
 
   await card.getByRole("link", { name: "See Lakshmi's profile" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Lakshmi Nair" })).toBeVisible();
@@ -307,5 +309,69 @@ test("the parent finds the sitter, with her photo and no prices", async () => {
   await expect(page.getByRole("rowheader", { name: "Mon" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Sun/ }).getByText("Not available")).toBeVisible();
   await expect(page.getByText(/Start with a 1-hour booking while you're at home/)).toBeVisible();
-  await expect(page.locator("body")).not.toContainText("₹");
+  await expect(page.getByText("₹499 an hour, for one child")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
+});
+
+test("the parent books the sitter, pays by UPI and sends the reference", async () => {
+  const page = parent.page;
+  // From her profile (the previous step left the parent there).
+  await page.getByRole("link", { name: "Choose a time" }).click();
+  await expect(page.getByRole("heading", { name: "Choose a time with Lakshmi" })).toBeVisible();
+  // Her free time is Monday 9 am - 4 pm; the first Monday at least 4 hours away is offered.
+  await expect(page.getByLabel("Day")).toHaveValue(/\d{4}-\d{2}-\d{2}/);
+  await expect(page.getByLabel("Asha")).toBeChecked();
+  await expect(page.getByLabel("Bath time")).toHaveCount(0); // not part of her bookings
+  await page.getByLabel("How long").selectOption("1");
+  await expect(page.getByText("1 hour × ₹499 an hour")).toBeVisible();
+  await page.getByLabel("No", { exact: true }).check();
+  await page.getByRole("button", { name: /Confirm this time/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Your booking with Lakshmi" })).toBeVisible();
+  await expect(page.getByText("Waiting for payment")).toBeVisible();
+  await expect(page.getByText("Lakshmi is looking after Asha at home.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pay ₹499 by UPI" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
+
+  // Pay by UPI: Pacifyco's UPI ID, a link for the UPI app and its QR code, then the 12-digit reference.
+  await expect(page.getByText("pacifyco-e2e@okaxis")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Pay in a UPI app" })).toHaveAttribute(
+    "href",
+    /^upi:\/\/pay\?pa=pacifyco-e2e@okaxis&pn=Pacifyco&am=499\.00&cu=INR&tn=Pacifyco%20booking%20/,
+  );
+  await expect(page.getByAltText("QR code to pay ₹499 to Pacifyco")).toBeVisible();
+  await page.getByLabel("UPI reference").fill("4321 0987 6543");
+  await page.getByRole("button", { name: /Send the reference/ }).click();
+  await expect(page.getByRole("heading", { name: "Payment sent" })).toBeVisible();
+  await expect(page.getByText(/UPI reference 432109876543/)).toBeVisible();
+  await expect(page.getByText("Waiting for payment")).toBeVisible(); // until an admin confirms it
+});
+
+test("the admin confirms the payment and the parent's booking is confirmed", async () => {
+  const page = admin.page;
+  await page.goto("/admin");
+  await page.getByRole("link", { name: "Check payments" }).click();
+  const toCheck = page.getByRole("region", { name: "Payments to check" });
+  await expect(toCheck.getByText("432109876543")).toBeVisible();
+  await expect(toCheck.getByText("₹499")).toBeVisible();
+  await expect(toCheck.getByText("All verified")).toBeVisible(); // the family was approved earlier
+  await toCheck.getByRole("button", { name: "Confirm received" }).click();
+  await expect(page.getByText("Payment confirmed. The booking is confirmed.")).toBeVisible();
+  await expect(page.getByText("No payments are waiting.")).toBeVisible();
+
+  await parent.page.reload();
+  await expect(parent.page.getByText("Your booking is confirmed and paid.")).toBeVisible();
+  await expect(parent.page.getByRole("heading", { name: /Pay ₹/ })).toHaveCount(0);
+});
+
+test("the parent sees the payment in their payment history", async () => {
+  const page = parent.page;
+  await page.getByRole("link", { name: "Your profile" }).first().click();
+  await page.getByRole("link", { name: "Your payments" }).click();
+  await expect(page.getByRole("heading", { name: "Your payments" })).toBeVisible();
+  const row = page.getByRole("link", { name: /Booking payment/ });
+  await expect(row).toContainText("₹499");
+  await expect(row).toContainText("Paid");
+  await expect(row).toContainText("With Lakshmi");
+  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
 });

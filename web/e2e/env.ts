@@ -20,5 +20,6 @@ export const apiEnv = {
   FIELD_ENCRYPTION_KEY: "e1B_ERGTEpy-85Yk_z0eCsWeIwB9gYF5bVvSHaTGC6I=",
   NOMINATIM_URL: `${FAKE}/nominatim/search`,
   SENTRY_DSN: "",
+  PACIFY_UPI_ID: "pacifyco-e2e@okaxis",
 };
 

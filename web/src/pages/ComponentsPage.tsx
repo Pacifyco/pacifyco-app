@@ -7,7 +7,6 @@ import {
   Chip,
   EmergencyButton,
   EmptyState,
-  HourBalance,
   IconTile,
   RoleChooser,
   Select,
@@ -139,19 +138,13 @@ export function ComponentsPage() {
         </div>
       </Section>
 
-      <Section title="Booking card and hour balance">
+      <Section title="Booking card">
         <div className="grid gap-5 md:grid-cols-2">
           <BookingCard
             startsAt={inThreeDays(10)}
             endsAt={inThreeDays(13)}
             sitterFirstName="Priya"
             childNames={["Asha", "Rohan"]}
-          />
-          <HourBalance
-            balances={[
-              { childName: "Asha", units: 25, nearestExpiry: inThreeDays(0), carriedForwardUnits: 4 },
-              { childName: "Rohan", units: 4, nearestExpiry: null, carriedForwardUnits: 4 },
-            ]}
           />
         </div>
       </Section>

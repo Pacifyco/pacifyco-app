@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Child, Document, Parent, VerificationStatus
+from app.models import BookingChild, Child, Document, Parent, VerificationStatus
 from app.services import audit
 
 
@@ -91,6 +91,8 @@ def update_child(
 
 def remove_child(db: Session, parent_id: uuid.UUID, child_id: uuid.UUID) -> None:
     child = _owned_child(db, parent_id, child_id)
+    if db.scalar(select(BookingChild.booking_id).where(BookingChild.child_id == child_id).limit(1)) is not None:
+        raise AppError(409, "child_has_bookings", "This child has bookings. Please contact Pacifyco.")
     if db.scalar(select(Document.id).where(Document.child_id == child_id).limit(1)) is not None:
         # documents.child_id is ON DELETE RESTRICT; refuse cleanly instead of a raw database error.
         raise AppError(409, "child_has_documents", "This child has documents on file. Please contact Pacifyco.")

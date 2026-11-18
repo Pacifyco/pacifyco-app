@@ -1,7 +1,7 @@
 """The admin area. Every route here is for admins only (CLAUDE.md 9: wrong role gets 403)."""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -11,9 +11,13 @@ from sqlalchemy import select
 from app.auth import require_role
 from app.deps import DbSession
 from app.models import (
+    Booking,
+    BookingStatus,
     DocumentType,
     OnboardingStatus,
     OnboardingStepName,
+    Payment,
+    PaymentStatus,
     PayoutMethod,
     Profile,
     ProfileStatus,
@@ -23,9 +27,11 @@ from app.models import (
     SitterLevel,
     VerificationStatus,
 )
+from app.services import bookings as bookings_service
 from app.services import children as children_service
 from app.services import documents, verification
 from app.services import email as email_service
+from app.services import payments as payments_service
 from app.services import psych_tests as psych_tests_service
 from app.services.storage import StorageClient, get_storage
 from app.settings import LOCAL_WEB_ORIGIN, Settings, get_settings
@@ -527,3 +533,225 @@ def decide_child(
             )
         )
     return StatusOut(status=child.verification_status)
+
+
+# ---------- booking payments and refunds (CLAUDE.md 6.1; phase 6) ----------
+
+
+class PaymentToCheck(BaseModel):
+    """A UPI payment a parent says they've made: find the reference in Pacifyco's account, then confirm
+    or reject it. Admins see the plan (parents never do)."""
+
+    id: uuid.UUID
+    booking_id: uuid.UUID
+    parent_id: uuid.UUID
+    parent_name: str | None
+    parent_email: str
+    sitter_name: str | None
+    plan: SitterLevel
+    starts_at: datetime
+    hours: int
+    amount_paise: int
+    upi_reference: str | None
+    note: str  # the note in the UPI link, to match the payment
+    sent_at: datetime
+    pay_by: datetime
+    booking_status: BookingStatus
+    children_verified: bool
+
+
+class RefundToPay(BaseModel):
+    """Money to pay back to a parent. Pay it to the account it came from (find it by the reference it
+    was paid with), then record the transfer's reference."""
+
+    id: uuid.UUID
+    booking_id: uuid.UUID
+    parent_id: uuid.UUID
+    parent_name: str | None
+    parent_email: str
+    amount_paise: int  # positive: what to pay back
+    paid_with_reference: str | None
+    owed_since: datetime
+    booking_status: BookingStatus
+
+
+class PaymentsQueue(BaseModel):
+    to_check: list[PaymentToCheck]
+    refunds: list[RefundToPay]
+
+
+def _people(db: DbSession, booking: Booking) -> tuple[Profile, Profile | None]:
+    parent = db.get(Profile, booking.parent_id)
+    assert parent is not None
+    return parent, db.get(Profile, booking.sitter_id)
+
+
+@router.get("/payments")
+def payments_queue(admin: Admin, db: DbSession) -> PaymentsQueue:
+    to_check, refunds = payments_service.waiting_for_admins(db)
+    checks = []
+    for payment in to_check:
+        booking = db.get(Booking, payment.booking_id)
+        assert booking is not None
+        parent, sitter = _people(db, booking)
+        checks.append(
+            PaymentToCheck(
+                id=payment.id,
+                booking_id=booking.id,
+                parent_id=parent.id,
+                parent_name=parent.full_name,
+                parent_email=parent.email,
+                sitter_name=sitter.full_name if sitter else None,
+                plan=booking.plan,
+                starts_at=booking.starts_at,
+                hours=booking.units,
+                amount_paise=payment.amount_paise,
+                upi_reference=payment.upi_reference,
+                note=payments_service.booking_note(booking.id),
+                sent_at=payment.created_at,
+                pay_by=bookings_service.pay_by(booking),
+                booking_status=booking.status,
+                children_verified=bookings_service.children_verified(db, booking.id),
+            )
+        )
+    owed = []
+    for refund in refunds:
+        booking = db.get(Booking, refund.booking_id)
+        assert booking is not None
+        parent, _ = _people(db, booking)
+        paid_with = db.scalar(
+            select(Payment.upi_reference)
+            .where(Payment.booking_id == booking.id, Payment.status == PaymentStatus.confirmed)
+            .where(Payment.upi_reference.is_not(None))
+            .order_by(Payment.created_at.desc())
+            .limit(1)
+        )
+        owed.append(
+            RefundToPay(
+                id=refund.id,
+                booking_id=booking.id,
+                parent_id=parent.id,
+                parent_name=parent.full_name,
+                parent_email=parent.email,
+                amount_paise=-refund.amount_paise,
+                paid_with_reference=paid_with,
+                owed_since=refund.created_at,
+                booking_status=booking.status,
+            )
+        )
+    return PaymentsQueue(to_check=checks, refunds=owed)
+
+
+class PaymentDecisionOut(BaseModel):
+    status: PaymentStatus
+    booking_status: BookingStatus
+    refund_owed: bool
+    # Other parents' unpaid bookings for that time, cancelled because this one was paid first.
+    cancelled_bookings: int
+
+
+def _tell_slot_taken(db: DbSession, mailer: Mailer, settings: Settings, booking: Booking, paid: bool) -> None:
+    parent, sitter = _people(db, booking)
+    mailer.send(
+        email_service.booking_slot_taken(
+            parent.email, parent.full_name, sitter.full_name if sitter else None, paid, booking.id, _web_url(settings)
+        )
+    )
+
+
+@router.post("/payments/{payment_id}/confirm")
+def confirm_payment(
+    payment_id: uuid.UUID, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> PaymentDecisionOut:
+    done = payments_service.confirm(db, admin.id, payment_id, datetime.now(UTC))
+    booking = done.booking
+    if done.refund is not None:  # it lost her time to another booking
+        _tell_slot_taken(db, mailer, settings, booking, paid=True)
+    else:
+        parent, sitter = _people(db, booking)
+        mailer.send(
+            email_service.booking_paid(
+                parent.email,
+                parent.full_name,
+                sitter.full_name if sitter else None,
+                booking.status == BookingStatus.confirmed,
+                booking.id,
+                _web_url(settings),
+            )
+        )
+    for cancelled_id in done.cancelled:
+        cancelled = db.get(Booking, cancelled_id)
+        assert cancelled is not None
+        sent = payments_service.latest_booking_payment(db, cancelled_id)
+        _tell_slot_taken(db, mailer, settings, cancelled, paid=sent is not None)
+    return PaymentDecisionOut(
+        status=done.payment.status,
+        booking_status=booking.status,
+        refund_owed=done.refund is not None,
+        cancelled_bookings=len(done.cancelled),
+    )
+
+
+class PaymentRejectionIn(BaseModel):
+    # Shown to the parent, like every rejection reason (decided 2026-11-09).
+    reason: str = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def _not_blank(self) -> PaymentRejectionIn:
+        cleaned = _clean_reason(self.reason)
+        if cleaned is None:
+            raise ValueError("Please give a reason for rejecting; it's shown to the parent")
+        self.reason = cleaned
+        return self
+
+
+@router.post("/payments/{payment_id}/reject")
+def reject_payment(
+    payment_id: uuid.UUID,
+    body: PaymentRejectionIn,
+    admin: Admin,
+    db: DbSession,
+    mailer: Mailer,
+    settings: AppSettings,
+) -> PaymentDecisionOut:
+    payment = payments_service.reject(db, admin.id, payment_id, body.reason, datetime.now(UTC))
+    booking = db.get(Booking, payment.booking_id)
+    assert booking is not None
+    parent, _ = _people(db, booking)
+    if booking.status == BookingStatus.pending_payment:  # still time to send the right reference
+        mailer.send(
+            email_service.booking_payment_rejected(
+                parent.email, parent.full_name, body.reason, booking.id, _web_url(settings)
+            )
+        )
+    return PaymentDecisionOut(
+        status=payment.status, booking_status=booking.status, refund_owed=False, cancelled_bookings=0
+    )
+
+
+class RefundPaidIn(BaseModel):
+    transfer_reference: str = Field(min_length=1, max_length=100)
+
+
+class RefundOut(BaseModel):
+    status: PaymentStatus
+    transfer_reference: str | None
+
+
+@router.post("/refunds/{refund_id}/paid")
+def mark_refund_paid(
+    refund_id: uuid.UUID,
+    body: RefundPaidIn,
+    admin: Admin,
+    db: DbSession,
+    mailer: Mailer,
+    settings: AppSettings,
+) -> RefundOut:
+    refund = payments_service.mark_refunded(db, admin.id, refund_id, body.transfer_reference, datetime.now(UTC))
+    booking = db.get(Booking, refund.booking_id)
+    assert booking is not None
+    parent, _ = _people(db, booking)
+    mailer.send(
+        email_service.refund_paid(parent.email, parent.full_name, -refund.amount_paise, booking.id, _web_url(settings))
+    )
+    return RefundOut(status=refund.status, transfer_reference=refund.transfer_reference)

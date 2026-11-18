@@ -434,6 +434,8 @@ def test_profile_page_shows_her_week_and_days_off(client, finished_parent, make_
     assert body["bio"] == "Loves stories"
     assert (body["university"], body["semester"]) == ("Christ University", 4)  # shown to parents
     assert body["plan"] == "pause"
+    # Parents see her rate (Reuben, 2026-11-17), never her pay.
+    assert body["price"] == {"per_hour_paise": 49_900, "extra_child_paise": 0, "one_child_only": True}
     assert body["languages"] == ["English", "Tamil"]
     assert body["joined_at"]  # "Joined Nov 2026" on her profile
     assert body["week"] == [
@@ -512,3 +514,19 @@ def test_references_checked_only_with_an_approved_reference(client, db_engine, f
     assert detail(client, finished_parent, found)["references_checked"] is False
     add_reference(db_engine, found["id"], name="Ravi Kumar")
     assert detail(client, finished_parent, found)["references_checked"] is True
+
+
+@pytest.mark.parametrize(
+    ("level", "price"),
+    [
+        ("unwind", {"per_hour_paise": 69_900, "extra_child_paise": 15_000, "one_child_only": False}),
+        ("recharge", {"per_hour_paise": 89_900, "extra_child_paise": 0, "one_child_only": False}),
+    ],
+)
+def test_cards_show_the_rate_and_never_pay(client, finished_parent, make_sitter, level, price):  # noqa: F811
+    """CLAUDE.md 6.1 (Reuben, 2026-11-17): the hourly rate on cards; sitter pay never reaches parents."""
+    make_sitter("Rated", level=level)
+    found = client.get("/parent/sitters", headers=auth_for(finished_parent)).json()
+    card = next(item for item in found if item["full_name"] == "Rated")
+    assert card["price"] == price
+    assert not [key for key in card if "pay" in key]

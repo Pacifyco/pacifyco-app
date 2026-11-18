@@ -20,11 +20,20 @@ function ParentProfile() {
   const { items, finished } = checklist.data;
   // No subheading on the parent's pages (Reuben, 2026-11-13).
   return (
-    <ChecklistCard
-      heading={finished ? "Your profile" : "Finish your profile"}
-      items={items}
-      steps={PARENT_STEPS}
-    />
+    <>
+      <ChecklistCard
+        heading={finished ? "Your profile" : "Finish your profile"}
+        items={items}
+        steps={PARENT_STEPS}
+      />
+      {/* No subheadings on parent pages (Reuben, 2026-11-13): the button names it. */}
+      <Card as="section" className="flex flex-col items-start gap-3">
+        <ButtonLink to="/parent/payments" variant="secondary">
+          Your payments
+        </ButtonLink>
+        <p className="text-small text-muted">What you've paid for your bookings, and any refunds.</p>
+      </Card>
+    </>
   );
 }
 

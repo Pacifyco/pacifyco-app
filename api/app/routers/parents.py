@@ -11,15 +11,27 @@ from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from app.auth import require_role
 from app.deps import DbSession
 from app.errors import AppError
-from app.models import AuthorisedAdult, Child, EmergencyContact, Profile, Role, SitterLevel, VerificationStatus
+from app.models import (
+    AuthorisedAdult,
+    BookingStatus,
+    Child,
+    EmergencyContact,
+    Profile,
+    Role,
+    SitterLevel,
+    VerificationStatus,
+)
 from app.routers.auth import TermsVersion, request_info
 from app.services import availability as availability_service
-from app.services import checklists, consent, family, legal
+from app.services import bookings as bookings_service
+from app.services import checklists, consent, family, legal, pricing
 from app.services import children as children_service
+from app.services import payments as payments_service
 from app.services import search as search_service
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
 from app.services.storage import StorageClient, get_storage
+from app.settings import Settings, get_settings
 
 Storage = Annotated[StorageClient, Depends(get_storage)]
 
@@ -261,6 +273,24 @@ def delete_child(child_id: uuid.UUID, parent: Parent, db: DbSession) -> None:
 # ---------- finding sitters (CLAUDE.md 9 "Search and filters") ----------
 
 
+class Price(BaseModel):
+    """What the parent pays per hour with this sitter (her plan's price, CLAUDE.md 6.1). Parents see the
+    rate, never the plan's name (Reuben, 2026-11-17)."""
+
+    per_hour_paise: int  # for one child
+    extra_child_paise: int  # added per hour for each extra child; 0 means the same for any number
+    one_child_only: bool
+
+
+def _price(plan: SitterLevel) -> Price:
+    rate = pricing.RATES[plan]
+    return Price(
+        per_hour_paise=rate.first_child_paise,
+        extra_child_paise=rate.extra_child_paise,
+        one_child_only=rate.max_children == 1,
+    )
+
+
 class SitterSummary(BaseModel):
     """What parents see of a sitter. Never her pay, level pay, address, phone or email (CLAUDE.md 6.2)."""
 
@@ -274,7 +304,8 @@ class SitterSummary(BaseModel):
     review_count: int
     distance_km: float | None  # straight line from the parent's home, to 0.1 km
     photo_url: str | None  # short-lived signed URL; live sitters only
-    plan: SitterLevel  # the plan she works (her level), shown as a label; its price only when booking
+    plan: SitterLevel  # the plan she works (her level); never shown to parents by name
+    price: Price  # her plan's price per hour, shown on her card and profile
     # References are optional (2026-11-13): "References checked" only when one has been approved.
     references_checked: bool
 
@@ -329,6 +360,7 @@ def _summary_fields(db: DbSession, found: search_service.Found, photo_url: str |
         "distance_km": round(found.distance_km, 1) if found.distance_km is not None else None,
         "photo_url": photo_url,
         "plan": sitter.level,
+        "price": _price(sitter.level),
         "references_checked": search_service.has_approved_reference(db, sitter.profile_id),
     }
 
@@ -393,4 +425,209 @@ def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Sto
         days_off=[day for day in availability_service.days_off(db, sitter_id, today) if day <= last_day],
         reference=(SharedReference(name=shared.name, relationship=shared.relationship) if shared else None),
         joined_at=found.profile.created_at,
+    )
+
+
+# ---------- booking a sitter (CLAUDE.md 6.1 and 6.4; phase 6 "Book this sitter") ----------
+
+
+class BookableTime(BaseModel):
+    """A stretch she's free that a booking can start in (whole hours, already cut to her plan's latest
+    end and starting 4+ hours from now)."""
+
+    starts_at: datetime
+    ends_at: datetime
+
+
+class BookingOptions(BaseModel):
+    price: Price
+    bath_time_allowed: bool
+    times: list[BookableTime]
+    # No earlier booking with her: the booking page asks for a 1-hour first booking at home (6.3).
+    first_booking: bool
+    # Unpaid charges: no new booking until they're paid (6.4).
+    owed_paise: int
+
+
+@router.get("/sitters/{sitter_id}/booking-options")
+def get_booking_options(sitter_id: uuid.UUID, parent: Parent, db: DbSession) -> BookingOptions:
+    # Money owed doesn't stop the page: it shows what's owed instead of the form (`owed_paise`).
+    bookings_service.require_terms_then_profile(db, parent)
+    found = search_service.live_sitter(db, parent, sitter_id)
+    plan = found.sitter.level
+    times = bookings_service.bookable_times(db, found.sitter, datetime.now(UTC))
+    return BookingOptions(
+        price=_price(plan),
+        bath_time_allowed=bookings_service.BATH_TIME[plan],
+        times=[BookableTime(starts_at=item.starts_at, ends_at=item.ends_at) for item in times],
+        first_booking=bookings_service.first_booking_with(db, parent.id, sitter_id),
+        owed_paise=bookings_service.amount_owed(db, parent.id),
+    )
+
+
+class BookingIn(BaseModel):
+    sitter_id: uuid.UUID
+    starts_at: AwareDatetime
+    hours: int = Field(ge=1, le=24, strict=True)  # whole hours only (decided 2026-11-03)
+    child_ids: list[uuid.UUID] = Field(min_length=1, max_length=bookings_service.MAX_CHILDREN)
+    bath_time: bool = False
+    cameras_on: bool  # required: the parent must say (6.4)
+    camera_locations: str | None = Field(default=None, max_length=500)
+
+
+class PayByUpi(BaseModel):
+    """Where and how to pay (6.1): Pacifyco's UPI ID and a `upi://pay` link (the page shows it as a QR
+    code too)."""
+
+    upi_id: str
+    payee_name: str
+    amount_paise: int
+    note: str
+    upi_link: str
+
+
+class PaymentOut(BaseModel):
+    """The latest payment the parent sent for this booking."""
+
+    status: str
+    upi_reference: str | None
+    sent_at: datetime
+    rejection_reason: str | None
+
+
+class BookingOut(BaseModel):
+    """The parent's view of a booking: never the plan's name or the sitter's pay (6.1)."""
+
+    id: uuid.UUID
+    sitter_id: uuid.UUID
+    sitter_name: str | None
+    starts_at: datetime
+    ends_at: datetime
+    hours: int
+    children: list[str]
+    price_paise: int
+    bath_time: bool
+    cameras_on: bool
+    camera_locations: str | None
+    status: str
+    pay_by: datetime  # unpaid bookings are cancelled at this time (6.1)
+    # Only while the booking waits for payment and Pacifyco's UPI ID is set.
+    pay_by_upi: PayByUpi | None
+    payment: PaymentOut | None
+
+
+AppSettings = Annotated[Settings, Depends(get_settings)]
+
+
+def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
+    home = bookings_service.home_info(db, booking.id)
+    sitter = db.get(Profile, booking.sitter_id)
+    instructions = (
+        payments_service.payment_instructions(settings.pacify_upi_id, booking)
+        if booking.status == BookingStatus.pending_payment
+        else None
+    )
+    payment = payments_service.latest_booking_payment(db, booking.id)
+    return BookingOut(
+        id=booking.id,
+        sitter_id=booking.sitter_id,
+        sitter_name=sitter.full_name if sitter else None,
+        starts_at=booking.starts_at,
+        ends_at=booking.ends_at,
+        hours=booking.units,
+        children=bookings_service.child_names(db, booking.id),
+        price_paise=booking.price_paise,
+        bath_time=booking.bath_time,
+        cameras_on=home.cameras_on if home else False,
+        camera_locations=home.camera_locations if home else None,
+        status=booking.status.value,
+        pay_by=bookings_service.pay_by(booking),
+        pay_by_upi=PayByUpi(**vars(instructions)) if instructions else None,
+        payment=PaymentOut(
+            status=payment.status.value,
+            upi_reference=payment.upi_reference,
+            sent_at=payment.created_at,
+            rejection_reason=payment.rejection_reason,
+        )
+        if payment
+        else None,
+    )
+
+
+@router.post("/bookings", status_code=201)
+def post_booking(body: BookingIn, parent: Parent, db: DbSession, settings: AppSettings) -> BookingOut:
+    new = bookings_service.NewBooking(**body.model_dump())
+    booking = bookings_service.create(db, parent, new, datetime.now(UTC))
+    return _booking_out(db, booking, settings)
+
+
+@router.get("/bookings/{booking_id}")
+def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings) -> BookingOut:
+    booking = bookings_service.parents_booking(db, parent.id, booking_id)
+    # Past its payment deadline with nothing sent: cancelled now, not at the next job run.
+    if bookings_service.cancel_unpaid(db, datetime.now(UTC), booking.id):
+        db.commit()
+        db.refresh(booking)
+    return _booking_out(db, booking, settings)
+
+
+class UpiReferenceIn(BaseModel):
+    upi_reference: str = Field(max_length=40)
+
+
+@router.post("/bookings/{booking_id}/payment", status_code=201)
+def post_booking_payment(
+    booking_id: uuid.UUID, body: UpiReferenceIn, parent: Parent, db: DbSession, settings: AppSettings
+) -> BookingOut:
+    """The parent has paid by UPI: record the reference for an admin to check (6.1)."""
+    payments_service.submit_upi_reference(db, parent, booking_id, body.upi_reference, datetime.now(UTC))
+    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
+
+
+# ---------- the parent's payments (CLAUDE.md 6.1; phase 6 "Parent payment history") ----------
+
+
+class PaymentHistoryItem(BaseModel):
+    """One payment, charge or refund. Amounts are positive; `kind` says which way the money went."""
+
+    id: uuid.UUID
+    kind: str  # booking | overtime | refund | cancellation_charge
+    amount_paise: int
+    status: str  # pending | confirmed | rejected
+    upi_reference: str | None
+    transfer_reference: str | None  # a refund's
+    rejection_reason: str | None
+    created_at: datetime
+    decided_at: datetime | None
+    booking_id: uuid.UUID
+    booking_starts_at: datetime
+    sitter_name: str | None
+
+
+class PaymentHistory(BaseModel):
+    owed_paise: int
+    payments: list[PaymentHistoryItem]
+
+
+@router.get("/payments")
+def get_payments(parent: Parent, db: DbSession) -> PaymentHistory:
+    return PaymentHistory(
+        owed_paise=bookings_service.amount_owed(db, parent.id),
+        payments=[
+            PaymentHistoryItem(
+                id=item.payment.id,
+                kind=item.payment.kind.value,
+                amount_paise=abs(item.payment.amount_paise),
+                status=item.payment.status.value,
+                upi_reference=item.payment.upi_reference,
+                transfer_reference=item.payment.transfer_reference,
+                rejection_reason=item.payment.rejection_reason,
+                created_at=item.payment.created_at,
+                decided_at=item.payment.confirmed_at,
+                booking_id=item.booking.id,
+                booking_starts_at=item.booking.starts_at,
+                sitter_name=item.sitter_name,
+            )
+            for item in payments_service.history(db, parent.id)
+        ],
     )

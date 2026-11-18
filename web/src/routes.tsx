@@ -1,12 +1,14 @@
 import { Navigate, type RouteObject } from "react-router";
 import { RequireRole } from "./auth/RequireRole";
 import { FamilyReviewPage } from "./pages/admin/FamilyReviewPage";
+import { PaymentsPage } from "./pages/admin/PaymentsPage";
 import { SitterReviewPage } from "./pages/admin/SitterReviewPage";
 import { VerificationQueuePage } from "./pages/admin/VerificationQueuePage";
 import { config } from "./config";
 import { AppLayout } from "./layouts/AppLayout";
 import { AdminHomePage, SitterHomePage } from "./pages/AreaPages";
 import { AvailabilityPage } from "./pages/AvailabilityPage";
+import { BookSitterPage, BookingPage } from "./pages/BookSitterPage";
 import { ComponentsPage } from "./pages/ComponentsPage";
 import { ConsentPage } from "./pages/ConsentPage";
 import { DetailsPage } from "./pages/DetailsPage";
@@ -16,6 +18,7 @@ import { FindSittersPage } from "./pages/FindSittersPage";
 import { HomePage } from "./pages/HomePage";
 import { JoinPage } from "./pages/JoinPage";
 import { ParentTermsPage, PrivacyPolicyPage, SitterTermsPage } from "./pages/LegalPages";
+import { ParentPaymentsPage } from "./pages/ParentPaymentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PsychTestPage } from "./pages/PsychTestPage";
 import { AuthCallbackPage, SIGN_IN_PATH } from "./pages/SignInPage";
@@ -62,6 +65,9 @@ export const routes: RouteObject[] = [
         [
           ["parent/sitters", "parent", <FindSittersPage />],
           ["parent/sitters/:sitterId", "parent", <SitterProfilePage />],
+          ["parent/sitters/:sitterId/book", "parent", <BookSitterPage />],
+          ["parent/bookings/:bookingId", "parent", <BookingPage />],
+          ["parent/payments", "parent", <ParentPaymentsPage />],
           ["sitter/availability", "sitter", <AvailabilityPage />],
         ] as const
       ).map(([path, role, page]) => ({ path, element: <RequireRole role={role}>{page}</RequireRole> })),
@@ -124,6 +130,7 @@ export const routes: RouteObject[] = [
       ...(
         [
           ["admin/verifications", <VerificationQueuePage />],
+          ["admin/payments", <PaymentsPage />],
           ["admin/sitters/:sitterId", <SitterReviewPage />],
           ["admin/parents/:parentId", <FamilyReviewPage />],
         ] as const

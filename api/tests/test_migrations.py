@@ -162,7 +162,7 @@ def test_api_role_reads_and_writes_every_table(conn):
     for table in tables:
         if table in READ_ONLY:
             privileges = ("SELECT",)
-        elif table in APPEND_ONLY:
+        elif table in APPEND_ONLY or table in DECIDED_ONLY:
             privileges = ("SELECT", "INSERT")
         else:
             privileges = ("SELECT", "INSERT", "UPDATE", "DELETE")
@@ -177,6 +177,8 @@ def test_api_role_cannot_touch_alembic_version(conn):
 
 # Records that must never be changed or removed by the API.
 APPEND_ONLY = {"audit_log", "consents", "legal_acceptances", "document_access_log"}
+# Append-only too, except an admin's decision on a row (CLAUDE.md 5): these columns, and only these.
+DECIDED_ONLY = {"payments": {"status", "confirmed_by", "confirmed_at", "rejection_reason", "transfer_reference"}}
 # Published by migrations only; the API reads them.
 READ_ONLY = {"legal_documents"}
 
@@ -193,6 +195,21 @@ def test_append_only_tables_for_the_api(conn, table):
     assert has_privilege(conn, table, "INSERT")
     assert not has_privilege(conn, table, "UPDATE")
     assert not has_privilege(conn, table, "DELETE")
+
+
+@pytest.mark.parametrize("table", sorted(DECIDED_ONLY))
+def test_money_rows_change_only_by_a_decision(conn, table):
+    assert has_privilege(conn, table, "INSERT")
+    assert not has_privilege(conn, table, "UPDATE")
+    assert not has_privilege(conn, table, "DELETE")
+    columns = conn.execute(
+        text("SELECT column_name FROM information_schema.columns WHERE table_name = :t"), {"t": table}
+    ).scalars()
+    for column in columns:
+        can_update = conn.execute(
+            text("SELECT has_column_privilege(:r, :t, :c, 'UPDATE')"), {"r": API_ROLE, "t": table, "c": column}
+        ).scalar_one()
+        assert can_update == (column in DECIDED_ONLY[table]), f"{API_ROLE} UPDATE on {table}.{column}"
 
 
 def test_api_role_sees_rows_despite_rls(conn):

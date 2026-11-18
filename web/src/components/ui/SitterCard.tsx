@@ -20,8 +20,8 @@ export type SitterCardProps = {
   rating: number | null;
   reviewCount: number;
   familiesServed?: number;
-  /** The plan she works, e.g. "Pause" (her level, CLAUDE.md 6.2). A name only, never a price. */
-  plan?: string;
+  /** Her rate, e.g. "₹499/hour" or "from ₹699/hour" (CLAUDE.md 6.1). Never her plan's name or her pay. */
+  price?: string;
   actionHref: string;
 };
 
@@ -36,7 +36,7 @@ function initials(name: string): string {
 
 export function SitterCard(props: SitterCardProps) {
   const { name, firstName, photoUrl, yearsExperience, area, ages, checks } = props;
-  const { rating, reviewCount, familiesServed = 0, actionHref, plan } = props;
+  const { rating, reviewCount, familiesServed = 0, actionHref, price } = props;
   const facts = [plural(yearsExperience, "yr", "yrs"), area, ages].filter(Boolean).join(" · ");
 
   return (
@@ -55,15 +55,9 @@ export function SitterCard(props: SitterCardProps) {
         <div className="min-w-0">
           <h3 className="text-h3 break-words">{name}</h3>
           <p className="text-small text-muted">{facts}</p>
-          {(plan || (rating !== null && reviewCount > 0)) && (
+          {(price || (rating !== null && reviewCount > 0)) && (
             <p className="mt-1 flex flex-wrap items-center gap-2 text-small text-muted">
-              {plan && (
-                <span className="rounded-pill border border-line px-3 py-px text-caption font-medium text-coral-deep">
-                  <span className="sr-only">Works the </span>
-                  {plan}
-                  <span className="sr-only"> plan</span>
-                </span>
-              )}
+              {price && <span className="text-ui font-medium text-ink">{price}</span>}
               {rating !== null && reviewCount > 0 && (
                 <span className="flex items-center gap-1">
                   <Star aria-hidden="true" size={18} strokeWidth={1.75} className="text-coral-deep" />
