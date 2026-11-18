@@ -271,6 +271,33 @@ describe("paying for the booking", () => {
     expect(await screen.findByText("That UPI reference has already been sent.")).toBeTruthy();
   });
 
+  test("not paid in time: cancelled, with a way to choose another time", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () =>
+        jsonResponse({ ...BOOKING, status: "cancelled_unpaid", pay_by_upi: null }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("Cancelled")).toBeTruthy();
+    expect(
+      screen.getByText(/cancelled because it wasn't paid by Mon, 7 Jan, 6:00 am\. You haven't been charged\./),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Choose another time" }).getAttribute("href")).toBe(
+      "/parent/sitters/s1/book",
+    );
+    expect(screen.queryByRole("heading", { name: /Pay ₹/ })).toBeNull();
+  });
+
+  test("another booking was paid for first: cancelled, and a refund if they'd paid", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () =>
+        jsonResponse({ ...BOOKING, status: "cancelled_slot_taken", pay_by_upi: null, payment: SENT }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(
+      await screen.findByText(/Another booking for this time with Lakshmi was paid for first.*Pacifyco will refund you/),
+    ).toBeTruthy();
+  });
+
   test("no UPI details yet: says payments aren't open", async () => {
     api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...BOOKING, pay_by_upi: null }) });
     renderAt("/parent/bookings/b1");

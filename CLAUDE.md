@@ -209,6 +209,9 @@ documents; the LLPIN, registered office and emergency line were taken out of the
 - **Payment deadline:** if payment isn't confirmed by **3 hours before the booking's start**, the
   `pending_payment` booking is auto-cancelled (same boundary as the parent late-cancellation rule in
   6.5). Decided 2026-11-03 — parents should pay as soon as they book, since slots aren't held (6.4).
+  **A UPI reference sent before the deadline keeps the booking** for an admin to confirm or reject, even
+  if it isn't checked by then (Reuben, 2026-11-18); a rejected payment doesn't. Auto-cancelled bookings
+  are `cancelled_unpaid`; ones that lose the slot to another confirmed booking are `cancelled_slot_taken`.
 - Refunds are money, paid back by UPI or bank transfer (beta: manual, recorded with a reference).
 - **Parents see rates, never plan names (Reuben, 2026-11-17; replaces "sitter cards never show a price"):**
   a sitter's card and profile page show the hourly rate of the plan she works (Pause "₹499/hour";
@@ -597,7 +600,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `geocode_cache` **(created)** (query, lat, lng) — Nominatim results (`app/services/geocoding.py`); a profile's
   lat/lng are looked up when its address is saved
 - `payments` **(created)** (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference (12 digits; one not-rejected row per reference), due_by, confirmed_by, confirmed_at, rejection_reason, created_at) — append-only: the API's role can add rows and update only the decision columns (status, confirmed_by, confirmed_at, rejection_reason), never an amount, and can't delete; a rejected payment stays and a new reference is a new row. Replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
-- `bookings` **(created; check-in, location and closing columns come in phases 7-8)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
+- `bookings` **(created; check-in, location and closing columns come in phases 7-8)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show|cancelled_unpaid|cancelled_slot_taken`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
 - `booking_children` **(created)** (booking_id, child_id)
 - `booking_home_info` **(created)** (booking_id, cameras_on, camera_locations)
 - `outing_requests` (id, booking_id, description, status: `pending|approved|declined`, decided_at)

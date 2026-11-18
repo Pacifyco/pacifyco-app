@@ -72,8 +72,8 @@ def submit_upi_reference(db: Session, parent: Profile, booking_id: uuid.UUID, re
     reference = reference.strip()
     if not UPI_REFERENCE.match(reference):
         raise AppError(422, "invalid_upi_reference", "Please enter the 12-digit UPI reference from your UPI app.")
-    # Lock the booking so two submissions at once can't both add a payment.
-    db.scalar(select(Booking.id).where(Booking.id == booking.id).with_for_update())
+    # Lock and re-read the booking, so two submissions at once, or the auto-cancel job, can't race this.
+    db.refresh(booking, with_for_update=True)
     if booking.status != BookingStatus.pending_payment:
         raise AppError(409, "not_waiting_for_payment", "This booking isn't waiting for a payment.")
     if now >= bookings_service.pay_by(booking):

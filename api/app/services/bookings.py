@@ -14,7 +14,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, select, update
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
@@ -24,6 +24,9 @@ from app.models import (
     BookingHomeInfo,
     BookingStatus,
     Child,
+    Payment,
+    PaymentKind,
+    PaymentStatus,
     Profile,
     Sitter,
 )
@@ -251,3 +254,69 @@ def child_names(db: Session, booking_id: uuid.UUID) -> list[str]:
 
 def home_info(db: Session, booking_id: uuid.UUID) -> BookingHomeInfo | None:
     return db.get(BookingHomeInfo, booking_id)
+
+
+# ---------- Pacifyco's own cancellations of unpaid bookings (6.1 and 6.4) ----------
+
+# A booking payment that, once sent in time, keeps the booking for an admin to decide (Reuben,
+# 2026-11-18): a rejected one doesn't.
+KEEPS_BOOKING = (PaymentStatus.pending, PaymentStatus.confirmed)
+
+
+def _cancel(db: Session, booking_ids: list[uuid.UUID], status: BookingStatus, reason: dict) -> None:
+    if not booking_ids:
+        return
+    db.execute(update(Booking).where(Booking.id.in_(booking_ids)).values(status=status))
+    for booking_id in booking_ids:
+        audit.record(
+            db,
+            None,  # Pacifyco itself, not a person
+            "booking_cancelled",
+            "booking",
+            str(booking_id),
+            before={"status": BookingStatus.pending_payment.value},
+            after={"status": status.value, **reason},
+        )
+
+
+def cancel_unpaid(db: Session, now: datetime, booking_id: uuid.UUID | None = None) -> list[uuid.UUID]:
+    """Cancels `pending_payment` bookings whose payment deadline (3 hours before the start) has passed
+    with no payment sent (6.1). A booking whose UPI reference was sent in time waits for an admin, who
+    confirms or rejects it (Reuben, 2026-11-18). Idempotent; the caller commits. With `booking_id`, only
+    that booking (so a booking opened before the next job run already shows as cancelled)."""
+    paid = exists().where(
+        Payment.booking_id == Booking.id, Payment.kind == PaymentKind.booking, Payment.status.in_(KEEPS_BOOKING)
+    )
+    query = select(Booking.id).where(
+        Booking.status == BookingStatus.pending_payment,
+        Booking.starts_at <= now + PAYMENT_DEADLINE,
+        ~paid,
+    )
+    if booking_id is not None:
+        query = query.where(Booking.id == booking_id)
+    # Rows another transaction holds (a payment being sent or confirmed right now) are left for the
+    # next run.
+    ids = list(db.scalars(query.with_for_update(skip_locked=True)))
+    _cancel(db, ids, BookingStatus.cancelled_unpaid, {"reason": "not_paid_by_deadline"})
+    return ids
+
+
+def cancel_overlapping_unpaid(db: Session, confirmed: Booking) -> list[uuid.UUID]:
+    """Once a booking is confirmed it takes her time: every other `pending_payment` booking with her
+    for an overlapping time is cancelled (6.4, first confirmed payment wins). Called when an admin
+    confirms a payment; the caller commits."""
+    ids = list(
+        db.scalars(
+            select(Booking.id)
+            .where(
+                Booking.sitter_id == confirmed.sitter_id,
+                Booking.id != confirmed.id,
+                Booking.status == BookingStatus.pending_payment,
+                Booking.starts_at < confirmed.ends_at,
+                Booking.ends_at > confirmed.starts_at,
+            )
+            .with_for_update()
+        )
+    )
+    _cancel(db, ids, BookingStatus.cancelled_slot_taken, {"taken_by": str(confirmed.id)})
+    return ids

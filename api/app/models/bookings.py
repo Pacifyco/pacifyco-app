@@ -28,6 +28,10 @@ class BookingStatus(StrEnum):
     cancelled_sitter_late = "cancelled_sitter_late"
     parent_absent = "parent_absent"
     sitter_no_show = "sitter_no_show"
+    # Cancelled by Pacifyco while waiting for payment (6.1, 6.4): not paid by the deadline, 3 hours before
+    # the start; or another booking for an overlapping time with her was confirmed first.
+    cancelled_unpaid = "cancelled_unpaid"
+    cancelled_slot_taken = "cancelled_slot_taken"
 
 
 class Booking(Base):

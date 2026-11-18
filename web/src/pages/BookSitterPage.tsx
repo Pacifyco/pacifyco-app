@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   BackLink,
@@ -442,7 +442,7 @@ export function BookingPage() {
       <BackLink to={`/parent/sitters/${data.sitter_id}`} label={`${firstName}'s profile`} />
       <h1>Your booking with {firstName}</h1>
       <Card as="section" padding="roomy" className="flex flex-col gap-3">
-        <p className="text-eyebrow text-muted uppercase">{waiting ? "Waiting for payment" : "Booking"}</p>
+        <p className="text-eyebrow text-muted uppercase">{statusLabel(data.status)}</p>
         <p className="text-h3 text-ink">
           {formatDay(startsAt)} · {formatTime(startsAt)} – {formatTime(new Date(data.ends_at))}
         </p>
@@ -455,7 +455,37 @@ export function BookingPage() {
         </p>
       </Card>
       {waiting && <PaymentCard booking={data} />}
+      {data.status === "cancelled_unpaid" && (
+        <CancelledCard sitterId={data.sitter_id}>
+          This booking was cancelled because it wasn't paid by {formatDay(new Date(data.pay_by))},{" "}
+          {formatTime(new Date(data.pay_by))}. You haven't been charged.
+        </CancelledCard>
+      )}
+      {data.status === "cancelled_slot_taken" && (
+        <CancelledCard sitterId={data.sitter_id}>
+          Another booking for this time with {firstName} was paid for first, so this one was cancelled.
+          {data.payment ? " If you've paid, Pacifyco will refund you." : ""}
+        </CancelledCard>
+      )}
     </article>
+  );
+}
+
+function statusLabel(status: string): string {
+  if (status === "pending_payment") return "Waiting for payment";
+  if (status.startsWith("cancelled")) return "Cancelled";
+  return "Booking";
+}
+
+/** A booking Pacifyco cancelled before it was paid for (6.1 and 6.4), and a way to book again. */
+function CancelledCard({ sitterId, children }: { sitterId: string; children: ReactNode }) {
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <p className="text-ink">{children}</p>
+      <div>
+        <ButtonLink to={`/parent/sitters/${sitterId}/book`}>Choose another time</ButtonLink>
+      </div>
+    </Card>
   );
 }
 

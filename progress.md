@@ -366,8 +366,13 @@ at home (CLAUDE.md 6.3).
   for one booking (unless the last one was rejected) and for a reference already sent. The API's role can
   only add payment rows and update an admin's decision on them (status, confirmed_by, confirmed_at,
   rejection_reason). Without `PACIFY_UPI_ID` the page says payments aren't open yet
-- [ ] Frequent job: auto-cancel `pending_payment` bookings 3 hours before start; first confirmed payment
-  wins a slot and auto-cancels the others
+- [x] Frequent job: auto-cancel `pending_payment` bookings 3 hours before start; first confirmed payment
+  wins a slot and auto-cancels the others. `cancel_unpaid_bookings` in the frequent run
+  (`bookings.cancel_unpaid`): no payment sent by the deadline → `cancelled_unpaid`; a reference sent in
+  time keeps the booking for an admin (Reuben, 2026-11-18). Also checked when the parent opens the
+  booking, since the run skips midnight–6 am IST. `bookings.cancel_overlapping_unpaid` →
+  `cancelled_slot_taken`, written and tested now; the admin's payment confirmation (next item) calls it.
+  Statuses added in migration a1c3e5f7b9d2 (its downgrade refuses while such bookings exist)
 - [ ] Admin confirms/rejects payments; refunds recorded with a reference
 - [ ] Parent payment history; outstanding amounts block new bookings
 - [ ] Remove the unused HourBalance component
@@ -460,6 +465,9 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-18 — "Frequent job": unpaid bookings cancelled at the 3-hour deadline (job and on opening),
+  overlapping unpaid bookings cancelled when one is confirmed; cancelled states on the booking page.
+  API 512, web 257, e2e 6.
 - 2026-11-18 — "Booking payment": `payments` table (append-only, decision columns only), UPI ID, link and
   QR code on the booking page, 12-digit UPI reference sent for an admin to check. API 501, web 255, e2e 6.
 - 2026-11-18 — "Book this sitter": bookings tables (migration f6c8e0a2b4d5), booking options and create
