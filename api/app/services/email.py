@@ -352,6 +352,57 @@ def request_not_taken(
     )
 
 
+def cancelled_by_family(to: str, full_name: str | None, family_name: str, starts_at: datetime, web_url: str) -> Email:
+    """To the sitter: a booking she had accepted was cancelled by the family."""
+    return Email(
+        to=to,
+        subject="A booking was cancelled",
+        heading="A family has cancelled a booking.",
+        body=(
+            f"Hi {_first_name(full_name)}, {family_name}'s family has cancelled their booking for "
+            f"{_when(starts_at)}. That time is free again for other families."
+        ),
+        button_label="See your bookings",
+        button_url=f"{web_url.rstrip('/')}/sitter/bookings",
+    )
+
+
+def cancelled_by_sitter(
+    to: str, full_name: str | None, sitter_name: str | None, refunded: bool, booking_id: object, web_url: str
+) -> Email:
+    """To the parent: the sitter can't make it."""
+    sitter = _first_name(sitter_name) if sitter_name else "Your sitter"
+    money = "Pacifyco will refund you in full.\n" if refunded else "You haven't been charged.\n"
+    return Email(
+        to=to,
+        subject="Your sitter had to cancel",
+        heading=f"{sitter} had to cancel your booking.",
+        body=(
+            f"Hi {_first_name(full_name)}, we're sorry: {sitter} can't make your booking, so it's cancelled.\n"
+            f"{money}Pacifyco will try to find you another sitter, or you can book one yourself."
+        ),
+        button_label="Find a sitter",
+        button_url=f"{web_url.rstrip('/')}/parent/sitters",
+    )
+
+
+def sitter_cancelled_alert(to: str, late: bool, starts_at: datetime, web_url: str) -> Email:
+    """To an admin: a sitter cancelled, so the family may need a replacement (Family Terms 4.7)."""
+    when = "less than 8 hours" if late else "8 hours or more"
+    return Email(
+        to=to,
+        subject="A sitter cancelled a booking",
+        heading="A sitter cancelled a booking.",
+        body=(
+            f"A sitter cancelled a booking starting {_when(starts_at)}, {when} before the start"
+            f"{' (a late cancellation: she has a strike)' if late else ''}.\n"
+            "The family has been told. Please try to find them another sitter, and pay any refund back."
+        ),
+        button_label="Open the admin panel",
+        button_url=f"{web_url.rstrip('/')}/admin",
+    )
+
+
 def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_url: str) -> Email:
     """To an admin: payments to check before their bookings start. No names or amounts, only the count
     and the earliest start."""

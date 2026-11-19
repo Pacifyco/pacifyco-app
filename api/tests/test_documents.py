@@ -88,6 +88,10 @@ def cleanup_documents(db_engine, profile_id) -> None:
             {"ids": booking_ids + payment_ids},
         )
         conn.execute(text("DELETE FROM payments WHERE booking_id::text = ANY(:ids)"), {"ids": booking_ids})
+        conn.execute(
+            text("DELETE FROM strikes WHERE booking_id::text = ANY(:ids) OR sitter_id = :id"),
+            {"ids": booking_ids, "id": profile_id},
+        )
         conn.execute(text("DELETE FROM bookings WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM documents WHERE owner_profile_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM children WHERE parent_id = :id"), {"id": profile_id})

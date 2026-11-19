@@ -14,7 +14,7 @@ from sqlalchemy import text
 from tests.test_auto_cancel import move
 from tests.test_bookings import book, child_of, children_of, free_sitter  # noqa: F401  (fixtures)
 from tests.test_documents import admin, as_user, cleanup_documents, client, parent, row, rows, scalar, storage  # noqa: F401
-from tests.test_marketplace import finished_parent, make_sitter  # noqa: F401  (fixtures)
+from tests.test_marketplace import at, finished_parent, india_day, make_sitter  # noqa: F401  (fixtures)
 from tests.test_payments import booking, pay  # noqa: F401  (fixture)
 from tests.test_roles import make_profile  # noqa: F401  (fixture)
 from tests.test_sign_up import auth_for, user  # noqa: F401  (fixture)
@@ -85,20 +85,21 @@ def test_upcoming_soonest_first_and_past_most_recent_first(client, db_engine, fi
     kids = children_of(db_engine, finished_parent["id"])[:1]
     sitter = free_sitter("unwind")
 
-    def made(status, starts_in):
+    def made(status, starts_at):
+        # Each is booked in the default slot, then moved away from it, so the next one can be booked too.
         response = book(client, finished_parent, sitter, child_ids=kids, hours=1)
         assert response.status_code == 201, response.text
         booking_id = response.json()["id"]
-        move(db_engine, booking_id, datetime.now(UTC) + starts_in, 1)
+        move(db_engine, booking_id, starts_at, 1)
         set_status(db_engine, booking_id, status)
         return booking_id
 
-    later = made("confirmed", timedelta(days=3))
-    sooner = made("confirmed", timedelta(days=2))
-    done = made("completed", -timedelta(days=1))
-    ended = made("confirmed", -timedelta(days=5))  # ended, not yet closed (phase 8)
-    cancelled = made("cancelled_parent", timedelta(days=4))
-    made("requested", timedelta(days=1))  # a request: in her requests, not here
+    later = made("confirmed", at(india_day(6), 18))
+    sooner = made("confirmed", at(india_day(5), 18))
+    done = made("completed", datetime.now(UTC) - timedelta(days=1))
+    ended = made("confirmed", datetime.now(UTC) - timedelta(days=5))  # ended, not yet closed (phase 8)
+    cancelled = made("cancelled_parent", at(india_day(7), 18))
+    made("requested", at(india_day(4), 18))  # a request: in her requests, not here
 
     found = listed(client, sitter)
     assert [item["id"] for item in found["upcoming"]] == [sooner, later]

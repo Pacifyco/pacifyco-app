@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { kolkataTime } from "../lib/times";
 import { jsonResponse } from "../test/renderApp";
-import { SitterBookingPage, ageText, type SitterBookingDetail } from "./SitterBookingPage";
+import { SitterBookingPage, ageText, sitterCancelOutcome, type SitterBookingDetail } from "./SitterBookingPage";
 
 // One of the sitter's bookings (CLAUDE.md 6.4, 6.11): the address once confirmed, the children's care
 // notes, cameras, the emergency contact and her pay; never the price.
@@ -136,5 +136,45 @@ describe("A request", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Decline" }));
     expect(await screen.findByText("You declined")).toBeTruthy();
     expect(posted).toEqual([expect.stringMatching(/\/sitter\/bookings\/b1\/decline$/)]);
+  });
+});
+
+describe("She can't make it (6.5)", () => {
+  test("8 hours or more before: no penalty; less: a strike", () => {
+    const start = new Date(BOOKING.starts_at).getTime();
+    expect(sitterCancelOutcome(BOOKING, new Date(start - 8 * 3600_000))).toBe(
+      "It's 8 hours or more before the start, so there's no penalty. We'll tell the family and refund them.",
+    );
+    expect(sitterCancelOutcome(BOOKING, new Date(start - 8 * 3600_000 + 1000))).toMatch(
+      /^It's less than 8 hours before the start, so this is a late cancellation: you'll get a strike/,
+    );
+  });
+
+  test("asks first, then cancels", async () => {
+    let current: SitterBookingDetail = BOOKING;
+    const posted: string[] = [];
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posted.push(url);
+        current = { ...BOOKING, status: "cancelled_sitter", address: null, pin_code: null, emergency_contact: null };
+      }
+      return Promise.resolve(jsonResponse(current));
+    }) as unknown as typeof fetch);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/sitter/bookings/b1"]}>
+          <Routes>
+            <Route path="/sitter/bookings/:bookingId" element={<SitterBookingPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "I can't make this booking" }));
+    expect(screen.getByText(/so there's no penalty/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    expect(await screen.findByText("Cancelled by you")).toBeTruthy();
+    expect(posted).toEqual([expect.stringMatching(/\/sitter\/bookings\/b1\/cancel$/)]);
+    expect(screen.queryByRole("button", { name: "I can't make this booking" })).toBeNull();
   });
 });

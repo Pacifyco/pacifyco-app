@@ -27,7 +27,7 @@ from app.models import (
 )
 from app.routers.auth import TermsVersion, request_info
 from app.services import availability as availability_service
-from app.services import booking_mail, checklists, consent, family, legal, pricing
+from app.services import booking_mail, cancellations, checklists, consent, family, legal, pricing
 from app.services import bookings as bookings_service
 from app.services import children as children_service
 from app.services import email as email_service
@@ -663,6 +663,17 @@ def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: 
         db.commit()
         db.refresh(booking)
     return _booking_out(db, booking, settings)
+
+
+@router.post("/bookings/{booking_id}/cancel")
+def cancel_booking(
+    booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> BookingOut:
+    """3 hours or more before the start: refunded in full; less: the whole booking is charged (6.5)."""
+    done = cancellations.by_parent(db, parent.id, booking_id, datetime.now(UTC))
+    if done.was_accepted:
+        booking_mail.tell_sitter_cancelled_by_family(db, mailer, settings, done.booking.id)
+    return _booking_out(db, done.booking, settings)
 
 
 class UpiReferenceIn(BaseModel):

@@ -29,7 +29,7 @@ from app.models import (
 )
 from app.routers.parents import ChecklistItem, WeekHours, checklist_out
 from app.services import availability as availability_service
-from app.services import booking_mail, checklists, sitter_pay, verification
+from app.services import booking_mail, cancellations, checklists, sitter_pay, verification
 from app.services import bookings as bookings_service
 from app.services import email as email_service
 from app.services import psych_tests as psych_tests_service
@@ -638,3 +638,14 @@ def decline_request(
     booking = bookings_service.decline(db, sitter.id, booking_id, datetime.now(UTC))
     booking_mail.tell_parent_not_taken(db, mailer, settings, booking.id, lapsed=False)
     return _detail(db, booking)
+
+
+@router.post("/bookings/{booking_id}/cancel")
+def cancel_booking(
+    booking_id: uuid.UUID, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    """8 hours or more before the start: no penalty; less: a strike and no pay. The family is refunded
+    either way (6.5)."""
+    done = cancellations.by_sitter(db, sitter.id, booking_id, datetime.now(UTC))
+    booking_mail.tell_cancelled_by_sitter(db, mailer, settings, done.booking.id, late=done.late)
+    return _detail(db, done.booking)

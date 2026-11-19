@@ -443,7 +443,13 @@ at home (CLAUDE.md 6.3).
   (`/sitter/requests`) with Accept/Decline on the request page; emails to the sitter (new request) and
   parent (accepted, declined, lapsed); frequent job `lapse_requests`, also checked when opened.
   Family Terms 4.3 rewritten to match (Reuben, 2026-11-19)
-- [ ] Cancellations with 3-hour and 8-hour rules
+- [x] Cancellations with 3-hour and 8-hour rules. `POST /parent/bookings/{id}/cancel` and
+  `/sitter/bookings/{id}/cancel` (`services/cancellations.py`), with the consequence shown before they
+  confirm. Refunds as `payments` rows; a late parent cancellation keeps the money (or owes it as a
+  `cancellation_charge` if their payment is rejected); a late sitter cancellation records a strike
+  (`strikes` table, migration 5683c7b4cb45; the ladder and blocking are the Strikes item). Emails to the
+  other side, and to admins when a sitter cancels. Paying a cancellation charge has no screen yet (it shows
+  as owed and blocks new bookings); it comes with overtime payments in phase 8
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
 - [ ] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12)
 - [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit, doctor's note strike removal
@@ -526,6 +532,8 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-19 — Cancellations (3-hour and 8-hour rules), strikes recorded for late sitter cancellations;
+  parent list texts for requests. e2e 13.
 - 2026-11-19 — Booking requests: the sitter accepts before the parent pays; earliest start 6 hours. e2e 12.
 - 2026-11-19 — Sitter booking page: address once confirmed, children's care notes, emergency contact.
 - 2026-11-19 — Sitter bookings list and home card; admins emailed about payments unchecked about an

@@ -30,11 +30,18 @@ export type BookingList = { upcoming: BookingListItem[]; past: BookingListItem[]
 
 /** Where the booking is, in the parent's words. */
 export function bookingStatusText(item: BookingListItem): string {
+  const sitter = firstNameOf(item.sitter_name);
   switch (item.status) {
+    case "requested":
+      return `Request sent: waiting for ${sitter}'s answer`;
+    case "request_declined":
+      return `Not accepted: ${sitter} can't take it`;
+    case "request_lapsed":
+      return `Not accepted: ${sitter} didn't answer in time`;
     case "pending_payment": {
       if (item.payment_sent) return "Pacifyco is checking your payment";
       const payBy = new Date(item.pay_by);
-      return `Waiting for payment: please pay by ${formatDay(payBy)}, ${formatTime(payBy)}`;
+      return `Accepted: please pay by ${formatDay(payBy)}, ${formatTime(payBy)}`;
     }
     case "awaiting_verification":
       return "Paid: confirmed once every child's birth certificate is checked";
@@ -50,6 +57,13 @@ export function bookingStatusText(item: BookingListItem): string {
       return "Cancelled: another booking was confirmed first";
     case "cancelled_unverified":
       return "Cancelled: a child wasn't verified by the start";
+    case "cancelled_parent":
+      return "Cancelled by you";
+    case "cancelled_parent_late":
+      return "Cancelled by you, less than 3 hours before: charged";
+    case "cancelled_sitter":
+    case "cancelled_sitter_late":
+      return `Cancelled by ${sitter}`;
     default:
       return item.status.startsWith("cancelled") ? "Cancelled" : "Didn't go ahead";
   }

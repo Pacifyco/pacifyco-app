@@ -69,7 +69,7 @@ describe("The sitter's bookings", () => {
 
   test("statuses in her words", () => {
     expect(sitterStatusText("in_progress")).toBe("Happening now");
-    expect(sitterStatusText("cancelled_sitter_late")).toBe("Cancelled by you");
+    expect(sitterStatusText("cancelled_sitter_late")).toBe("Cancelled by you, less than 8 hours before: a strike");
     expect(sitterStatusText("parent_absent")).toBe("The family wasn't home");
   });
 });

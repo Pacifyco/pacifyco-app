@@ -88,6 +88,64 @@ function Answer({ booking }: { booking: SitterBookingDetail }) {
   );
 }
 
+const SITTER_CAN_CANCEL = ["pending_payment", "confirmed"];
+const SITTER_NOTICE_MS = 8 * 60 * 60 * 1000; // 8 hours or more before the start: no penalty (6.5)
+
+/** What cancelling now means for her (6.5). */
+export function sitterCancelOutcome(booking: SitterBookingDetail, now: Date): string {
+  if (new Date(booking.starts_at).getTime() - now.getTime() < SITTER_NOTICE_MS) {
+    return (
+      "It's less than 8 hours before the start, so this is a late cancellation: you'll get a strike and " +
+      "won't be paid for this booking."
+    );
+  }
+  return "It's 8 hours or more before the start, so there's no penalty. We'll tell the family and refund them.";
+}
+
+/** She can't make it after all. */
+function CancelBooking({ booking }: { booking: SitterBookingDetail }) {
+  const queryClient = useQueryClient();
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const cancel = useMutation({
+    mutationFn: () => apiFetch<SitterBookingDetail>(`/sitter/bookings/${booking.id}/cancel`, { method: "POST" }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["sitter", "booking", booking.id], updated);
+      void queryClient.invalidateQueries({ queryKey: ["sitter"] });
+      showToast("Booking cancelled. We've told the family.");
+    },
+    onError: (failed) =>
+      setError(failed instanceof ApiError ? failed.message : "We couldn't cancel it. Please try again."),
+  });
+  if (!asking) {
+    return (
+      <div>
+        <Button variant="tertiary" fullWidthOnPhone={false} onClick={() => setAsking(true)}>
+          I can't make this booking
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <p className="text-ink">{sitterCancelOutcome(booking, new Date())}</p>
+      {error && (
+        <p role="alert" className="text-small text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" loading={cancel.isPending} onClick={() => cancel.mutate()}>
+          Yes, cancel it
+        </Button>
+        <Button variant="tertiary" onClick={() => setAsking(false)}>
+          Keep it
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 export function SitterBookingPage() {
   const { bookingId = "" } = useParams();
   const booking = useQuery({
@@ -184,6 +242,9 @@ export function SitterBookingPage() {
           </a>
           <p className="text-small text-muted">If you can't reach the family in an emergency.</p>
         </Card>
+      )}
+      {SITTER_CAN_CANCEL.includes(data.status) && new Date(data.starts_at) > new Date() && (
+        <CancelBooking booking={data} />
       )}
     </article>
   );

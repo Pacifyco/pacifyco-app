@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { kolkataTime } from "../lib/times";
 import { jsonResponse } from "../test/renderApp";
-import { BookSitterPage, BookingPage, windowsFrom, type Booking } from "./BookSitterPage";
+import { BookSitterPage, BookingPage, parentCancelOutcome, windowsFrom, type Booking } from "./BookSitterPage";
 
 // "Book this sitter" (CLAUDE.md 6.1 and 6.4): her free times, children, bath time, cameras and a live
 // price; her rate, never her plan's name (Reuben, 2026-11-17).
@@ -401,3 +401,42 @@ describe("paying for the booking", () => {
   });
 });
 
+
+describe("cancelling (6.5)", () => {
+  const PAID = { status: "confirmed" as const, upi_reference: "123456789012", sent_at: kolkataTime("2030-01-01", 9), rejection_reason: null };
+  const CONFIRMED: Booking = { ...BOOKING, status: "confirmed", pay_by_upi: null, payment: PAID };
+
+  test("3 hours or more before: refunded in full; less: still charged", () => {
+    const start = new Date(CONFIRMED.starts_at).getTime();
+    expect(parentCancelOutcome(CONFIRMED, new Date(start - 3 * 3600_000))).toBe("You'll be refunded ₹1,698 in full.");
+    expect(parentCancelOutcome(CONFIRMED, new Date(start - 3 * 3600_000 + 1000))).toBe(
+      "It's less than 3 hours before the start, so the whole booking is still charged.",
+    );
+    expect(parentCancelOutcome({ ...REQUEST }, new Date(start - 86400_000))).toBe(
+      "Your request will be withdrawn. Nothing has been paid.",
+    );
+    expect(parentCancelOutcome({ ...BOOKING, payment: null }, new Date(start - 86400_000))).toBe(
+      "Nothing has been paid, so there's nothing to refund.",
+    );
+  });
+
+  test("asks first, then cancels", async () => {
+    const calls = api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () => jsonResponse(CONFIRMED),
+      "POST /parent/bookings/b1/cancel": () => jsonResponse({ ...CONFIRMED, status: "cancelled_parent" }),
+    });
+    renderAt("/parent/bookings/b1");
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel this booking" }));
+    expect(screen.getByText("You'll be refunded ₹1,698 in full.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    expect(await screen.findByText(/You cancelled this booking\. Pacifyco will refund you in full\./)).toBeTruthy();
+    expect(calls.some((call) => call.method === "POST" && call.path === "/parent/bookings/b1/cancel")).toBe(true);
+  });
+
+  test("the sitter had to cancel", async () => {
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...CONFIRMED, status: "cancelled_sitter_late" }) });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText(/Lakshmi had to cancel this booking\. Pacifyco will refund you in full\./)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Cancel this booking" })).toBeNull();
+  });
+});

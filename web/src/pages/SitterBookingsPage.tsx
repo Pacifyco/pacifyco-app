@@ -57,8 +57,9 @@ export function sitterStatusText(status: string): string {
     case "cancelled_parent_late":
       return "Cancelled by the family";
     case "cancelled_sitter":
-    case "cancelled_sitter_late":
       return "Cancelled by you";
+    case "cancelled_sitter_late":
+      return "Cancelled by you, less than 8 hours before: a strike";
     case "parent_absent":
       return "The family wasn't home";
     case "sitter_no_show":

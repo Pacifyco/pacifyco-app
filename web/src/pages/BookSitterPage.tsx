@@ -526,6 +526,36 @@ export function BookingPage() {
           </div>
         </Card>
       )}
+      {data.status === "cancelled_parent" && (
+        <Card as="section" padding="roomy" className="flex flex-col gap-3">
+          <p className="text-ink">
+            You cancelled this booking.
+            {data.payment && data.payment.status !== "rejected" ? " Pacifyco will refund you in full." : ""}
+          </p>
+        </Card>
+      )}
+      {data.status === "cancelled_parent_late" && (
+        <Card as="section" padding="roomy" className="flex flex-col gap-3">
+          <p className="text-ink">
+            You cancelled this booking less than 3 hours before the start, so the whole booking is charged.
+          </p>
+        </Card>
+      )}
+      {(data.status === "cancelled_sitter" || data.status === "cancelled_sitter_late") && (
+        <Card as="section" padding="roomy" className="flex flex-col gap-3">
+          <p className="text-ink">
+            We're sorry: {firstName} had to cancel this booking.
+            {data.payment && data.payment.status !== "rejected" ? " Pacifyco will refund you in full." : ""} Pacifyco
+            will try to find you another sitter, or you can book one yourself.
+          </p>
+          <div>
+            <ButtonLink to="/parent/sitters">Find a sitter</ButtonLink>
+          </div>
+        </Card>
+      )}
+      {PARENT_CAN_CANCEL.includes(data.status) && new Date(data.starts_at) > new Date() && (
+        <CancelBooking booking={data} />
+      )}
       {data.status === "cancelled_unverified" && (
         <CancelledCard sitterId={data.sitter_id}>
           This booking was cancelled because not every child on it was verified by the start time. Pacifyco will
@@ -536,9 +566,66 @@ export function BookingPage() {
   );
 }
 
+// What a parent can cancel (6.5): a request, an accepted booking, a paid one, before it starts.
+const PARENT_CAN_CANCEL = ["requested", "pending_payment", "awaiting_verification", "confirmed"];
+const PARENT_NOTICE_MS = 3 * HOUR_MS; // 3 hours or more before the start: refunded in full
+
+/** What cancelling now means for the parent's money (6.5). */
+export function parentCancelOutcome(booking: Booking, now: Date): string {
+  if (booking.status === "requested") return "Your request will be withdrawn. Nothing has been paid.";
+  const sent = booking.payment && booking.payment.status !== "rejected";
+  if (new Date(booking.starts_at).getTime() - now.getTime() < PARENT_NOTICE_MS) {
+    return "It's less than 3 hours before the start, so the whole booking is still charged.";
+  }
+  return sent ? `You'll be refunded ${rupees(booking.price_paise)} in full.` : "Nothing has been paid, so there's nothing to refund.";
+}
+
+function CancelBooking({ booking }: { booking: Booking }) {
+  const queryClient = useQueryClient();
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const cancel = useMutation({
+    mutationFn: () => apiFetch<Booking>(`/parent/bookings/${booking.id}/cancel`, { method: "POST" }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["booking", booking.id], updated);
+      void queryClient.invalidateQueries({ queryKey: ["parent"] });
+      showToast("Booking cancelled");
+    },
+    onError: (failed) => setError(failed instanceof ApiError ? failed.message : "We couldn't cancel it. Please try again."),
+  });
+  if (!asking) {
+    return (
+      <div>
+        <Button variant="tertiary" fullWidthOnPhone={false} onClick={() => setAsking(true)}>
+          {booking.status === "requested" ? "Withdraw the request" : "Cancel this booking"}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <p className="text-ink">{parentCancelOutcome(booking, new Date())}</p>
+      {error && (
+        <p role="alert" className="text-small text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" loading={cancel.isPending} onClick={() => cancel.mutate()}>
+          {booking.status === "requested" ? "Yes, withdraw it" : "Yes, cancel it"}
+        </Button>
+        <Button variant="tertiary" onClick={() => setAsking(false)}>
+          Keep it
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function statusLabel(status: string): string {
   if (status === "requested") return "Request sent";
   if (status === "request_declined" || status === "request_lapsed") return "Not accepted";
+  if (status.startsWith("cancelled_sitter")) return "Cancelled by the sitter";
   if (status === "pending_payment") return "Accepted: waiting for payment";
   if (status === "awaiting_verification") return "Paid";
   if (status === "confirmed") return "Confirmed";
