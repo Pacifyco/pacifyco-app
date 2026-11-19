@@ -205,7 +205,9 @@ def test_the_api_role_cannot_change_an_amount_or_delete_a_payment(client, db_eng
     assert pay(client, finished_parent, booking["id"]).status_code == 201
     for statement in (
         "UPDATE payments SET amount_paise = 1 WHERE booking_id = :b",
-        "UPDATE payments SET upi_reference = '000000000000' WHERE booking_id = :b",
+        # (A charge's UPI reference may be set and cleared since 2026-11-19, so it isn't here; test_charges.)
+        "UPDATE payments SET kind = 'refund' WHERE booking_id = :b",
+        "UPDATE payments SET parent_id = booking_id WHERE booking_id = :b",
         "DELETE FROM payments WHERE booking_id = :b",
     ):
         with db_engine.connect() as conn, pytest.raises(Exception, match="permission denied"):

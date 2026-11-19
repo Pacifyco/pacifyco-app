@@ -56,9 +56,22 @@ describe("Your payments", () => {
   });
 
   test("money owed is said plainly", async () => {
-    renderWith({ owed_paise: 69900, payments: [{ ...PAID, kind: "overtime", status: "pending", amount_paise: 69900 }] });
+    const owed = { ...PAID, id: "c1", kind: "cancellation_charge" as const, status: "pending" as const, upi_reference: null, amount_paise: 69900 };
+    renderWith({ owed_paise: 69900, payments: [owed] });
     expect(await screen.findByText("You owe Pacifyco ₹699. You can't make new bookings until it's paid.")).toBeTruthy();
     expect(screen.getByText("To pay")).toBeTruthy();
+    // A charge opens its own page, where it's paid.
+    expect(screen.getByRole("link", { name: /Pay now/ }).getAttribute("href")).toBe("/parent/payments/c1");
+    expect(screen.getByText("Late cancellation charge").closest("a")!.getAttribute("href")).toBe("/parent/payments/c1");
+  });
+
+  test("a charge being checked, or rejected", () => {
+    const charge = { ...PAID, kind: "cancellation_charge" as const, status: "pending" as const };
+    expect(statusText({ ...charge, upi_reference: "555566667777" })).toBe("Pacifyco is checking it");
+    expect(statusText({ ...charge, upi_reference: null, rejection_reason: "No such payment." })).toBe(
+      "Not confirmed: No such payment. Please pay again",
+    );
+    expect(statusText({ ...charge, status: "confirmed" })).toBe("Paid");
   });
 
   test("nothing yet", async () => {

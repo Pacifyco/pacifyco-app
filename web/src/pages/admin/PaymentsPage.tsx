@@ -13,6 +13,7 @@ import { errorMessage } from "./shared";
 
 type PaymentToCheck = {
   id: string;
+  kind: "booking" | "cancellation_charge" | "overtime";
   booking_id: string;
   parent_id: string;
   parent_name: string | null;
@@ -61,6 +62,12 @@ function when(iso: string): string {
 }
 
 /** What happened, in one line, for the toast after confirming. */
+const KIND_WORDS: Record<PaymentToCheck["kind"], string> = {
+  booking: "Booking payment",
+  cancellation_charge: "Late cancellation charge",
+  overtime: "Overtime",
+};
+
 export function confirmedMessage(decision: Decision): string {
   if (decision.refund_owed) return "Payment recorded. The time was already taken, so a refund is owed.";
   const booking =
@@ -95,7 +102,14 @@ function PaymentItem({ payment }: { payment: PaymentToCheck }) {
         ...(rejectWith === null ? {} : { body: JSON.stringify({ reason: rejectWith }) }),
       }),
     onSuccess: async (decision, rejectWith) => {
-      showToast(rejectWith === null ? confirmedMessage(decision) : "Payment rejected. The parent has been told why.");
+      const charge = payment.kind !== "booking";
+      showToast(
+        rejectWith !== null
+          ? "Payment rejected. The parent has been told why."
+          : charge
+            ? "Charge paid. It's no longer owed."
+            : confirmedMessage(decision),
+      );
       await queryClient.invalidateQueries({ queryKey: PAYMENTS_KEY });
     },
     onError: (failed) => setError(errorMessage(failed)),
@@ -110,6 +124,7 @@ function PaymentItem({ payment }: { payment: PaymentToCheck }) {
 
   return (
     <li className="flex flex-col gap-4 border-t border-line py-5 first:border-t-0">
+      <p className="text-eyebrow text-muted uppercase">{KIND_WORDS[payment.kind]}</p>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-h3 text-ink">{rupees(payment.amount_paise)}</p>
         <p className="text-ui text-ink">
@@ -129,10 +144,14 @@ function PaymentItem({ payment }: { payment: PaymentToCheck }) {
         </Detail>
         <Detail label="Note on the payment">{payment.note}</Detail>
         <Detail label="Sent">{when(payment.sent_at)}</Detail>
-        <Detail label="Pay by">{when(payment.pay_by)}</Detail>
-        <Detail label="Children">
-          {payment.children_verified ? "All verified" : "Not all verified yet: it will wait for them"}
-        </Detail>
+        {payment.kind === "booking" && (
+          <>
+            <Detail label="Pay by">{when(payment.pay_by)}</Detail>
+            <Detail label="Children">
+              {payment.children_verified ? "All verified" : "Not all verified yet: it will wait for them"}
+            </Detail>
+          </>
+        )}
       </dl>
       {rejecting ? (
         <form noValidate onSubmit={reject} className="flex flex-col gap-3">

@@ -448,8 +448,12 @@ at home (CLAUDE.md 6.3).
   confirm. Refunds as `payments` rows; a late parent cancellation keeps the money (or owes it as a
   `cancellation_charge` if their payment is rejected); a late sitter cancellation records a strike
   (`strikes` table, migration 5683c7b4cb45; the ladder and blocking are the Strikes item). Emails to the
-  other side, and to admins when a sitter cancels. Paying a cancellation charge has no screen yet (it shows
-  as owed and blocks new bookings); it comes with overtime payments in phase 8
+  other side, and to admins when a sitter cancels.
+  - Paying a charge, built 2026-11-19 (brought forward from phase 8): `/parent/payments/:id` shows the UPI
+    details and takes the reference (`POST /parent/payments/{id}/payment`); the "You owe" notice has a Pay
+    now button; it joins the admin Payments queue, where confirming marks it paid and rejecting clears the
+    reference with a reason. Still owed (blocking bookings) until confirmed. Overtime will use the same
+    flow. Migration f7b9d1e3a5c6 lets the API's role set `payments.upi_reference`
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
 - [ ] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12)
 - [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit (doctor's note strike removal was built with Strikes, 2026-11-19)
@@ -537,6 +541,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-19 — Paying a charge by UPI (late cancellation charges; overtime later).
 - 2026-11-19 — Strikes: ladder, blocking, admin add/remove, doctor's note.
 - 2026-11-19 — Cancellations (3-hour and 8-hour rules), strikes recorded for late sitter cancellations;
   parent list texts for requests. e2e 13.

@@ -18,6 +18,7 @@ import { FindSittersPage } from "./pages/FindSittersPage";
 import { HomePage } from "./pages/HomePage";
 import { JoinPage } from "./pages/JoinPage";
 import { ParentTermsPage, PrivacyPolicyPage, SitterTermsPage } from "./pages/LegalPages";
+import { ChargePage } from "./pages/ChargePage";
 import { ParentBookingsPage } from "./pages/ParentBookingsPage";
 import { SitterBookingPage } from "./pages/SitterBookingPage";
 import { SitterBookingsPage } from "./pages/SitterBookingsPage";
@@ -74,6 +75,7 @@ export const routes: RouteObject[] = [
           ["parent/bookings", "parent", <ParentBookingsPage />],
           ["parent/bookings/:bookingId", "parent", <BookingPage />],
           ["parent/payments", "parent", <ParentPaymentsPage />],
+          ["parent/payments/:paymentId", "parent", <ChargePage />],
           ["sitter/availability", "sitter", <AvailabilityPage />],
           ["sitter/requests", "sitter", <SitterRequestsPage />],
           ["sitter/strikes", "sitter", <SitterStrikesPage />],

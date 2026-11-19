@@ -49,7 +49,23 @@ export function statusText(item: PaymentHistoryItem): string {
     if (item.status === "rejected") return `Not confirmed: ${item.rejection_reason ?? "please check the reference"}`;
     return "Paid";
   }
-  return item.status === "confirmed" ? "Paid" : item.status === "rejected" ? "Not confirmed" : "To pay";
+  // A charge (a late cancellation; overtime later): owed until Pacifyco confirms the payment.
+  if (item.status === "confirmed") return "Paid";
+  if (item.upi_reference) return "Pacifyco is checking it";
+  if (item.rejection_reason) return `Not confirmed: ${item.rejection_reason} Please pay again`;
+  return "To pay";
+}
+
+const CHARGES: Kind[] = ["cancellation_charge", "overtime"];
+
+/** A charge opens its own page, where it's paid; everything else opens its booking. */
+function linkFor(item: PaymentHistoryItem): string {
+  return CHARGES.includes(item.kind) ? `/parent/payments/${item.id}` : `/parent/bookings/${item.booking_id}`;
+}
+
+/** The first charge still to pay, for the "Pay now" button. */
+function firstToPay(items: PaymentHistoryItem[]): PaymentHistoryItem | undefined {
+  return items.find((item) => CHARGES.includes(item.kind) && item.status === "pending" && !item.upi_reference);
 }
 
 function PaymentRow({ item }: { item: PaymentHistoryItem }) {
@@ -58,7 +74,7 @@ function PaymentRow({ item }: { item: PaymentHistoryItem }) {
   const refund = item.kind === "refund";
   return (
     <li className="border-t border-line first:border-t-0">
-      <Link to={`/parent/bookings/${item.booking_id}`} className="flex items-center gap-4 py-4 text-ink no-underline">
+      <Link to={linkFor(item)} className="flex items-center gap-4 py-4 text-ink no-underline">
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-ui">{TITLES[item.kind]}</span>
           <span className="text-small text-muted">
@@ -94,10 +110,15 @@ export function ParentPaymentsPage() {
       {history.isSuccess && (
         <>
           {history.data.owed_paise > 0 && (
-            <Card as="section" padding="roomy" role="alert">
+            <Card as="section" padding="roomy" role="alert" className="flex flex-col items-start gap-3">
               <p className="text-ink">
                 You owe Pacifyco {rupees(history.data.owed_paise)}. You can't make new bookings until it's paid.
               </p>
+              {firstToPay(history.data.payments) && (
+                <ButtonLink to={linkFor(firstToPay(history.data.payments)!)} arrow>
+                  Pay now
+                </ButtonLink>
+              )}
             </Card>
           )}
           {history.data.payments.length === 0 ? (
