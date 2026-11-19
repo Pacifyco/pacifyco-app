@@ -20,6 +20,7 @@ import { formatDay, formatTime, joinNames, plural } from "../lib/format";
 import { hourlyPaise, rupees, type Price } from "../lib/prices";
 import { monthsOld } from "../lib/sitterLists";
 import { dayLabel, hourLabel, kolkataTime, todayInKolkata } from "../lib/times";
+import { noShowReportable, type BookingReport } from "../lib/reports";
 import { firstNameOf } from "./FindSittersPage";
 
 // "Book this sitter" (CLAUDE.md 6.1 and 6.4; phase 6). The parent picks a day and time from her free
@@ -57,6 +58,7 @@ export type Booking = {
   // A request (6.4): whether the sitter can see it yet, and when it lapses unanswered.
   seen_by_sitter: boolean;
   answer_by: string | null;
+  report: BookingReport | null; // parent not home, or the sitter didn't come (6.5)
   /** How to pay by UPI: only while it waits for payment and Pacifyco's UPI ID is set. */
   pay_by_upi: PayByUpi | null;
   /** The latest payment the parent sent for it. */
@@ -449,6 +451,8 @@ export function BookingPage() {
   const booking = useQuery({
     queryKey: ["booking", bookingId],
     queryFn: () => apiFetch<Booking>(`/parent/bookings/${bookingId}`),
+    // While a report is open, check for news every 30 seconds.
+    refetchInterval: (query) => (query.state.data?.report?.status === "open" ? 30_000 : false),
   });
   if (booking.isPending) return <p className="text-center text-muted">Loading…</p>;
   if (booking.isError) {
@@ -553,6 +557,27 @@ export function BookingPage() {
           </div>
         </Card>
       )}
+      {data.report && <ParentReport booking={data} firstName={firstName} />}
+      {data.status === "parent_absent" && (
+        <Card as="section" padding="roomy">
+          <p className="text-ink">
+            No one was home when {firstName} arrived, so the booking was closed and the whole booking is charged.
+          </p>
+        </Card>
+      )}
+      {data.status === "sitter_no_show" && (
+        <Card as="section" padding="roomy" className="flex flex-col gap-3">
+          <p className="text-ink">We're sorry: {firstName} didn't come. Pacifyco will refund you in full.</p>
+          <div>
+            <ButtonLink to="/parent/sitters">Find a sitter</ButtonLink>
+          </div>
+        </Card>
+      )}
+      {!data.report &&
+        ["confirmed", "in_progress"].includes(data.status) &&
+        noShowReportable(data.starts_at, data.ends_at, new Date()) && (
+          <NoShow booking={data} firstName={firstName} />
+        )}
       {PARENT_CAN_CANCEL.includes(data.status) && new Date(data.starts_at) > new Date() && (
         <CancelBooking booking={data} />
       )}
@@ -563,6 +588,86 @@ export function BookingPage() {
         </CancelledCard>
       )}
     </article>
+  );
+}
+
+/** A report about this booking (6.5): the sitter says no one is home, or the parent says she didn't come. */
+function ParentReport({ booking, firstName }: { booking: Booking; firstName: string }) {
+  const queryClient = useQueryClient();
+  const report = booking.report!;
+  const arrived = useMutation({
+    mutationFn: () => apiFetch<Booking>(`/parent/bookings/${booking.id}/arrived`, { method: "POST" }),
+    onSuccess: (updated) => queryClient.setQueryData(["booking", booking.id], updated),
+  });
+  if (report.status !== "open") return null;
+  if (report.kind === "sitter_no_show") {
+    return (
+      <Card as="section" padding="roomy" role="status">
+        <p className="text-ink">You've told us {firstName} didn't come. Pacifyco will call you.</p>
+      </Card>
+    );
+  }
+  if (report.responded_at) {
+    return (
+      <Card as="section" padding="roomy" role="status">
+        <p className="text-ink">Thank you. {firstName} will wait for you.</p>
+      </Card>
+    );
+  }
+  return (
+    <Card as="section" padding="roomy" role="alert" className="flex flex-col items-start gap-3 border-l-4 border-coral">
+      <p className="text-ink">
+        {firstName} is at your home and can't find you. If you're on your way, let her know. If no one responds
+        within 20 minutes of her report, she may leave and the whole booking is charged.
+      </p>
+      <Button arrow loading={arrived.isPending} onClick={() => arrived.mutate()}>
+        I have arrived
+      </Button>
+      {arrived.isError && (
+        <p role="alert" className="text-small text-danger">
+          That didn't go through. Please call Pacifyco on +91 8848873841.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/** The sitter hasn't come: from 30 minutes after the start (Reuben, 2026-11-19). */
+function NoShow({ booking, firstName }: { booking: Booking; firstName: string }) {
+  const queryClient = useQueryClient();
+  const [asking, setAsking] = useState(false);
+  const report = useMutation({
+    mutationFn: () => apiFetch<Booking>(`/parent/bookings/${booking.id}/no-show`, { method: "POST" }),
+    onSuccess: (updated) => queryClient.setQueryData(["booking", booking.id], updated),
+  });
+  if (!asking) {
+    return (
+      <div>
+        <Button variant="secondary" fullWidthOnPhone={false} onClick={() => setAsking(true)}>
+          {firstName} didn't come
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <p className="text-ink">
+        We'll tell Pacifyco, who will call you both. If it's confirmed, you'll be refunded in full.
+      </p>
+      {report.isError && (
+        <p role="alert" className="text-small text-danger">
+          {report.error instanceof ApiError ? report.error.message : "That didn't go through. Please try again."}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" loading={report.isPending} onClick={() => report.mutate()}>
+          Tell Pacifyco
+        </Button>
+        <Button variant="tertiary" onClick={() => setAsking(false)}>
+          Not now
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -626,6 +731,8 @@ function statusLabel(status: string): string {
   if (status === "requested") return "Request sent";
   if (status === "request_declined" || status === "request_lapsed") return "Not accepted";
   if (status.startsWith("cancelled_sitter")) return "Cancelled by the sitter";
+  if (status === "parent_absent") return "Closed: no one was home";
+  if (status === "sitter_no_show") return "The sitter didn't come";
   if (status === "pending_payment") return "Accepted: waiting for payment";
   if (status === "awaiting_verification") return "Paid";
   if (status === "confirmed") return "Confirmed";

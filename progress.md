@@ -454,7 +454,13 @@ at home (CLAUDE.md 6.3).
     now button; it joins the admin Payments queue, where confirming marks it paid and rejecting clears the
     reference with a reason. Still owed (blocking bookings) until confirmed. Overtime will use the same
     flow. Migration f7b9d1e3a5c6 lets the API's role set `payments.upi_reference`
-- [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
+- [x] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee.
+  `booking_reports` (migration 1ae5f9ea87ab), `services/reports.py`. Sitter: "No one's home" (no child
+  alone) and a 20-minute countdown; parent: "I have arrived" (Reuben, 2026-11-19), "Lakshmi didn't come"
+  from 30 minutes after the start (Reuben, 2026-11-19); admin: `/admin/reports` (mark answered, confirm,
+  dismiss with a reason). Confirmed no-show: refund and a strike. The show-up fee is recorded as the
+  `parent_absent` status; paying it comes with payouts (phase 9). The Emergency button the sitter is told
+  about isn't built yet (phase 8), so the copy points her to the parent, Pacifyco's number and 112
 - [ ] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12)
 - [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit (doctor's note strike removal was built with Strikes, 2026-11-19)
 - [x] Strikes: ladder, blocking, 6-month expiry, admin add/remove. `services/strikes.py`; `sitters.blocked_until`
@@ -541,6 +547,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-19 — Reports: parent not home (20-minute wait, I have arrived) and sitter no-show (from 30 minutes).
 - 2026-11-19 — Paying a charge by UPI (late cancellation charges; overtime later).
 - 2026-11-19 — Strikes: ladder, blocking, admin add/remove, doctor's note.
 - 2026-11-19 — Cancellations (3-hour and 8-hour rules), strikes recorded for late sitter cancellations;

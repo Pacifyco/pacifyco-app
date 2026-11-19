@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { kolkataTime } from "../lib/times";
@@ -42,6 +42,7 @@ const BOOKING: SitterBookingDetail = {
   address: "12 MG Road, Koramangala",
   pin_code: "560034",
   emergency_contact: { name: "Ravi Rao", relationship: "Uncle", phone: "+919876543210" },
+  report: null,
 };
 
 beforeEach(() => {
@@ -176,5 +177,71 @@ describe("She can't make it (6.5)", () => {
     expect(await screen.findByText("Cancelled by you")).toBeTruthy();
     expect(posted).toEqual([expect.stringMatching(/\/sitter\/bookings\/b1\/cancel$/)]);
     expect(screen.queryByRole("button", { name: "I can't make this booking" })).toBeNull();
+  });
+});
+
+describe("No one's home (6.5)", () => {
+  const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+  const NOW: SitterBookingDetail = { ...BOOKING, starts_at: minutesFromNow(-10), ends_at: minutesFromNow(110) };
+
+  function renderWithBooking(first: SitterBookingDetail, after?: SitterBookingDetail) {
+    let current = first;
+    const posted: { url: string; body: unknown }[] = [];
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posted.push({ url, body: JSON.parse(init.body as string) });
+        current = after ?? first;
+      }
+      return Promise.resolve(jsonResponse(current));
+    }) as unknown as typeof fetch);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/sitter/bookings/b1"]}>
+          <Routes>
+            <Route path="/sitter/bookings/:bookingId" element={<SitterBookingPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    return posted;
+  }
+
+  const OPEN = {
+    id: "r1",
+    kind: "parent_absent" as const,
+    status: "open" as const,
+    reported_at: minutesFromNow(-5),
+    responded_at: null,
+    can_leave_at: minutesFromNow(15),
+    decision_note: null,
+  };
+
+  test("asks that no child is alone, then reports it", async () => {
+    const posted = renderWithBooking(NOW, { ...NOW, report: OPEN });
+    fireEvent.click(await screen.findByRole("button", { name: "No one's home" }));
+    expect(screen.getByText(/call 112 if you need help/)).toBeTruthy();
+    const send = screen.getByRole("button", { name: "Tell Pacifyco no one's home" }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("No child is at home without an adult"));
+    fireEvent.click(send);
+    expect(await screen.findByText(/If no one responds in 1[45] minutes, you may leave\./)).toBeTruthy();
+    expect(posted).toEqual([
+      { url: expect.stringMatching(/\/sitter\/bookings\/b1\/parent-not-home$/), body: { no_child_alone: true } },
+    ]);
+  });
+
+  test("after 20 minutes she may leave; if the family responds she waits", async () => {
+    renderWithBooking({ ...NOW, report: { ...OPEN, can_leave_at: minutesFromNow(-1) } });
+    expect(await screen.findByText("No one has responded, so you may leave. Pacifyco will confirm your show-up fee of ₹200.")).toBeTruthy();
+    cleanup();
+    renderWithBooking({ ...NOW, report: { ...OPEN, responded_at: minutesFromNow(-1), can_leave_at: null } });
+    expect(await screen.findByText("The family has responded and is on the way. Please wait for them.")).toBeTruthy();
+  });
+
+  test("not before the booking starts", async () => {
+    renderWithBooking(BOOKING); // in 2030
+    await screen.findByRole("heading", { name: "Meera's family" });
+    expect(screen.queryByRole("button", { name: "No one's home" })).toBeNull();
   });
 });

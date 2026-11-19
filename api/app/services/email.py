@@ -489,6 +489,69 @@ def charge_reference_rejected(to: str, full_name: str | None, reason: str, payme
     )
 
 
+def report_alert(to: str, kind: str, starts_at: datetime, web_url: str) -> Email:
+    """To an admin: a report to act on now (6.5): phone both people."""
+    what = "A sitter says no one is home" if kind == "parent_absent" else "A parent says their sitter didn't come"
+    return Email(
+        to=to,
+        subject=f"{what}",
+        heading=f"{what}.",
+        body=(
+            f"For the booking that started {_when(starts_at)}. Please call both of them now, then confirm or "
+            "dismiss the report."
+        ),
+        button_label="Open the reports",
+        button_url=f"{web_url.rstrip('/')}/admin/reports",
+    )
+
+
+def sitter_at_your_home(
+    to: str, full_name: str | None, sitter_name: str | None, booking_id: object, web_url: str
+) -> Email:
+    """To the parent: the sitter is there and can't find anyone (6.5)."""
+    sitter = _first_name(sitter_name) if sitter_name else "Your sitter"
+    return Email(
+        to=to,
+        subject="Your sitter is at your home",
+        heading=f"{sitter} is at your home and can't find you.",
+        body=(
+            f"Hi {_first_name(full_name)}, {sitter} has arrived but no one is home. If you're on your way, open your "
+            "booking and press I have arrived, or call Pacifyco. If no one responds within 20 minutes she may leave, "
+            "and the whole booking is charged."
+        ),
+        button_label="Open your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )
+
+
+def no_show_reported(to: str, full_name: str | None, family_name: str, starts_at: datetime, web_url: str) -> Email:
+    """To the sitter: the family says she didn't come."""
+    return Email(
+        to=to,
+        subject="A family says you didn't arrive",
+        heading="A family says you didn't arrive.",
+        body=(
+            f"Hi {_first_name(full_name)}, {family_name}'s family says you didn't arrive for the booking that started "
+            f"{_when(starts_at)}. Pacifyco will call you. If it's confirmed it counts as a missed booking: a strike."
+        ),
+        button_label="See your bookings",
+        button_url=f"{web_url.rstrip('/')}/sitter/bookings",
+    )
+
+
+def report_decided(
+    to: str, full_name: str | None, heading: str, body: str, button_label: str, button_url: str
+) -> Email:
+    return Email(
+        to=to,
+        subject=heading,
+        heading=heading,
+        body=f"Hi {_first_name(full_name)}, {body}",
+        button_label=button_label,
+        button_url=button_url,
+    )
+
+
 def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_url: str) -> Email:
     """To an admin: payments to check before their bookings start. No names or amounts, only the count
     and the earliest start."""
