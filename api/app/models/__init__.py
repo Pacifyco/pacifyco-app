@@ -27,8 +27,11 @@ from app.models.sitters import (
     Sitter,
     SitterLevel,
 )
+from app.models.strikes import Strike, StrikeReason
 
 __all__ = [
+    "Strike",
+    "StrikeReason",
     "AcceptanceMethod",
     "AuditLog",
     "AuthorisedAdult",

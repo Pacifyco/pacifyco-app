@@ -324,6 +324,14 @@ documents; the LLPIN, registered office and emergency line were taken out of the
 | Only adult at home is a man (decided 2026-11-12) | The sitter may decline the booking on the spot and reports it with the Issues button (6.9). Parent pays for the whole booking (no refund, as in the Family Terms). No strike; Pacify pays the sitter a **flat ₹100**. |
 | Sitter leaves because she feels unsafe | Only once the child is with a parent or a named adult; she presses Emergency. Once an admin confirms the report, she's paid for the time worked and it's not a strike. |
 
+**How cancelling works in the app (built 2026-11-19, `api/app/services/cancellations.py`):** only before
+the start. Exactly 3 (or 8) hours before counts as in time. The parent can cancel a request (withdrawn,
+nothing paid), an accepted booking waiting for payment, or a paid one; the sitter can cancel what she
+accepted (she declines a request instead). A UPI reference still being checked is decided later: confirmed,
+it's refunded (or kept after a late parent cancellation); rejected after a late parent cancellation, the
+price is owed as a `cancellation_charge`. A late sitter cancellation adds a `strikes` row. The other side is
+emailed, and when the sitter cancels the admins are too, to look for a replacement (Family Terms 4.7).
+
 **Parent not home:** the sitter calls the parent and presses Report; admins try to reach the parent too.
 She may leave, and is paid the show-up fee, only if no parent responds within **20 minutes** of the report (the app
 shows a countdown). If a child is there without an adult, she must not leave: the app routes her to the
@@ -630,7 +638,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `outing_requests` (id, booking_id, description, status: `pending|approved|declined`, decided_at)
 - `complaints` (id, raised_by, booking_id null, type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed`, late, first_reply_at, resolved_at, assigned_to, decided_by)
 - `overtime_charges` (id, booking_id, minutes_over, hours_charged (rounded up), amount_paise, sitter_pay_paise, created_at) — computed at check-out (6.8); its payment is a `payments` row
-- `strikes` (id, sitter_id, booking_id, reason, given_at, expires_at, removed_by null, removal_reason, doctor_note_document_id null)
+- `strikes` **(created)** (id, sitter_id, booking_id null (one strike per booking), reason: `late_cancellation|no_show|admin`, note, given_at, expires_at (6 months later), removed_by null, removed_at, removal_reason, doctor_note_document_id null) — kept, never deleted: the API's role can add rows and record a removal only
 - `incidents` (id, booking_id, raised_by, status: `open|acknowledged|resolved`, notes)
 - `messages` (id, parent_id, sitter_id, sender_id, body, created_at)
 - `reviews` (id, booking_id, author_id, subject_id, rating, body)

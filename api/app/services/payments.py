@@ -177,8 +177,9 @@ def confirm(db: Session, admin_id: uuid.UUID, payment_id: uuid.UUID, now: dateti
         _cancel_taken(db, booking)
     if booking.status == BookingStatus.pending_payment:
         cancelled = bookings_service.mark_paid(db, admin_id, booking)
-    else:
+    elif booking.status != BookingStatus.cancelled_parent_late:
         refund = _owe_refund(db, admin_id, payment)
+    # A late parent cancellation is charged in full (6.5): that money is kept.
     db.commit()
     return Confirmed(payment, booking, refund, cancelled)
 
@@ -220,8 +221,41 @@ def reject(db: Session, admin_id: uuid.UUID, payment_id: uuid.UUID, reason: str,
     )
     db.flush()
     bookings_service.cancel_unpaid(db, now, booking.id)
+    if booking.status == BookingStatus.cancelled_parent_late:
+        _charge_late_cancellation(db, admin_id, booking, now)
     db.commit()
     return payment
+
+
+def _charge_late_cancellation(db: Session, admin_id: uuid.UUID, booking: Booking, now: datetime) -> None:
+    """The parent cancelled late and the payment they'd sent didn't arrive: the whole booking is still
+    charged (6.5), so it's owed as a cancellation charge, which blocks new bookings until paid."""
+    covered = db.scalar(
+        select(Payment.id).where(
+            Payment.booking_id == booking.id,
+            Payment.kind.in_((PaymentKind.booking, PaymentKind.cancellation_charge)),
+            Payment.status.in_((PaymentStatus.pending, PaymentStatus.confirmed)),
+        )
+    )
+    if covered is not None:
+        return
+    charge = Payment(
+        booking_id=booking.id,
+        parent_id=booking.parent_id,
+        kind=PaymentKind.cancellation_charge,
+        amount_paise=booking.price_paise,
+        status=PaymentStatus.pending,
+    )
+    db.add(charge)
+    db.flush()
+    audit.record(
+        db,
+        admin_id,
+        "cancellation_charge_owed",
+        "payment",
+        str(charge.id),
+        after={"booking_id": str(booking.id), "amount_paise": charge.amount_paise},
+    )
 
 
 def mark_refunded(

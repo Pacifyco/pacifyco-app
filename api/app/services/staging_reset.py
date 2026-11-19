@@ -26,6 +26,7 @@ from app.models import (
     PsychAttempt,
     Reference,
     Role,
+    Strike,
 )
 
 
@@ -79,6 +80,7 @@ def delete_all(db: Session, found: Found) -> None:
     # Payments, then bookings: they hold their parent, sitter and children (RESTRICT); a booking's
     # children and home info rows go with it.
     db.execute(delete(Payment).where(Payment.id.in_(payment_ids)))
+    db.execute(delete(Strike).where(or_(Strike.booking_id.in_(booking_ids), Strike.sitter_id.in_(ids))))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
     db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
     db.execute(delete(Document).where(Document.id.in_(document_ids)))

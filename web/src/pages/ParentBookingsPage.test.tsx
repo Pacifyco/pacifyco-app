@@ -71,7 +71,7 @@ describe("Your bookings", () => {
 
   test("statuses in the parent's words", () => {
     expect(bookingStatusText({ ...UPCOMING, status: "pending_payment" })).toBe(
-      "Waiting for payment: please pay by Mon, 7 Jan, 6:00 am",
+      "Accepted: please pay by Mon, 7 Jan, 6:00 am",
     );
     expect(bookingStatusText({ ...UPCOMING, status: "pending_payment", payment_sent: true })).toBe(
       "Pacifyco is checking your payment",
@@ -82,6 +82,14 @@ describe("Your bookings", () => {
     expect(bookingStatusText({ ...UPCOMING, status: "cancelled_slot_taken" })).toBe(
       "Cancelled: another booking was confirmed first",
     );
+    expect(bookingStatusText({ ...UPCOMING, status: "requested" })).toBe("Request sent: waiting for Lakshmi's answer");
+    expect(bookingStatusText({ ...UPCOMING, status: "request_lapsed" })).toBe(
+      "Not accepted: Lakshmi didn't answer in time",
+    );
+    expect(bookingStatusText({ ...UPCOMING, status: "cancelled_parent_late" })).toBe(
+      "Cancelled by you, less than 3 hours before: charged",
+    );
+    expect(bookingStatusText({ ...UPCOMING, status: "cancelled_sitter_late" })).toBe("Cancelled by Lakshmi");
     expect(bookingStatusText({ ...UPCOMING, status: "cancelled_unverified" })).toBe(
       "Cancelled: a child wasn't verified by the start",
     );

@@ -6,8 +6,8 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.models import Booking, Profile
-from app.services import bookings
+from app.models import Booking, PaymentStatus, Profile
+from app.services import bookings, payments
 from app.services import email as email_service
 from app.services.email import EmailClient
 from app.settings import LOCAL_WEB_ORIGIN, Settings
@@ -64,3 +64,31 @@ def tell_parent_not_taken(
             parent.email, parent.full_name, sitter.full_name, lapsed, booking.id, web_url(settings)
         )
     )
+
+
+def tell_sitter_cancelled_by_family(
+    db: Session, mailer: EmailClient, settings: Settings, booking_id: uuid.UUID
+) -> None:
+    booking, parent, sitter = _people(db, booking_id)
+    mailer.send(
+        email_service.cancelled_by_family(
+            sitter.email, sitter.full_name, _first(parent.full_name), booking.starts_at, web_url(settings)
+        )
+    )
+
+
+def tell_cancelled_by_sitter(
+    db: Session, mailer: EmailClient, settings: Settings, booking_id: uuid.UUID, *, late: bool
+) -> None:
+    """The parent, and the admins so they can look for a replacement (Family Terms 4.7)."""
+    booking, parent, sitter = _people(db, booking_id)
+    # Money paid, or a UPI reference still being checked, comes back.
+    sent = payments.latest_booking_payment(db, booking.id)
+    refunded = sent is not None and sent.status != PaymentStatus.rejected
+    mailer.send(
+        email_service.cancelled_by_sitter(
+            parent.email, parent.full_name, sitter.full_name, refunded, booking.id, web_url(settings)
+        )
+    )
+    for to in settings.admin_alert_emails:
+        mailer.send(email_service.sitter_cancelled_alert(to, late, booking.starts_at, web_url(settings)))

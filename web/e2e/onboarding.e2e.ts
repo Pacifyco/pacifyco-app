@@ -433,3 +433,16 @@ test("the sitter sees the confirmed booking and her pay, never the price", async
   await expect(page.getByRole("heading", { name: "Emergency contact" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(/₹499|Pause|Unwind|Recharge/);
 });
+
+test("the parent cancels in time and is refunded; the sitter sees it cancelled", async () => {
+  const page = parent.page;
+  await page.goto("/parent/bookings");
+  await page.getByRole("tabpanel").getByRole("link").first().click();
+  await page.getByRole("button", { name: "Cancel this booking" }).click();
+  await expect(page.getByText("You'll be refunded ₹499 in full.")).toBeVisible();
+  await page.getByRole("button", { name: "Yes, cancel it" }).click();
+  await expect(page.getByText("You cancelled this booking. Pacifyco will refund you in full.")).toBeVisible();
+
+  await sitter.page.goto("/sitter/bookings?show=past");
+  await expect(sitter.page.getByRole("tabpanel")).toContainText("Cancelled by the family");
+});
