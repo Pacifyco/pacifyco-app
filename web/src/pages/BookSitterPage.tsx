@@ -63,7 +63,7 @@ export type Booking = {
   payment: Payment | null;
 };
 
-type PayByUpi = { upi_id: string; payee_name: string; amount_paise: number; note: string; upi_link: string };
+export type PayByUpi = { upi_id: string; payee_name: string; amount_paise: number; note: string; upi_link: string };
 type Payment = {
   status: "pending" | "confirmed" | "rejected";
   upi_reference: string | null;
@@ -703,7 +703,7 @@ function PaymentCard({ booking }: { booking: Booking }) {
       {booking.pay_by_upi ? (
         <>
           <UpiDetails upi={booking.pay_by_upi} />
-          <ReferenceForm bookingId={booking.id} />
+          <ReferenceForm path={`/parent/bookings/${booking.id}/payment`} queryKey={["booking", booking.id]} />
         </>
       ) : (
         <p className="text-ink">We can't take payments just yet. Please check back soon.</p>
@@ -713,7 +713,7 @@ function PaymentCard({ booking }: { booking: Booking }) {
   );
 }
 
-function UpiDetails({ upi }: { upi: PayByUpi }) {
+export function UpiDetails({ upi }: { upi: PayByUpi }) {
   const qr = useQrCode(upi.upi_link);
 
   async function copy() {
@@ -781,24 +781,25 @@ function useQrCode(link: string): string | null {
   return image;
 }
 
-function ReferenceForm({ bookingId }: { bookingId: string }) {
+/** The 12-digit UPI reference, sent to `path`; the answer replaces what `queryKey` holds. */
+export function ReferenceForm({ path, queryKey }: { path: string; queryKey: unknown[] }) {
   const queryClient = useQueryClient();
   const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
   const send = useMutation({
     mutationFn: (upi_reference: string) =>
-      apiFetch<Booking>(`/parent/bookings/${bookingId}/payment`, {
+      apiFetch<unknown>(path, {
         method: "POST",
         body: JSON.stringify({ upi_reference }),
       }),
-    onSuccess: (booking) => {
-      queryClient.setQueryData(["booking", bookingId], booking);
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated);
       showToast("Payment sent. We'll check it soon.");
     },
     onError: async (failed) => {
       setError(failed instanceof ApiError ? failed.message : "Something went wrong. Please try again.");
       if (failed instanceof ApiError && failed.status === 409) {
-        await queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
+        await queryClient.invalidateQueries({ queryKey });
       }
     },
   });

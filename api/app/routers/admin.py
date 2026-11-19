@@ -17,6 +17,7 @@ from app.models import (
     OnboardingStatus,
     OnboardingStepName,
     Payment,
+    PaymentKind,
     PaymentStatus,
     PayoutMethod,
     Profile,
@@ -556,6 +557,7 @@ class PaymentToCheck(BaseModel):
     or reject it. Admins see the plan (parents never do)."""
 
     id: uuid.UUID
+    kind: PaymentKind  # booking, or a charge (cancellation_charge; overtime in phase 8)
     booking_id: uuid.UUID
     parent_id: uuid.UUID
     parent_name: str | None
@@ -610,6 +612,7 @@ def payments_queue(admin: Admin, db: DbSession) -> PaymentsQueue:
         checks.append(
             PaymentToCheck(
                 id=payment.id,
+                kind=payment.kind,
                 booking_id=booking.id,
                 parent_id=parent.id,
                 parent_name=parent.full_name,
@@ -620,8 +623,12 @@ def payments_queue(admin: Admin, db: DbSession) -> PaymentsQueue:
                 hours=booking.units,
                 amount_paise=payment.amount_paise,
                 upi_reference=payment.upi_reference,
-                note=payments_service.booking_note(booking.id),
-                sent_at=payment.created_at,
+                note=payments_service.booking_note(booking.id)
+                if payment.kind == PaymentKind.booking
+                else payments_service.charge_note(payment.id),
+                sent_at=payment.created_at
+                if payment.kind == PaymentKind.booking
+                else payments_service.reference_sent_at(db, payment) or payment.created_at,
                 pay_by=bookings_service.pay_by(booking),
                 booking_status=booking.status,
                 children_verified=bookings_service.children_verified(db, booking.id),
@@ -684,10 +691,38 @@ def _tell_cancelled_for(db: DbSession, mailer: Mailer, settings: Settings, booki
     _tell_slot_taken(db, mailer, settings, _booking(db, booking_id), paid=sent is not None)
 
 
+def _charge_decided(db: DbSession, mailer: Mailer, settings: Settings, charge: Payment, rejected: str | None):
+    booking = db.get(Booking, charge.booking_id)
+    assert booking is not None
+    parent, _ = _people(db, booking)
+    if rejected is None:
+        mailer.send(
+            email_service.charge_paid(
+                parent.email, parent.full_name, charge.amount_paise, charge.id, _web_url(settings)
+            )
+        )
+    else:
+        mailer.send(
+            email_service.charge_reference_rejected(
+                parent.email, parent.full_name, rejected, charge.id, _web_url(settings)
+            )
+        )
+    return PaymentDecisionOut(
+        status=PaymentStatus.confirmed if rejected is None else PaymentStatus.rejected,
+        booking_status=booking.status,
+        refund_owed=False,
+        cancelled_bookings=0,
+    )
+
+
 @router.post("/payments/{payment_id}/confirm")
 def confirm_payment(
     payment_id: uuid.UUID, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
 ) -> PaymentDecisionOut:
+    charge = payments_service.sent_charge(db, payment_id)
+    if charge is not None:  # a charge the parent has paid (6.5, 6.8): no longer owed
+        payments_service.confirm_charge(db, admin.id, charge, datetime.now(UTC))
+        return _charge_decided(db, mailer, settings, charge, None)
     done = payments_service.confirm(db, admin.id, payment_id, datetime.now(UTC))
     booking = done.booking
     if done.refund is not None:  # it lost her time to another booking
@@ -736,6 +771,10 @@ def reject_payment(
     mailer: Mailer,
     settings: AppSettings,
 ) -> PaymentDecisionOut:
+    charge = payments_service.sent_charge(db, payment_id)
+    if charge is not None:  # the reference is cleared; the charge is still owed
+        payments_service.reject_charge_reference(db, admin.id, charge, body.reason)
+        return _charge_decided(db, mailer, settings, charge, body.reason)
     payment = payments_service.reject(db, admin.id, payment_id, body.reason, datetime.now(UTC))
     booking = db.get(Booking, payment.booking_id)
     assert booking is not None

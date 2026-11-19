@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from urllib.parse import quote, urlencode
 
-from sqlalchemy import String, cast, exists, select
+from sqlalchemy import String, and_, cast, exists, or_, select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
@@ -40,20 +40,33 @@ def booking_note(booking_id: uuid.UUID) -> str:
     return f"Pacifyco booking {str(booking_id)[:8].upper()}"
 
 
-def payment_instructions(upi_id: str, booking: Booking) -> PaymentInstructions | None:
-    """How to pay for this booking, or None while Pacifyco's UPI ID isn't set."""
+def charge_note(payment_id: uuid.UUID) -> str:
+    """The note for paying a charge (a late cancellation now, overtime later), to match it the same way."""
+    return f"Pacifyco charge {str(payment_id)[:8].upper()}"
+
+
+def _instructions(upi_id: str, amount_paise: int, note: str) -> PaymentInstructions | None:
+    """How to pay this amount by UPI, or None while Pacifyco's UPI ID isn't set."""
     if not upi_id:
         return None
-    note = booking_note(booking.id)
     params = {
         "pa": upi_id,
         "pn": PAYEE_NAME,
-        "am": f"{booking.price_paise // 100}.{booking.price_paise % 100:02d}",
+        "am": f"{amount_paise // 100}.{amount_paise % 100:02d}",
         "cu": "INR",
         "tn": note,
     }
     link = "upi://pay?" + urlencode(params, quote_via=quote, safe="@")
-    return PaymentInstructions(upi_id, PAYEE_NAME, booking.price_paise, note, link)
+    return PaymentInstructions(upi_id, PAYEE_NAME, amount_paise, note, link)
+
+
+def payment_instructions(upi_id: str, booking: Booking) -> PaymentInstructions | None:
+    """How to pay for this booking, or None while Pacifyco's UPI ID isn't set."""
+    return _instructions(upi_id, booking.price_paise, booking_note(booking.id))
+
+
+def charge_instructions(upi_id: str, charge: Payment) -> PaymentInstructions | None:
+    return _instructions(upi_id, charge.amount_paise, charge_note(charge.id))
 
 
 def latest_booking_payment(db: Session, booking_id: uuid.UUID) -> Payment | None:
@@ -117,6 +130,117 @@ def submit_upi_reference(db: Session, parent: Profile, booking_id: uuid.UUID, re
     )
     db.commit()
     return payment
+
+
+# ---------- paying a charge (6.5, 6.8) ----------
+#
+# A charge (a late cancellation's price now; overtime in phase 8) is a `pending` row: money owed. The parent
+# pays it by UPI and sends the 12-digit reference, kept on the charge itself; an admin confirms it (paid)
+# or rejects the reference (it's cleared, with the reason shown, and the charge is still owed). Until an
+# admin confirms it, it's still owed, so it keeps blocking new bookings (6.4).
+
+CHARGE_KINDS = (PaymentKind.cancellation_charge, PaymentKind.overtime)
+
+
+def parents_charge(db: Session, parent_id: uuid.UUID, payment_id: uuid.UUID) -> Payment:
+    charge = db.scalar(
+        select(Payment).where(Payment.id == payment_id, Payment.parent_id == parent_id, Payment.kind.in_(CHARGE_KINDS))
+    )
+    if charge is None:
+        raise AppError(404, "not_found", "We couldn't find that charge.")
+    return charge
+
+
+def submit_charge_reference(
+    db: Session, parent: Profile, payment_id: uuid.UUID, reference: str, now: datetime
+) -> Payment:
+    """The parent says they've paid a charge: the reference is kept on it for an admin to check."""
+    charge = parents_charge(db, parent.id, payment_id)
+    reference = reference.strip()
+    if not UPI_REFERENCE.match(reference):
+        raise AppError(422, "invalid_upi_reference", "Please enter the 12-digit UPI reference from your UPI app.")
+    db.refresh(charge, with_for_update=True)
+    if charge.status != PaymentStatus.pending:
+        raise AppError(409, "not_waiting_for_payment", "This charge isn't waiting for a payment.")
+    if charge.upi_reference is not None:
+        raise AppError(409, "payment_already_sent", "You've already sent the payment for this charge.")
+    used = db.scalar(
+        select(Payment.id).where(Payment.upi_reference == reference, Payment.status != PaymentStatus.rejected)
+    )
+    if used is not None:
+        raise AppError(
+            409, "upi_reference_used", "That UPI reference has already been sent. Please check it and try again."
+        )
+    charge.upi_reference = reference
+    charge.rejection_reason = None  # an earlier reference's rejection no longer applies
+    audit.record(
+        db,
+        parent.id,
+        CHARGE_SENT,
+        "payment",
+        str(charge.id),
+        after={"kind": charge.kind.value, "amount_paise": charge.amount_paise},
+    )
+    db.commit()
+    return charge
+
+
+CHARGE_SENT = "charge_payment_submitted"
+
+
+def reference_sent_at(db: Session, charge: Payment) -> datetime | None:
+    """When the parent sent the charge's current reference (from the audit log)."""
+    return db.scalar(
+        select(AuditLog.created_at)
+        .where(AuditLog.action == CHARGE_SENT, AuditLog.entity == "payment", AuditLog.entity_id == str(charge.id))
+        .order_by(AuditLog.created_at.desc())
+        .limit(1)
+    )
+
+
+def sent_charge(db: Session, payment_id: uuid.UUID) -> Payment | None:
+    """A charge with a reference waiting for an admin, locked; None if it isn't a charge."""
+    charge = db.scalar(select(Payment).where(Payment.id == payment_id).with_for_update())
+    if charge is None or charge.kind not in CHARGE_KINDS:
+        return None
+    if charge.status != PaymentStatus.pending or charge.upi_reference is None:
+        raise AppError(409, "payment_already_decided", "This payment has already been confirmed or rejected.")
+    return charge
+
+
+def confirm_charge(db: Session, admin_id: uuid.UUID, charge: Payment, now: datetime) -> Payment:
+    """The money for the charge is in Pacifyco's account: it's paid and no longer owed."""
+    charge.status = PaymentStatus.confirmed
+    charge.confirmed_by = admin_id
+    charge.confirmed_at = now
+    audit.record(
+        db,
+        admin_id,
+        "payment_confirmed",
+        "payment",
+        str(charge.id),
+        before={"status": PaymentStatus.pending.value},
+        after={"status": charge.status.value, "kind": charge.kind.value, "amount_paise": charge.amount_paise},
+    )
+    db.commit()
+    return charge
+
+
+def reject_charge_reference(db: Session, admin_id: uuid.UUID, charge: Payment, reason: str) -> Payment:
+    """The money didn't arrive: the reference is cleared, the parent sees why, and the charge is still owed."""
+    audit.record(
+        db,
+        admin_id,
+        "charge_reference_rejected",
+        "payment",
+        str(charge.id),
+        before={"upi_reference": charge.upi_reference},
+        after={"upi_reference": None, "reason": reason},
+    )
+    charge.upi_reference = None
+    charge.rejection_reason = reason
+    db.commit()
+    return charge
 
 
 # ---------- an admin's decision (6.1) ----------
@@ -330,18 +454,23 @@ def mark_alerted(db: Session, found: list[Unchecked]) -> None:
 
 
 def waiting_for_admins(db: Session) -> tuple[list[Payment], list[Payment]]:
-    """Booking payments to check and refunds still to pay back, oldest first."""
+    """Payments to check (booking payments, and charges with a reference sent) and refunds still to pay
+    back, oldest first."""
 
-    def pending(kind: PaymentKind) -> list[Payment]:
+    def pending(*conditions) -> list[Payment]:
         return list(
             db.scalars(
-                select(Payment)
-                .where(Payment.kind == kind, Payment.status == PaymentStatus.pending)
-                .order_by(Payment.created_at)
+                select(Payment).where(Payment.status == PaymentStatus.pending, *conditions).order_by(Payment.created_at)
             )
         )
 
-    return pending(PaymentKind.booking), pending(PaymentKind.refund)
+    to_check = pending(
+        or_(
+            Payment.kind == PaymentKind.booking,
+            and_(Payment.kind.in_(CHARGE_KINDS), Payment.upi_reference.is_not(None)),
+        )
+    )
+    return to_check, pending(Payment.kind == PaymentKind.refund)
 
 
 # ---------- the parent's payment history (phase 6) ----------

@@ -31,8 +31,16 @@ class PaymentStatus(StrEnum):
     rejected = "rejected"
 
 
-# Columns an admin's decision writes; nothing else in a row can change (see the migration's grants).
-DECISION_COLUMNS = ("status", "confirmed_by", "confirmed_at", "rejection_reason", "transfer_reference")
+# Columns that can change after a row is added (see the migrations' grants): an admin's decision, and a
+# charge's UPI reference (sent by the parent, cleared if rejected). Nothing else, never an amount.
+DECISION_COLUMNS = (
+    "status",
+    "confirmed_by",
+    "confirmed_at",
+    "rejection_reason",
+    "transfer_reference",
+    "upi_reference",
+)
 
 
 class Payment(Base):

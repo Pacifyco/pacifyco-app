@@ -179,7 +179,8 @@ def test_api_role_cannot_touch_alembic_version(conn):
 APPEND_ONLY = {"audit_log", "consents", "legal_acceptances", "document_access_log"}
 # Append-only too, except an admin's decision on a row (CLAUDE.md 5): these columns, and only these.
 DECIDED_ONLY = {
-    "payments": {"status", "confirmed_by", "confirmed_at", "rejection_reason", "transfer_reference"},
+    # The UPI reference too: a charge's reference is kept on it and cleared if rejected (CLAUDE.md 6.5).
+    "payments": {"status", "confirmed_by", "confirmed_at", "rejection_reason", "transfer_reference", "upi_reference"},
     # A strike is kept; only its removal is recorded later (CLAUDE.md 6.6).
     "strikes": {"removed_by", "removed_at", "removal_reason", "doctor_note_document_id"},
 }

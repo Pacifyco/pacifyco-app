@@ -40,6 +40,7 @@ const QUEUE: PaymentsQueue = {
   to_check: [
     {
       id: "p1",
+      kind: "booking",
       booking_id: "b1",
       parent_id: "u1",
       parent_name: "Priya Sharma",
@@ -91,6 +92,17 @@ describe("Payments", () => {
     const refunds = screen.getByRole("region", { name: "Refunds to pay" });
     expect(within(refunds).getByText("Pay back ₹998")).toBeTruthy();
     expect(within(refunds).getByText("999999999999")).toBeTruthy();
+  });
+
+  test("a charge is labelled, without the booking-only details", async () => {
+    const charge = { ...QUEUE.to_check[0], id: "c1", kind: "cancellation_charge" as const, note: "Pacifyco charge C1" };
+    mockApi({ "GET /admin/payments": () => jsonResponse({ to_check: [charge], refunds: [] }) });
+    renderPage();
+    const toCheck = await screen.findByRole("region", { name: "Payments to check" });
+    expect(within(toCheck).getByText("Late cancellation charge")).toBeTruthy();
+    expect(within(toCheck).getByText("Pacifyco charge C1")).toBeTruthy();
+    expect(within(toCheck).queryByText("Pay by")).toBeNull();
+    expect(within(toCheck).queryByText(/Not all verified yet/)).toBeNull();
   });
 
   test("confirms a payment and says what happened", async () => {

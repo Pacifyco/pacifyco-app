@@ -14,6 +14,7 @@ from app.deps import DbSession
 from app.errors import AppError
 from app.models import (
     AuthorisedAdult,
+    Booking,
     BookingStatus,
     Child,
     EmergencyContact,
@@ -674,6 +675,55 @@ def cancel_booking(
     if done.was_accepted:
         booking_mail.tell_sitter_cancelled_by_family(db, mailer, settings, done.booking.id)
     return _booking_out(db, done.booking, settings)
+
+
+class ChargeOut(BaseModel):
+    """A charge the parent owes (6.5; overtime in phase 8) and how to pay it by UPI."""
+
+    id: uuid.UUID
+    kind: str  # cancellation_charge | overtime
+    amount_paise: int
+    status: str  # pending (owed) | confirmed (paid)
+    upi_reference: str | None  # sent and waiting for Pacifyco to check it
+    rejection_reason: str | None  # the last reference couldn't be confirmed
+    booking_id: uuid.UUID
+    booking_starts_at: datetime
+    sitter_name: str | None
+    pay_by_upi: PayByUpi | None  # only while it's owed, nothing sent, and the UPI ID is set
+
+
+def _charge_out(db: DbSession, charge, settings: Settings) -> ChargeOut:
+    booking = db.get(Booking, charge.booking_id)
+    assert booking is not None
+    sitter = db.get(Profile, booking.sitter_id)
+    owed = charge.status == PaymentStatus.pending and charge.upi_reference is None
+    instructions = payments_service.charge_instructions(settings.pacify_upi_id, charge) if owed else None
+    return ChargeOut(
+        id=charge.id,
+        kind=charge.kind.value,
+        amount_paise=charge.amount_paise,
+        status=charge.status.value,
+        upi_reference=charge.upi_reference,
+        rejection_reason=charge.rejection_reason if charge.status == PaymentStatus.pending else None,
+        booking_id=booking.id,
+        booking_starts_at=booking.starts_at,
+        sitter_name=sitter.full_name if sitter else None,
+        pay_by_upi=PayByUpi(**vars(instructions)) if instructions else None,
+    )
+
+
+@router.get("/payments/{payment_id}")
+def get_charge(payment_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings) -> ChargeOut:
+    return _charge_out(db, payments_service.parents_charge(db, parent.id, payment_id), settings)
+
+
+@router.post("/payments/{payment_id}/payment", status_code=201)
+def pay_charge(
+    payment_id: uuid.UUID, body: UpiReferenceIn, parent: Parent, db: DbSession, settings: AppSettings
+) -> ChargeOut:
+    """The parent has paid a charge by UPI: the reference waits for an admin to check it."""
+    charge = payments_service.submit_charge_reference(db, parent, payment_id, body.upi_reference, datetime.now(UTC))
+    return _charge_out(db, charge, settings)
 
 
 class UpiReferenceIn(BaseModel):

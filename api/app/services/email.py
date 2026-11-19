@@ -460,6 +460,35 @@ def sitter_removed_alert(to: str, sitter_name: str | None, web_url: str, sitter_
     )
 
 
+def _charge_url(web_url: str, payment_id: object) -> str:
+    return f"{web_url.rstrip('/')}/parent/payments/{payment_id}"
+
+
+def charge_paid(to: str, full_name: str | None, amount_paise: int, payment_id: object, web_url: str) -> Email:
+    return Email(
+        to=to,
+        subject="Your Pacifyco payment is confirmed",
+        heading=f"We've received your {_rupees(amount_paise)}.",
+        body=f"Hi {_first_name(full_name)}, thank you: Pacifyco has received your payment. You can book again.",
+        button_label="Find a sitter",
+        button_url=f"{web_url.rstrip('/')}/parent/sitters",
+    )
+
+
+def charge_reference_rejected(to: str, full_name: str | None, reason: str, payment_id: object, web_url: str) -> Email:
+    return Email(
+        to=to,
+        subject="We couldn't confirm your Pacifyco payment",
+        heading="We couldn't confirm your payment.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco couldn't confirm your payment.\nThe reason: {reason}\n"
+            "Please check the UPI reference and send it again."
+        ),
+        button_label="Open the payment",
+        button_url=_charge_url(web_url, payment_id),
+    )
+
+
 def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_url: str) -> Email:
     """To an admin: payments to check before their bookings start. No names or amounts, only the count
     and the earliest start."""
