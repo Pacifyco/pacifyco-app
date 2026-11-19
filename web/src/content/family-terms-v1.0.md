@@ -76,7 +76,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 4.2 **Price.** A booking's price is the plan's hourly price for the children on it, multiplied by the booked hours. For example, Recharge for 3 hours is ₹2,697. Add every child who will be there, so the sitter knows who they are caring for. Prices include applicable taxes unless the app says otherwise.
 
-4.3 **Paying.** Pay the full price of each booking in advance by UPI to the Pacifyco account shown in the app, and enter your UPI reference. The booking is confirmed once we confirm your payment. A booking that is not paid and confirmed by **3 hours before its start** is cancelled automatically. The sitter's time is not held until your payment is confirmed, so please pay as soon as you book.
+4.3 **Paying.** When you book, we send the sitter your request. The sitter can see it once every child on it is verified, and has up to 5 hours to accept or decline. Once the sitter accepts, their time is held for you: pay the full price by UPI to the Pacifyco account shown in the app, and enter your UPI reference. The booking is confirmed once we confirm your payment. A booking that is not paid by **3 hours before its start** is cancelled automatically.
 
 4.4 **Never pay the sitter.** Pay only through Pacifyco. Never pay a sitter directly in cash or by transfer for a booking.
 

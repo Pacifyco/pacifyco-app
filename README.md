@@ -285,7 +285,7 @@ plans and isn't announced; at launch it moves to Supabase Pro and Render Starter
 | Run | When (IST) | Targets | Tasks |
 | --- | --- | --- | --- |
 | `daily` | 2:00 am | staging and production | keep the database active (more in phases 6–7) |
-| `frequent` | every 30 minutes, 6:00 am to midnight | production only until launch | cancel bookings not paid by 3 hours before the start, and paid ones whose start came with a child unverified; email admins about payments unchecked about an hour before the start (more in phases 8–9) |
+| `frequent` | every 30 minutes, 6:00 am to midnight | production only until launch | lapse requests the sitter didn't answer in time; cancel bookings not paid by 3 hours before the start, and paid ones whose start came with a child unverified; email admins about payments unchecked about an hour before the start (more in phases 8–9) |
 
 Run one by hand: GitHub → Actions → Scheduled jobs → Run workflow.
 

@@ -17,6 +17,9 @@ tests.
 
 ## Open questions (ask Reuben; don't guess)
 
+- [x] **Family Terms 4.3 and booking requests** (Reuben, 2026-11-19): 4.3 rewritten in place to match 6.4
+  (the request goes to the sitter, who has up to 5 hours to accept; then the parent pays by 3 hours
+  before the start). Fingerprint updated in `web/src/lib/legal.test.tsx`.
 - [x] **A payment still unchecked when the booking starts** (Reuben, 2026-11-19): admins are emailed about
   it about an hour before the start (frequent job `alert_unchecked_payments`, once per payment), so it
   rarely happens. If it still does, the API refuses to confirm it (`booking_started`) and the admin
@@ -417,7 +420,7 @@ at home (CLAUDE.md 6.3).
 ## Phase 7 — Bookings, cancellations, strikes
 
 - [ ] Book a time: plan and level match, plan's latest end, Pause one child, bath time, children 18 months+, camera declaration, parent profile finished, `pending_payment` → confirmed only once paid **and** every child is verified, remove availability; "try a 1-hour first booking at home" nudge with a new sitter
-- [ ] Parent and sitter booking lists and detail pages (sitters see only confirmed bookings)
+- [x] Parent and sitter booking lists and detail pages (sitters see only confirmed bookings)
   - Parent's side done 2026-11-18: a "Bookings" tab beside "Find a sitter" in the header (`AreaNav`),
     `/parent/bookings` (`GET /parent/bookings`) with Upcoming (soonest first) and Past (ended or cancelled,
     most recent first) tabs, each row opening the booking page (whose Back link now returns to the list).
@@ -426,7 +429,20 @@ at home (CLAUDE.md 6.3).
     (`GET /sitter/bookings`) with Upcoming and Past tabs, only bookings that were confirmed (never one
     waiting for payment or a child's verification). Each shows who, bath time, the family's camera
     answer and her pay for the booked hours (`services/sitter_pay.py`, 6.2), never the price or plan.
-    Her home shows her next booking. Still to do: detail pages (address, children's care notes)
+    Her home shows her next booking.
+  - Sitter's booking page done 2026-11-19: `/sitter/bookings/:id` (`GET /sitter/bookings/{id}`, only her
+    confirmed bookings, else 404): each child's age, allergies, medical notes (medicine) and routines,
+    bath time, cameras, her pay. While it's ahead, the home address (Reuben, 2026-11-19: once
+    confirmed) and the family's emergency contact; past or cancelled bookings leave them out. The
+    parent's booking page was built in phase 6
+- [x] Requests: the sitter accepts before the parent pays (Reuben, 2026-11-19; CLAUDE.md 6.4). The request
+  shows to her once every child is verified; 5 hours to answer (or until 4 hours before the start);
+  accepting holds her time and declines overlapping requests; lapsed or declined requests tell the
+  parent; earliest start 6 hours ahead. Built 2026-11-19: statuses `requested`, `request_declined`,
+  `request_lapsed` and `bookings.request_visible_at` (migration d4f6b8c0e2a5); sitter Requests tab
+  (`/sitter/requests`) with Accept/Decline on the request page; emails to the sitter (new request) and
+  parent (accepted, declined, lapsed); frequent job `lapse_requests`, also checked when opened.
+  Family Terms 4.3 rewritten to match (Reuben, 2026-11-19)
 - [ ] Cancellations with 3-hour and 8-hour rules
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
 - [ ] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12)
@@ -510,6 +526,8 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-19 — Booking requests: the sitter accepts before the parent pays; earliest start 6 hours. e2e 12.
+- 2026-11-19 — Sitter booking page: address once confirmed, children's care notes, emergency contact.
 - 2026-11-19 — Sitter bookings list and home card; admins emailed about payments unchecked about an
   hour before the start. e2e 10.
 - 2026-11-18 — Parent "Bookings" tab: upcoming and past bookings. e2e 9.

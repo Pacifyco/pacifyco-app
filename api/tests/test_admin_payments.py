@@ -182,14 +182,29 @@ def another_family(client, db_engine, storage):
     cleanup_documents(db_engine, other["id"])
 
 
+def older_overlap(client, db_engine, other, kid, booking) -> dict:
+    """Another family's booking for the same time, waiting for payment, as could happen before requests
+    held her time (CLAUDE.md 6.4): made while ours didn't hold it."""
+    ours = status(db_engine, booking["id"])
+    set_booking_status(db_engine, booking["id"], "requested")
+    theirs = book(client, other, {"id": booking["sitter_id"]}, child_ids=[kid])
+    assert theirs.status_code == 201, theirs.text
+    set_booking_status(db_engine, booking["id"], ours)
+    set_booking_status(db_engine, theirs.json()["id"], "pending_payment")
+    return theirs.json()
+
+
+def set_booking_status(db_engine, booking_id, value) -> None:
+    with db_engine.begin() as conn:
+        conn.execute(text("UPDATE bookings SET status = :s WHERE id = :b"), {"s": value, "b": booking_id})
+
+
 def test_the_first_confirmed_payment_wins_and_the_others_are_cancelled(
     client, reviewer, db_engine, mailbox, booking, finished_parent, paid, another_family
 ):
     other, kid = another_family
-    # The other family books the same time with her and pays too.
-    theirs = book(client, other, {"id": booking["sitter_id"]}, child_ids=[kid])
-    assert theirs.status_code == 201, theirs.text
-    theirs = theirs.json()
+    # Another family's older booking for the same time, paid too.
+    theirs = older_overlap(client, db_engine, other, kid, booking)
     assert pay(client, other, theirs["id"], "999999999999").status_code == 201
 
     verify_children(db_engine, finished_parent["id"])
@@ -232,9 +247,7 @@ def test_a_paid_booking_waiting_for_verification_loses_the_time_to_one_confirmed
     assert confirm(client, reviewer, paid).json()["booking_status"] == "awaiting_verification"
     other, kid = another_family
     # Her time is still free, so the other family can book it, and their children are verified.
-    theirs = book(client, other, {"id": booking["sitter_id"]}, child_ids=[kid])
-    assert theirs.status_code == 201, theirs.text
-    theirs = theirs.json()
+    theirs = older_overlap(client, db_engine, other, kid, booking)
     assert pay(client, other, theirs["id"], "999999999999").status_code == 201
     verify_children(db_engine, other["id"])
 

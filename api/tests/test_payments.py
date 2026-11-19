@@ -30,12 +30,20 @@ def upi_set(client):
 
 @pytest.fixture
 def booking(client, db_engine, finished_parent, free_sitter):
-    """A 2-hour booking with one child at Unwind's price, waiting for payment."""
+    """A 2-hour booking with one child at Unwind's price, accepted by the sitter and waiting for payment.
+
+    Accepted directly in the database, with the child still unverified, so the payment tests also cover
+    older bookings that can still reach `awaiting_verification` (CLAUDE.md 6.4). The request flow itself
+    is tested in test_requests.py."""
     sitter = free_sitter("unwind")
     kids = children_of(db_engine, finished_parent["id"])
     response = book(client, finished_parent, sitter, child_ids=kids[:1])
     assert response.status_code == 201, response.text
-    return response.json()
+    made = response.json()
+    with db_engine.begin() as conn:
+        conn.execute(text("UPDATE bookings SET status = 'pending_payment' WHERE id = :b"), {"b": made["id"]})
+    made["status"] = "pending_payment"
+    return made
 
 
 def pay(client, who, booking_id, reference="123456789012"):
@@ -72,10 +80,20 @@ def test_a_booking_shows_how_to_pay_by_upi(client, upi_set, booking, finished_pa
     assert "%20" in link.query and "+" not in link.query  # spaces encoded the way UPI apps read them
 
 
-def test_the_new_booking_already_says_how_to_pay(client, upi_set, db_engine, finished_parent, free_sitter):
+def accepted(db_engine, booking_id) -> None:
+    """As if the sitter had accepted the request (the request flow is in test_requests.py)."""
+    with db_engine.begin() as conn:
+        conn.execute(text("UPDATE bookings SET status = 'pending_payment' WHERE id = :b"), {"b": booking_id})
+
+
+def test_how_to_pay_only_once_the_sitter_accepts(client, upi_set, db_engine, finished_parent, free_sitter):
     kids = children_of(db_engine, finished_parent["id"])
     made = book(client, finished_parent, free_sitter("pause"), child_ids=kids[:1]).json()
-    assert parse_qs(urlsplit(made["pay_by_upi"]["upi_link"]).query)["am"] == ["998.00"]  # Pause, 2 hours
+    assert made["pay_by_upi"] is None  # a request: nothing to pay yet (6.4)
+    assert pay(client, finished_parent, made["id"]).status_code == 409
+    accepted(db_engine, made["id"])
+    shown = get(client, finished_parent, made["id"]).json()
+    assert parse_qs(urlsplit(shown["pay_by_upi"]["upi_link"]).query)["am"] == ["998.00"]  # Pause, 2 hours
 
 
 def test_no_upi_details_until_pacifycos_upi_id_is_set(client, booking, finished_parent):
@@ -140,6 +158,7 @@ def test_after_a_rejection_a_new_reference_can_be_sent(client, db_engine, bookin
 def test_one_upi_reference_pays_for_one_booking(client, db_engine, booking, finished_parent, free_sitter):
     kids = children_of(db_engine, finished_parent["id"])
     other = book(client, finished_parent, free_sitter("unwind"), child_ids=kids[:1]).json()
+    accepted(db_engine, other["id"])
     assert pay(client, finished_parent, booking["id"]).status_code == 201
     response = pay(client, finished_parent, other["id"])
     assert response.status_code == 409

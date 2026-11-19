@@ -1,5 +1,6 @@
 """Bookings (CLAUDE.md 6.4 and 8). A booking is made with one sitter for whole hours, at her plan's price,
-and waits as `pending_payment` until an admin confirms the parent's UPI payment (6.1).
+starts as a request the sitter accepts or declines (6.4), then waits as `pending_payment` until an admin
+confirms the parent's UPI payment (6.1).
 
 Columns for check-in codes, locations and admin closing come with the phases that need them (7 and 8).
 Parent and sitter links are RESTRICT: a booking is a money record and outlives any attempt to delete an
@@ -18,6 +19,12 @@ from app.models.sitters import SitterLevel
 
 
 class BookingStatus(StrEnum):
+    # A request: the sitter accepts or declines before the parent pays (Reuben, 2026-11-19). She sees it
+    # once every child on it is verified; unanswered in time, it lapses (6.4).
+    requested = "requested"
+    request_declined = "request_declined"
+    request_lapsed = "request_lapsed"
+    # Accepted by the sitter, holding her time while the parent pays (6.1, 6.4).
     pending_payment = "pending_payment"
     # Paid, but a child on it isn't verified yet: it holds her time and becomes `confirmed` when the last
     # child is approved (Reuben, 2026-11-18). The sitter doesn't see it until then (6.4).
@@ -63,8 +70,11 @@ class Booking(Base):
     price_paise: Mapped[int] = mapped_column(Integer)
     bath_time: Mapped[bool] = mapped_column(Boolean, server_default="false")
     status: Mapped[BookingStatus] = mapped_column(
-        enum_column(BookingStatus, "booking_status"), server_default=BookingStatus.pending_payment.value
+        enum_column(BookingStatus, "booking_status"), server_default=BookingStatus.requested.value
     )
+    # When the sitter could first see the request: every child on it verified (6.4). Her 5 hours to answer
+    # run from then.
+    request_visible_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at()
 
 

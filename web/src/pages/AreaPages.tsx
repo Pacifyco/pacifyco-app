@@ -7,7 +7,7 @@ import { ButtonLink, Card, EmptyState, IconTile } from "../components/ui";
 import { formatBookingTime } from "../lib/format";
 import { apiFetch } from "../lib/api";
 import { useChecklist, type SitterChecklist } from "./ProfileChecklist";
-import { sitterBookingLine, type SitterBookingList } from "./SitterBookingsPage";
+import { sitterBookingLine, type SitterBookingItem, type SitterBookingList } from "./SitterBookingsPage";
 
 // Each role's home (gated by RequireRole in routes.tsx). Parents have none: they land on Find a sitter.
 // The sitter's home (UX review 2026-11-13): a greeting; while she isn't live, where her application
@@ -96,7 +96,25 @@ function FirstBooking({ hasWeek }: { hasWeek: boolean }) {
   );
 }
 
-/** Her next confirmed booking, and the way to all of them. */
+/** Requests waiting for her answer: they lapse unanswered, so they come first (6.4). */
+function RequestsWaiting() {
+  const list = useQuery({ queryKey: ["sitter", "requests"], queryFn: () => apiFetch<SitterBookingItem[]>("/sitter/requests") });
+  const count = list.data?.length ?? 0;
+  if (!count) return null;
+  return (
+    <Card as="section" className="flex flex-col items-start gap-3 border-l-4 border-coral">
+      <p className="text-ui text-ink">
+        {count === 1 ? "A family would like to book you." : `${count} families would like to book you.`} Please answer
+        before the request lapses.
+      </p>
+      <ButtonLink to="/sitter/requests" arrow>
+        {count === 1 ? "See the request" : "See the requests"}
+      </ButtonLink>
+    </Card>
+  );
+}
+
+/** Her next booking, and the way to all of them. */
 function NextBooking() {
   const list = useQuery({ queryKey: ["sitter", "bookings"], queryFn: () => apiFetch<SitterBookingList>("/sitter/bookings") });
   if (list.isPending) return <p className="text-muted">Loading…</p>;
@@ -112,11 +130,13 @@ function NextBooking() {
   const more = (list.data?.upcoming.length ?? 1) - 1;
   return (
     <div className="flex flex-col gap-2">
-      <Card as="article" className="flex flex-col gap-2">
-        <p className="text-eyebrow text-muted uppercase">Next booking</p>
-        <p className="text-h3">{formatBookingTime(new Date(next.starts_at), new Date(next.ends_at))}</p>
-        <p className="text-body text-ink">{sitterBookingLine(next)}</p>
-      </Card>
+      <Link to={`/sitter/bookings/${next.id}`} className="text-ink no-underline">
+        <Card as="article" className="flex flex-col gap-2">
+          <p className="text-eyebrow text-muted uppercase">Next booking</p>
+          <p className="text-h3">{formatBookingTime(new Date(next.starts_at), new Date(next.ends_at))}</p>
+          <p className="text-body text-ink">{sitterBookingLine(next)}</p>
+        </Card>
+      </Link>
       <Link to="/sitter/bookings" className="text-small">
         {more > 0 ? `See all your bookings (${more} more coming up)` : "See all your bookings"}
       </Link>
@@ -156,6 +176,7 @@ export function SitterHomePage() {
       ) : (
         <>
           {!welcomed && <ApprovedWelcome pinCode={me.data?.profile?.pin_code ?? null} onClose={closeWelcome} />}
+          <RequestsWaiting />
           <h2 className="mt-2 text-ui font-semibold">Your bookings</h2>
           <NextBooking />
           <FirstBooking hasWeek={hasWeek} />

@@ -59,7 +59,7 @@ def test_frequent_run_cancels_unpaid_bookings(db_engine):
     response = client(db_engine).post("/internal/jobs/frequent", headers=bearer(SECRET))
     assert response.json() == {
         "run": "frequent",
-        "ran": ["cancel_unpaid_bookings", "cancel_unverified_bookings", "alert_unchecked_payments"],
+        "ran": ["lapse_requests", "cancel_unpaid_bookings", "cancel_unverified_bookings", "alert_unchecked_payments"],
     }
 
 

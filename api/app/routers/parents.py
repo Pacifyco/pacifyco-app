@@ -27,9 +27,10 @@ from app.models import (
 )
 from app.routers.auth import TermsVersion, request_info
 from app.services import availability as availability_service
+from app.services import booking_mail, checklists, consent, family, legal, pricing
 from app.services import bookings as bookings_service
-from app.services import checklists, consent, family, legal, pricing
 from app.services import children as children_service
+from app.services import email as email_service
 from app.services import payments as payments_service
 from app.services import search as search_service
 from app.services import sitters as sitters_service
@@ -515,12 +516,17 @@ class BookingOut(BaseModel):
     camera_locations: str | None
     status: str
     pay_by: datetime  # unpaid bookings are cancelled at this time (6.1)
+    # A request (6.4): whether the sitter can see it yet (every child verified), and when it lapses if she
+    # hasn't answered.
+    seen_by_sitter: bool
+    answer_by: datetime | None
     # Only while the booking waits for payment and Pacifyco's UPI ID is set.
     pay_by_upi: PayByUpi | None
     payment: PaymentOut | None
 
 
 AppSettings = Annotated[Settings, Depends(get_settings)]
+Mailer = Annotated[email_service.EmailClient, Depends(email_service.get_email)]
 
 
 def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
@@ -546,6 +552,8 @@ def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
         camera_locations=home.camera_locations if home else None,
         status=booking.status.value,
         pay_by=bookings_service.pay_by(booking),
+        seen_by_sitter=booking.request_visible_at is not None,
+        answer_by=bookings_service.answer_by(booking) if booking.status == BookingStatus.requested else None,
         pay_by_upi=PayByUpi(**vars(instructions)) if instructions else None,
         payment=PaymentOut(
             status=payment.status.value,
@@ -559,9 +567,13 @@ def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
 
 
 @router.post("/bookings", status_code=201)
-def post_booking(body: BookingIn, parent: Parent, db: DbSession, settings: AppSettings) -> BookingOut:
+def post_booking(body: BookingIn, parent: Parent, db: DbSession, settings: AppSettings, mailer: Mailer) -> BookingOut:
+    """A request to the sitter (6.4). She's told now if every child on it is verified; otherwise once
+    they are."""
     new = bookings_service.NewBooking(**body.model_dump())
     booking = bookings_service.create(db, parent, new, datetime.now(UTC))
+    if booking.request_visible_at is not None:
+        booking_mail.tell_sitter(db, mailer, settings, booking.id)
     return _booking_out(db, booking, settings)
 
 
@@ -592,9 +604,12 @@ def get_bookings(parent: Parent, db: DbSession) -> BookingList:
     """Every booking the parent has made (phase 7 "Parent booking lists")."""
     now = datetime.now(UTC)
     # Overdue ones are cancelled now, not at the next job run (as when one booking is opened).
-    if bookings_service.cancel_unpaid(db, now, parent_id=parent.id) or bookings_service.cancel_unverified(
-        db, now, parent_id=parent.id
-    ):
+    closed = [
+        bookings_service.lapse_requests(db, now, parent_id=parent.id),
+        bookings_service.cancel_unpaid(db, now, parent_id=parent.id),
+        bookings_service.cancel_unverified(db, now, parent_id=parent.id),
+    ]
+    if any(closed):
         db.commit()
     upcoming, past = bookings_service.parents_bookings(db, parent.id, now)
     everything = [*upcoming, *past]
@@ -637,10 +652,14 @@ def get_bookings(parent: Parent, db: DbSession) -> BookingList:
 @router.get("/bookings/{booking_id}")
 def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings) -> BookingOut:
     booking = bookings_service.parents_booking(db, parent.id, booking_id)
-    # Past its payment deadline with nothing sent, or started with a child still unverified: cancelled
-    # now, not at the next job run.
+    # A request not answered in time, past its payment deadline with nothing sent, or started with a child
+    # still unverified: closed now, not at the next job run. (The parent sees it here, so no email.)
     now = datetime.now(UTC)
-    if bookings_service.cancel_unpaid(db, now, booking.id) or bookings_service.cancel_unverified(db, now, booking.id):
+    if (
+        bookings_service.lapse_requests(db, now, booking_id=booking.id)
+        or bookings_service.cancel_unpaid(db, now, booking.id)
+        or bookings_service.cancel_unverified(db, now, booking.id)
+    ):
         db.commit()
         db.refresh(booking)
     return _booking_out(db, booking, settings)

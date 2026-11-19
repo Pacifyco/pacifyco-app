@@ -355,6 +355,8 @@ class ChildDecision:
     child: Child
     # What approving the child did to the parent's paid bookings (None when rejected).
     after: bookings.AfterVerification | None = None
+    # Requests now shown to their sitters, every child on them verified (6.4).
+    shown: tuple = ()
 
 
 def decide_child(
@@ -375,6 +377,7 @@ def decide_child(
 
     before = {"verification_status": child.verification_status.value}
     after = None
+    shown: tuple = ()
     child.verification_status = _decision(approved)
     child.verified_by = admin_id
     child.verified_at = _now()
@@ -400,8 +403,10 @@ def decide_child(
         # Paid bookings waiting only for this child are now confirmed (6.4), or refunded if their time
         # was taken first.
         after = bookings.confirm_verified(db, admin_id, child.parent_id, _now())
+        # Requests waiting only for this child now reach their sitters (Reuben, 2026-11-19).
+        shown = tuple(bookings.make_visible(db, child.parent_id, _now()))
     db.commit()
-    return ChildDecision(child, after)
+    return ChildDecision(child, after, shown)
 
 
 def _approve_parent(db: Session, admin_id: uuid.UUID, parent_id: uuid.UUID) -> None:

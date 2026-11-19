@@ -4,9 +4,9 @@ is a list of tasks. Every task must be idempotent: running it twice, or late, ch
 Later phases add their tasks here:
 - daily: pack expiry and carry-forward (phase 6), strike expiry (phase 7)
 - frequent (every 30 minutes, 6 am to midnight IST): cancelling unpaid bookings and paid ones that
-  started with a child unverified, and alerting admins to payments unchecked near the start (phase 6),
-  overdue
-  check-out alerts (phase 8), payouts-due alerts (phase 9). Keep these quick.
+  started with a child unverified, lapsing requests the sitter didn't answer in time, and alerting
+  admins to payments unchecked near the start (phase 6), overdue check-out alerts (phase 8),
+  payouts-due alerts (phase 9). Keep these quick.
 """
 
 from collections.abc import Callable
@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Connection, text
 from sqlalchemy.orm import Session
 
-from app.services import bookings, payments
+from app.services import booking_mail, bookings, payments
 from app.services import email as email_service
 from app.services.email import EmailClient
 from app.settings import Settings
@@ -52,6 +52,16 @@ def cancel_unverified_bookings(conn: Connection, _ctx: JobContext) -> None:
         db.commit()
 
 
+def lapse_requests(conn: Connection, ctx: JobContext) -> None:
+    """Requests the sitter didn't answer in time lapse, and the parents are told (Reuben, 2026-11-19).
+    Also checked when the request or a list of them is opened (`bookings.lapse_requests`)."""
+    with Session(bind=conn) as db:
+        lapsed = bookings.lapse_requests(db, datetime.now(UTC))
+        db.commit()
+        for booking_id in lapsed:
+            booking_mail.tell_parent_not_taken(db, ctx.mailer, ctx.settings, booking_id, lapsed=True)
+
+
 def alert_unchecked_payments(conn: Connection, ctx: JobContext) -> None:
     """Booking payments still unchecked as their booking nears its start: the admins are emailed once
     for each (Reuben, 2026-11-19), so a payment rarely reaches the start unchecked."""
@@ -73,6 +83,7 @@ def alert_unchecked_payments(conn: Connection, ctx: JobContext) -> None:
 RUNS: dict[str, list[tuple[str, Task]]] = {
     "daily": [("keep_database_active", keep_database_active)],
     "frequent": [
+        ("lapse_requests", lapse_requests),
         ("cancel_unpaid_bookings", cancel_unpaid_bookings),
         ("cancel_unverified_bookings", cancel_unverified_bookings),
         ("alert_unchecked_payments", alert_unchecked_payments),

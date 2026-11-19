@@ -55,7 +55,7 @@ def test_the_frequent_run_cancels_unpaid_bookings_past_the_deadline(client, db_e
     assert response.status_code == 200
     assert response.json() == {
         "run": "frequent",
-        "ran": ["cancel_unpaid_bookings", "cancel_unverified_bookings", "alert_unchecked_payments"],
+        "ran": ["lapse_requests", "cancel_unpaid_bookings", "cancel_unverified_bookings", "alert_unchecked_payments"],
     }
     assert status(db_engine, booking["id"]) == "cancelled_unpaid"
     audit = row(
@@ -151,7 +151,9 @@ def test_a_confirmed_booking_cancels_overlapping_unpaid_ones(client, db_engine, 
     inside = booked(sitter, 10, hours=1)  # 10 - 11 am
     touching = booked(sitter, 12)  # 12 - 2 pm: starts as the winner ends
     elsewhere = booked(other_sitter, 10)  # another sitter, same time
-    with db_engine.begin() as conn:
+    with db_engine.begin() as conn:  # older bookings, made before requests, all waiting for payment
+        for booking_id in (overlapping, inside, touching, elsewhere):
+            conn.execute(text("UPDATE bookings SET status = 'pending_payment' WHERE id = :b"), {"b": booking_id})
         conn.execute(text("UPDATE bookings SET status = 'confirmed' WHERE id = :b"), {"b": winner})
 
     with Session(db_engine) as db:

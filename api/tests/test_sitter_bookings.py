@@ -38,12 +38,24 @@ def set_status(db_engine, booking_id, status):
         conn.execute(text("UPDATE bookings SET status = :s WHERE id = :b"), {"s": status, "b": booking_id})
 
 
-def test_only_confirmed_bookings_show(client, db_engine, booking, finished_parent):
+def test_only_bookings_she_accepted_show(client, db_engine, booking, finished_parent):
     sitter = signed_in(db_engine, booking["sitter_id"])
-    assert listed(client, sitter) == {"upcoming": [], "past": []}  # waiting for payment
-    for hidden in ("awaiting_verification", "cancelled_unpaid", "cancelled_slot_taken", "cancelled_unverified"):
-        set_status(db_engine, booking["id"], hidden)
-        assert listed(client, sitter) == {"upcoming": [], "past": []}, hidden
+    # Accepted and waiting for the family to pay (the fixture's state): shown, without the address.
+    (waiting,) = listed(client, sitter)["upcoming"]
+    assert waiting["status"] == "pending_payment"
+    hidden = (
+        "requested",  # a request is in her requests, not her bookings
+        "request_declined",
+        "request_lapsed",
+        "awaiting_verification",
+        "cancelled_slot_taken",
+        "cancelled_unverified",
+    )
+    for status in hidden:
+        set_status(db_engine, booking["id"], status)
+        assert listed(client, sitter) == {"upcoming": [], "past": []}, status
+    set_status(db_engine, booking["id"], "cancelled_unpaid")  # she accepted, the family didn't pay
+    assert [item["status"] for item in listed(client, sitter)["past"]] == ["cancelled_unpaid"]
 
     set_status(db_engine, booking["id"], "confirmed")
     found = listed(client, sitter)
@@ -62,6 +74,7 @@ def test_only_confirmed_bookings_show(client, db_engine, booking, finished_paren
         "camera_locations": booking["camera_locations"],
         "pay_paise": 2 * 30_000,  # Unwind level pay, ₹300 an hour (6.2)
         "status": "confirmed",
+        "answer_by": None,
     }
     text_seen = str(found).lower()
     assert "price" not in text_seen and "unwind" not in text_seen and "plan" not in text_seen
@@ -85,7 +98,7 @@ def test_upcoming_soonest_first_and_past_most_recent_first(client, db_engine, fi
     done = made("completed", -timedelta(days=1))
     ended = made("confirmed", -timedelta(days=5))  # ended, not yet closed (phase 8)
     cancelled = made("cancelled_parent", timedelta(days=4))
-    made("pending_payment", timedelta(days=1))  # never shown to her
+    made("requested", timedelta(days=1))  # a request: in her requests, not here
 
     found = listed(client, sitter)
     assert [item["id"] for item in found["upcoming"]] == [sooner, later]
@@ -113,3 +126,68 @@ def test_only_her_own_bookings(client, db_engine, booking, free_sitter):
 def test_parents_and_admins_cant_open_it(client, finished_parent, admin):
     assert client.get("/sitter/bookings", headers=auth_for(finished_parent)).status_code == 403
     assert client.get("/sitter/bookings", headers=as_user(admin)).status_code == 403
+
+
+# ---------- one booking ----------
+
+
+def detail(client, who, booking_id):
+    return client.get(f"/sitter/bookings/{booking_id}", headers=auth_for(who))
+
+
+def test_a_confirmed_booking_shows_the_home_children_and_emergency_contact(client, db_engine, booking, finished_parent):
+    sitter = signed_in(db_engine, booking["sitter_id"])
+    child_id = children_of(db_engine, finished_parent["id"])[0]
+    with db_engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE children SET allergies = 'Peanuts', medical_notes = 'Inhaler at 6 pm', routines = 'Nap at 2'"
+                " WHERE id = :c"
+            ),
+            {"c": child_id},
+        )
+    set_status(db_engine, booking["id"], "confirmed")
+    response = detail(client, sitter, booking["id"])
+    assert response.status_code == 200, response.text
+    found = response.json()
+    profile = row(db_engine, "SELECT address, pin_code FROM profiles WHERE id = :p", p=finished_parent["id"])
+    assert found["address"] == profile["address"] and found["pin_code"] == profile["pin_code"]
+    contact = row(
+        db_engine,
+        "SELECT name, relationship, phone FROM emergency_contacts WHERE parent_id = :p",
+        p=finished_parent["id"],
+    )
+    assert found["emergency_contact"] == dict(contact)
+    (child,) = found["children_details"]
+    assert child["allergies"] == "Peanuts" and child["medical_notes"] == "Inhaler at 6 pm"
+    assert child["routines"] == "Nap at 2" and child["age_months"] >= 18
+    assert found["pay_paise"] == 2 * 30_000
+    seen = str(found).lower()
+    assert "price" not in seen and "unwind" not in seen and "plan" not in seen
+    assert "certificate" not in seen and "verification" not in seen
+
+
+def test_requests_she_cant_see_or_someone_elses_bookings_arent_found(client, db_engine, booking, free_sitter):
+    sitter = signed_in(db_engine, booking["sitter_id"])
+    for hidden in ("requested", "awaiting_verification", "cancelled_slot_taken", "request_lapsed"):
+        set_status(db_engine, booking["id"], hidden)  # requested: no child verified, so she can't see it
+        assert detail(client, sitter, booking["id"]).status_code == 404, hidden
+    set_status(db_engine, booking["id"], "confirmed")
+    assert detail(client, free_sitter("unwind"), booking["id"]).status_code == 404
+    assert detail(client, sitter, uuid.uuid4()).status_code == 404
+
+
+def test_past_or_cancelled_bookings_leave_out_the_address_and_contact(client, db_engine, booking):
+    sitter = signed_in(db_engine, booking["sitter_id"])
+    set_status(db_engine, booking["id"], "cancelled_parent")
+    found = detail(client, sitter, booking["id"]).json()
+    assert found["address"] is None and found["pin_code"] is None and found["emergency_contact"] is None
+    set_status(db_engine, booking["id"], "confirmed")
+    move(db_engine, booking["id"], datetime.now(UTC) - timedelta(days=1), 2)  # ended
+    found = detail(client, sitter, booking["id"]).json()
+    assert found["address"] is None and found["emergency_contact"] is None
+    assert found["children_details"]  # still who she looked after
+
+
+def test_parents_cant_open_it(client, booking, finished_parent):
+    assert client.get(f"/sitter/bookings/{booking['id']}", headers=auth_for(finished_parent)).status_code == 403

@@ -1,15 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router";
+import { ChevronRight } from "lucide-react";
+import { Link, useSearchParams } from "react-router";
 import { Card, EmptyState } from "../components/ui";
 import { cx } from "../components/ui/cx";
 import { apiFetch } from "../lib/api";
 import { formatBookingTime, joinNames } from "../lib/format";
 import { rupees } from "../lib/prices";
 
-// The sitter's bookings (CLAUDE.md 6.2 and 6.4; phase 7 "Sitter booking lists"): only confirmed ones,
+// The sitter's bookings (CLAUDE.md 6.2 and 6.4; phase 7 "Sitter booking lists"): the ones she accepted,
 // upcoming soonest first and the rest most recent first. She sees her pay for the booked hours, never
 // the price the family paid or the plan's name. What she needs before she goes: who, bath time and the
-// family's answer about cameras (6.4).
+// family's answer about cameras (6.4). Each opens the booking (`SitterBookingPage`).
 
 export type SitterBookingItem = {
   id: string;
@@ -23,6 +24,7 @@ export type SitterBookingItem = {
   camera_locations: string | null;
   pay_paise: number;
   status: string;
+  answer_by: string | null; // a request: when it lapses unanswered
 };
 
 export type SitterBookingList = { upcoming: SitterBookingItem[]; past: SitterBookingItem[] };
@@ -35,6 +37,16 @@ export function sitterBookingLine(item: SitterBookingItem): string {
 /** Where the booking is, in her words. */
 export function sitterStatusText(status: string): string {
   switch (status) {
+    case "requested":
+      return "Request";
+    case "request_declined":
+      return "You declined";
+    case "request_lapsed":
+      return "Not answered in time";
+    case "pending_payment":
+      return "Accepted: waiting for the family to pay";
+    case "cancelled_unpaid":
+      return "The family didn't pay in time";
     case "confirmed":
       return "Confirmed";
     case "in_progress":
@@ -63,16 +75,22 @@ function camerasText(item: SitterBookingItem): string {
 
 function BookingRow({ item }: { item: SitterBookingItem }) {
   return (
-    <li className="flex flex-col gap-1 border-t border-line py-4 first:border-t-0">
-      <span className="text-ui text-ink">{formatBookingTime(new Date(item.starts_at), new Date(item.ends_at))}</span>
-      <span className="text-small text-ink">
-        {sitterBookingLine(item)}
-        {item.bath_time ? " Bath time included." : ""}
-      </span>
-      <span className="text-small text-muted">{camerasText(item)}</span>
-      <span className="text-small text-muted">
-        {sitterStatusText(item.status)} · {rupees(item.pay_paise)} for {item.hours === 1 ? "1 hour" : `${item.hours} hours`}
-      </span>
+    <li className="border-t border-line first:border-t-0">
+      <Link to={`/sitter/bookings/${item.id}`} className="flex items-center gap-4 py-4 text-ink no-underline">
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="text-ui text-ink">{formatBookingTime(new Date(item.starts_at), new Date(item.ends_at))}</span>
+          <span className="text-small text-ink">
+            {sitterBookingLine(item)}
+            {item.bath_time ? " Bath time included." : ""}
+          </span>
+          <span className="text-small text-muted">{camerasText(item)}</span>
+          <span className="text-small text-muted">
+            {sitterStatusText(item.status)} · {rupees(item.pay_paise)} for{" "}
+            {item.hours === 1 ? "1 hour" : `${item.hours} hours`}
+          </span>
+        </span>
+        <ChevronRight aria-hidden="true" size={20} strokeWidth={1.75} className="shrink-0 text-muted" />
+      </Link>
     </li>
   );
 }

@@ -294,6 +294,64 @@ def booking_slot_taken(
     )
 
 
+def _when(moment: datetime) -> str:
+    local = moment.astimezone(INDIA)
+    return f"{local:%a} {local.day} {local:%b}, {_clock(local)}"
+
+
+def booking_requested(
+    to: str, full_name: str | None, family_name: str, answer_by: datetime, booking_id: object, web_url: str
+) -> Email:
+    """To the sitter: a request she can now see (every child on it verified)."""
+    return Email(
+        to=to,
+        subject="A new booking request on Pacifyco",
+        heading="You have a new booking request.",
+        body=(
+            f"Hi {_first_name(full_name)}, {family_name}'s family would like to book you.\n"
+            f"Please accept or decline by {_when(answer_by)}. After that the request lapses."
+        ),
+        button_label="See the request",
+        button_url=f"{web_url.rstrip('/')}/sitter/bookings/{booking_id}",
+    )
+
+
+def request_accepted(
+    to: str, full_name: str | None, sitter_name: str | None, pay_by: datetime, booking_id: object, web_url: str
+) -> Email:
+    sitter = _first_name(sitter_name) if sitter_name else "Your sitter"
+    return Email(
+        to=to,
+        subject="Your sitter has accepted: please pay to confirm",
+        heading=f"{sitter} has accepted your booking.",
+        body=(
+            f"Hi {_first_name(full_name)}, {sitter} can look after your children. Her time is held for you.\n"
+            f"Please pay by {_when(pay_by)} to confirm the booking. If it isn't paid by then, it's cancelled."
+        ),
+        button_label="Pay for your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )
+
+
+def request_not_taken(
+    to: str, full_name: str | None, sitter_name: str | None, lapsed: bool, booking_id: object, web_url: str
+) -> Email:
+    """The request was declined, or lapsed unanswered. Nothing was paid."""
+    sitter = _first_name(sitter_name) if sitter_name else "The sitter"
+    what = f"{sitter} didn't answer your request in time" if lapsed else f"{sitter} can't take your booking"
+    return Email(
+        to=to,
+        subject="Your booking request wasn't accepted",
+        heading=f"{what}.",
+        body=(
+            f"Hi {_first_name(full_name)}, {what}, so the request has closed. You haven't been charged.\n"
+            "You can book another sitter for the same time."
+        ),
+        button_label="Find a sitter",
+        button_url=f"{web_url.rstrip('/')}/parent/sitters",
+    )
+
+
 def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_url: str) -> Email:
     """To an admin: payments to check before their bookings start. No names or amounts, only the count
     and the earliest start."""

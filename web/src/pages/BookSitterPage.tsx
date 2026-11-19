@@ -54,6 +54,9 @@ export type Booking = {
   camera_locations: string | null;
   status: string;
   pay_by: string;
+  // A request (6.4): whether the sitter can see it yet, and when it lapses unanswered.
+  seen_by_sitter: boolean;
+  answer_by: string | null;
   /** How to pay by UPI: only while it waits for payment and Pacifyco's UPI ID is set. */
   pay_by_upi: PayByUpi | null;
   /** The latest payment the parent sent for it. */
@@ -339,8 +342,8 @@ function BookingForm({
         </p>
         {payBy && (
           <p className="text-small text-ink">
-            You'll pay by UPI on the next page. Please pay by {formatDay(payBy)}, {formatTime(payBy)}, 3 hours
-            before it starts, or the booking is cancelled.
+            This sends {firstName} a request. You pay by UPI once she accepts, by {formatDay(payBy)},{" "}
+            {formatTime(payBy)}, 3 hours before it starts.
           </p>
         )}
         {formError && (
@@ -349,7 +352,7 @@ function BookingForm({
           </p>
         )}
         <Button type="submit" arrow loading={book.isPending}>
-          Confirm this time
+          Send the request
         </Button>
       </Card>
     </form>
@@ -425,7 +428,7 @@ export function BookSitterPage() {
         />
       ) : options.data!.times.length === 0 ? (
         <EmptyState
-          message={`${firstName} has no free times in the next two weeks that start at least 4 hours from now.`}
+          message={`${firstName} has no free times in the next two weeks that start at least 6 hours from now.`}
           action={<ButtonLink to="/parent/sitters">Find another sitter</ButtonLink>}
         />
       ) : kids.length === 0 ? (
@@ -479,6 +482,7 @@ export function BookingPage() {
           {plural(data.hours, "hour", "hours")} · {rupees(data.price_paise)}
         </p>
       </Card>
+      {data.status === "requested" && <RequestCard booking={data} firstName={firstName} />}
       {waiting && <PaymentCard booking={data} />}
       {data.status === "awaiting_verification" && (
         <Card as="section" padding="roomy" className="flex flex-col gap-3">
@@ -509,6 +513,19 @@ export function BookingPage() {
           {data.payment ? " If you've paid, Pacifyco will refund you." : ""}
         </CancelledCard>
       )}
+      {(data.status === "request_declined" || data.status === "request_lapsed") && (
+        <Card as="section" padding="roomy" className="flex flex-col gap-3">
+          <p className="text-ink">
+            {data.status === "request_declined"
+              ? `${firstName} can't take this booking.`
+              : `${firstName} didn't answer in time, so the request has closed.`}{" "}
+            You haven't been charged. You can book another sitter for this time.
+          </p>
+          <div>
+            <ButtonLink to="/parent/sitters">Find a sitter</ButtonLink>
+          </div>
+        </Card>
+      )}
       {data.status === "cancelled_unverified" && (
         <CancelledCard sitterId={data.sitter_id}>
           This booking was cancelled because not every child on it was verified by the start time. Pacifyco will
@@ -520,11 +537,35 @@ export function BookingPage() {
 }
 
 function statusLabel(status: string): string {
-  if (status === "pending_payment") return "Waiting for payment";
+  if (status === "requested") return "Request sent";
+  if (status === "request_declined" || status === "request_lapsed") return "Not accepted";
+  if (status === "pending_payment") return "Accepted: waiting for payment";
   if (status === "awaiting_verification") return "Paid";
   if (status === "confirmed") return "Confirmed";
   if (status.startsWith("cancelled")) return "Cancelled";
   return "Booking";
+}
+
+/** A request waiting for the sitter's answer (6.4): nothing to pay until she accepts. */
+function RequestCard({ booking, firstName }: { booking: Booking; firstName: string }) {
+  const answerBy = booking.answer_by ? new Date(booking.answer_by) : null;
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      {booking.seen_by_sitter ? (
+        <p className="text-ink">
+          We've sent {firstName} your request.
+          {answerBy && ` She'll accept or decline by ${formatDay(answerBy)}, ${formatTime(answerBy)}.`} Once she
+          accepts, you'll pay here by UPI.
+        </p>
+      ) : (
+        <p className="text-ink">
+          {firstName} will see your request once Pacifyco has checked every child's birth certificate. Then she
+          has up to 5 hours to accept, and you'll pay here by UPI.
+        </p>
+      )}
+      <p className="text-small text-muted">Nothing to pay yet. We'll email you when she answers.</p>
+    </Card>
+  );
 }
 
 /** A booking Pacifyco cancelled before it was paid for (6.1 and 6.4), and a way to book again. */

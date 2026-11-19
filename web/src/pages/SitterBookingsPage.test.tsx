@@ -37,6 +37,7 @@ const NEXT: SitterBookingItem = {
   camera_locations: "Living room",
   pay_paise: 60000,
   status: "confirmed",
+  answer_by: null,
 };
 const DONE: SitterBookingItem = { ...NEXT, id: "b2", status: "cancelled_parent", bath_time: false, cameras_on: false };
 
