@@ -10,7 +10,7 @@ import { fillFamilyTerms, fillSitterTerms } from "./legal";
 // go in place and this is updated; after that, if this fails, undo the edit: a new version is a new file.
 const SITTER_TERMS_SHA256 = "57691377826cbd7e47fc0cd805acdd8ccd35cc91ef46b130cb34d4d5898a52f4";
 // The same for the Family Terms of Use v1.0 (from Reuben's .docx, brought in line with CLAUDE.md 2026-11-13).
-const FAMILY_TERMS_SHA256 = "a1c103f3c382b3a91cb24c9b4abf28e886467dad8a5471d3038a0027852467b6";
+const FAMILY_TERMS_SHA256 = "e51a8c4be5c89d01ebf18b90a854d844e6945c0c00574b2903bc4c61815b199d";
 // The sitter consent v1.0 (converted word for word from Reuben's "Sitter consent" .docx, 2026-11-12).
 const SITTER_CONSENT_SHA256 = "66196167b2bd055705e3fb417cef19803b1aa417b7757ac3ae53f724d7655433";
 
