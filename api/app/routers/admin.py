@@ -25,14 +25,17 @@ from app.models import (
     PsychQuestionKind,
     Role,
     SitterLevel,
+    StrikeReason,
     VerificationStatus,
 )
+from app.routers.sitters import StrikeOut, strikes_out
 from app.services import booking_mail, documents, verification
 from app.services import bookings as bookings_service
 from app.services import children as children_service
 from app.services import email as email_service
 from app.services import payments as payments_service
 from app.services import psych_tests as psych_tests_service
+from app.services import strikes as strikes_service
 from app.services.storage import StorageClient, get_storage
 from app.settings import LOCAL_WEB_ORIGIN, Settings, get_settings
 
@@ -774,3 +777,83 @@ def mark_refund_paid(
         email_service.refund_paid(parent.email, parent.full_name, -refund.amount_paise, booking.id, _web_url(settings))
     )
     return RefundOut(status=refund.status, transfer_reference=refund.transfer_reference)
+
+
+# ---------- strikes (CLAUDE.md 6.6) ----------
+
+
+class AdminStrike(StrikeOut):
+    removed_by: uuid.UUID | None
+    doctor_note_document_id: uuid.UUID | None  # view it with /admin/documents/{id}/view-url (logged)
+
+
+class AdminStrikes(BaseModel):
+    blocked_until: datetime | None
+    counting: int
+    strikes: list[AdminStrike]
+
+
+def _admin_strikes(db: DbSession, sitter_id: uuid.UUID) -> AdminStrikes:
+    mine = strikes_out(db, sitter_id)
+    found = {strike.id: strike for strike in strikes_service.for_sitter(db, sitter_id)}
+    return AdminStrikes(
+        blocked_until=mine.blocked_until,
+        counting=mine.counting,
+        strikes=[
+            AdminStrike(
+                **item.model_dump(),
+                removed_by=found[item.id].removed_by,
+                doctor_note_document_id=found[item.id].doctor_note_document_id,
+            )
+            for item in mine.strikes
+        ],
+    )
+
+
+@router.get("/sitters/{sitter_id}/strikes")
+def get_strikes(sitter_id: uuid.UUID, admin: Admin, db: DbSession) -> AdminStrikes:
+    verification.get_sitter(db, sitter_id)
+    return _admin_strikes(db, sitter_id)
+
+
+class StrikeReasonIn(BaseModel):
+    # Shown to the sitter.
+    reason: str = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def _not_blank(self) -> StrikeReasonIn:
+        cleaned = _clean_reason(self.reason)
+        if cleaned is None:
+            raise ValueError("Please give a reason; it's shown to the sitter")
+        self.reason = cleaned
+        return self
+
+
+@router.post("/sitters/{sitter_id}/strikes", status_code=201)
+def add_strike(
+    sitter_id: uuid.UUID, body: StrikeReasonIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AdminStrikes:
+    """An admin gives a strike with a reason (6.6). It blocks her like any other; a 5th removes her."""
+    profile, _ = verification.get_sitter(db, sitter_id)
+    done = strikes_service.give(db, admin.id, sitter_id, StrikeReason.admin, datetime.now(UTC), note=body.reason)
+    db.commit()
+    mailer.send(
+        email_service.strike_given(
+            profile.email, profile.full_name, body.reason, done.blocked_until, _web_url(settings)
+        )
+    )
+    if done.removed:
+        booking_mail.tell_removed_for_strikes(db, mailer, settings, sitter_id)
+    return _admin_strikes(db, sitter_id)
+
+
+@router.post("/strikes/{strike_id}/remove")
+def remove_strike(
+    strike_id: uuid.UUID, body: StrikeReasonIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AdminStrikes:
+    """An admin removes a strike with a reason, for example after a doctor's note (6.5, 6.6)."""
+    done = strikes_service.remove(db, admin.id, strike_id, body.reason, datetime.now(UTC))
+    profile = db.get(Profile, done.strike.sitter_id)
+    assert profile is not None
+    mailer.send(email_service.strike_removed(profile.email, profile.full_name, body.reason, _web_url(settings)))
+    return _admin_strikes(db, done.strike.sitter_id)

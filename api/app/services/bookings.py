@@ -513,6 +513,9 @@ def accept(db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID, now: dateti
     # Her own row first, so two accepts for her at once take turns.
     db.execute(select(Sitter.profile_id).where(Sitter.profile_id == sitter_id).with_for_update())
     booking = _open_request(db, sitter_id, booking_id, now)
+    blocked_until = db.scalar(select(Sitter.blocked_until).where(Sitter.profile_id == sitter_id))
+    if blocked_until is not None and blocked_until > now:
+        raise AppError(409, "blocked", "You can't take new bookings while a strike blocks you.")
     if slot_taken(db, booking):
         raise AppError(409, "time_taken", "You've already accepted a booking for this time.")
     audit.record(

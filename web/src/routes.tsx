@@ -22,6 +22,7 @@ import { ParentBookingsPage } from "./pages/ParentBookingsPage";
 import { SitterBookingPage } from "./pages/SitterBookingPage";
 import { SitterBookingsPage } from "./pages/SitterBookingsPage";
 import { SitterRequestsPage } from "./pages/SitterRequestsPage";
+import { SitterStrikesPage } from "./pages/SitterStrikesPage";
 import { ParentPaymentsPage } from "./pages/ParentPaymentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PsychTestPage } from "./pages/PsychTestPage";
@@ -75,6 +76,7 @@ export const routes: RouteObject[] = [
           ["parent/payments", "parent", <ParentPaymentsPage />],
           ["sitter/availability", "sitter", <AvailabilityPage />],
           ["sitter/requests", "sitter", <SitterRequestsPage />],
+          ["sitter/strikes", "sitter", <SitterStrikesPage />],
           ["sitter/bookings", "sitter", <SitterBookingsPage />],
           ["sitter/bookings/:bookingId", "sitter", <SitterBookingPage />],
         ] as const

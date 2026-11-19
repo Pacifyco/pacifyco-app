@@ -14,6 +14,7 @@ import {
   StatusPill,
   ViewDocumentButton,
 } from "./shared";
+import { StrikesSection } from "./StrikesSection";
 import { QUEUE_KEY } from "./VerificationQueuePage";
 
 // Reviewing one sitter (CLAUDE.md 7): each onboarding step, her references and psychology test, her
@@ -371,6 +372,7 @@ export function SitterReviewPage() {
           rejectLabel="Reject application"
         />
       </Section>
+      <StrikesSection sitterId={sitter.id} />
     </section>
   );
 }

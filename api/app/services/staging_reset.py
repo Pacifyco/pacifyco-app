@@ -73,14 +73,17 @@ def delete_all(db: Session, found: Found) -> None:
         select(Booking.id).where(or_(Booking.parent_id.in_(ids), Booking.sitter_id.in_(ids)))
     ).all()
     payment_ids = db.scalars(select(Payment.id).where(Payment.booking_id.in_(booking_ids))).all()
+    strike_ids = db.scalars(
+        select(Strike.id).where(or_(Strike.booking_id.in_(booking_ids), Strike.sitter_id.in_(ids)))
+    ).all()
     # Audit rows they made, and rows about them or their records (entity ids are stored as text).
-    records = [*ids, *child_ids, *document_ids, *reference_ids, *attempt_ids, *booking_ids, *payment_ids]
+    records = [*ids, *child_ids, *document_ids, *reference_ids, *attempt_ids, *booking_ids, *payment_ids, *strike_ids]
     about = [str(item) for item in records]
 
     # Payments, then bookings: they hold their parent, sitter and children (RESTRICT); a booking's
     # children and home info rows go with it.
     db.execute(delete(Payment).where(Payment.id.in_(payment_ids)))
-    db.execute(delete(Strike).where(or_(Strike.booking_id.in_(booking_ids), Strike.sitter_id.in_(ids))))
+    db.execute(delete(Strike).where(Strike.id.in_(strike_ids)))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
     db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
     db.execute(delete(Document).where(Document.id.in_(document_ids)))

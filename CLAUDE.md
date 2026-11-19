@@ -163,8 +163,7 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   to Sentry; responses never echo submitted values or internal details.
 - **Chat** uses polling (every 10 s while a chat is open) in v1. No websockets.
 - **Scheduled jobs** are idempotent API endpoints under `/internal/jobs/*`, protected by `JOBS_SECRET`
-  and called by a GitHub Actions schedule: strike expiry
-  (daily), overdue check-out alerts (every 30 minutes, 6 am–midnight IST — keep each run short to stay
+  and called by a GitHub Actions schedule: overdue check-out alerts (every 30 minutes, 6 am–midnight IST — keep each run short to stay
   inside GitHub Actions free minutes), payouts-due alerts (every 30 minutes, in the same run as overdue
   check-outs), auto-cancelling `pending_payment` bookings once their 3-hour payment deadline passes
   (6.1; same frequent run), cancelling and refunding `awaiting_verification` bookings whose start has
@@ -344,6 +343,15 @@ Emergency button instead.
 - Count only strikes given in the last 6 months; each strike expires 6 months after it was given.
 - Existing confirmed bookings stay unless an admin cancels them.
 - Admins can add or remove a strike with a reason (audit logged).
+- **How it works (built 2026-11-19, `api/app/services/strikes.py`):** each strike blocks from when it was
+  given, for its place on the ladder among the strikes counting then; the latest end wins and is kept as
+  `sitters.blocked_until`, worked out again whenever a strike is given or removed. A blocked sitter is
+  hidden from parents, can't be booked and can't accept requests (she can still decline). The 5th strike
+  sets her account to `removed`; she and the admins are emailed (her confirmed bookings need an admin). A
+  strike older than 6 months simply stops counting, so no daily expiry job is needed. A removed account
+  isn't restored automatically when a strike is removed. The sitter sees her strikes at `/sitter/strikes`
+  and can send a doctor's note for a late cancellation; admins see it on her review page and remove the
+  strike with a reason.
 
 ### 6.7 Check-in and check-out (codes)
 
@@ -618,7 +626,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status, verified_by, verified_at, verification_notes) — name and date of birth locked once verified
 - `emergency_contacts` **(created)** (id, parent_id, name, relationship, phone) — exactly one per family (was two)
 - `authorised_adults` **(created)** (id, parent_id, name, relationship, phone) — no longer asked for (2026-11-13)
-- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, university, semester (1-10), age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), reference_shared_consent, avg_rating, review_count) — no rate column (dropped 2026-11-03). Age groups (Toddler, Preschool, School age) and languages (English, Kannada, Hindi, Tamil, Malayalam, Telugu) come from fixed lists (`AGE_GROUPS`, `LANGUAGES` in `app/services/sitters.py`, UX review 2026-11-13); older free text is never shown to parents
+- `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, university, semester (1-10), age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), blocked_until (strikes, 6.6), reference_shared_consent, avg_rating, review_count) — no rate column (dropped 2026-11-03). Age groups (Toddler, Preschool, School age) and languages (English, Kannada, Hindi, Tamil, Malayalam, Telugu) come from fixed lists (`AGE_GROUPS`, `LANGUAGES` in `app/services/sitters.py`, UX review 2026-11-13); older free text is never shown to parents
 - `onboarding_steps` **(created)** (sitter_id, step: `profile|identity_documents|police_certificate`, status, notes, reviewed_by, reviewed_at) — admin reviews of steps 1-3; references and the psych test keep their own outcomes; `app/services/verification.py` combines them. Health disclosure views are logged in `audit_log` (`health_disclosure_viewed`)
 - `documents` **(created)** (id, owner_profile_id, child_id null, type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)
 - `document_access_log` **(created)** (id, document_id, admin_id, accessed_at)

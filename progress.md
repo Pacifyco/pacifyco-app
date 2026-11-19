@@ -452,8 +452,13 @@ at home (CLAUDE.md 6.3).
   as owed and blocks new bookings); it comes with overtime payments in phase 8
 - [ ] Parent-absent (20-minute wait) and sitter no-show reports, admin confirmation, ₹100 per booked hour show-up fee
 - [ ] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12)
-- [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit, doctor's note strike removal
-- [ ] Strikes: ladder, blocking, 6-month expiry job, admin add/remove
+- [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit (doctor's note strike removal was built with Strikes, 2026-11-19)
+- [x] Strikes: ladder, blocking, 6-month expiry, admin add/remove. `services/strikes.py`; `sitters.blocked_until`
+  (migration e495d3416292) hides a blocked sitter from parents, booking and accepting; the 5th strike
+  removes her account (she and the admins are emailed). Expiry is by date, so no daily job (CLAUDE.md 5
+  updated). Admin: Strikes on the sitter review page (give, remove with a reason, view a doctor's note).
+  Sitter: `/sitter/strikes` and a notice on her home; a doctor's note for a late cancellation
+  (`POST /sitter/strikes/{id}/doctor-note`). Bringing back a removed account is left to an admin
 - [ ] Tests for this phase
 
 ## Phase 8 — During the booking
@@ -532,6 +537,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-19 — Strikes: ladder, blocking, admin add/remove, doctor's note.
 - 2026-11-19 — Cancellations (3-hour and 8-hour rules), strikes recorded for late sitter cancellations;
   parent list texts for requests. e2e 13.
 - 2026-11-19 — Booking requests: the sitter accepts before the parent pays; earliest start 6 hours. e2e 12.

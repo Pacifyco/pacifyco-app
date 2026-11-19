@@ -24,12 +24,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Booking, BookingStatus, Payment, Sitter, Strike, StrikeReason
-from app.services import audit, bookings
+from app.models import Booking, BookingStatus, Payment, Sitter, StrikeReason
+from app.services import audit, bookings, strikes
 
 PARENT_NOTICE = timedelta(hours=3)
 SITTER_NOTICE = timedelta(hours=8)
-STRIKE_LASTS = timedelta(days=182)  # 6 months (6.6)
 
 # What each side can cancel. The parent: a request, an accepted booking waiting for payment, a paid one
 # (and older paid ones still waiting for a child's verification). The sitter: what she has accepted.
@@ -47,7 +46,7 @@ class Cancelled:
     booking: Booking
     late: bool
     refunds: list[Payment]
-    strike: Strike | None = None
+    strike: strikes.Outcome | None = None  # a late sitter cancellation's strike, and her block
     # Who to tell: the sitter only if she had accepted it (a request she never saw needs no email).
     was_accepted: bool = False
 
@@ -119,24 +118,8 @@ def by_sitter(db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID, now: dat
     db.flush()
     # The parent's money always comes back when the sitter cancels.
     refunds = bookings.refund_booking(db, sitter_id, booking.id)
-    strike = None
-    if late:
-        strike = Strike(
-            sitter_id=sitter_id,
-            booking_id=booking.id,
-            reason=StrikeReason.late_cancellation,
-            given_at=now,
-            expires_at=now + STRIKE_LASTS,
-        )
-        db.add(strike)
-        db.flush()
-        audit.record(
-            db,
-            None,  # given by the rules, not a person
-            "strike_given",
-            "strike",
-            str(strike.id),
-            after={"sitter_id": str(sitter_id), "booking_id": str(booking.id), "reason": strike.reason.value},
-        )
+    outcome = None
+    if late:  # given by the rules, not a person
+        outcome = strikes.give(db, None, sitter_id, StrikeReason.late_cancellation, now, booking_id=booking.id)
     db.commit()
-    return Cancelled(booking, late, refunds, strike, was_accepted=True)
+    return Cancelled(booking, late, refunds, outcome, was_accepted=True)
