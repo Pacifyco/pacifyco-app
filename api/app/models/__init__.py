@@ -18,6 +18,7 @@ from app.models.psych_tests import (
     PsychQuestionKind,
     PsychTest,
 )
+from app.models.reports import BookingReport, ReportKind, ReportStatus
 from app.models.sitters import (
     OnboardingStatus,
     OnboardingStep,
@@ -30,6 +31,9 @@ from app.models.sitters import (
 from app.models.strikes import Strike, StrikeReason
 
 __all__ = [
+    "BookingReport",
+    "ReportKind",
+    "ReportStatus",
     "Strike",
     "StrikeReason",
     "AcceptanceMethod",

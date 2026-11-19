@@ -28,12 +28,13 @@ from app.models import (
     Sitter,
     VerificationStatus,
 )
-from app.routers.parents import ChecklistItem, WeekHours, checklist_out
+from app.routers.parents import ChecklistItem, ReportOut, WeekHours, checklist_out, report_out
 from app.services import availability as availability_service
 from app.services import booking_mail, cancellations, checklists, sitter_pay, verification
 from app.services import bookings as bookings_service
 from app.services import email as email_service
 from app.services import psych_tests as psych_tests_service
+from app.services import reports as reports_service
 from app.services import sitters as sitters_service
 from app.services import strikes as strikes_service
 from app.services.accounts import normalise_mobile
@@ -578,6 +579,7 @@ class SitterBookingDetail(SitterBookingItem):
     address: str | None
     pin_code: str | None
     emergency_contact: FamilyContactOut | None
+    report: ReportOut | None  # parent not home, or a no-show reported about her (6.5)
 
 
 def _detail(db: Session, booking) -> SitterBookingDetail:
@@ -608,6 +610,7 @@ def _detail(db: Session, booking) -> SitterBookingDetail:
         emergency_contact=FamilyContactOut(name=contact.name, relationship=contact.relationship, phone=contact.phone)
         if contact
         else None,
+        report=report_out(db, booking.id),
     )
 
 
@@ -717,3 +720,19 @@ def send_doctor_note(strike_id: uuid.UUID, body: DoctorNoteIn, sitter: SitterPro
     """For a late cancellation because she was ill: an admin looks at it and can remove the strike (6.5)."""
     strikes_service.attach_doctor_note(db, sitter.id, strike_id, body.document_id)
     return strikes_out(db, sitter.id)
+
+
+class NotHomeIn(BaseModel):
+    # She confirms no child is at home without an adult; otherwise she must stay (6.5).
+    no_child_alone: bool
+
+
+@router.post("/bookings/{booking_id}/parent-not-home", status_code=201)
+def report_parent_not_home(
+    booking_id: uuid.UUID, body: NotHomeIn, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    """No one is home: the parent and the admins are told; she may leave after 20 minutes if no one
+    responds (6.5)."""
+    report = reports_service.parent_not_home(db, sitter.id, booking_id, body.no_child_alone, datetime.now(UTC))
+    booking_mail.tell_reported(db, mailer, settings, report)
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))

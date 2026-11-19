@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     AuditLog,
     Booking,
+    BookingReport,
     Child,
     Consent,
     Document,
@@ -76,14 +77,26 @@ def delete_all(db: Session, found: Found) -> None:
     strike_ids = db.scalars(
         select(Strike.id).where(or_(Strike.booking_id.in_(booking_ids), Strike.sitter_id.in_(ids)))
     ).all()
+    report_ids = db.scalars(select(BookingReport.id).where(BookingReport.booking_id.in_(booking_ids))).all()
     # Audit rows they made, and rows about them or their records (entity ids are stored as text).
-    records = [*ids, *child_ids, *document_ids, *reference_ids, *attempt_ids, *booking_ids, *payment_ids, *strike_ids]
+    records = [
+        *ids,
+        *child_ids,
+        *document_ids,
+        *reference_ids,
+        *attempt_ids,
+        *booking_ids,
+        *payment_ids,
+        *strike_ids,
+        *report_ids,
+    ]
     about = [str(item) for item in records]
 
     # Payments, then bookings: they hold their parent, sitter and children (RESTRICT); a booking's
     # children and home info rows go with it.
     db.execute(delete(Payment).where(Payment.id.in_(payment_ids)))
     db.execute(delete(Strike).where(Strike.id.in_(strike_ids)))
+    db.execute(delete(BookingReport).where(BookingReport.id.in_(report_ids)))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
     db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
     db.execute(delete(Document).where(Document.id.in_(document_ids)))

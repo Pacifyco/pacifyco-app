@@ -64,6 +64,10 @@ export function bookingStatusText(item: BookingListItem): string {
     case "cancelled_sitter":
     case "cancelled_sitter_late":
       return `Cancelled by ${sitter}`;
+    case "parent_absent":
+      return "Closed: no one was home, charged";
+    case "sitter_no_show":
+      return `${sitter} didn't come: refunded`;
     default:
       return item.status.startsWith("cancelled") ? "Cancelled" : "Didn't go ahead";
   }

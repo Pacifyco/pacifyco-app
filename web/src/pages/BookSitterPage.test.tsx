@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { kolkataTime } from "../lib/times";
@@ -65,6 +65,7 @@ const BOOKING: Booking = {
   pay_by: kolkataTime("2030-01-07", 6),
   seen_by_sitter: true,
   answer_by: null,
+  report: null,
   pay_by_upi: {
     upi_id: "pacifyco@okaxis",
     payee_name: "Pacifyco",
@@ -438,5 +439,62 @@ describe("cancelling (6.5)", () => {
     renderAt("/parent/bookings/b1");
     expect(await screen.findByText(/Lakshmi had to cancel this booking\. Pacifyco will refund you in full\./)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Cancel this booking" })).toBeNull();
+  });
+});
+
+describe("during the booking (6.5)", () => {
+  const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+  const PAID = { status: "confirmed" as const, upi_reference: "123456789012", sent_at: minutesFromNow(-600), rejection_reason: null };
+  const STARTED = (minutesIn: number): Booking => ({
+    ...BOOKING,
+    status: "confirmed",
+    pay_by_upi: null,
+    payment: PAID,
+    starts_at: minutesFromNow(-minutesIn),
+    ends_at: minutesFromNow(120 - minutesIn),
+  });
+
+  test("the sitter says no one is home: I have arrived", async () => {
+    const report = {
+      id: "r1",
+      kind: "parent_absent" as const,
+      status: "open" as const,
+      reported_at: minutesFromNow(-2),
+      responded_at: null,
+      can_leave_at: minutesFromNow(18),
+      decision_note: null,
+    };
+    const calls = api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(10), report }),
+      "POST /parent/bookings/b1/arrived": () =>
+        jsonResponse({ ...STARTED(10), report: { ...report, responded_at: minutesFromNow(0), can_leave_at: null } }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText(/Lakshmi is at your home and can't find you\./)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /I have arrived/ }));
+    expect(await screen.findByText("Thank you. Lakshmi will wait for you.")).toBeTruthy();
+    expect(calls.some((call) => call.method === "POST" && call.path === "/parent/bookings/b1/arrived")).toBe(true);
+  });
+
+  test("the sitter didn't come: from 30 minutes in", async () => {
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(20), report: null }) });
+    renderAt("/parent/bookings/b1");
+    await screen.findByRole("heading", { name: "Your booking with Lakshmi" });
+    expect(screen.queryByRole("button", { name: "Lakshmi didn't come" })).toBeNull();
+    cleanup();
+
+    const calls = api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(35), report: null }),
+      "POST /parent/bookings/b1/no-show": () =>
+        jsonResponse({
+          ...STARTED(35),
+          report: { id: "r2", kind: "sitter_no_show", status: "open", reported_at: minutesFromNow(0), responded_at: null, can_leave_at: null, decision_note: null },
+        }),
+    });
+    renderAt("/parent/bookings/b1");
+    fireEvent.click(await screen.findByRole("button", { name: "Lakshmi didn't come" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tell Pacifyco" }));
+    expect(await screen.findByText("You've told us Lakshmi didn't come. Pacifyco will call you.")).toBeTruthy();
+    expect(calls.some((call) => call.method === "POST" && call.path === "/parent/bookings/b1/no-show")).toBe(true);
   });
 });

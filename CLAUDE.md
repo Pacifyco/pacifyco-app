@@ -331,6 +331,18 @@ it's refunded (or kept after a late parent cancellation); rejected after a late 
 price is owed as a `cancellation_charge`. A late sitter cancellation adds a `strikes` row. The other side is
 emailed, and when the sitter cancels the admins are too, to look for a replacement (Family Terms 4.7).
 
+**Reports in the app (built 2026-11-19, `api/app/services/reports.py`, table `booking_reports`):**
+- **Parent not home:** once the booking has started, the sitter presses "No one's home", after ticking
+  that no child is at home without an adult. The admins and the parent are emailed. The parent responds
+  with **I have arrived** on their booking page, or an admin marks it answered after a call (Reuben,
+  2026-11-19); either way she waits for them. Otherwise she sees a 20-minute countdown and may then
+  leave. An admin confirms after the 20 minutes: the booking is `parent_absent` (charged in full; the
+  show-up fee is paid with her earnings, phase 9).
+- **Sitter no-show:** the parent reports it from **30 minutes after the start** (Reuben, 2026-11-19).
+  The admins and the sitter are emailed. Confirmed, it's `sitter_no_show`: refunded, a strike.
+- Admins see open reports on `/admin/reports`, with both phone numbers, and confirm or dismiss each
+  (dismissing needs a reason). Both people are told the outcome.
+
 **Parent not home:** the sitter calls the parent and presses Report; admins try to reach the parent too.
 She may leave, and is paid the show-up fee, only if no parent responds within **20 minutes** of the report (the app
 shows a countdown). If a child is there without an adult, she must not leave: the app routes her to the

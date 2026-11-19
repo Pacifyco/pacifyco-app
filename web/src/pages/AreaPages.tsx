@@ -217,6 +217,9 @@ export function AdminHomePage() {
         <ButtonLink to="/admin/payments" variant="secondary">
           Check payments
         </ButtonLink>
+        <ButtonLink to="/admin/reports" variant="secondary">
+          Reports
+        </ButtonLink>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
         <IconTile icon={BadgeCheck} label="Verifications" />

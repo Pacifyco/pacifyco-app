@@ -33,6 +33,7 @@ from app.services import bookings as bookings_service
 from app.services import children as children_service
 from app.services import email as email_service
 from app.services import payments as payments_service
+from app.services import reports as reports_service
 from app.services import search as search_service
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
@@ -501,6 +502,33 @@ class PaymentOut(BaseModel):
     rejection_reason: str | None
 
 
+class ReportOut(BaseModel):
+    """A report during the booking (6.5): the parent wasn't home, or the sitter didn't come."""
+
+    id: uuid.UUID
+    kind: str  # parent_absent | sitter_no_show
+    status: str  # open | confirmed | dismissed
+    reported_at: datetime
+    responded_at: datetime | None  # parent not home: a parent responded, so she waits
+    can_leave_at: datetime | None  # parent not home: she may leave from then, if no one responds
+    decision_note: str | None
+
+
+def report_out(db, booking_id: uuid.UUID) -> ReportOut | None:
+    report = reports_service.for_booking(db, booking_id)
+    if report is None:
+        return None
+    return ReportOut(
+        id=report.id,
+        kind=report.kind.value,
+        status=report.status.value,
+        reported_at=report.reported_at,
+        responded_at=report.responded_at,
+        can_leave_at=reports_service.can_leave_at(report),
+        decision_note=report.decision_note,
+    )
+
+
 class BookingOut(BaseModel):
     """The parent's view of a booking: never the plan's name or the sitter's pay (6.1)."""
 
@@ -524,6 +552,7 @@ class BookingOut(BaseModel):
     # Only while the booking waits for payment and Pacifyco's UPI ID is set.
     pay_by_upi: PayByUpi | None
     payment: PaymentOut | None
+    report: ReportOut | None
 
 
 AppSettings = Annotated[Settings, Depends(get_settings)]
@@ -564,6 +593,7 @@ def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
         )
         if payment
         else None,
+        report=report_out(db, booking.id),
     )
 
 
@@ -664,6 +694,24 @@ def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: 
         db.commit()
         db.refresh(booking)
     return _booking_out(db, booking, settings)
+
+
+@router.post("/bookings/{booking_id}/arrived")
+def parent_arrived(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings) -> BookingOut:
+    """The sitter said no one was home; the parent says they've arrived: she waits for them (6.5)."""
+    report = reports_service.parents_open_absence(db, parent.id, booking_id)
+    reports_service.parent_responded(db, parent.id, report.id, datetime.now(UTC))
+    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
+
+
+@router.post("/bookings/{booking_id}/no-show", status_code=201)
+def report_no_show(
+    booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> BookingOut:
+    """The sitter didn't come: from 30 minutes after the start. An admin confirms it (6.5)."""
+    report = reports_service.sitter_no_show(db, parent.id, booking_id, datetime.now(UTC))
+    booking_mail.tell_reported(db, mailer, settings, report)
+    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
 
 
 @router.post("/bookings/{booking_id}/cancel")

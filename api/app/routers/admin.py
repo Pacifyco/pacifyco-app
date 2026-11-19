@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from app.auth import require_role
 from app.deps import DbSession
+from app.errors import AppError
 from app.models import (
     Booking,
     BookingStatus,
@@ -36,6 +37,7 @@ from app.services import children as children_service
 from app.services import email as email_service
 from app.services import payments as payments_service
 from app.services import psych_tests as psych_tests_service
+from app.services import reports as reports_service
 from app.services import strikes as strikes_service
 from app.services.storage import StorageClient, get_storage
 from app.settings import LOCAL_WEB_ORIGIN, Settings, get_settings
@@ -896,3 +898,86 @@ def remove_strike(
     assert profile is not None
     mailer.send(email_service.strike_removed(profile.email, profile.full_name, body.reason, _web_url(settings)))
     return _admin_strikes(db, done.strike.sitter_id)
+
+
+# ---------- reports during a booking (CLAUDE.md 6.5) ----------
+
+
+class AdminReport(BaseModel):
+    """A report to act on: phone both people, then confirm or dismiss."""
+
+    id: uuid.UUID
+    kind: str  # parent_absent | sitter_no_show
+    reported_at: datetime
+    responded_at: datetime | None
+    can_leave_at: datetime | None
+    booking_id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+    hours: int
+    parent_name: str | None
+    parent_phone: str | None
+    sitter_name: str | None
+    sitter_phone: str | None
+    show_up_fee_paise: int  # parent not home: what she's due if it's confirmed
+
+
+def _admin_report(db: DbSession, report) -> AdminReport:
+    booking = db.get(Booking, report.booking_id)
+    assert booking is not None
+    parent, sitter = _people(db, booking)
+    return AdminReport(
+        id=report.id,
+        kind=report.kind.value,
+        reported_at=report.reported_at,
+        responded_at=report.responded_at,
+        can_leave_at=reports_service.can_leave_at(report),
+        booking_id=booking.id,
+        starts_at=booking.starts_at,
+        ends_at=booking.ends_at,
+        hours=booking.units,
+        parent_name=parent.full_name,
+        parent_phone=parent.phone,
+        sitter_name=sitter.full_name if sitter else None,
+        sitter_phone=sitter.phone if sitter else None,
+        show_up_fee_paise=reports_service.show_up_fee_paise(booking),
+    )
+
+
+@router.get("/reports")
+def get_reports(admin: Admin, db: DbSession) -> list[AdminReport]:
+    """Open reports, oldest first."""
+    return [_admin_report(db, report) for report in reports_service.open_reports(db)]
+
+
+@router.post("/reports/{report_id}/answered")
+def mark_answered(report_id: uuid.UUID, admin: Admin, db: DbSession) -> AdminReport:
+    """A parent answered an admin's call: the sitter waits for them (6.5)."""
+    return _admin_report(db, reports_service.parent_responded(db, admin.id, report_id, datetime.now(UTC)))
+
+
+class ReportDecisionIn(BaseModel):
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/reports/{report_id}/confirm")
+def confirm_report(
+    report_id: uuid.UUID, body: ReportDecisionIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AdminReport:
+    done = reports_service.decide(db, admin.id, report_id, True, _clean_reason(body.note or ""), datetime.now(UTC))
+    booking_mail.tell_decided(db, mailer, settings, done.report, reports_service.show_up_fee_paise(done.booking))
+    if done.strike is not None and done.strike.removed:
+        booking_mail.tell_removed_for_strikes(db, mailer, settings, done.booking.sitter_id)
+    return _admin_report(db, done.report)
+
+
+@router.post("/reports/{report_id}/dismiss")
+def dismiss_report(
+    report_id: uuid.UUID, body: ReportDecisionIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AdminReport:
+    note = _clean_reason(body.note or "")
+    if note is None:
+        raise AppError(422, "reason_needed", "Please say why you're dismissing it.")
+    done = reports_service.decide(db, admin.id, report_id, False, note, datetime.now(UTC))
+    booking_mail.tell_decided(db, mailer, settings, done.report, reports_service.show_up_fee_paise(done.booking))
+    return _admin_report(db, done.report)

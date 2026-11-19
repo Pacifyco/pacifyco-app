@@ -98,6 +98,17 @@ def cleanup_documents(db_engine, profile_id) -> None:
         conn.execute(
             text("DELETE FROM audit_log WHERE entity = 'strike' AND entity_id = ANY(:ids)"), {"ids": strike_ids}
         )
+        report_ids = [
+            str(item)
+            for item in conn.execute(
+                text("SELECT id FROM booking_reports WHERE booking_id::text = ANY(:ids)"), {"ids": booking_ids}
+            ).scalars()
+        ]
+        conn.execute(
+            text("DELETE FROM audit_log WHERE entity = 'booking_report' AND entity_id = ANY(:ids)"),
+            {"ids": report_ids},
+        )
+        conn.execute(text("DELETE FROM booking_reports WHERE id::text = ANY(:ids)"), {"ids": report_ids})
         conn.execute(
             text("DELETE FROM strikes WHERE booking_id::text = ANY(:ids) OR sitter_id = :id"),
             {"ids": booking_ids, "id": profile_id},
