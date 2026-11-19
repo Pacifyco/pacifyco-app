@@ -8,7 +8,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
@@ -56,11 +56,13 @@ class Found:
 
 
 def _live():
-    """Same rule as verification.is_live, as SQL. Strikes (phase 9) will also hide a blocked sitter."""
+    """Same rule as verification.is_live, as SQL, and not blocked by strikes (6.6): a blocked sitter is
+    hidden from parents and can't be booked until her block ends."""
     return (
         (Profile.status == ProfileStatus.active)
         & (Sitter.onboarding_status == OnboardingStatus.approved)
         & Sitter.level.is_not(None)
+        & or_(Sitter.blocked_until.is_(None), Sitter.blocked_until <= func.now())
     )
 
 

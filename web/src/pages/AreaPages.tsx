@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useMe } from "../auth/useMe";
 import { Link } from "react-router";
 import { ButtonLink, Card, EmptyState, IconTile } from "../components/ui";
-import { formatBookingTime } from "../lib/format";
+import { formatBookingTime, formatDay, formatTime } from "../lib/format";
 import { apiFetch } from "../lib/api";
 import { useChecklist, type SitterChecklist } from "./ProfileChecklist";
+import { STRIKES_KEY, type SitterStrikes } from "./SitterStrikesPage";
 import { sitterBookingLine, type SitterBookingItem, type SitterBookingList } from "./SitterBookingsPage";
 
 // Each role's home (gated by RequireRole in routes.tsx). Parents have none: they land on Find a sitter.
@@ -96,6 +97,23 @@ function FirstBooking({ hasWeek }: { hasWeek: boolean }) {
   );
 }
 
+/** Strikes that count (6.6): whether she's blocked from new bookings, and where to see them. */
+function StrikesNotice() {
+  const strikes = useQuery({ queryKey: STRIKES_KEY, queryFn: () => apiFetch<SitterStrikes>("/sitter/strikes") });
+  if (!strikes.data || strikes.data.counting === 0) return null;
+  const until = strikes.data.blocked_until ? new Date(strikes.data.blocked_until) : null;
+  return (
+    <Card as="section" className="flex flex-col items-start gap-3 border-l-4 border-coral">
+      <p className="text-ui text-ink">
+        {until
+          ? `You can't take new bookings until ${formatDay(until)}, ${formatTime(until)}.`
+          : `You have ${strikes.data.counting === 1 ? "a strike" : `${strikes.data.counting} strikes`} from the last 6 months.`}
+      </p>
+      <Link to="/sitter/strikes">See your strikes</Link>
+    </Card>
+  );
+}
+
 /** Requests waiting for her answer: they lapse unanswered, so they come first (6.4). */
 function RequestsWaiting() {
   const list = useQuery({ queryKey: ["sitter", "requests"], queryFn: () => apiFetch<SitterBookingItem[]>("/sitter/requests") });
@@ -176,6 +194,7 @@ export function SitterHomePage() {
       ) : (
         <>
           {!welcomed && <ApprovedWelcome pinCode={me.data?.profile?.pin_code ?? null} onClose={closeWelcome} />}
+          <StrikesNotice />
           <RequestsWaiting />
           <h2 className="mt-2 text-ui font-semibold">Your bookings</h2>
           <NextBooking />

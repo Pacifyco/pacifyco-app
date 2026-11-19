@@ -2,7 +2,7 @@
 is a list of tasks. Every task must be idempotent: running it twice, or late, changes nothing extra.
 
 Later phases add their tasks here:
-- daily: pack expiry and carry-forward (phase 6), strike expiry (phase 7)
+- daily: keeping the staging database active (strikes expire by their date, so they need no job)
 - frequent (every 30 minutes, 6 am to midnight IST): cancelling unpaid bookings and paid ones that
   started with a child unverified, lapsing requests the sitter didn't answer in time, and alerting
   admins to payments unchecked near the start (phase 6), overdue check-out alerts (phase 8),

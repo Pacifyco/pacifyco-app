@@ -84,6 +84,8 @@ class Sitter(Base):
     )
     # Null until an admin sets it; she can't go live without one (CLAUDE.md 6.2 and 7 step 6).
     level: Mapped[SitterLevel | None] = mapped_column(enum_column(SitterLevel, "sitter_level"))
+    # Strikes block her from new bookings until then (6.6); worked out by `services/strikes.py`.
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Her tick in the application: at Recharge level, parents may see one of her references (CLAUDE.md 6.2).
     reference_shared_consent: Mapped[bool] = mapped_column(server_default=false())
     # Shown to the person when her application is rejected (CLAUDE.md 7, decided 2026-11-09); cleared on approval.

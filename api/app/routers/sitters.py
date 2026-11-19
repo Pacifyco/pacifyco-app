@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth import require_role
 from app.deps import DbSession
 from app.models import (
+    Booking,
     BookingStatus,
     EmergencyContact,
     OnboardingStatus,
@@ -34,6 +35,7 @@ from app.services import bookings as bookings_service
 from app.services import email as email_service
 from app.services import psych_tests as psych_tests_service
 from app.services import sitters as sitters_service
+from app.services import strikes as strikes_service
 from app.services.accounts import normalise_mobile
 from app.settings import Settings, get_settings
 
@@ -648,4 +650,70 @@ def cancel_booking(
     either way (6.5)."""
     done = cancellations.by_sitter(db, sitter.id, booking_id, datetime.now(UTC))
     booking_mail.tell_cancelled_by_sitter(db, mailer, settings, done.booking.id, late=done.late)
+    if done.strike is not None and done.strike.removed:
+        booking_mail.tell_removed_for_strikes(db, mailer, settings, sitter.id)
     return _detail(db, done.booking)
+
+
+# ---------- her strikes (CLAUDE.md 6.6) ----------
+
+
+class StrikeOut(BaseModel):
+    id: uuid.UUID
+    reason: str  # late_cancellation | no_show | admin
+    note: str | None
+    given_at: datetime
+    expires_at: datetime
+    booking_id: uuid.UUID | None
+    booking_starts_at: datetime | None
+    removed_at: datetime | None
+    removal_reason: str | None
+    doctor_note_sent: bool
+
+
+class SitterStrikes(BaseModel):
+    blocked_until: datetime | None  # no new bookings until then
+    counting: int  # strikes from the last 6 months, not removed
+    strikes: list[StrikeOut]  # all of them, newest first
+
+
+def strike_out(db: Session, strike) -> StrikeOut:
+    starts = db.scalar(select(Booking.starts_at).where(Booking.id == strike.booking_id)) if strike.booking_id else None
+    return StrikeOut(
+        id=strike.id,
+        reason=strike.reason.value,
+        note=strike.note,
+        given_at=strike.given_at,
+        expires_at=strike.expires_at,
+        booking_id=strike.booking_id,
+        booking_starts_at=starts,
+        removed_at=strike.removed_at,
+        removal_reason=strike.removal_reason,
+        doctor_note_sent=strike.doctor_note_document_id is not None,
+    )
+
+
+def strikes_out(db: Session, sitter_id: uuid.UUID) -> SitterStrikes:
+    now = datetime.now(UTC)
+    until = db.scalar(select(Sitter.blocked_until).where(Sitter.profile_id == sitter_id))
+    return SitterStrikes(
+        blocked_until=until if until and until > now else None,
+        counting=len(strikes_service.counting(db, sitter_id, now)),
+        strikes=[strike_out(db, strike) for strike in strikes_service.for_sitter(db, sitter_id)],
+    )
+
+
+@router.get("/strikes")
+def get_strikes(sitter: SitterProfile, db: DbSession) -> SitterStrikes:
+    return strikes_out(db, sitter.id)
+
+
+class DoctorNoteIn(BaseModel):
+    document_id: uuid.UUID  # an uploaded `doctor_note` document of hers
+
+
+@router.post("/strikes/{strike_id}/doctor-note")
+def send_doctor_note(strike_id: uuid.UUID, body: DoctorNoteIn, sitter: SitterProfile, db: DbSession) -> SitterStrikes:
+    """For a late cancellation because she was ill: an admin looks at it and can remove the strike (6.5)."""
+    strikes_service.attach_doctor_note(db, sitter.id, strike_id, body.document_id)
+    return strikes_out(db, sitter.id)

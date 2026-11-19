@@ -585,7 +585,7 @@ describe("role-gated areas", () => {
     expect(screen.queryByText(/No bookings yet/)).toBeNull();
   });
 
-  function liveSitter(week: unknown[], upcoming: unknown[] = [], requests: unknown[] = []) {
+  function liveSitter(week: unknown[], upcoming: unknown[] = [], requests: unknown[] = [], strikes: unknown = null) {
     fake.state.session = fake.session;
     const profile = { role: "sitter", status: "active", full_name: "Asha K", pin_code: "560034" };
     vi.mocked(fetch).mockImplementation(((url: string) =>
@@ -595,6 +595,8 @@ describe("role-gated areas", () => {
           ? Promise.resolve(jsonResponse({ upcoming, past: [] }))
           : url.endsWith("/sitter/requests")
             ? Promise.resolve(jsonResponse(requests))
+            : url.endsWith("/sitter/strikes") && strikes
+              ? Promise.resolve(jsonResponse(strikes))
           : url.endsWith("/sitter/checklist")
           ? Promise.resolve(jsonResponse({ ...SITTER_CHECKLIST, live: true }))
           : meResponse(profile)(url)) as typeof fetch);
@@ -614,6 +616,14 @@ describe("role-gated areas", () => {
     renderApp("/sitter");
     await screen.findByRole("heading", { name: "Get your first booking" });
     expect(screen.queryByText("You're approved")).toBeNull(); // only once
+  });
+
+  test("a strike blocking her shows on her home", async () => {
+    const strikes = { blocked_until: "2030-01-06T04:30:00Z", counting: 1, strikes: [] };
+    liveSitter([{ weekday: 0, start_hour: 9, end_hour: 13 }], [], [], strikes);
+    renderApp("/sitter");
+    expect(await screen.findByText("You can't take new bookings until Sun, 6 Jan, 10:00 am.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "See your strikes" }).getAttribute("href")).toBe("/sitter/strikes");
   });
 
   test("requests waiting for her answer come first on her home", async () => {

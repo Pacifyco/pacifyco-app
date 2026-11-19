@@ -92,3 +92,12 @@ def tell_cancelled_by_sitter(
     )
     for to in settings.admin_alert_emails:
         mailer.send(email_service.sitter_cancelled_alert(to, late, booking.starts_at, web_url(settings)))
+
+
+def tell_removed_for_strikes(db: Session, mailer: EmailClient, settings: Settings, sitter_id: uuid.UUID) -> None:
+    """Her 5th strike removed her account: tell her, and the admins (her bookings need looking at)."""
+    sitter = db.get(Profile, sitter_id)
+    assert sitter is not None
+    mailer.send(email_service.removed_for_strikes(sitter.email, sitter.full_name))
+    for to in settings.admin_alert_emails:
+        mailer.send(email_service.sitter_removed_alert(to, sitter.full_name, web_url(settings), sitter_id))

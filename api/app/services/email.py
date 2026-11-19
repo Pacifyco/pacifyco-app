@@ -403,6 +403,63 @@ def sitter_cancelled_alert(to: str, late: bool, starts_at: datetime, web_url: st
     )
 
 
+def strike_given(
+    to: str, full_name: str | None, note: str | None, blocked_until: datetime | None, web_url: str
+) -> Email:
+    """To the sitter: an admin gave her a strike (6.6)."""
+    block = f"You can't take new bookings until {_when(blocked_until)}.\n" if blocked_until else ""
+    reason = f"The reason: {note}\n" if note else ""
+    return Email(
+        to=to,
+        subject="You have a strike on Pacifyco",
+        heading="Pacifyco has given you a strike.",
+        body=f"Hi {_first_name(full_name)}, {reason}{block}A strike counts for 6 months. Your confirmed bookings stay.",
+        button_label="See your strikes",
+        button_url=f"{web_url.rstrip('/')}/sitter/strikes",
+    )
+
+
+def strike_removed(to: str, full_name: str | None, reason: str, web_url: str) -> Email:
+    return Email(
+        to=to,
+        subject="A strike has been removed",
+        heading="Pacifyco has removed a strike.",
+        body=f"Hi {_first_name(full_name)}, Pacifyco has removed one of your strikes.\nThe reason: {reason}",
+        button_label="See your strikes",
+        button_url=f"{web_url.rstrip('/')}/sitter/strikes",
+    )
+
+
+def removed_for_strikes(to: str, full_name: str | None) -> Email:
+    """To the sitter: the 5th strike in 6 months removes her account (6.6)."""
+    return Email(
+        to=to,
+        subject="Your Pacifyco account has been removed",
+        heading="Your account has been removed.",
+        body=(
+            f"Hi {_first_name(full_name)}, you've had five strikes in 6 months, so your Pacifyco account has been "
+            "removed and you can't take bookings.\nIf you think this is wrong, please write to founders@pacifyco.in."
+        ),
+        button_label="Contact Pacifyco",
+        button_url="mailto:founders@pacifyco.in",
+    )
+
+
+def sitter_removed_alert(to: str, sitter_name: str | None, web_url: str, sitter_id: object) -> Email:
+    """To an admin: a sitter was removed after a 5th strike; her confirmed bookings need looking at."""
+    return Email(
+        to=to,
+        subject="A sitter was removed after a fifth strike",
+        heading="A sitter was removed after a fifth strike.",
+        body=(
+            f"{sitter_name or 'A sitter'} has had five strikes in 6 months, so her account was removed.\n"
+            "Please check her confirmed bookings: the families may need another sitter."
+        ),
+        button_label="Open her profile",
+        button_url=f"{web_url.rstrip('/')}/admin/sitters/{sitter_id}",
+    )
+
+
 def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_url: str) -> Email:
     """To an admin: payments to check before their bookings start. No names or amounts, only the count
     and the earliest start."""
