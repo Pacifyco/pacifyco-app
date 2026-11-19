@@ -63,6 +63,8 @@ const BOOKING: Booking = {
   camera_locations: null,
   status: "pending_payment",
   pay_by: kolkataTime("2030-01-07", 6),
+  seen_by_sitter: true,
+  answer_by: null,
   pay_by_upi: {
     upi_id: "pacifyco@okaxis",
     payee_name: "Pacifyco",
@@ -73,13 +75,21 @@ const BOOKING: Booking = {
   payment: null,
 };
 
+// A new booking is a request the sitter answers before the parent pays (6.4).
+const REQUEST: Booking = {
+  ...BOOKING,
+  status: "requested",
+  pay_by_upi: null,
+  answer_by: kolkataTime("2030-01-07", 5),
+};
+
 function api(price = UNWIND, times = TIMES, extra: Record<string, (body: unknown) => Response> = {}) {
   return mockApi({
     "GET /parent/sitters/s1": () => jsonResponse({ id: "s1", full_name: "Lakshmi Nair", plan: "unwind" }),
     "GET /parent/sitters/s1/booking-options": () =>
       jsonResponse({ price, bath_time_allowed: !price.one_child_only, times, first_booking: true, owed_paise: 0 }),
     "GET /parent/children": () => jsonResponse(CHILDREN),
-    "POST /parent/bookings": () => jsonResponse(BOOKING, 201),
+    "POST /parent/bookings": () => jsonResponse(REQUEST, 201),
     "GET /parent/bookings/b1": () => jsonResponse(BOOKING),
     ...extra,
   });
@@ -121,7 +131,7 @@ describe("Book this sitter", () => {
     fireEvent.click(screen.getByLabelText("Rohan"));
     expect(screen.getByText("₹1,698")).toBeTruthy(); // ₹849 an hour for 2 children
     expect(screen.getByText("2 hours × ₹849 an hour for 2 children")).toBeTruthy();
-    expect(screen.getByText(/Please pay by Mon, 7 Jan, 6:00 am/)).toBeTruthy();
+    expect(screen.getByText(/You pay by UPI once she accepts, by Mon, 7 Jan, 6:00 am/)).toBeTruthy();
 
     // A later start leaves fewer hours.
     fireEvent.change(start, { target: { value: "12" } });
@@ -140,7 +150,7 @@ describe("Book this sitter", () => {
     expect(screen.getByText(/looks after children from 18 months/)).toBeTruthy();
   });
 
-  test("sends the booking and shows it waiting for payment", async () => {
+  test("sends the request and shows it waiting for her answer, with nothing to pay yet", async () => {
     const calls = api();
     renderAt("/parent/sitters/s1/book");
     fireEvent.change(await screen.findByLabelText("How long"), { target: { value: "2" } });
@@ -148,7 +158,7 @@ describe("Book this sitter", () => {
     fireEvent.click(screen.getByLabelText("Bath time"));
     fireEvent.click(screen.getByLabelText("Yes"));
     fireEvent.change(screen.getByLabelText("Where are they?"), { target: { value: " Living room " } });
-    fireEvent.click(screen.getByRole("button", { name: /Confirm this time/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Send the request/ }));
 
     expect(await screen.findByRole("heading", { name: "Your booking with Lakshmi" })).toBeTruthy();
     expect(calls.find((call) => call.method === "POST")?.body).toEqual({
@@ -160,18 +170,45 @@ describe("Book this sitter", () => {
       cameras_on: true,
       camera_locations: "Living room",
     });
-    expect(screen.getByText("Waiting for payment")).toBeTruthy();
+    expect(screen.getByText("Request sent")).toBeTruthy();
     expect(screen.getByText("Lakshmi is looking after Asha and Rohan at home, with bath time.")).toBeTruthy();
+    expect(screen.getByText(/We've sent Lakshmi your request\. She'll accept or decline by Mon, 7 Jan, 5:00 am\./)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /Pay ₹/ })).toBeNull();
+  });
+
+  test("a request she can't see yet waits for the birth certificate check", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () => jsonResponse({ ...REQUEST, seen_by_sitter: false, answer_by: null }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText(/Lakshmi will see your request once Pacifyco has checked/)).toBeTruthy();
+  });
+
+  test("accepted: pay now", async () => {
+    api();
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("Accepted: waiting for payment")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Pay ₹1,698 by UPI" })).toBeTruthy();
+  });
+
+  test.each([
+    ["request_declined", "Lakshmi can't take this booking."],
+    ["request_lapsed", "Lakshmi didn't answer in time, so the request has closed."],
+  ])("%s: nothing charged, find someone else", async (status, line) => {
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...REQUEST, status }) });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText(new RegExp(line.replace(/[.]/g, "\\.")))).toBeTruthy();
+    expect(screen.getByText("Not accepted")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Find a sitter" }).getAttribute("href")).toBe("/parent/sitters");
   });
 
   test("asks about cameras before sending", async () => {
     const calls = api();
     renderAt("/parent/sitters/s1/book");
-    fireEvent.click(await screen.findByRole("button", { name: /Confirm this time/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Send the request/ }));
     expect(screen.getByText("Please tell us whether cameras are on at home.")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Yes"));
-    fireEvent.click(screen.getByRole("button", { name: /Confirm this time/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Send the request/ }));
     expect(screen.getByText("Please tell us where the cameras are.")).toBeTruthy();
     expect(calls.some((call) => call.method === "POST")).toBe(false);
   });
@@ -197,7 +234,7 @@ describe("Book this sitter", () => {
     });
     renderAt("/parent/sitters/s1/book");
     fireEvent.click(await screen.findByLabelText("No"));
-    fireEvent.click(screen.getByRole("button", { name: /Confirm this time/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Send the request/ }));
     await waitFor(() => expect(screen.getByText("She isn't free for all of that time.")).toBeTruthy());
   });
 
@@ -225,7 +262,7 @@ describe("Book this sitter", () => {
     renderAt("/parent/sitters/s1/book");
     expect(await screen.findByText(/You owe Pacifyco ₹699\. Please pay it before making a new booking\./)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Your payments" }).getAttribute("href")).toBe("/parent/payments");
-    expect(screen.queryByRole("button", { name: /Confirm this time/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Send the request/ })).toBeNull();
   });
 
   test("no free times: a quiet message and a way back", async () => {

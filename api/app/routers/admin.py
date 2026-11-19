@@ -27,9 +27,9 @@ from app.models import (
     SitterLevel,
     VerificationStatus,
 )
+from app.services import booking_mail, documents, verification
 from app.services import bookings as bookings_service
 from app.services import children as children_service
-from app.services import documents, verification
 from app.services import email as email_service
 from app.services import payments as payments_service
 from app.services import psych_tests as psych_tests_service
@@ -527,6 +527,8 @@ def decide_child(
             _tell_slot_taken(db, mailer, settings, _booking(db, lost_id), paid=True)
         for cancelled_id in decided.after.cancelled:
             _tell_cancelled_for(db, mailer, settings, cancelled_id)
+    for request_id in decided.shown:  # requests the sitter can now see
+        booking_mail.tell_sitter(db, mailer, settings, request_id)
     if body.approved:  # the parent hears their child is verified (brought forward, 2026-11-13)
         family_verified = parent.verification_status == VerificationStatus.approved
         mailer.send(

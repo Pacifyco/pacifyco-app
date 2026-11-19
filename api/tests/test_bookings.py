@@ -1,7 +1,7 @@
 # ruff: noqa: F811  (pytest fixtures are imported and then named as arguments)
 """Booking a sitter (CLAUDE.md 6.1, 6.4, 9 "Plans and pricing" and "Bookings"; phase 6 "Book this sitter").
 
-Whole hours, at least 4 hours from now, inside her free times, by the plan's latest end; Pause one child
+Whole hours, at least 6 hours from now, inside her free times, by the plan's latest end; Pause one child
 only; bath time only on Unwind and Recharge; the camera declaration; children 18 months and over and the
 parent's own; `pending_payment` until paid; only confirmed bookings take her time away."""
 
@@ -77,7 +77,7 @@ def options(client, who, sitter):
 # ---------- what the booking page offers ----------
 
 
-def test_options_start_4_hours_from_now_and_end_by_the_plans_latest_end(client, finished_parent, free_sitter):
+def test_options_start_6_hours_from_now_and_end_by_the_plans_latest_end(client, finished_parent, free_sitter):
     sitter = free_sitter("pause")
     found = options(client, finished_parent, sitter)
     assert found["price"] == {"per_hour_paise": 49_900, "extra_child_paise": 0, "one_child_only": True}
@@ -113,7 +113,7 @@ def test_options_are_only_for_live_sitters_and_finished_parents(client, parent, 
 # ---------- making a booking ----------
 
 
-def test_a_booking_waits_for_payment_at_the_plans_price(client, db_engine, finished_parent, free_sitter, child_of):
+def test_a_booking_is_a_request_at_the_plans_price(client, db_engine, finished_parent, free_sitter, child_of):
     sitter = free_sitter("unwind")
     child_of(finished_parent)
     kids = children_of(db_engine, finished_parent["id"])
@@ -130,7 +130,9 @@ def test_a_booking_waits_for_payment_at_the_plans_price(client, db_engine, finis
     assert response.status_code == 201, response.text
     made = response.json()
     assert made["price_paise"] == 84_900 * 3  # Unwind, 2 children: ₹849 an hour
-    assert made["status"] == "pending_payment"
+    assert made["status"] == "requested"  # the sitter answers before the parent pays (6.4)
+    assert made["pay_by_upi"] is None
+    assert made["seen_by_sitter"] is False  # a child isn't verified yet
     assert made["hours"] == 3
     assert sorted(made["children"]) == ["Asha", "Rohan"]
     assert made["bath_time"] is True
@@ -139,10 +141,11 @@ def test_a_booking_waits_for_payment_at_the_plans_price(client, db_engine, finis
     assert starts_at == at(india_day(2), 10)
     assert datetime.fromisoformat(made["ends_at"]) == at(india_day(2), 13)
     assert datetime.fromisoformat(made["pay_by"]) == at(india_day(2), 7)  # 3 hours before
+    assert datetime.fromisoformat(made["answer_by"]) == at(india_day(2), 6)  # 4 hours before, until she sees it
     assert "plan" not in made and not any("rate" in key or "pay_paise" in key for key in made)
 
     saved = row(db_engine, "SELECT plan, units, children_count, status FROM bookings WHERE id = :id", id=made["id"])
-    assert dict(saved) == {"plan": "unwind", "units": 3, "children_count": 2, "status": "pending_payment"}
+    assert dict(saved) == {"plan": "unwind", "units": 3, "children_count": 2, "status": "requested"}
     assert scalar(db_engine, "SELECT count(*) FROM booking_children WHERE booking_id = :id", id=made["id"]) == 2
     audit_row = row(db_engine, "SELECT actor_id, action FROM audit_log WHERE entity_id = :id", id=made["id"])
     assert audit_row["action"] == "booking_created" and audit_row["actor_id"] == finished_parent["id"]

@@ -171,7 +171,9 @@ def confirm(db: Session, admin_id: uuid.UUID, payment_id: uuid.UUID, now: dateti
 
     cancelled: list[uuid.UUID] = []
     refund = None
-    if booking.status == BookingStatus.pending_payment and bookings_service.slot_taken(db, booking):
+    if booking.status == BookingStatus.pending_payment and bookings_service.slot_taken(
+        db, booking, bookings_service.CONFIRMED
+    ):
         _cancel_taken(db, booking)
     if booking.status == BookingStatus.pending_payment:
         cancelled = bookings_service.mark_paid(db, admin_id, booking)

@@ -14,7 +14,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import exists, func, select, update
+from sqlalchemy import and_, exists, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
@@ -36,7 +36,12 @@ from app.models import SitterLevel as Plan
 from app.services import audit, availability, checklists, legal, pricing, search, service_area
 from app.services.availability import INDIA, FreeTime
 
-MIN_NOTICE = timedelta(hours=4)  # Reuben, 2026-11-17: time to pay before the 3-hour deadline
+# Reuben, 2026-11-19 (was 4 hours): time for the sitter to answer and the parent to pay (6.1, 6.4).
+MIN_NOTICE = timedelta(hours=6)
+# A request: the sitter has 5 hours from when she can see it to answer, and it lapses 4 hours before
+# the start if that's sooner, leaving the parent an hour to pay (Reuben, 2026-11-19).
+ANSWER_WITHIN = timedelta(hours=5)
+ANSWER_CUTOFF = timedelta(hours=4)
 PAYMENT_DEADLINE = timedelta(hours=3)  # unpaid bookings are cancelled 3 hours before the start (6.1)
 MAX_CHILDREN = 10
 MIN_AGE_MONTHS = 18  # 6.4
@@ -49,10 +54,10 @@ LATEST_END: dict[Plan, timedelta] = {
 }
 BATH_TIME: dict[Plan, bool] = {Plan.pause: False, Plan.unwind: True, Plan.recharge: True}
 
-# Bookings that hold the sitter's time. A paid booking waiting for a child's verification
-# (`awaiting_verification`) doesn't: until every child on it is verified her time stays free (Reuben,
-# 2026-11-18).
-HOLDS_TIME = (BookingStatus.confirmed, BookingStatus.in_progress)
+# Bookings that hold the sitter's time: once she accepts a request it's held while the parent pays
+# (`pending_payment`, Reuben 2026-11-19). A request she hasn't answered doesn't hold it, nor does an older
+# paid booking waiting for a child's verification (`awaiting_verification`, Reuben 2026-11-18).
+HOLDS_TIME = (BookingStatus.pending_payment, BookingStatus.confirmed, BookingStatus.in_progress)
 
 
 def _hour_up(moment: datetime) -> datetime:
@@ -147,7 +152,9 @@ def _check_time(db: Session, sitter: Sitter, starts_at: datetime, ends_at: datet
     if (local.minute, local.second, local.microsecond) != (0, 0, 0):
         raise AppError(422, "whole_hours_only", "Bookings start on the hour.")
     if starts_at < earliest_start(now):
-        raise AppError(422, "too_soon", "Bookings start at least 4 hours from now, so there's time to pay.")
+        raise AppError(
+            422, "too_soon", "Bookings start at least 6 hours from now, so the sitter can answer and you can pay."
+        )
     midnight = datetime.combine(local.date(), time(), INDIA)
     if ends_at > midnight + LATEST_END[sitter.level]:
         raise AppError(422, "past_latest_end", "This booking would end later than this sitter works.")
@@ -239,7 +246,11 @@ def create(db: Session, parent: Profile, new: NewBooking, now: datetime) -> Book
         children_count=len(children),
         price_paise=price,
         bath_time=new.bath_time,
-        status=BookingStatus.pending_payment,
+        status=BookingStatus.requested,
+        # The sitter sees it only once every child on it is verified (6.4).
+        request_visible_at=now
+        if all(child.verification_status == VerificationStatus.approved for child in children)
+        else None,
     )
     db.add(booking)
     db.flush()
@@ -284,6 +295,7 @@ def parents_booking(db: Session, parent_id: uuid.UUID, booking_id: uuid.UUID) ->
 
 # Bookings still on their way: listed under "Upcoming" until they end.
 ON_THE_WAY = (
+    BookingStatus.requested,
     BookingStatus.pending_payment,
     BookingStatus.awaiting_verification,
     BookingStatus.confirmed,
@@ -303,9 +315,12 @@ def parents_bookings(db: Session, parent_id: uuid.UUID, now: datetime) -> tuple[
     return upcoming, past
 
 
-# What a sitter sees (6.4): only bookings that were confirmed, so never one waiting for payment or a
-# child's verification, nor one cancelled before it was confirmed.
+# What a sitter sees in her bookings (6.4): the ones she accepted (waiting for payment, then confirmed),
+# never an older one waiting for a child's verification or cancelled before she accepted it. Requests
+# waiting for her answer are listed apart (`requests_for`).
 SITTER_SEES = (
+    BookingStatus.pending_payment,
+    BookingStatus.cancelled_unpaid,
     BookingStatus.confirmed,
     BookingStatus.in_progress,
     BookingStatus.completed,
@@ -316,7 +331,9 @@ SITTER_SEES = (
     BookingStatus.parent_absent,
     BookingStatus.sitter_no_show,
 )
-SITTER_UPCOMING = (BookingStatus.confirmed, BookingStatus.in_progress)
+SITTER_UPCOMING = (BookingStatus.pending_payment, BookingStatus.confirmed, BookingStatus.in_progress)
+# The home address and the family's emergency contact: only once it's confirmed (paid), while ahead.
+ADDRESS_SHOWN = (BookingStatus.confirmed, BookingStatus.in_progress)
 
 
 def sitters_bookings(db: Session, sitter_id: uuid.UUID, now: datetime) -> tuple[list[Booking], list[Booking]]:
@@ -330,6 +347,40 @@ def sitters_bookings(db: Session, sitter_id: uuid.UUID, now: datetime) -> tuple[
     taken = {item.id for item in upcoming}
     past = sorted((item for item in found if item.id not in taken), key=lambda item: item.starts_at, reverse=True)
     return upcoming, past
+
+
+def _she_sees():
+    """Her bookings, and requests she can see (every child verified)."""
+    return or_(
+        Booking.status.in_(SITTER_SEES),
+        and_(Booking.status == BookingStatus.requested, Booking.request_visible_at.is_not(None)),
+    )
+
+
+def sitters_booking(db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID) -> Booking:
+    """One of her bookings or requests she can see (6.4); anything else, or anyone else's, is "not
+    found"."""
+    booking = db.scalar(select(Booking).where(Booking.id == booking_id, Booking.sitter_id == sitter_id, _she_sees()))
+    if booking is None:
+        raise AppError(404, "not_found", "We couldn't find that booking.")
+    return booking
+
+
+def children_on(db: Session, booking_id: uuid.UUID) -> list[Child]:
+    """The children on a booking, eldest first."""
+    return list(
+        db.scalars(
+            select(Child)
+            .join(BookingChild, BookingChild.child_id == Child.id)
+            .where(BookingChild.booking_id == booking_id)
+            .order_by(Child.date_of_birth)
+        )
+    )
+
+
+def months_old_at_start(born: date, booking: Booking) -> int:
+    """A child's age in whole months on the booking's day (India time)."""
+    return _months_old(born, booking.starts_at.astimezone(INDIA).date())
 
 
 def child_names_for(db: Session, booking_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[str]]:
@@ -361,6 +412,155 @@ def child_names(db: Session, booking_id: uuid.UUID) -> list[str]:
 
 def home_info(db: Session, booking_id: uuid.UUID) -> BookingHomeInfo | None:
     return db.get(BookingHomeInfo, booking_id)
+
+
+# ---------- requests: the sitter answers before the parent pays (6.4; Reuben, 2026-11-19) ----------
+
+
+def answer_by(booking: Booking) -> datetime:
+    """When an unanswered request lapses: 5 hours after she could see it, or 4 hours before the start if
+    that's sooner (and then too if she never could see it)."""
+    cutoff = booking.starts_at - ANSWER_CUTOFF
+    if booking.request_visible_at is None:
+        return cutoff
+    return min(booking.request_visible_at + ANSWER_WITHIN, cutoff)
+
+
+def requests_for(db: Session, sitter_id: uuid.UUID) -> list[Booking]:
+    """Requests waiting for her answer that she can see, the one to answer soonest first."""
+    found = db.scalars(
+        select(Booking).where(
+            Booking.sitter_id == sitter_id,
+            Booking.status == BookingStatus.requested,
+            Booking.request_visible_at.is_not(None),
+        )
+    ).all()
+    return sorted(found, key=answer_by)
+
+
+def lapse_requests(
+    db: Session,
+    now: datetime,
+    booking_id: uuid.UUID | None = None,
+    parent_id: uuid.UUID | None = None,
+    sitter_id: uuid.UUID | None = None,
+) -> list[uuid.UUID]:
+    """Requests not answered in time lapse (`request_lapsed`). Idempotent; the caller commits. Returns
+    their ids, so the parents can be told."""
+    query = select(Booking.id, Booking.status).where(
+        Booking.status == BookingStatus.requested,
+        or_(
+            Booking.starts_at - ANSWER_CUTOFF <= now,
+            and_(Booking.request_visible_at.is_not(None), Booking.request_visible_at + ANSWER_WITHIN <= now),
+        ),
+    )
+    for column, value in ((Booking.id, booking_id), (Booking.parent_id, parent_id), (Booking.sitter_id, sitter_id)):
+        if value is not None:
+            query = query.where(column == value)
+    found = list(db.execute(query.with_for_update(skip_locked=True)))
+    return _cancel(db, found, BookingStatus.request_lapsed, {"reason": "not_answered_in_time"})
+
+
+def make_visible(db: Session, parent_id: uuid.UUID, now: datetime) -> list[uuid.UUID]:
+    """After a child is approved: this parent's requests whose children are now all verified reach their
+    sitters, whose 5 hours to answer start now. Returns their ids (so the sitters can be told). The
+    caller commits."""
+    waiting = db.scalars(
+        select(Booking)
+        .where(
+            Booking.parent_id == parent_id,
+            Booking.status == BookingStatus.requested,
+            Booking.request_visible_at.is_(None),
+            Booking.starts_at - ANSWER_CUTOFF > now,
+        )
+        .with_for_update()
+    ).all()
+    shown = []
+    for booking in waiting:
+        if children_verified(db, booking.id):
+            booking.request_visible_at = now
+            shown.append(booking.id)
+    return shown
+
+
+def _open_request(db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID, now: datetime) -> Booking:
+    lapse_requests(db, now, booking_id=booking_id)
+    # A request she could see, whatever has happened to it since, so a second answer is told why.
+    seen = or_(_she_sees(), Booking.request_visible_at.is_not(None))
+    booking = db.scalar(
+        select(Booking).where(Booking.id == booking_id, Booking.sitter_id == sitter_id, seen).with_for_update()
+    )
+    if booking is None:
+        raise AppError(404, "not_found", "We couldn't find that request.")
+    if booking.status == BookingStatus.request_lapsed:
+        db.commit()
+        raise AppError(409, "request_lapsed", "This request has lapsed: it wasn't answered in time.")
+    if booking.status != BookingStatus.requested:
+        raise AppError(409, "already_answered", "You've already answered this request.")
+    return booking
+
+
+@dataclass(frozen=True)
+class Accepted:
+    booking: Booking
+    # Other parents' requests for an overlapping time, declined because she accepted this one.
+    declined: list[uuid.UUID]
+
+
+def accept(db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID, now: datetime) -> Accepted:
+    """She can do it: her time is held while the parent pays (`pending_payment`), and other requests
+    for an overlapping time are declined (Reuben, 2026-11-19)."""
+    # Her own row first, so two accepts for her at once take turns.
+    db.execute(select(Sitter.profile_id).where(Sitter.profile_id == sitter_id).with_for_update())
+    booking = _open_request(db, sitter_id, booking_id, now)
+    if slot_taken(db, booking):
+        raise AppError(409, "time_taken", "You've already accepted a booking for this time.")
+    audit.record(
+        db,
+        sitter_id,
+        "request_accepted",
+        "booking",
+        str(booking.id),
+        before={"status": booking.status.value},
+        after={"status": BookingStatus.pending_payment.value},
+    )
+    booking.status = BookingStatus.pending_payment
+    db.flush()
+    others = list(
+        db.execute(
+            select(Booking.id, Booking.status)
+            .where(
+                Booking.sitter_id == sitter_id,
+                Booking.id != booking.id,
+                Booking.status == BookingStatus.requested,
+                Booking.starts_at < booking.ends_at,
+                Booking.ends_at > booking.starts_at,
+            )
+            .with_for_update()
+        )
+    )
+    declined = _cancel(
+        db, others, BookingStatus.request_declined, {"reason": "time_taken", "taken_by": str(booking.id)}
+    )
+    db.commit()
+    return Accepted(booking, declined)
+
+
+def decline(db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID, now: datetime) -> Booking:
+    """She can't do it. No penalty; the parent is told and can book someone else."""
+    booking = _open_request(db, sitter_id, booking_id, now)
+    audit.record(
+        db,
+        sitter_id,
+        "request_declined",
+        "booking",
+        str(booking.id),
+        before={"status": booking.status.value},
+        after={"status": BookingStatus.request_declined.value},
+    )
+    booking.status = BookingStatus.request_declined
+    db.commit()
+    return booking
 
 
 # ---------- Pacifyco's own cancellations of unpaid bookings (6.1 and 6.4) ----------
@@ -438,16 +638,17 @@ def cancel_unverified(
 
 def cancel_overlapping(db: Session, confirmed: Booking) -> list[uuid.UUID]:
     """Once a booking is confirmed it takes her time: every other booking with her for an overlapping
-    time that is still unpaid (`pending_payment`) or paid but waiting for a child's verification
-    (`awaiting_verification`, refunded) is cancelled (6.4, first confirmed booking wins). The caller
-    commits."""
+    time that is still a request, unpaid (`pending_payment`, from before requests) or paid but waiting for
+    a child's verification (`awaiting_verification`, refunded) is cancelled (6.4). The caller commits."""
     found = list(
         db.execute(
             select(Booking.id, Booking.status)
             .where(
                 Booking.sitter_id == confirmed.sitter_id,
                 Booking.id != confirmed.id,
-                Booking.status.in_((BookingStatus.pending_payment, BookingStatus.awaiting_verification)),
+                Booking.status.in_(
+                    (BookingStatus.requested, BookingStatus.pending_payment, BookingStatus.awaiting_verification)
+                ),
                 Booking.starts_at < confirmed.ends_at,
                 Booking.ends_at > confirmed.starts_at,
             )
@@ -511,7 +712,12 @@ def children_verified(db: Session, booking_id: uuid.UUID) -> bool:
     )
 
 
-def slot_taken(db: Session, booking: Booking) -> bool:
+# Bookings that have won her time for good: when a payment is confirmed, only these count as having
+# taken it (an older booking still waiting for payment doesn't, 6.4).
+CONFIRMED = (BookingStatus.confirmed, BookingStatus.in_progress)
+
+
+def slot_taken(db: Session, booking: Booking, holding: tuple = HOLDS_TIME) -> bool:
     """Another booking with her for an overlapping time already holds it."""
     return bool(
         db.scalar(
@@ -519,7 +725,7 @@ def slot_taken(db: Session, booking: Booking) -> bool:
                 exists().where(
                     Booking.sitter_id == booking.sitter_id,
                     Booking.id != booking.id,
-                    Booking.status.in_(HOLDS_TIME),
+                    Booking.status.in_(holding),
                     Booking.starts_at < booking.ends_at,
                     Booking.ends_at > booking.starts_at,
                 )

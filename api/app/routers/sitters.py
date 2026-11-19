@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from app.auth import require_role
 from app.deps import DbSession
 from app.models import (
+    BookingStatus,
+    EmergencyContact,
     OnboardingStatus,
     OnboardingStepName,
     PayoutMethod,
@@ -27,8 +29,9 @@ from app.models import (
 )
 from app.routers.parents import ChecklistItem, WeekHours, checklist_out
 from app.services import availability as availability_service
+from app.services import booking_mail, checklists, sitter_pay, verification
 from app.services import bookings as bookings_service
-from app.services import checklists, sitter_pay, verification
+from app.services import email as email_service
 from app.services import psych_tests as psych_tests_service
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
@@ -37,6 +40,7 @@ from app.settings import Settings, get_settings
 router = APIRouter(prefix="/sitter", tags=["sitter"], dependencies=[Depends(require_role(Role.sitter))])
 SitterProfile = Annotated[Profile, Depends(require_role(Role.sitter))]
 AppSettings = Annotated[Settings, Depends(get_settings)]
+Mailer = Annotated[email_service.EmailClient, Depends(email_service.get_email)]
 
 MIN_AGE_YEARS = 18
 
@@ -465,12 +469,16 @@ def delete_day_off(day: date, sitter: SitterProfile, db: DbSession) -> None:
     availability_service.remove_day_off(db, sitter.id, day)
 
 
-# ---------- her bookings (CLAUDE.md 6.4; phase 7 "Sitter booking lists") ----------
+# ---------- her requests and bookings (CLAUDE.md 6.4; phase 7) ----------
+#
+# Requests (Reuben, 2026-11-19): she sees a request once every child on it is verified and accepts or
+# declines it before the parent pays. On a request she sees everything but the home address and the
+# family's emergency contact; those show once the booking is confirmed, while it's ahead.
 
 
 class SitterBookingItem(BaseModel):
-    """A booking in the sitter's list: only confirmed ones (6.4). Never the price the parent paid or the
-    plan's name; her pay for the booked hours instead (6.2)."""
+    """A request or booking in the sitter's lists. Never the price the parent paid or the plan's name;
+    her pay for the booked hours instead (6.2)."""
 
     id: uuid.UUID
     starts_at: datetime
@@ -483,42 +491,150 @@ class SitterBookingItem(BaseModel):
     camera_locations: str | None
     pay_paise: int
     status: str
+    answer_by: datetime | None  # a request: when it lapses unanswered
 
 
 class SitterBookingList(BaseModel):
-    upcoming: list[SitterBookingItem]  # soonest first
+    upcoming: list[SitterBookingItem]  # accepted, soonest first
     past: list[SitterBookingItem]  # ended or cancelled, most recent first
+
+
+def _first_name(db: Session, profile_id: uuid.UUID) -> str:
+    name = (db.scalar(select(Profile.full_name).where(Profile.id == profile_id)) or "").strip()
+    return name.split()[0] if name else "The family"
+
+
+def _item(db: Session, booking, children: list[str] | None = None) -> SitterBookingItem:
+    home = bookings_service.home_info(db, booking.id)
+    return SitterBookingItem(
+        id=booking.id,
+        starts_at=booking.starts_at,
+        ends_at=booking.ends_at,
+        hours=booking.units,
+        family_name=_first_name(db, booking.parent_id),
+        children=children if children is not None else bookings_service.child_names(db, booking.id),
+        bath_time=booking.bath_time,
+        cameras_on=home.cameras_on if home else False,
+        camera_locations=home.camera_locations if home else None,
+        # The plan is her level (6.2), so her level's pay for the booked hours.
+        pay_paise=sitter_pay.booking_pay_paise(booking.plan, booking.units),
+        status=booking.status.value,
+        answer_by=bookings_service.answer_by(booking) if booking.status == BookingStatus.requested else None,
+    )
+
+
+def _lapse(db: Session, mailer, settings: Settings, now: datetime, **only) -> None:
+    """Requests not answered in time lapse now, not at the next job run, and their parents are told."""
+    lapsed = bookings_service.lapse_requests(db, now, **only)
+    if lapsed:
+        db.commit()
+        for booking_id in lapsed:
+            booking_mail.tell_parent_not_taken(db, mailer, settings, booking_id, lapsed=True)
+
+
+@router.get("/requests")
+def get_requests(
+    sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> list[SitterBookingItem]:
+    """Requests waiting for her answer, the one to answer soonest first."""
+    _lapse(db, mailer, settings, datetime.now(UTC), sitter_id=sitter.id)
+    return [_item(db, booking) for booking in bookings_service.requests_for(db, sitter.id)]
 
 
 @router.get("/bookings")
 def get_bookings(sitter: SitterProfile, db: DbSession) -> SitterBookingList:
     now = datetime.now(UTC)
     upcoming, past = bookings_service.sitters_bookings(db, sitter.id, now)
-    everything = [*upcoming, *past]
-    names = bookings_service.child_names_for(db, [item.id for item in everything])
-    parents = {
-        row.id: row.full_name
-        for row in db.execute(
-            select(Profile.id, Profile.full_name).where(Profile.id.in_({item.parent_id for item in everything}))
-        )
-    }
+    names = bookings_service.child_names_for(db, [item.id for item in [*upcoming, *past]])
+    return SitterBookingList(
+        upcoming=[_item(db, b, names[b.id]) for b in upcoming], past=[_item(db, b, names[b.id]) for b in past]
+    )
 
-    def item(booking) -> SitterBookingItem:
-        home = bookings_service.home_info(db, booking.id)
-        parent_name = (parents.get(booking.parent_id) or "").strip()
-        return SitterBookingItem(
-            id=booking.id,
-            starts_at=booking.starts_at,
-            ends_at=booking.ends_at,
-            hours=booking.units,
-            family_name=parent_name.split()[0] if parent_name else "The family",
-            children=names[booking.id],
-            bath_time=booking.bath_time,
-            cameras_on=home.cameras_on if home else False,
-            camera_locations=home.camera_locations if home else None,
-            # The plan is her level (6.2), so her level's pay for the booked hours.
-            pay_paise=sitter_pay.booking_pay_paise(booking.plan, booking.units),
-            status=booking.status.value,
-        )
 
-    return SitterBookingList(upcoming=[item(b) for b in upcoming], past=[item(b) for b in past])
+class BookingChildOut(BaseModel):
+    """What she needs to care for a child (the parent consented to share care details with the booked
+    sitter, CLAUDE.md 7). Never the birth certificate or its verification."""
+
+    name: str
+    age_months: int  # on the booking's day
+    allergies: str | None
+    medical_notes: str | None  # also where medicine instructions go (6.11)
+    routines: str | None
+
+
+class FamilyContactOut(BaseModel):
+    name: str
+    relationship: str
+    phone: str
+
+
+class SitterBookingDetail(SitterBookingItem):
+    """One request or booking. The area's pin code while it's a request or ahead; the home address and the
+    family's emergency contact only once it's confirmed and ahead (Reuben, 2026-11-19)."""
+
+    children_details: list[BookingChildOut]
+    address: str | None
+    pin_code: str | None
+    emergency_contact: FamilyContactOut | None
+
+
+def _detail(db: Session, booking) -> SitterBookingDetail:
+    parent = db.get(Profile, booking.parent_id)
+    children = bookings_service.children_on(db, booking.id)
+    still_ahead = booking.ends_at > datetime.now(UTC)
+    shown_area = still_ahead and booking.status in (BookingStatus.requested, *bookings_service.SITTER_UPCOMING)
+    shown_home = still_ahead and booking.status in bookings_service.ADDRESS_SHOWN
+    contact = (
+        db.scalar(select(EmergencyContact).where(EmergencyContact.parent_id == booking.parent_id))
+        if shown_home
+        else None
+    )
+    return SitterBookingDetail(
+        **_item(db, booking, [child.name for child in children]).model_dump(),
+        children_details=[
+            BookingChildOut(
+                name=child.name,
+                age_months=bookings_service.months_old_at_start(child.date_of_birth, booking),
+                allergies=child.allergies,
+                medical_notes=child.medical_notes,
+                routines=child.routines,
+            )
+            for child in children
+        ],
+        address=parent.address if shown_home and parent else None,
+        pin_code=parent.pin_code if shown_area and parent else None,
+        emergency_contact=FamilyContactOut(name=contact.name, relationship=contact.relationship, phone=contact.phone)
+        if contact
+        else None,
+    )
+
+
+@router.get("/bookings/{booking_id}")
+def get_booking(
+    booking_id: uuid.UUID, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    _lapse(db, mailer, settings, datetime.now(UTC), booking_id=booking_id, sitter_id=sitter.id)
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
+
+
+@router.post("/bookings/{booking_id}/accept")
+def accept_request(
+    booking_id: uuid.UUID, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    """She can do it: her time is held while the parent pays, and other requests for that time are
+    declined (6.4)."""
+    done = bookings_service.accept(db, sitter.id, booking_id, datetime.now(UTC))
+    booking_mail.tell_parent_accepted(db, mailer, settings, done.booking.id)
+    for declined_id in done.declined:
+        booking_mail.tell_parent_not_taken(db, mailer, settings, declined_id, lapsed=False)
+    return _detail(db, done.booking)
+
+
+@router.post("/bookings/{booking_id}/decline")
+def decline_request(
+    booking_id: uuid.UUID, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    """She can't do it. No penalty (6.4)."""
+    booking = bookings_service.decline(db, sitter.id, booking_id, datetime.now(UTC))
+    booking_mail.tell_parent_not_taken(db, mailer, settings, booking.id, lapsed=False)
+    return _detail(db, booking)

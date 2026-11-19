@@ -168,7 +168,8 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   inside GitHub Actions free minutes), payouts-due alerts (every 30 minutes, in the same run as overdue
   check-outs), auto-cancelling `pending_payment` bookings once their 3-hour payment deadline passes
   (6.1; same frequent run), cancelling and refunding `awaiting_verification` bookings whose start has
-  come (6.4; same frequent run), and emailing `ADMIN_ALERT_EMAILS` about booking payments still unchecked
+  come (6.4; same frequent run), lapsing requests the sitter hasn't answered in time (6.4; same frequent
+  run), and emailing `ADMIN_ALERT_EMAILS` about booking payments still unchecked
   within 90 minutes of the start (6.1; same frequent run, once per payment).
   Two runs, `daily` and `frequent`, each a list of tasks in `api/app/services/jobs.py`. Before launch the
   frequent run targets production only, to save Render's shared free hours (README "Scheduled jobs").
@@ -197,20 +198,22 @@ documents; the LLPIN, registered office and emergency line were taken out of the
 - Booking price = the plan's hourly price (for that number of children) × booked hours. Example:
   Recharge, 3 hours = ₹2,697. No GST for now.
 - Booked time is counted in **whole hours only** (no half-hours); no minimum length. A booking must start
-  **at least 4 hours from now** (Reuben, 2026-11-17), so there is time to pay and confirm before the
-  3-hour payment deadline. (Decided 2026-11-03, replaces half-hour rounding.)
+  **at least 6 hours from now** (Reuben, 2026-11-19; was 4 hours), so the sitter has at least 2 hours to
+  answer the request and the parent an hour to pay before the 3-hour payment deadline (6.4). (Decided
+  2026-11-03, replaces half-hour rounding.)
 - **No match deposit.** (Decided 2026-11-03; the idea is dropped.) The parent pays the full price up
   front. Product flow: parents are encouraged to make a short first (e.g. 1-hour) booking with a new
   sitter to assess fit before booking longer sessions — a UX nudge, not an enforced rule.
 - **Paying for a booking (beta, manual UPI):** the parent picks the sitter (and so her plan), children and
-  hours, sees the full price, and pays all of it by UPI to `PACIFY_UPI_ID` (a `upi://pay` link and a QR code
+  hours and sees the full price. That sends the sitter a **request** (6.4); once she accepts, the parent
+  pays all of it by UPI to `PACIFY_UPI_ID` (a `upi://pay` link and a QR code
   of it, payee name "Pacifyco"; Reuben 2026-11-17 approved the `qrcode` library), entering the 12-digit UPI
   reference. The booking is
   `pending_payment` until an admin confirms the payment, then it's `confirmed`. Admins can reject with a
   reason.
 - **Payment deadline:** if payment isn't confirmed by **3 hours before the booking's start**, the
   `pending_payment` booking is auto-cancelled (same boundary as the parent late-cancellation rule in
-  6.5). Decided 2026-11-03 — parents should pay as soon as they book, since slots aren't held (6.4).
+  6.5). Decided 2026-11-03; since 2026-11-19 the parent pays once the sitter has accepted (6.4).
   **A UPI reference sent before the deadline keeps the booking** for an admin to confirm or reject, even
   if it isn't checked by then (Reuben, 2026-11-18); a rejected payment doesn't. Admins are emailed about
   a payment still unchecked about an hour before its booking starts (Reuben, 2026-11-19). Auto-cancelled bookings
@@ -260,6 +263,11 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   a booking can't include a child under 18 months on the booking date.
 - When booking, the parent must say whether home cameras are on and where they are (no cameras in
   bathrooms or changing areas). The sitter sees this before the booking starts.
+- **What the sitter sees of a booking (Reuben, 2026-11-19):** requests (below) and the bookings she
+  accepted. Each shows the children (age, allergies, medical notes, routines), bath time, the camera
+  answer, the area's pin code and her pay, never the price. The home address and the family's emergency
+  contact show only once it's confirmed (paid), while it's ahead or under way; not on a request, and not
+  for past or cancelled bookings.
 - Taking the child out of the home needs the parent's permission in the app: the sitter requests it
   during the booking and the parent approves or declines (logged).
 - Scheduled in advance only, with a plan (6.1). Pause takes one child only. The booking must end by the
@@ -279,24 +287,26 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   parents can book.
 - A booking can be made if the slot is inside the sitter's availability, the sitter's level matches
   the plan, she isn't already booked or blocked by a strike, the sitter is live (7), the parent has
-  finished their profile (6.13) and is active, and the parent owes nothing. It's `pending_payment`
-  until the payment is confirmed (6.1), then `confirmed`.
-- **A booking is only confirmed once every child on it is verified** (birth certificate reviewed and
-  approved by an admin, 7), as well as paid. Decided 2026-11-08: parents can book before that review
-  is done; the booking waits until it is. Until it's confirmed, the booking doesn't show on the
-  sitter's side (her bookings and schedule); she only sees confirmed bookings.
-  **Unverified doesn't hold the slot (Reuben, 2026-11-18; replaces "paid holds the slot" from earlier
-  that day):** once its payment is confirmed, a booking with a child not yet verified is
-  `awaiting_verification`. It does **not** take her time: other parents can still book and pay for it.
-  It becomes `confirmed` (and takes her time) when an admin approves the last child, unless another
-  booking was confirmed for that time first; then it's `cancelled_slot_taken`. If the start comes with a
-  child still unverified (or rejected), it's `cancelled_unverified`. Every payment for a booking that
-  doesn't go ahead this way is refunded in full.
-- **No slot hold while payment is pending** (decided 2026-11-03): the sitter's availability for that
-  slot is only removed once a booking is `confirmed`. More than one parent can have a `pending_payment`
-  booking for the same slot at once — whoever's booking is confirmed first (paid and every child
-  verified) wins it; any other `pending_payment` or `awaiting_verification` booking for an overlapping
-  slot is then auto-cancelled (the parent is told, and refunded if they'd paid).
+  finished their profile (6.13) and is active, and the parent owes nothing.
+- **Requests: the sitter accepts first, then the parent pays (Reuben, 2026-11-19; replaces "pay first,
+  first confirmed payment wins" and "unverified doesn't hold the slot" of 2026-11-03 and 2026-11-18).**
+  So a parent never pays for a booking the sitter can't do:
+  1. A new booking is a **request** (`requested`). The parent sees the price but pays nothing yet.
+  2. The sitter **sees the request only once every child on it is verified** (birth certificate approved,
+     7). Parents can book before that review is done; the request waits, unseen, until it is.
+  3. She has **5 hours from when she can see it** to accept or decline. It **lapses** after those 5 hours,
+     or 4 hours before the start if that's sooner (so the parent still has an hour to pay); a request whose
+     children aren't verified by then lapses too (`request_lapsed`). Declining (`request_declined`) has
+     no penalty. The parent is told either way and can book someone else.
+  4. **Accepting holds her time** (`pending_payment`): other parents can't book it, and other parents'
+     requests for an overlapping time are declined automatically (they're told).
+  5. The parent pays by the 3-hour payment deadline (6.1); once an admin confirms the payment the booking
+     is `confirmed`. Unpaid by the deadline, it's `cancelled_unpaid` and her time is free again.
+  More than one parent can request the same time; whichever request she accepts wins it.
+- Bookings made before 2026-11-19 can still be `awaiting_verification` (paid, a child not yet verified;
+  doesn't hold her time) and end `cancelled_slot_taken` or `cancelled_unverified` with a full refund, as
+  decided 2026-11-18. New bookings can't reach those states: the children are verified before she sees
+  the request.
 
 ### 6.5 Cancellations, no-shows and the show-up fee
 
@@ -553,7 +563,8 @@ not its name).
   them yet. After that, the "never change its wording" rule applies and any change is a new version.
   Changed in place on 2026-11-13: founders@pacifyco.in in all three documents, and in the Family Terms
   (6.2 and the Section 5 table) that a sitter may decline when the only adult at home is a man, with the
-  full booking charged (6.5).
+  full booking charged (6.5). Changed in place on 2026-11-19: Family Terms 4.3 (Paying) for booking
+  requests (6.4).
 - The Privacy policy is a generic policy (Reuben, 2026-11-13), written from what the app actually collects and
   who it's shared with. It still needs the lawyer's review before production launch (phase 15).
 - Changes to the sitter terms that affect pay or rights must be announced in the app at least **14 days**
@@ -613,7 +624,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `geocode_cache` **(created)** (query, lat, lng) — Nominatim results (`app/services/geocoding.py`); a profile's
   lat/lng are looked up when its address is saved
 - `payments` **(created)** (id, booking_id, parent_id, kind: `booking|overtime|refund|cancellation_charge`, amount_paise (+ owed or paid by the parent, − refunded), status: `pending|confirmed|rejected`, upi_reference (12 digits; one not-rejected row per reference), due_by, confirmed_by, confirmed_at, rejection_reason, transfer_reference (a refund's UPI or bank transfer reference, required to mark it paid), created_at) — append-only: the API's role can add rows and update only the decision columns (status, confirmed_by, confirmed_at, rejection_reason, transfer_reference), never an amount, and can't delete; a rejected payment stays and a new reference is a new row. A refund is a row of its own (negative amount, `pending` until paid back, then `confirmed`), made when money arrives for a booking that can't go ahead. **Money owed** = the parent's `pending` overtime and cancellation-charge rows (`bookings.amount_owed`); a booking payment being checked isn't owed money. Replaces packs and the hour ledger. No match deposit (dropped 2026-11-03)
-- `bookings` **(created; check-in, location and closing columns come in phases 7-8)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show|cancelled_unpaid|cancelled_slot_taken|awaiting_verification|cancelled_unverified`, check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
+- `bookings` **(created; check-in, location and closing columns come in phases 7-8)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `requested|request_declined|request_lapsed|pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show|cancelled_unpaid|cancelled_slot_taken|awaiting_verification|cancelled_unverified`, request_visible_at (when the sitter could first see the request: every child verified), check_in_code_hash, check_out_code_hash, code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason) — store code hashes, never plain codes; the parent's app gets the code from an endpoint that only the booking's parent can call
 - `booking_children` **(created)** (booking_id, child_id)
 - `booking_home_info` **(created)** (booking_id, cameras_on, camera_locations)
 - `outing_requests` (id, booking_id, description, status: `pending|approved|declined`, decided_at)

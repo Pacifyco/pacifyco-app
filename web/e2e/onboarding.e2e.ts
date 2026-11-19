@@ -313,25 +313,50 @@ test("the parent finds the sitter, with her photo and her rate, never a plan nam
   await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
 });
 
-test("the parent books the sitter, pays by UPI and sends the reference", async () => {
+test("the parent sends the sitter a request", async () => {
   const page = parent.page;
   // From her profile (the previous step left the parent there).
   await page.getByRole("link", { name: "Choose a time" }).click();
   await expect(page.getByRole("heading", { name: "Choose a time with Lakshmi" })).toBeVisible();
-  // Her free time is Monday 9 am - 4 pm; the first Monday at least 4 hours away is offered.
+  // Her free time is Monday 9 am - 4 pm; the first Monday at least 6 hours away is offered.
   await expect(page.getByLabel("Day")).toHaveValue(/\d{4}-\d{2}-\d{2}/);
   await expect(page.getByLabel("Asha")).toBeChecked();
   await expect(page.getByLabel("Bath time")).toHaveCount(0); // not part of her bookings
   await page.getByLabel("How long").selectOption("1");
   await expect(page.getByText("1 hour × ₹499 an hour")).toBeVisible();
   await page.getByLabel("No", { exact: true }).check();
-  await page.getByRole("button", { name: /Confirm this time/ }).click();
+  await page.getByRole("button", { name: /Send the request/ }).click();
 
+  // A request: the sitter answers before the parent pays (CLAUDE.md 6.4). The family is verified, so she
+  // sees it at once.
   await expect(page.getByRole("heading", { name: "Your booking with Lakshmi" })).toBeVisible();
-  await expect(page.getByText("Waiting for payment")).toBeVisible();
+  await expect(page.getByText("Request sent")).toBeVisible();
+  await expect(page.getByText(/We've sent Lakshmi your request\./)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Pay ₹/ })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
+});
+
+test("the sitter sees the request without the address, and accepts it", async () => {
+  const page = sitter.page;
+  await page.goto("/sitter");
+  await page.getByRole("link", { name: /See the request/ }).click();
+  await expect(page.getByRole("heading", { name: "Requests" })).toBeVisible();
+  await page.getByRole("link", { name: /Looking after Asha at Priya's home/ }).click();
+  await expect(page.getByRole("heading", { name: "Priya's family" })).toBeVisible();
+  await expect(page.getByText(/^Answer by /)).toBeVisible();
+  await expect(page.getByText(/The full address shows once the family has paid\./)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Emergency contact" })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(/₹499|Pause|Unwind|Recharge/);
+  await page.getByRole("button", { name: /Accept/ }).click();
+  await expect(page.getByText("Accepted: waiting for the family to pay")).toBeVisible();
+});
+
+test("the parent pays by UPI and sends the reference", async () => {
+  const page = parent.page;
+  await page.reload();
+  await expect(page.getByText("Accepted: waiting for payment")).toBeVisible();
   await expect(page.getByText("Lakshmi is looking after Asha at home.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pay ₹499 by UPI" })).toBeVisible();
-  await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
 
   // Pay by UPI: Pacifyco's UPI ID, a link for the UPI app and its QR code, then the 12-digit reference.
   await expect(page.getByText("pacifyco-e2e@okaxis")).toBeVisible();
@@ -344,7 +369,7 @@ test("the parent books the sitter, pays by UPI and sends the reference", async (
   await page.getByRole("button", { name: /Send the reference/ }).click();
   await expect(page.getByRole("heading", { name: "Payment sent" })).toBeVisible();
   await expect(page.getByText(/UPI reference 432109876543/)).toBeVisible();
-  await expect(page.getByText("Waiting for payment")).toBeVisible(); // until an admin confirms it
+  await expect(page.getByText("Accepted: waiting for payment")).toBeVisible(); // until an admin confirms it
 });
 
 test("the admin confirms the payment and the parent's booking is confirmed", async () => {
@@ -398,5 +423,13 @@ test("the sitter sees the confirmed booking and her pay, never the price", async
   await expect(page.getByRole("heading", { name: "Your bookings" })).toBeVisible();
   const panel = page.getByRole("tabpanel");
   await expect(panel).toContainText("Confirmed · ₹200 for 1 hour");
+  await expect(page.locator("body")).not.toContainText(/₹499|Pause|Unwind|Recharge/);
+
+  // The booking itself: the home address once confirmed, the children and the emergency contact.
+  await panel.getByRole("link").first().click();
+  await expect(page.getByRole("heading", { name: "Priya's family" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Where" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The children" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Emergency contact" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(/₹499|Pause|Unwind|Recharge/);
 });
