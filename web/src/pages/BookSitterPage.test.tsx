@@ -476,6 +476,24 @@ describe("during the booking (6.5)", () => {
     expect(calls.some((call) => call.method === "POST" && call.path === "/parent/bookings/b1/arrived")).toBe(true);
   });
 
+  test("the sitter declined: only a man was at home", async () => {
+    const report = {
+      id: "r3",
+      kind: "only_man_home" as const,
+      status: "open" as const,
+      reported_at: minutesFromNow(-2),
+      responded_at: null,
+      can_leave_at: null,
+      decision_note: null,
+    };
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(10), report }) });
+    renderAt("/parent/bookings/b1");
+    expect(
+      await screen.findByText("Lakshmi declined the booking because the only adult at home was a man. Pacifyco will be in touch."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /I have arrived/ })).toBeNull();
+  });
+
   test("the sitter didn't come: from 30 minutes in", async () => {
     api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(20), report: null }) });
     renderAt("/parent/bookings/b1");

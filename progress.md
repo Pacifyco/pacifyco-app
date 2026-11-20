@@ -419,7 +419,10 @@ at home (CLAUDE.md 6.3).
 
 ## Phase 7 — Bookings, cancellations, strikes
 
-- [ ] Book a time: plan and level match, plan's latest end, Pause one child, bath time, children 18 months+, camera declaration, parent profile finished, `pending_payment` → confirmed only once paid **and** every child is verified, remove availability; "try a 1-hour first booking at home" nudge with a new sitter
+- [x] Book a time: plan and level match, plan's latest end, Pause one child, bath time, children 18 months+, camera declaration, parent profile finished, `pending_payment` → confirmed only once paid **and** every child is verified, remove availability; "try a 1-hour first booking at home" nudge with a new sitter
+  Checked 2026-11-20: built in phase 6 (booking page and API), with requests (the sitter accepts first)
+  and strikes (a blocked sitter can't be booked) since; each part has tests in test_bookings.py,
+  test_requests.py, test_admin_payments.py and test_strikes.py
 - [x] Parent and sitter booking lists and detail pages (sitters see only confirmed bookings)
   - Parent's side done 2026-11-18: a "Bookings" tab beside "Find a sitter" in the header (`AreaNav`),
     `/parent/bookings` (`GET /parent/bookings`) with Upcoming (soonest first) and Past (ended or cancelled,
@@ -461,7 +464,10 @@ at home (CLAUDE.md 6.3).
   dismiss with a reason). Confirmed no-show: refund and a strike. The show-up fee is recorded as the
   `parent_absent` status; paying it comes with payouts (phase 9). The Emergency button the sitter is told
   about isn't built yet (phase 8), so the copy points her to the parent, Pacifyco's number and 112
-- [ ] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12)
+- [x] Sitter declines when the only adult at home is a man: reported with the Issues button, parent pays the whole booking, no strike, flat ₹100 to the sitter (decided 2026-11-12).
+  Built 2026-11-20 as a third report kind (`only_man_home`, migration a8c0e2f4b6d7): "Only a man is at home"
+  on her booking page once it's started; no wait; admin confirms on /admin/reports → `declined_man_at_home`.
+  The Issues button (phase 8) can link to it; the ₹100 is paid with payouts (phase 9)
 - [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit (doctor's note strike removal was built with Strikes, 2026-11-19)
 - [x] Strikes: ladder, blocking, 6-month expiry, admin add/remove. `services/strikes.py`; `sitters.blocked_until`
   (migration e495d3416292) hides a blocked sitter from parents, booking and accepting; the 5th strike
@@ -547,6 +553,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-20 — Ticked Book a time (checked against its tests); sitter declines when only a man is home.
 - 2026-11-19 — Reports: parent not home (20-minute wait, I have arrived) and sitter no-show (from 30 minutes).
 - 2026-11-19 — Paying a charge by UPI (late cancellation charges; overtime later).
 - 2026-11-19 — Strikes: ladder, blocking, admin add/remove, doctor's note.

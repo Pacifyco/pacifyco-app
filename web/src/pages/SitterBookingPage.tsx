@@ -7,7 +7,7 @@ import { formatBookingTime, formatMobile } from "../lib/format";
 import { rupees } from "../lib/prices";
 import { sitterBookingLine, sitterStatusText, type SitterBookingItem } from "./SitterBookingsPage";
 import { answerByText } from "./SitterRequestsPage";
-import { SHOW_UP_FEE_PER_HOUR_PAISE, minutesLeft, underWay, type BookingReport } from "../lib/reports";
+import { MAN_HOME_FEE_PAISE, SHOW_UP_FEE_PER_HOUR_PAISE, minutesLeft, underWay, type BookingReport } from "../lib/reports";
 
 // One of the sitter's requests or bookings (CLAUDE.md 6.4 and 6.11): the children's care notes (medicine
 // instructions go in the medical notes, 6.11), bath time, the camera answer, the area and her pay; on a
@@ -147,12 +147,60 @@ function NoOneHome({ booking }: { booking: SitterBookingDetail }) {
   );
 }
 
+/** The only adult at home is a man: she may decline on the spot (6.5; decided 2026-11-12). */
+function OnlyManHome({ booking }: { booking: SitterBookingDetail }) {
+  const queryClient = useQueryClient();
+  const [asking, setAsking] = useState(false);
+  const report = useMutation({
+    mutationFn: () =>
+      apiFetch<SitterBookingDetail>(`/sitter/bookings/${booking.id}/only-man-home`, { method: "POST" }),
+    onSuccess: (updated) => queryClient.setQueryData(["sitter", "booking", booking.id], updated),
+  });
+  if (!asking) {
+    return (
+      <div>
+        <Button variant="secondary" fullWidthOnPhone={false} onClick={() => setAsking(true)}>
+          Only a man is at home
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <p className="text-ink">
+        For your safety you may decline this booking. Make sure the children are with him, then leave. You won't
+        get a strike, and once Pacifyco confirms you'll be paid {rupees(MAN_HOME_FEE_PAISE)}.
+      </p>
+      {report.isError && (
+        <p role="alert" className="text-small text-danger">
+          {report.error instanceof ApiError ? report.error.message : "That didn't go through. Please try again."}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" loading={report.isPending} onClick={() => report.mutate()}>
+          Decline this booking
+        </Button>
+        <Button variant="tertiary" onClick={() => setAsking(false)}>
+          Not now
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 /** What happens now that a report has been made about this booking. */
 function ReportStatus({ booking, now }: { booking: SitterBookingDetail; now: Date }) {
   const report = booking.report!;
   const fee = rupees(SHOW_UP_FEE_PER_HOUR_PAISE * booking.hours);
   let text: string;
-  if (report.kind === "sitter_no_show") {
+  if (report.kind === "only_man_home") {
+    text =
+      report.status === "open"
+        ? "You've declined this booking, and we've told the family and Pacifyco. Make sure the children are with an adult, then you may leave."
+        : report.status === "confirmed"
+          ? `Pacifyco confirmed. You won't get a strike, and you'll be paid ${rupees(MAN_HOME_FEE_PAISE)}.`
+          : "Pacifyco looked at your report and dismissed it.";
+  } else if (report.kind === "sitter_no_show") {
     text =
       report.status === "open"
         ? "The family says you didn't arrive. Pacifyco will call you."
@@ -338,7 +386,12 @@ export function SitterBookingPage() {
       {data.report && <ReportStatus booking={data} now={new Date()} />}
       {!data.report &&
         ["confirmed", "in_progress"].includes(data.status) &&
-        underWay(data.starts_at, data.ends_at, new Date()) && <NoOneHome booking={data} />}
+        underWay(data.starts_at, data.ends_at, new Date()) && (
+          <div className="flex flex-col gap-3">
+            <NoOneHome booking={data} />
+            <OnlyManHome booking={data} />
+          </div>
+        )}
       {SITTER_CAN_CANCEL.includes(data.status) && new Date(data.starts_at) > new Date() && (
         <CancelBooking booking={data} />
       )}

@@ -14,7 +14,7 @@ import { errorMessage } from "./shared";
 
 export type AdminReport = {
   id: string;
-  kind: "parent_absent" | "sitter_no_show";
+  kind: "parent_absent" | "sitter_no_show" | "only_man_home";
   reported_at: string;
   responded_at: string | null;
   can_leave_at: string | null;
@@ -34,6 +34,7 @@ export const REPORTS_KEY = ["admin", "reports"];
 const KIND_WORDS: Record<AdminReport["kind"], string> = {
   parent_absent: "No one home, says the sitter",
   sitter_no_show: "Sitter didn't come, says the parent",
+  only_man_home: "Sitter declined: only a man at home",
 };
 
 function when(iso: string): string {
@@ -57,6 +58,9 @@ function Phone({ label, name, phone }: { label: string; name: string | null; pho
 
 /** Where the 20-minute wait stands, for a parent-not-home report. */
 export function waitText(report: AdminReport, now: Date): string | null {
+  if (report.kind === "only_man_home") {
+    return `She has declined and left. Confirming closes the booking, charged in full, and pays her ${rupees(report.show_up_fee_paise)}.`;
+  }
   if (report.kind !== "parent_absent") return null;
   if (report.responded_at) return "A parent responded: the sitter waits. Dismiss it once they're together.";
   const left = report.can_leave_at ? minutesLeft(report.can_leave_at, now) : null;

@@ -199,7 +199,7 @@ def test_bookings_end_by_the_plans_latest_end(
     assert response.status_code == 422 and response.json()["error"]["code"] == code
 
 
-def test_bookings_start_at_least_4_hours_from_now(client, db_engine, finished_parent, free_sitter, child_of):
+def test_bookings_start_at_least_6_hours_from_now(client, db_engine, finished_parent, free_sitter, child_of):
     sitter = free_sitter("recharge")
     kids = children_of(db_engine, finished_parent["id"])
     earliest = bookings.earliest_start(datetime.now(UTC))
@@ -307,16 +307,18 @@ def test_turning_18_months_counts_on_the_booking_day(client, db_engine, finished
     assert book(client, finished_parent, sitter, child_ids=[str(child)]).status_code == 201
 
 
-def test_only_confirmed_bookings_take_her_time(client, db_engine, finished_parent, free_sitter, child_of):
+@pytest.mark.parametrize("holding", ["pending_payment", "confirmed"])
+def test_only_accepted_bookings_take_her_time(client, db_engine, finished_parent, free_sitter, child_of, holding):
     sitter = free_sitter("recharge")
     kids = children_of(db_engine, finished_parent["id"])
     first = book(client, finished_parent, sitter, child_ids=kids)
-    # No slot hold while payment is pending (decided 2026-11-03): the same time can be booked again.
+    # A request doesn't hold her time (6.4): the same time can be requested again.
     second = book(client, finished_parent, sitter, child_ids=kids)
     assert first.status_code == second.status_code == 201
 
+    # Once she accepts (waiting for payment) or it's confirmed, it does (Reuben, 2026-11-19).
     with db_engine.begin() as conn:
-        conn.execute(text("UPDATE bookings SET status = 'confirmed' WHERE id = :id"), {"id": first.json()["id"]})
+        conn.execute(text("UPDATE bookings SET status = :s WHERE id = :id"), {"s": holding, "id": first.json()["id"]})
     third = book(client, finished_parent, sitter, child_ids=kids)
     assert third.status_code == 409 and third.json()["error"]["code"] == "not_free"
     found = options(client, finished_parent, sitter)

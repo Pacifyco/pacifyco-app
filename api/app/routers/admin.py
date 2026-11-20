@@ -919,7 +919,7 @@ class AdminReport(BaseModel):
     parent_phone: str | None
     sitter_name: str | None
     sitter_phone: str | None
-    show_up_fee_paise: int  # parent not home: what she's due if it's confirmed
+    show_up_fee_paise: int  # what she's due if it's confirmed: show-up fee, or ₹100 when only a man is home
 
 
 def _admin_report(db: DbSession, report) -> AdminReport:
@@ -940,7 +940,7 @@ def _admin_report(db: DbSession, report) -> AdminReport:
         parent_phone=parent.phone,
         sitter_name=sitter.full_name if sitter else None,
         sitter_phone=sitter.phone if sitter else None,
-        show_up_fee_paise=reports_service.show_up_fee_paise(booking),
+        show_up_fee_paise=reports_service.fee_paise(report, booking),
     )
 
 
@@ -965,7 +965,7 @@ def confirm_report(
     report_id: uuid.UUID, body: ReportDecisionIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
 ) -> AdminReport:
     done = reports_service.decide(db, admin.id, report_id, True, _clean_reason(body.note or ""), datetime.now(UTC))
-    booking_mail.tell_decided(db, mailer, settings, done.report, reports_service.show_up_fee_paise(done.booking))
+    booking_mail.tell_decided(db, mailer, settings, done.report, reports_service.fee_paise(done.report, done.booking))
     if done.strike is not None and done.strike.removed:
         booking_mail.tell_removed_for_strikes(db, mailer, settings, done.booking.sitter_id)
     return _admin_report(db, done.report)
@@ -979,5 +979,5 @@ def dismiss_report(
     if note is None:
         raise AppError(422, "reason_needed", "Please say why you're dismissing it.")
     done = reports_service.decide(db, admin.id, report_id, False, note, datetime.now(UTC))
-    booking_mail.tell_decided(db, mailer, settings, done.report, reports_service.show_up_fee_paise(done.booking))
+    booking_mail.tell_decided(db, mailer, settings, done.report, reports_service.fee_paise(done.report, done.booking))
     return _admin_report(db, done.report)

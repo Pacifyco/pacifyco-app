@@ -736,3 +736,13 @@ def report_parent_not_home(
     report = reports_service.parent_not_home(db, sitter.id, booking_id, body.no_child_alone, datetime.now(UTC))
     booking_mail.tell_reported(db, mailer, settings, report)
     return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
+
+
+@router.post("/bookings/{booking_id}/only-man-home", status_code=201)
+def report_only_man_home(
+    booking_id: uuid.UUID, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    """The only adult at home is a man: she declines on the spot. No strike; Pacifyco pays her ₹100 (6.5)."""
+    report = reports_service.only_man_home(db, sitter.id, booking_id, datetime.now(UTC))
+    booking_mail.tell_reported(db, mailer, settings, report)
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))

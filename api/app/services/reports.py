@@ -2,6 +2,8 @@
 
 - Parent not home: the sitter reports it, from the start until the end. Confirmed by an admin, the booking
   is `parent_absent`: the parent pays the whole booking and she's due ₹100 per booked hour.
+- Only a man at home: the sitter may decline on the spot (decided 2026-11-12). Confirmed by an admin, the
+  booking is `declined_man_at_home`: the parent pays the whole booking, no strike, ₹100 to her.
 - Sitter no-show: the parent reports it, from 30 minutes after the start until the end. Confirmed by an
   admin, it's `sitter_no_show`: the parent is refunded, and she gets a strike and earns nothing.
 
@@ -26,6 +28,7 @@ from app.services import audit, bookings, strikes
 PARENT_WAIT = timedelta(minutes=20)  # 6.5: she may leave if no parent responds within 20 minutes
 NO_SHOW_AFTER = timedelta(minutes=30)  # Reuben, 2026-11-19: a no-show can be reported from 30 minutes in
 SHOW_UP_FEE_PER_HOUR_PAISE = 10_000  # ₹100 per booked hour (6.5)
+MAN_HOME_FEE_PAISE = 10_000  # a flat ₹100 when she declines because only a man is home (6.5)
 UNDER_WAY = (BookingStatus.confirmed, BookingStatus.in_progress)
 
 
@@ -38,6 +41,16 @@ def can_leave_at(report: BookingReport) -> datetime | None:
 
 def show_up_fee_paise(booking: Booking) -> int:
     return SHOW_UP_FEE_PER_HOUR_PAISE * booking.units
+
+
+def fee_paise(report: BookingReport, booking: Booking) -> int:
+    """What Pacifyco pays her if the report is confirmed: the show-up fee, or a flat ₹100; nothing for a
+    no-show."""
+    if report.kind == ReportKind.parent_absent:
+        return show_up_fee_paise(booking)
+    if report.kind == ReportKind.only_man_home:
+        return MAN_HOME_FEE_PAISE
+    return 0
 
 
 def for_booking(db: Session, booking_id: uuid.UUID) -> BookingReport | None:
@@ -92,6 +105,17 @@ def parent_not_home(
             "and call 112 if you need help.",
         )
     return _new(db, booking, ReportKind.parent_absent, sitter_id, now)
+
+
+def only_man_home(db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID, now: datetime) -> BookingReport:
+    """The only adult at home is a man: she may decline the booking on the spot (6.5; decided 2026-11-12).
+    No strike; the parent pays the whole booking; Pacifyco pays her a flat ₹100 once an admin confirms."""
+    booking = _booking(db, booking_id, sitter_id=sitter_id)
+    if booking.status not in UNDER_WAY:
+        raise AppError(409, "cannot_report", "This booking can't be reported now.")
+    if not booking.starts_at <= now < booking.ends_at:
+        raise AppError(409, "not_booking_time", "You can report this once the booking has started.")
+    return _new(db, booking, ReportKind.only_man_home, sitter_id, now)
 
 
 def sitter_no_show(db: Session, parent_id: uuid.UUID, booking_id: uuid.UUID, now: datetime) -> BookingReport:
@@ -169,6 +193,8 @@ def decide(
             if now < leave:
                 raise AppError(409, "still_waiting", "The 20 minutes for a parent to respond haven't passed yet.")
             status = BookingStatus.parent_absent
+        elif report.kind == ReportKind.only_man_home:
+            status = BookingStatus.declined_man_at_home  # charged in full, no strike (6.5)
         else:
             status = BookingStatus.sitter_no_show
         if booking.status not in UNDER_WAY:

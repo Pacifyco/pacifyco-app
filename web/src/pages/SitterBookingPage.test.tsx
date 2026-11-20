@@ -189,7 +189,7 @@ describe("No one's home (6.5)", () => {
     const posted: { url: string; body: unknown }[] = [];
     vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
       if (init?.method === "POST") {
-        posted.push({ url, body: JSON.parse(init.body as string) });
+        posted.push({ url, body: init.body ? JSON.parse(init.body as string) : null });
         current = after ?? first;
       }
       return Promise.resolve(jsonResponse(current));
@@ -239,9 +239,20 @@ describe("No one's home (6.5)", () => {
     expect(await screen.findByText("The family has responded and is on the way. Please wait for them.")).toBeTruthy();
   });
 
+  test("only a man at home: she declines, with no strike and ₹100", async () => {
+    const declined = { ...OPEN, kind: "only_man_home" as const, can_leave_at: null };
+    const posted = renderWithBooking(NOW, { ...NOW, report: declined });
+    fireEvent.click(await screen.findByRole("button", { name: "Only a man is at home" }));
+    expect(screen.getByText(/You won't get a strike, and once Pacifyco confirms you'll be paid ₹100\./)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Decline this booking" }));
+    expect(await screen.findByText(/You've declined this booking/)).toBeTruthy();
+    expect(posted.map((call) => call.url)).toEqual([expect.stringMatching(/\/sitter\/bookings\/b1\/only-man-home$/)]);
+  });
+
   test("not before the booking starts", async () => {
     renderWithBooking(BOOKING); // in 2030
     await screen.findByRole("heading", { name: "Meera's family" });
     expect(screen.queryByRole("button", { name: "No one's home" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Only a man is at home" })).toBeNull();
   });
 });

@@ -565,6 +565,14 @@ export function BookingPage() {
           </p>
         </Card>
       )}
+      {data.status === "declined_man_at_home" && (
+        <Card as="section" padding="roomy">
+          <p className="text-ink">
+            {firstName} declined the booking because the only adult at home was a man, so it was closed and the
+            whole booking is charged.
+          </p>
+        </Card>
+      )}
       {data.status === "sitter_no_show" && (
         <Card as="section" padding="roomy" className="flex flex-col gap-3">
           <p className="text-ink">We're sorry: {firstName} didn't come. Pacifyco will refund you in full.</p>
@@ -604,6 +612,15 @@ function ParentReport({ booking, firstName }: { booking: Booking; firstName: str
     return (
       <Card as="section" padding="roomy" role="status">
         <p className="text-ink">You've told us {firstName} didn't come. Pacifyco will call you.</p>
+      </Card>
+    );
+  }
+  if (report.kind === "only_man_home") {
+    return (
+      <Card as="section" padding="roomy" role="status">
+        <p className="text-ink">
+          {firstName} declined the booking because the only adult at home was a man. Pacifyco will be in touch.
+        </p>
       </Card>
     );
   }
@@ -732,6 +749,7 @@ function statusLabel(status: string): string {
   if (status === "request_declined" || status === "request_lapsed") return "Not accepted";
   if (status.startsWith("cancelled_sitter")) return "Cancelled by the sitter";
   if (status === "parent_absent") return "Closed: no one was home";
+  if (status === "declined_man_at_home") return "Closed: the sitter declined";
   if (status === "sitter_no_show") return "The sitter didn't come";
   if (status === "pending_payment") return "Accepted: waiting for payment";
   if (status === "awaiting_verification") return "Paid";
