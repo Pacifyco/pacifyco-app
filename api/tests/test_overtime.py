@@ -17,6 +17,7 @@ from tests.test_payments import booking, pay  # noqa: F401  (fixture)
 from tests.test_roles import make_profile  # noqa: F401  (fixture)
 from tests.test_sign_up import PARENT, auth_for, user  # noqa: F401  (fixture)
 from tests.test_sitter_bookings import signed_in
+from tests.test_verification import reviewer  # noqa: F401  (fixture)
 
 ADMINS = "ops@example.com"
 
