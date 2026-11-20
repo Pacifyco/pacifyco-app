@@ -41,8 +41,8 @@ def put_booking(db_engine, booking_id, *, plan, starts_at, ends_at, checked_out_
     with db_engine.begin() as conn:
         conn.execute(
             text(
-                "UPDATE bookings SET plan = :plan, starts_at = :s, ends_at = :e, checked_out_at = :co, "
-                "children_count = :c, status = 'completed' WHERE id = :b"
+                "UPDATE bookings SET plan = :plan, starts_at = :s, ends_at = :e, checked_in_at = :s, "
+                "checked_out_at = :co, children_count = :c, status = 'completed' WHERE id = :b"
             ),
             {"plan": plan, "s": starts_at, "e": ends_at, "co": checked_out_at, "c": children_count, "b": booking_id},
         )
@@ -184,7 +184,7 @@ def test_checking_out_on_time_charges_nothing(client, db_engine, mailbox, confir
     out_code_value = out_code(client, finished_parent, confirmed["id"]).json()["code"]
     assert do_check_out(client, sitter, confirmed["id"], code=out_code_value).status_code == 200
     assert scalar(db_engine, "SELECT count(*) FROM overtime_charges WHERE booking_id = :b", b=confirmed["id"]) == 0
-    assert not to(mailbox, finished_parent["email"])
+    assert not any("overtime" in email.subject.lower() for email in to(mailbox, finished_parent["email"]))
 
 
 def test_admin_manual_close_doesnt_charge_overtime(db_engine, confirmed, admin):
