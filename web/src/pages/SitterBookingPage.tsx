@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams } from "react-router";
-import { BackLink, Button, ButtonLink, Card, Checkbox, EmptyState, showToast } from "../components/ui";
+import { BackLink, Button, ButtonLink, Card, Checkbox, EmptyState, TextInput, showToast } from "../components/ui";
 import { ApiError, apiFetch } from "../lib/api";
 import { formatBookingTime, formatMobile } from "../lib/format";
 import { rupees } from "../lib/prices";
+import { todayInKolkata } from "../lib/times";
 import { sitterBookingLine, sitterStatusText, type SitterBookingItem } from "./SitterBookingsPage";
 import { answerByText } from "./SitterRequestsPage";
 import { MAN_HOME_FEE_PAISE, SHOW_UP_FEE_PER_HOUR_PAISE, minutesLeft, underWay, type BookingReport } from "../lib/reports";
@@ -28,6 +29,9 @@ export type SitterBookingDetail = SitterBookingItem & {
   pin_code: string | null;
   emergency_contact: { name: string; relationship: string; phone: string } | null;
   report: BookingReport | null;
+  checked_in_at: string | null; // (6.7)
+  checked_out_at: string | null;
+  codes_locked: boolean;
 };
 
 /** "18 months", "2 years", "5 years". */
@@ -412,6 +416,101 @@ function CancelBooking({ booking }: { booking: SitterBookingDetail }) {
   );
 }
 
+/** Her location, if she allows it; `null` for both if denied, unsupported or it times out (6.7). */
+function currentLocation(): Promise<{ lat: number | null; lng: number | null }> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve({ lat: null, lng: null });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      () => resolve({ lat: null, lng: null }),
+      { timeout: 5000 },
+    );
+  });
+}
+
+function attemptsLeft(error: unknown): number | null {
+  if (!(error instanceof ApiError) || error.code !== "wrong_code") return null;
+  const details = error.details as { attempts_left?: unknown } | null;
+  return typeof details?.attempts_left === "number" ? details.attempts_left : null;
+}
+
+/** Entering the family's check-in or check-out code (6.7): her location is recorded if she allows it. */
+function CheckCodeForm({ booking, kind }: { booking: SitterBookingDetail; kind: "check-in" | "check-out" }) {
+  const queryClient = useQueryClient();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const submit = useMutation({
+    mutationFn: async (value: string) => {
+      const { lat, lng } = await currentLocation();
+      return apiFetch<SitterBookingDetail>(`/sitter/bookings/${booking.id}/${kind}`, {
+        method: "POST",
+        body: JSON.stringify({ code: value, lat, lng }),
+      });
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["sitter", "booking", booking.id], updated);
+      void queryClient.invalidateQueries({ queryKey: ["sitter"] });
+      setCode("");
+      setError(null);
+      showToast(kind === "check-in" ? "Checked in." : "Checked out.");
+    },
+    onError: (failed) => {
+      const left = attemptsLeft(failed);
+      setError(
+        failed instanceof ApiError
+          ? left !== null
+            ? `${failed.message} ${left === 1 ? "1 try left." : `${left} tries left.`}`
+            : failed.message
+          : "That didn't go through. Please try again.",
+      );
+    },
+  });
+  if (booking.codes_locked) {
+    return (
+      <Card as="section" padding="roomy" role="alert">
+        <p className="text-ink">Too many wrong codes were entered. Pacifyco has been told and will call you.</p>
+      </Card>
+    );
+  }
+  const noun = kind === "check-in" ? "Check-in" : "Check-out";
+  const verb = kind === "check-in" ? "Check in" : "Check out";
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <p className="text-ink">Ask the family for the {noun.toLowerCase()} code and enter it here.</p>
+      <form
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!/^\d{4}$/.test(code)) {
+            setError("Enter the 4-digit code.");
+            return;
+          }
+          setError(null);
+          submit.mutate(code);
+        }}
+        className="flex flex-col gap-3"
+      >
+        <TextInput
+          label={`${noun} code`}
+          value={code}
+          onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 4))}
+          inputMode="numeric"
+          maxLength={4}
+          error={error ?? undefined}
+        />
+        <div>
+          <Button type="submit" loading={submit.isPending}>
+            {verb}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
 export function SitterBookingPage() {
   const { bookingId = "" } = useParams();
   const booking = useQuery({
@@ -511,6 +610,10 @@ export function SitterBookingPage() {
           <p className="text-small text-muted">If you can't reach the family in an emergency.</p>
         </Card>
       )}
+      {data.status === "confirmed" && todayInKolkata(new Date(data.starts_at)) === todayInKolkata() && (
+        <CheckCodeForm booking={data} kind="check-in" />
+      )}
+      {data.status === "in_progress" && <CheckCodeForm booking={data} kind="check-out" />}
       {data.report && <ReportStatus booking={data} now={new Date()} />}
       {!data.report &&
         ["confirmed", "in_progress"].includes(data.status) &&

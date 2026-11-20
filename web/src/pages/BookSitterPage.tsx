@@ -63,6 +63,8 @@ export type Booking = {
   pay_by_upi: PayByUpi | null;
   /** The latest payment the parent sent for it. */
   payment: Payment | null;
+  checked_in_at: string | null; // (6.7)
+  checked_out_at: string | null;
 };
 
 export type PayByUpi = { upi_id: string; payee_name: string; amount_paise: number; note: string; upi_link: string };
@@ -451,8 +453,13 @@ export function BookingPage() {
   const booking = useQuery({
     queryKey: ["booking", bookingId],
     queryFn: () => apiFetch<Booking>(`/parent/bookings/${bookingId}`),
-    // While a report is open, check for news every 30 seconds.
-    refetchInterval: (query) => (query.state.data?.report?.status === "open" ? 30_000 : false),
+    // While a report is open, or the sitter could check in/out any moment, check for news every 30 seconds.
+    refetchInterval: (query) =>
+      query.state.data?.report?.status === "open" ||
+      query.state.data?.status === "confirmed" ||
+      query.state.data?.status === "in_progress"
+        ? 30_000
+        : false,
   });
   if (booking.isPending) return <p className="text-center text-muted">Loading…</p>;
   if (booking.isError) {
@@ -501,8 +508,32 @@ export function BookingPage() {
         </Card>
       )}
       {data.status === "confirmed" && (
+        <>
+          <Card as="section" padding="roomy" className="flex flex-col gap-3">
+            <p className="text-ink">Your booking is confirmed and paid.</p>
+          </Card>
+          {todayInKolkata(startsAt) === todayInKolkata() && (
+            <CheckCodeCard bookingId={data.id} kind="check-in" firstName={firstName} />
+          )}
+        </>
+      )}
+      {data.status === "in_progress" && (
+        <>
+          <Card as="section" padding="roomy" className="flex flex-col gap-3">
+            <p className="text-ink">
+              {firstName} checked in{data.checked_in_at ? ` at ${formatTime(new Date(data.checked_in_at))}` : ""} and
+              is looking after {joinNames(data.children)}.
+            </p>
+          </Card>
+          <CheckCodeCard bookingId={data.id} kind="check-out" firstName={firstName} />
+        </>
+      )}
+      {data.status === "completed" && (
         <Card as="section" padding="roomy" className="flex flex-col gap-3">
-          <p className="text-ink">Your booking is confirmed and paid.</p>
+          <p className="text-ink">
+            This booking is complete.
+            {data.checked_out_at ? ` ${firstName} checked out at ${formatTime(new Date(data.checked_out_at))}.` : ""}
+          </p>
         </Card>
       )}
       {data.status === "cancelled_unpaid" && (
@@ -789,6 +820,8 @@ function statusLabel(status: string): string {
   if (status === "pending_payment") return "Accepted: waiting for payment";
   if (status === "awaiting_verification") return "Paid";
   if (status === "confirmed") return "Confirmed";
+  if (status === "in_progress") return "Happening now";
+  if (status === "completed") return "Completed";
   if (status.startsWith("cancelled")) return "Cancelled";
   return "Booking";
 }
@@ -823,6 +856,36 @@ function CancelledCard({ sitterId, children }: { sitterId: string; children: Rea
       <div>
         <ButtonLink to={`/parent/sitters/${sitterId}/book`}>Choose another time</ButtonLink>
       </div>
+    </Card>
+  );
+}
+
+/** The check-in or check-out code (6.7): read it out to the sitter so she can enter it in her app. */
+function CheckCodeCard({ bookingId, kind, firstName }: { bookingId: string; kind: "check-in" | "check-out"; firstName: string }) {
+  const query = useQuery({
+    queryKey: ["booking", bookingId, kind, "code"],
+    queryFn: () => apiFetch<{ code: string }>(`/parent/bookings/${bookingId}/${kind}-code`),
+  });
+  const label = kind === "check-in" ? "check-in code" : "check-out code";
+  const when =
+    kind === "check-in"
+      ? `When ${firstName} arrives, read this out to her.`
+      : `When ${firstName} is ready to leave, read this out to her.`;
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-2">
+      <h2 className="text-h3">Your {label}</h2>
+      {query.isPending && <p className="text-muted">Loading…</p>}
+      {query.isError && (
+        <p role="alert" className="text-small text-danger">
+          {query.error instanceof ApiError ? query.error.message : "We couldn't load the code. Please try again."}
+        </p>
+      )}
+      {query.isSuccess && (
+        <p className="text-h1 text-ink" style={{ letterSpacing: "0.2em" }}>
+          {query.data.code}
+        </p>
+      )}
+      <p className="text-small text-muted">{when} It only works once, so don't share it ahead of time.</p>
     </Card>
   );
 }

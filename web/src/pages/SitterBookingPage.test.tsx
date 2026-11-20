@@ -43,6 +43,9 @@ const BOOKING: SitterBookingDetail = {
   pin_code: "560034",
   emergency_contact: { name: "Ravi Rao", relationship: "Uncle", phone: "+919876543210" },
   report: null,
+  checked_in_at: null,
+  checked_out_at: null,
+  codes_locked: false,
 };
 
 beforeEach(() => {
@@ -283,6 +286,107 @@ describe("No one's home (6.5)", () => {
     expect(await screen.findByText("We've told Pacifyco and the family. Stay safe.")).toBeTruthy();
     expect(posted.map((call) => call)).toEqual([
       { url: expect.stringMatching(/\/sitter\/bookings\/b1\/unsafe$/), body: { child_with_parent: true } },
+    ]);
+  });
+});
+
+describe("Check-in and check-out (6.7)", () => {
+  const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+  const TODAY: SitterBookingDetail = { ...BOOKING, starts_at: minutesFromNow(60), ends_at: minutesFromNow(180) };
+
+  function renderWithBooking(first: SitterBookingDetail, after?: SitterBookingDetail) {
+    let current = first;
+    const posted: { url: string; body: unknown }[] = [];
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posted.push({ url, body: init.body ? JSON.parse(init.body as string) : null });
+        current = after ?? first;
+      }
+      return Promise.resolve(jsonResponse(current));
+    }) as unknown as typeof fetch);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/sitter/bookings/b1"]}>
+          <Routes>
+            <Route path="/sitter/bookings/:bookingId" element={<SitterBookingPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    return posted;
+  }
+
+  beforeEach(() => {
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: { getCurrentPosition: vi.fn((success) => success({ coords: { latitude: 12.9, longitude: 77.6 } })) },
+    });
+  });
+
+  test("not shown before the day of the booking", async () => {
+    renderWithBooking(BOOKING); // starts in 2030
+    await screen.findByRole("heading", { name: "Meera's family" });
+    expect(screen.queryByRole("button", { name: "Check in" })).toBeNull();
+  });
+
+  test("checking in sends the code and her location", async () => {
+    const posted = renderWithBooking(TODAY, { ...TODAY, status: "in_progress", checked_in_at: minutesFromNow(0) });
+    fireEvent.change(await screen.findByLabelText("Check-in code"), { target: { value: "4821" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check in" }));
+    expect(await screen.findByRole("button", { name: "Check out" })).toBeTruthy();
+    expect(posted).toEqual([
+      {
+        url: expect.stringMatching(/\/sitter\/bookings\/b1\/check-in$/),
+        body: { code: "4821", lat: 12.9, lng: 77.6 },
+      },
+    ]);
+  });
+
+  test("a wrong code shows how many tries are left", async () => {
+    vi.mocked(fetch).mockImplementation(((_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse(
+            { error: { code: "wrong_code", message: "That code's wrong.", details: { attempts_left: 3 } } },
+            409,
+          ),
+        );
+      }
+      return Promise.resolve(jsonResponse(TODAY));
+    }) as unknown as typeof fetch);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/sitter/bookings/b1"]}>
+          <Routes>
+            <Route path="/sitter/bookings/:bookingId" element={<SitterBookingPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.change(await screen.findByLabelText("Check-in code"), { target: { value: "0000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check in" }));
+    expect(await screen.findByText("That code's wrong. 3 tries left.")).toBeTruthy();
+  });
+
+  test("locked codes show a message instead of the form", async () => {
+    renderWithBooking({ ...TODAY, codes_locked: true });
+    expect(await screen.findByText(/Too many wrong codes were entered/)).toBeTruthy();
+    expect(screen.queryByLabelText("Check-in code")).toBeNull();
+  });
+
+  test("checking out sends the code once she's checked in", async () => {
+    const inProgress = { ...TODAY, status: "in_progress" as const, checked_in_at: minutesFromNow(-30) };
+    const posted = renderWithBooking(inProgress, { ...inProgress, status: "completed", checked_out_at: minutesFromNow(0) });
+    fireEvent.change(await screen.findByLabelText("Check-out code"), { target: { value: "1357" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check out" }));
+    expect(await screen.findByText("Completed")).toBeTruthy();
+    expect(posted).toEqual([
+      {
+        url: expect.stringMatching(/\/sitter\/bookings\/b1\/check-out$/),
+        body: { code: "1357", lat: 12.9, lng: 77.6 },
+      },
     ]);
   });
 });
