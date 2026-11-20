@@ -68,6 +68,7 @@ const BOOKING: Booking = {
   report: null,
   checked_in_at: null,
   checked_out_at: null,
+  overtime: null,
   pay_by_upi: {
     upi_id: "pacifyco@okaxis",
     payee_name: "Pacifyco",
@@ -612,5 +613,52 @@ describe("during the booking (6.5)", () => {
     });
     renderAt("/parent/bookings/b1");
     expect(await screen.findByText(/This booking is complete\. Lakshmi checked out at/)).toBeTruthy();
+  });
+
+  test("in progress: can request overtime", async () => {
+    const calls = api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(30), status: "in_progress", report: null }),
+      "POST /parent/bookings/b1/overtime": () =>
+        jsonResponse({
+          ...STARTED(30),
+          status: "in_progress",
+          report: null,
+          overtime: { id: "o1", hours: 2, status: "pending", requested_at: minutesFromNow(0), decided_at: null },
+        }),
+    });
+    renderAt("/parent/bookings/b1");
+    fireEvent.click(await screen.findByRole("button", { name: "Request overtime" }));
+    fireEvent.change(screen.getByLabelText("How many more hours?"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send the request" }));
+    expect(await screen.findByText("Waiting for Lakshmi to answer: 2 more hours.")).toBeTruthy();
+    expect(calls.some((call) => call.method === "POST" && call.path === "/parent/bookings/b1/overtime" && call.body)).toBe(
+      true,
+    );
+  });
+
+  test("in progress: shows an accepted or declined request", async () => {
+    const accepted = {
+      id: "o1",
+      hours: 1,
+      status: "accepted" as const,
+      requested_at: minutesFromNow(-5),
+      decided_at: minutesFromNow(0),
+    };
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () =>
+        jsonResponse({ ...STARTED(30), status: "in_progress", report: null, overtime: accepted }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("Lakshmi can stay 1 more hour.")).toBeTruthy();
+    cleanup();
+
+    const declined = { ...accepted, status: "declined" as const };
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () =>
+        jsonResponse({ ...STARTED(30), status: "in_progress", report: null, overtime: declined }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("Lakshmi couldn't stay longer last time. You can ask again.")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Request overtime" })).toBeTruthy();
   });
 });

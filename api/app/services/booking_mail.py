@@ -103,6 +103,30 @@ def tell_removed_for_strikes(db: Session, mailer: EmailClient, settings: Setting
         mailer.send(email_service.sitter_removed_alert(to, sitter.full_name, web_url(settings), sitter_id))
 
 
+def tell_sitter_overtime_requested(
+    db: Session, mailer: EmailClient, settings: Settings, booking_id: uuid.UUID, hours: int
+) -> None:
+    """A request she can now answer (6.8)."""
+    booking, parent, sitter = _people(db, booking_id)
+    mailer.send(
+        email_service.overtime_requested(
+            sitter.email, sitter.full_name, _first(parent.full_name), hours, booking.id, web_url(settings)
+        )
+    )
+
+
+def tell_parent_overtime_decided(
+    db: Session, mailer: EmailClient, settings: Settings, booking_id: uuid.UUID, *, accepted: bool, hours: int
+) -> None:
+    """Whether the sitter can stay the extra time (6.8)."""
+    booking, parent, sitter = _people(db, booking_id)
+    mailer.send(
+        email_service.overtime_decided(
+            parent.email, parent.full_name, sitter.full_name, accepted, hours, booking.id, web_url(settings)
+        )
+    )
+
+
 def tell_reported(db: Session, mailer: EmailClient, settings: Settings, report) -> None:
     """A report was made: the admins (to phone both), and the other side."""
     booking, parent, sitter = _people(db, report.booking_id)

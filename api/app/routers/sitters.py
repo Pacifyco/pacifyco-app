@@ -29,12 +29,21 @@ from app.models import (
     Sitter,
     VerificationStatus,
 )
-from app.routers.parents import ChecklistItem, ReportOut, WeekHours, checklist_out, report_out
+from app.routers.parents import (
+    ChecklistItem,
+    OvertimeRequestOut,
+    ReportOut,
+    WeekHours,
+    checklist_out,
+    overtime_out,
+    report_out,
+)
 from app.services import availability as availability_service
 from app.services import booking_mail, cancellations, checklists, sitter_pay, verification
 from app.services import bookings as bookings_service
 from app.services import checkin as checkin_service
 from app.services import email as email_service
+from app.services import overtime as overtime_service
 from app.services import psych_tests as psych_tests_service
 from app.services import reports as reports_service
 from app.services import sitters as sitters_service
@@ -585,6 +594,7 @@ class SitterBookingDetail(SitterBookingItem):
     checked_in_at: datetime | None  # (6.7)
     checked_out_at: datetime | None
     codes_locked: bool
+    overtime: OvertimeRequestOut | None  # (6.8)
 
 
 def _detail(db: Session, booking) -> SitterBookingDetail:
@@ -619,6 +629,7 @@ def _detail(db: Session, booking) -> SitterBookingDetail:
         checked_in_at=booking.checked_in_at,
         checked_out_at=booking.checked_out_at,
         codes_locked=booking.codes_locked,
+        overtime=overtime_out(db, booking.id),
     )
 
 
@@ -852,3 +863,28 @@ def post_check_out(
         _alert_if_locked(exc, mailer, settings, "check-out", booking.starts_at)
         raise
     return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
+
+
+def _overtime_decision(
+    request_id: uuid.UUID, accept: bool, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    decided = overtime_service.decide(db, sitter.id, request_id, accept, datetime.now(UTC))
+    booking_mail.tell_parent_overtime_decided(
+        db, mailer, settings, decided.booking_id, accepted=accept, hours=decided.requested_hours
+    )
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, decided.booking_id))
+
+
+@router.post("/overtime-requests/{request_id}/accept")
+def accept_overtime(
+    request_id: uuid.UUID, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    """Agreed between them already; nothing is charged now (6.8)."""
+    return _overtime_decision(request_id, True, sitter, db, mailer, settings)
+
+
+@router.post("/overtime-requests/{request_id}/decline")
+def decline_overtime(
+    request_id: uuid.UUID, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    return _overtime_decision(request_id, False, sitter, db, mailer, settings)

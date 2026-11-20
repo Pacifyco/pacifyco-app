@@ -416,6 +416,12 @@ Emergency button instead.
 - **Overtime request (decided 2026-11-12):** during the booking the parent presses "Request overtime"
   and picks a number of **whole hours**; the sitter gets a notification and accepts (they're assumed to
   have agreed it between them) or declines. Nothing is charged when she accepts.
+  **Built 2026-11-20** (`api/app/services/overtime.py`, table `overtime_requests`): only while the
+  booking is `in_progress`; one open request per booking at a time (a new one can be made once the last
+  is decided). `POST /parent/bookings/{id}/overtime` makes the request (the sitter is emailed);
+  `POST /sitter/overtime-requests/{id}/accept` or `/decline` answers it (the parent is emailed either
+  way). The latest request shows on the booking to both sides. This is only the request; the charge
+  below is a separate item, still to be built.
 - Overtime is always worked out **at check-out**, whether or not a request was accepted (a parent who is
   simply late still pays): if the check-out time is past the booked end time, the extra time is
   **rounded up to the next full hour** and charged at the booking's plan price per hour.
@@ -685,6 +691,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `booking_home_info` **(created)** (booking_id, cameras_on, camera_locations)
 - `outing_requests` (id, booking_id, description, status: `pending|approved|declined`, decided_at)
 - `complaints` (id, raised_by, booking_id null, type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed`, late, first_reply_at, resolved_at, assigned_to, decided_by)
+- `overtime_requests` **(created)** (id, booking_id, requested_hours, status: `pending|accepted|declined`, requested_at, decided_at) — built 2026-11-20, migration e6c8b2d4f7a1; one open (`pending`) request per booking at a time; nothing charged here, see `overtime_charges` below
 - `overtime_charges` (id, booking_id, minutes_over, hours_charged (rounded up), amount_paise, sitter_pay_paise, created_at) — computed at check-out (6.8); its payment is a `payments` row
 - `strikes` **(created)** (id, sitter_id, booking_id null (one strike per booking), reason: `late_cancellation|no_show|admin`, note, given_at, expires_at (6 months later), removed_by null, removed_at, removal_reason, doctor_note_document_id null) — kept, never deleted: the API's role can add rows and record a removal only
 - `incidents` (id, booking_id, raised_by, status: `open|acknowledged|resolved`, notes)

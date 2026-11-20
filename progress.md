@@ -9,11 +9,13 @@ tests.
 ## Current status
 
 - Phase: 7 done (PR #96 merged 2026-11-20). Phase 8 ("During the booking") under way: check-in/check-out
-  codes (PR #97, merged) and overdue check-out alerts + admin manual close (branch
-  `phase8/overdue-checkout`) both built. Couldn't run the Postgres-backed API suite locally this session
-  (no Docker here); web typecheck, lint and tests are green (348/349 — the 1 failure is the pre-existing
-  Node 20 `Intl` midnight quirk, unrelated).
-- Next item: phase 8, overtime request (parent picks whole hours, sitter accepts or declines).
+  codes and overdue check-out alerts + admin manual close (PRs #97, #98, merged) and the overtime request
+  (branch `phase8/overtime-request`) all built. Couldn't run the Postgres-backed API suite locally this
+  session (no Docker here); web typecheck, lint and tests are green (353/354 — the 1 failure is the
+  pre-existing Node 20 `Intl` midnight quirk, unrelated).
+- Next item: phase 8, the Issues button (non-emergency reports: running late, only a man at home, a
+  complaint linked to the booking) or overtime at check-out (the actual charge) — either can go next;
+  overtime at check-out doesn't depend on the Issues button.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -517,7 +519,13 @@ at home (CLAUDE.md 6.3).
   d3f5b7a9c1e4 adds `closed_by_admin` to the status list and `closed_by_admin_id`/`close_reason`.
   Backfilled the backend tests that PR #97 shipped without (`test_checkin.py`, new) alongside this
   item's own (`test_overdue_checkouts.py`).
-- [ ] Overtime request: parent picks whole hours, sitter accepts or declines; charged at check-out (decided 2026-11-12)
+- [x] Overtime request: parent picks whole hours, sitter accepts or declines (decided 2026-11-12). Built
+  2026-11-20: `api/app/services/overtime.py`, table `overtime_requests` (migration e6c8b2d4f7a1), only
+  while `in_progress`, one open request per booking at a time. `POST /parent/bookings/{id}/overtime`
+  (sitter emailed); `POST /sitter/overtime-requests/{id}/accept` or `/decline` (parent emailed either
+  way). Nothing is charged by any of this — that's the separate "Overtime at check-out" item below,
+  which still needs building; a parent simply running late with no accepted request will still owe it
+  once that exists.
 - [ ] Issues button for parents and sitters (non-emergency: running late, only a man at home), a complaint linked to the booking (decided 2026-11-12)
 - [ ] Overtime at check-out: rounded up to the full hour at the plan price, UPI link/QR due in 2 hours, unpaid blocks new bookings
 - [ ] Emergency/Report button for parents and sitters; admin email alert; incident records
@@ -589,6 +597,10 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-20 — Overtime request: parent asks for whole hours once a booking is in progress, sitter
+  accepts or declines (nothing charged either way; that's the separate "Overtime at check-out" item).
+  Table `overtime_requests` (migration e6c8b2d4f7a1), one open request per booking; both sides emailed.
+  Branch `phase8/overtime-request`.
 - 2026-11-20 — Overdue check-out alerts (frequent job, once per booking) and admin manual close
   (`/admin/overdue-checkouts`, also listing codes-locked bookings; `POST /admin/bookings/{id}/close`),
   with a banner on the admin home page. Found and fixed a bug while writing tests: closing a booking
