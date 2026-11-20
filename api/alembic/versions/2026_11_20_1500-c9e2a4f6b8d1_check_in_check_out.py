@@ -24,21 +24,19 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column("bookings", sa.Column("check_in_code_encrypted", sa.LargeBinary(), nullable=True))
     op.add_column("bookings", sa.Column("check_out_code_encrypted", sa.LargeBinary(), nullable=True))
-    op.add_column(
-        "bookings", sa.Column("code_attempts", sa.SmallInteger(), nullable=False, server_default="0")
-    )
-    op.add_column(
-        "bookings", sa.Column("codes_locked", sa.Boolean(), nullable=False, server_default="false")
-    )
+    op.add_column("bookings", sa.Column("code_attempts", sa.SmallInteger(), nullable=False, server_default="0"))
+    op.add_column("bookings", sa.Column("codes_locked", sa.Boolean(), nullable=False, server_default="false"))
     op.add_column("bookings", sa.Column("checked_in_at", sa.DateTime(timezone=True), nullable=True))
     op.add_column("bookings", sa.Column("check_in_lat", sa.Float(), nullable=True))
     op.add_column("bookings", sa.Column("check_in_lng", sa.Float(), nullable=True))
     op.add_column("bookings", sa.Column("checked_out_at", sa.DateTime(timezone=True), nullable=True))
     op.add_column("bookings", sa.Column("check_out_lat", sa.Float(), nullable=True))
     op.add_column("bookings", sa.Column("check_out_lng", sa.Float(), nullable=True))
-    op.create_check_constraint("ck_bookings_code_attempts_in_range", "bookings", "code_attempts BETWEEN 0 AND 5")
+    op.create_check_constraint(op.f("ck_bookings_code_attempts_in_range"), "bookings", "code_attempts BETWEEN 0 AND 5")
     op.create_check_constraint(
-        "ck_bookings_checked_out_needs_checked_in", "bookings", "checked_out_at IS NULL OR checked_in_at IS NOT NULL"
+        op.f("ck_bookings_checked_out_needs_checked_in"),
+        "bookings",
+        "checked_out_at IS NULL OR checked_in_at IS NOT NULL",
     )
 
 
