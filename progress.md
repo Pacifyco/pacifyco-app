@@ -6,13 +6,15 @@ on the first unchecked item of the current phase. When an item is done and its t
 Reuben; don't do them, but you may remind him when they block you. Don't tick anything with failing
 tests.
 
-- Phase: 7 — Bookings, cancellations, strikes. Everything in phase 7 is built and decided, including the
-  15-minute late rule (dropped 2026-11-20; the 30-minute no-show report is the only mechanism). Tests for
-  the phase as a whole aren't ticked yet; couldn't run the Postgres-backed suite locally this session (no
-  Docker here), so CI is what confirms it.
-- Next item: once CI confirms this session's work (two new report kinds, the `SITTER_SEES` fix, and the
-  legal-document wording), start phase 8 ("During the booking": check-in/check-out codes, overdue
-  check-out alerts, overtime request and charging, the Issues and Emergency buttons, chat, outing requests).
+## Current status
+
+- Phase: 7 done (PR #96 merged 2026-11-20). Phase 8 ("During the booking") started: check-in and
+  check-out codes built (`api/app/services/checkin.py`, migration c9e2a4f6b8d1, branch
+  `phase8/check-in-check-out`). Couldn't run the Postgres-backed API suite locally this session (no
+  Docker here); web typecheck, lint and tests are green (341/342 — the 1 failure is the pre-existing
+  Node 20 `Intl` midnight quirk, unrelated).
+- Next item: phase 8, overdue check-out alert job and admin manual close (the natural remedy for a
+  booking whose codes get locked, since there's no other way to unstick one yet).
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -499,7 +501,14 @@ at home (CLAUDE.md 6.3).
 
 ## Phase 8 — During the booking
 
-- [ ] Check-in and check-out codes (parent's app, booking day only, single use, hashed, lock after 5 wrong attempts) with location recorded
+- [x] Check-in and check-out codes (parent's app, booking day only, single use, encrypted not hashed
+  since the parent needs to see the same one again, lock after 5 wrong attempts) with location recorded.
+  Built 2026-11-20: `api/app/services/checkin.py`; `GET /parent/bookings/{id}/check-in-code` (only once
+  confirmed and on the day) and `/check-out-code` (only once checked in) generate a code the first time,
+  then just return it again; `POST /sitter/bookings/{id}/check-in` and `/check-out` take the code and her
+  location (`lat`/`lng`, left out if she denies permission), moving the booking to `in_progress` then
+  `completed`. 5 wrong codes sets `codes_locked` and emails admins; nothing else can unlock it yet (see
+  Current status). Migration c9e2a4f6b8d1
 - [ ] Overdue check-out alert job (end + 30 min) and admin manual close
 - [ ] Overtime request: parent picks whole hours, sitter accepts or declines; charged at check-out (decided 2026-11-12)
 - [ ] Issues button for parents and sitters (non-emergency: running late, only a man at home), a complaint linked to the booking (decided 2026-11-12)
@@ -573,6 +582,9 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-20 — Phase 8 started: check-in and check-out codes, with location recorded and lockout after 5
+  wrong attempts. Codes are encrypted (not hashed) since the parent needs to see the same one again.
+  Branch `phase8/check-in-check-out`.
 - 2026-11-20 — Reuben: drop the 15-minute late rule, keep only the 30-minute no-show report. CLAUDE.md's
   6.5 table and the "New cancellation rows" test row updated; the Sitter Terms, Family Terms and sitter
   consent wording updated in place to match (fingerprints recomputed in `legal.test.tsx`). Phase 7 is now

@@ -66,6 +66,8 @@ const BOOKING: Booking = {
   seen_by_sitter: true,
   answer_by: null,
   report: null,
+  checked_in_at: null,
+  checked_out_at: null,
   pay_by_upi: {
     upi_id: "pacifyco@okaxis",
     payee_name: "Pacifyco",
@@ -92,6 +94,8 @@ function api(price = UNWIND, times = TIMES, extra: Record<string, (body: unknown
     "GET /parent/children": () => jsonResponse(CHILDREN),
     "POST /parent/bookings": () => jsonResponse(REQUEST, 201),
     "GET /parent/bookings/b1": () => jsonResponse(BOOKING),
+    "GET /parent/bookings/b1/check-in-code": () => jsonResponse({ code: "4821" }),
+    "GET /parent/bookings/b1/check-out-code": () => jsonResponse({ code: "1357" }),
     ...extra,
   });
 }
@@ -569,5 +573,44 @@ describe("during the booking (6.5)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tell Pacifyco" }));
     expect(await screen.findByText("You've told us Lakshmi didn't come. Pacifyco will call you.")).toBeTruthy();
     expect(calls.some((call) => call.method === "POST" && call.path === "/parent/bookings/b1/no-show")).toBe(true);
+  });
+
+  test("confirmed, on the day: shows the check-in code", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () => jsonResponse(STARTED(-60)), // starts in an hour, today
+      "GET /parent/bookings/b1/check-in-code": () => jsonResponse({ code: "4821" }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("Your check-in code")).toBeTruthy();
+    expect(await screen.findByText("4821")).toBeTruthy();
+    expect(screen.getByText(/When Lakshmi arrives, read this out to her\./)).toBeTruthy();
+  });
+
+  test("confirmed, days away: no check-in code yet", async () => {
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...BOOKING, status: "confirmed" }) });
+    renderAt("/parent/bookings/b1");
+    await screen.findByText("Your booking is confirmed and paid.");
+    expect(screen.queryByText("Your check-in code")).toBeNull();
+  });
+
+  test("in progress: shows when she checked in and the check-out code", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () =>
+        jsonResponse({ ...STARTED(30), status: "in_progress", checked_in_at: minutesFromNow(-25), report: null }),
+      "GET /parent/bookings/b1/check-out-code": () => jsonResponse({ code: "1357" }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText(/Lakshmi checked in at .* and is looking after Asha and Rohan\./)).toBeTruthy();
+    expect(await screen.findByText("Your check-out code")).toBeTruthy();
+    expect(await screen.findByText("1357")).toBeTruthy();
+  });
+
+  test("completed: says so and when she checked out", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () =>
+        jsonResponse({ ...STARTED(130), status: "completed", checked_in_at: minutesFromNow(-125), checked_out_at: minutesFromNow(-5), report: null }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText(/This booking is complete\. Lakshmi checked out at/)).toBeTruthy();
   });
 });

@@ -30,6 +30,7 @@ from app.routers.auth import TermsVersion, request_info
 from app.services import availability as availability_service
 from app.services import booking_mail, cancellations, checklists, consent, family, legal, pricing
 from app.services import bookings as bookings_service
+from app.services import checkin as checkin_service
 from app.services import children as children_service
 from app.services import email as email_service
 from app.services import payments as payments_service
@@ -553,6 +554,8 @@ class BookingOut(BaseModel):
     pay_by_upi: PayByUpi | None
     payment: PaymentOut | None
     report: ReportOut | None
+    checked_in_at: datetime | None  # (6.7)
+    checked_out_at: datetime | None
 
 
 AppSettings = Annotated[Settings, Depends(get_settings)]
@@ -594,6 +597,8 @@ def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
         if payment
         else None,
         report=report_out(db, booking.id),
+        checked_in_at=booking.checked_in_at,
+        checked_out_at=booking.checked_out_at,
     )
 
 
@@ -694,6 +699,24 @@ def get_booking(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: 
         db.commit()
         db.refresh(booking)
     return _booking_out(db, booking, settings)
+
+
+class CodeOut(BaseModel):
+    code: str
+
+
+@router.get("/bookings/{booking_id}/check-in-code")
+def get_check_in_code(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings) -> CodeOut:
+    """Only on the day of the booking, while it's confirmed (6.7)."""
+    code = checkin_service.check_in_code(db, parent.id, booking_id, settings.field_encryption_key, datetime.now(UTC))
+    return CodeOut(code=code)
+
+
+@router.get("/bookings/{booking_id}/check-out-code")
+def get_check_out_code(booking_id: uuid.UUID, parent: Parent, db: DbSession, settings: AppSettings) -> CodeOut:
+    """Only once the sitter has checked in (6.7)."""
+    code = checkin_service.check_out_code(db, parent.id, booking_id, settings.field_encryption_key)
+    return CodeOut(code=code)
 
 
 @router.post("/bookings/{booking_id}/arrived")

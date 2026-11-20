@@ -633,6 +633,22 @@ def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_
     )
 
 
+def codes_locked_alert(to: str, which: str, starts_at: datetime, web_url: str) -> Email:
+    """To an admin: 5 wrong codes were entered for a booking (6.7). No names; the admin looks it up and
+    calls both people."""
+    return Email(
+        to=to,
+        subject="A booking's codes are locked",
+        heading=f"Too many wrong {which} codes.",
+        body=(
+            f"For the booking that started {_when(starts_at)}. Code entry is now locked for it. Please call "
+            "both people and close the booking once you know what happened."
+        ),
+        button_label="Open the admin panel",
+        button_url=f"{web_url.rstrip('/')}/admin",
+    )
+
+
 def _clock(moment: datetime) -> str:
     hour = moment.hour % 12 or 12
     return f"{hour}:{moment.minute:02d} {'am' if moment.hour < 12 else 'pm'}"

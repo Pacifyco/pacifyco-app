@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_role
 from app.deps import DbSession
+from app.errors import AppError
 from app.models import (
     Booking,
     BookingStatus,
@@ -32,6 +33,7 @@ from app.routers.parents import ChecklistItem, ReportOut, WeekHours, checklist_o
 from app.services import availability as availability_service
 from app.services import booking_mail, cancellations, checklists, sitter_pay, verification
 from app.services import bookings as bookings_service
+from app.services import checkin as checkin_service
 from app.services import email as email_service
 from app.services import psych_tests as psych_tests_service
 from app.services import reports as reports_service
@@ -580,6 +582,9 @@ class SitterBookingDetail(SitterBookingItem):
     pin_code: str | None
     emergency_contact: FamilyContactOut | None
     report: ReportOut | None  # parent not home, or a no-show reported about her (6.5)
+    checked_in_at: datetime | None  # (6.7)
+    checked_out_at: datetime | None
+    codes_locked: bool
 
 
 def _detail(db: Session, booking) -> SitterBookingDetail:
@@ -611,6 +616,9 @@ def _detail(db: Session, booking) -> SitterBookingDetail:
         if contact
         else None,
         report=report_out(db, booking.id),
+        checked_in_at=booking.checked_in_at,
+        checked_out_at=booking.checked_out_at,
+        codes_locked=booking.codes_locked,
     )
 
 
@@ -778,4 +786,69 @@ def report_unsafe(
     still charged; no strike (6.5)."""
     report = reports_service.sitter_unsafe(db, sitter.id, booking_id, body.child_with_parent, datetime.now(UTC))
     booking_mail.tell_reported(db, mailer, settings, report)
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
+
+
+CODE_PATTERN = re.compile(r"^\d{4}$")
+
+
+class CheckCodeIn(BaseModel):
+    code: str
+    # Her browser location; left out if she denied permission (6.7).
+    lat: float | None = None
+    lng: float | None = None
+
+    @field_validator("code")
+    @classmethod
+    def _well_formed(cls, value: str) -> str:
+        if not CODE_PATTERN.match(value):
+            raise ValueError("Enter the 4-digit code.")
+        return value
+
+
+def _alert_if_locked(exc: AppError, mailer: Mailer, settings: AppSettings, which: str, starts_at: datetime) -> None:
+    if exc.code == "codes_locked":
+        for to in settings.admin_alert_emails:
+            mailer.send(email_service.codes_locked_alert(to, which, starts_at, booking_mail.web_url(settings)))
+
+
+@router.post("/bookings/{booking_id}/check-in")
+def post_check_in(
+    booking_id: uuid.UUID,
+    body: CheckCodeIn,
+    sitter: SitterProfile,
+    db: DbSession,
+    mailer: Mailer,
+    settings: AppSettings,
+) -> SitterBookingDetail:
+    """Her arrival: the parent's check-in code and, if she allows it, her location (6.7)."""
+    booking = bookings_service.sitters_booking(db, sitter.id, booking_id)
+    try:
+        checkin_service.check_in(
+            db, sitter.id, booking_id, body.code, body.lat, body.lng, settings.field_encryption_key, datetime.now(UTC)
+        )
+    except AppError as exc:
+        _alert_if_locked(exc, mailer, settings, "check-in", booking.starts_at)
+        raise
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
+
+
+@router.post("/bookings/{booking_id}/check-out")
+def post_check_out(
+    booking_id: uuid.UUID,
+    body: CheckCodeIn,
+    sitter: SitterProfile,
+    db: DbSession,
+    mailer: Mailer,
+    settings: AppSettings,
+) -> SitterBookingDetail:
+    """Handing the child back to a parent: their check-out code and, if she allows it, her location (6.7)."""
+    booking = bookings_service.sitters_booking(db, sitter.id, booking_id)
+    try:
+        checkin_service.check_out(
+            db, sitter.id, booking_id, body.code, body.lat, body.lng, settings.field_encryption_key, datetime.now(UTC)
+        )
+    except AppError as exc:
+        _alert_if_locked(exc, mailer, settings, "check-out", booking.starts_at)
+        raise
     return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))

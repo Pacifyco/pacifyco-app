@@ -2,15 +2,26 @@
 starts as a request the sitter accepts or declines (6.4), then waits as `pending_payment` until an admin
 confirms the parent's UPI payment (6.1).
 
-Columns for check-in codes, locations and admin closing come with the phases that need them (7 and 8).
-Parent and sitter links are RESTRICT: a booking is a money record and outlives any attempt to delete an
-account."""
+Check-in and check-out codes and locations (6.7) were added in phase 8. Admin-closing columns (overdue
+check-out) come with that phase 8 item, still to be built. Parent and sitter links are RESTRICT: a booking
+is a money record and outlives any attempt to delete an account."""
 
 import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, SmallInteger, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    SmallInteger,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -62,6 +73,8 @@ class Booking(Base):
         CheckConstraint("units >= 1", name="units_positive"),
         CheckConstraint("children_count >= 1", name="children_count_positive"),
         CheckConstraint("price_paise > 0", name="price_positive"),
+        CheckConstraint("code_attempts BETWEEN 0 AND 5", name="code_attempts_in_range"),
+        CheckConstraint("checked_out_at IS NULL OR checked_in_at IS NOT NULL", name="checked_out_needs_checked_in"),
         Index("ix_bookings_sitter_id_starts_at", "sitter_id", "starts_at"),
         Index("ix_bookings_parent_id", "parent_id"),
     )
@@ -85,6 +98,19 @@ class Booking(Base):
     # run from then.
     request_visible_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at()
+
+    # Check-in and check-out (6.7). Codes are kept encrypted, not hashed: the parent needs to see the same
+    # one again on the same screen, so it must be reversible; nothing is ever stored in plain text.
+    check_in_code_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
+    check_out_code_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
+    code_attempts: Mapped[int] = mapped_column(SmallInteger, server_default="0")
+    codes_locked: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    check_in_lat: Mapped[float | None] = mapped_column(Float)
+    check_in_lng: Mapped[float | None] = mapped_column(Float)
+    checked_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    check_out_lat: Mapped[float | None] = mapped_column(Float)
+    check_out_lng: Mapped[float | None] = mapped_column(Float)
 
 
 class BookingChild(Base):
