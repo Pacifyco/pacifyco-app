@@ -23,7 +23,8 @@ from tests.test_marketplace import finished_parent, make_sitter  # noqa: F401  (
 from tests.test_payments import booking, get, pay  # noqa: F401  (fixture)
 from tests.test_roles import make_profile  # noqa: F401  (fixture)
 from tests.test_sign_up import auth_for, user  # noqa: F401  (fixture)
-from tests.test_sitter_bookings import listed, signed_in
+from tests.test_sitter_bookings import listed as sitter_booking_list
+from tests.test_sitter_bookings import signed_in
 from tests.test_verification import reviewer  # noqa: F401  (fixture)
 
 
@@ -263,7 +264,7 @@ def test_she_may_decline_when_only_a_man_is_home(
     assert scalar(db_engine, "SELECT count(*) FROM strikes WHERE booking_id = :b", b=under_way["id"]) == 0
     assert "paid ₹100" in to(mailbox, sitter["email"])[-1].body
     assert "whole booking is charged" in to(mailbox, finished_parent["email"])[-1].body
-    assert any(item["id"] == under_way["id"] for item in listed(client, sitter)["past"])  # she can still see it
+    assert any(item["id"] == under_way["id"] for item in sitter_booking_list(client, sitter)["past"])
 
 
 def test_only_man_home_once_the_booking_has_started(client, db_engine, confirmed):
@@ -312,7 +313,7 @@ def test_confirmed_1_hour_is_charged_and_the_rest_refunded_no_strike(
     assert scalar(db_engine, "SELECT count(*) FROM strikes WHERE booking_id = :b", b=under_way["id"]) == 0
     assert "paid ₹300 for that hour" in to(mailbox, sitter["email"])[-1].body
     assert "charged for 1 hour" in to(mailbox, finished_parent["email"])[-1].body
-    assert any(item["id"] == under_way["id"] for item in listed(client, sitter)["past"])
+    assert any(item["id"] == under_way["id"] for item in sitter_booking_list(client, sitter)["past"])
 
 
 def test_under_age_once_the_booking_has_started(client, db_engine, confirmed):
@@ -358,7 +359,7 @@ def test_confirmed_the_whole_booking_stays_charged_no_strike(
     assert scalar(db_engine, "SELECT count(*) FROM strikes WHERE booking_id = :b", b=under_way["id"]) == 0
     assert "paid for the time you worked" in to(mailbox, sitter["email"])[-1].body
     assert "whole booking is charged" in to(mailbox, finished_parent["email"])[-1].body
-    assert any(item["id"] == under_way["id"] for item in listed(client, sitter)["past"])
+    assert any(item["id"] == under_way["id"] for item in sitter_booking_list(client, sitter)["past"])
 
 
 def test_unsafe_once_the_booking_has_started(client, db_engine, confirmed):
