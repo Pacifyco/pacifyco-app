@@ -21,6 +21,7 @@ import { hourlyPaise, rupees, type Price } from "../lib/prices";
 import { monthsOld } from "../lib/sitterLists";
 import { dayLabel, hourLabel, kolkataTime, todayInKolkata } from "../lib/times";
 import { noShowReportable, type BookingReport } from "../lib/reports";
+import { type OvertimeRequest } from "../lib/overtime";
 import { firstNameOf } from "./FindSittersPage";
 
 // "Book this sitter" (CLAUDE.md 6.1 and 6.4; phase 6). The parent picks a day and time from her free
@@ -65,6 +66,7 @@ export type Booking = {
   payment: Payment | null;
   checked_in_at: string | null; // (6.7)
   checked_out_at: string | null;
+  overtime: OvertimeRequest | null; // (6.8)
 };
 
 export type PayByUpi = { upi_id: string; payee_name: string; amount_paise: number; note: string; upi_link: string };
@@ -525,6 +527,7 @@ export function BookingPage() {
               is looking after {joinNames(data.children)}.
             </p>
           </Card>
+          <OvertimeCard booking={data} firstName={firstName} />
           <CheckCodeCard bookingId={data.id} kind="check-out" firstName={firstName} />
         </>
       )}
@@ -886,6 +889,83 @@ function CheckCodeCard({ bookingId, kind, firstName }: { bookingId: string; kind
         </p>
       )}
       <p className="text-small text-muted">{when} It only works once, so don't share it ahead of time.</p>
+    </Card>
+  );
+}
+
+const OVERTIME_HOURS = [1, 2, 3, 4, 5, 6];
+
+/** Asking the sitter to stay longer (6.8): nothing is charged now; it's worked out at check-out. */
+function OvertimeCard({ booking, firstName }: { booking: Booking; firstName: string }) {
+  const queryClient = useQueryClient();
+  const [hours, setHours] = useState(OVERTIME_HOURS[0]);
+  const [asking, setAsking] = useState(false);
+  const request = useMutation({
+    mutationFn: () =>
+      apiFetch<Booking>(`/parent/bookings/${booking.id}/overtime`, {
+        method: "POST",
+        body: JSON.stringify({ hours }),
+      }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["booking", booking.id], updated);
+      setAsking(false);
+      showToast("We've asked her to stay longer.");
+    },
+  });
+  const overtime = booking.overtime;
+  if (overtime && overtime.status !== "declined") {
+    const plural = overtime.hours === 1 ? "hour" : "hours";
+    return (
+      <Card as="section" padding="roomy" className="flex flex-col gap-2">
+        <h2 className="text-h3">Overtime</h2>
+        <p className="text-ink">
+          {overtime.status === "pending"
+            ? `Waiting for ${firstName} to answer: ${overtime.hours} more ${plural}.`
+            : `${firstName} can stay ${overtime.hours} more ${plural}.`}
+        </p>
+      </Card>
+    );
+  }
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <h2 className="text-h3">Overtime</h2>
+      {overtime?.status === "declined" && (
+        <p className="text-ink">{firstName} couldn't stay longer last time. You can ask again.</p>
+      )}
+      {asking ? (
+        <div className="flex flex-col gap-3">
+          <Select
+            label="How many more hours?"
+            value={hours}
+            onChange={(event) => setHours(Number(event.target.value))}
+          >
+            {OVERTIME_HOURS.map((value) => (
+              <option key={value} value={value}>
+                {value === 1 ? "1 hour" : `${value} hours`}
+              </option>
+            ))}
+          </Select>
+          {request.isError && (
+            <p role="alert" className="text-small text-danger">
+              {request.error instanceof ApiError ? request.error.message : "That didn't go through. Please try again."}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-3">
+            <Button loading={request.isPending} onClick={() => request.mutate()}>
+              Send the request
+            </Button>
+            <Button variant="tertiary" onClick={() => setAsking(false)}>
+              Not now
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <Button variant="secondary" fullWidthOnPhone={false} onClick={() => setAsking(true)}>
+            Request overtime
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }

@@ -665,6 +665,52 @@ def overdue_checkout_alert(to: str, starts_at: datetime, ends_at: datetime, web_
     )
 
 
+def overtime_requested(
+    to: str, full_name: str | None, family_name: str, hours: int, booking_id: object, web_url: str
+) -> Email:
+    """To the sitter: the parent has asked to stay longer (6.8). Nothing is charged until check-out."""
+    plural = "hour" if hours == 1 else "hours"
+    return Email(
+        to=to,
+        subject="A family would like you to stay longer",
+        heading=f"{family_name}'s family has asked for {hours} more {plural}.",
+        body=(
+            f"Hi {_first_name(full_name)}, please accept or decline once you've agreed it between you. "
+            "Nothing is charged now; it's worked out when you check out."
+        ),
+        button_label="Open the booking",
+        button_url=f"{web_url.rstrip('/')}/sitter/bookings/{booking_id}",
+    )
+
+
+def overtime_decided(
+    to: str,
+    full_name: str | None,
+    sitter_name: str | None,
+    accepted: bool,
+    hours: int,
+    booking_id: object,
+    web_url: str,
+) -> Email:
+    """To the parent: whether the sitter can stay the extra time (6.8)."""
+    sitter = _first_name(sitter_name) if sitter_name else "Your sitter"
+    plural = "hour" if hours == 1 else "hours"
+    if accepted:
+        heading = f"{sitter} can stay {hours} more {plural}."
+        body = "Nothing is charged now; it's worked out when the booking ends."
+    else:
+        heading = f"{sitter} can't stay longer."
+        body = "Please plan to be back by the booked end time."
+    return Email(
+        to=to,
+        subject=heading,
+        heading=heading,
+        body=f"Hi {_first_name(full_name)}, {body}",
+        button_label="Open your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )
+
+
 def _clock(moment: datetime) -> str:
     hour = moment.hour % 12 or 12
     return f"{hour}:{moment.minute:02d} {'am' if moment.hour < 12 else 'pm'}"

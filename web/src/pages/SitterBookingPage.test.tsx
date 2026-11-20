@@ -46,6 +46,7 @@ const BOOKING: SitterBookingDetail = {
   checked_in_at: null,
   checked_out_at: null,
   codes_locked: false,
+  overtime: null,
 };
 
 beforeEach(() => {
@@ -388,5 +389,68 @@ describe("Check-in and check-out (6.7)", () => {
         body: { code: "1357", lat: 12.9, lng: 77.6 },
       },
     ]);
+  });
+});
+
+describe("Overtime requests (6.8)", () => {
+  const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+  const IN_PROGRESS: SitterBookingDetail = {
+    ...BOOKING,
+    starts_at: minutesFromNow(-90),
+    ends_at: minutesFromNow(30),
+    status: "in_progress",
+    checked_in_at: minutesFromNow(-90),
+  };
+
+  function renderWithBooking(first: SitterBookingDetail, after?: SitterBookingDetail) {
+    const posted: string[] = [];
+    let current = first;
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posted.push(url);
+        current = after ?? first;
+      }
+      return Promise.resolve(jsonResponse(current));
+    }) as unknown as typeof fetch);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/sitter/bookings/b1"]}>
+          <Routes>
+            <Route path="/sitter/bookings/:bookingId" element={<SitterBookingPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    return posted;
+  }
+
+  const PENDING = { id: "o1", hours: 2, status: "pending" as const, requested_at: minutesFromNow(-2), decided_at: null };
+
+  test("not shown without a pending request", async () => {
+    renderWithBooking(IN_PROGRESS);
+    await screen.findByRole("heading", { name: "Meera's family" });
+    expect(screen.queryByText(/has asked if you can stay/)).toBeNull();
+  });
+
+  test("accepting", async () => {
+    const posted = renderWithBooking(
+      { ...IN_PROGRESS, overtime: PENDING },
+      { ...IN_PROGRESS, overtime: { ...PENDING, status: "accepted", decided_at: minutesFromNow(0) } },
+    );
+    expect(await screen.findByText(/asked if you can stay 2 more hours/)).toBeTruthy();
+    expect(screen.getByText("Nothing is charged now; it's worked out when you check out.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Accept" })).toBeNull());
+    expect(posted).toEqual([expect.stringMatching(/\/sitter\/overtime-requests\/o1\/accept$/)]);
+  });
+
+  test("declining", async () => {
+    const posted = renderWithBooking(
+      { ...IN_PROGRESS, overtime: PENDING },
+      { ...IN_PROGRESS, overtime: { ...PENDING, status: "declined", decided_at: minutesFromNow(0) } },
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Decline" }));
+    await vi.waitFor(() => expect(posted).toEqual([expect.stringMatching(/\/sitter\/overtime-requests\/o1\/decline$/)]));
   });
 });

@@ -9,6 +9,7 @@ import { todayInKolkata } from "../lib/times";
 import { sitterBookingLine, sitterStatusText, type SitterBookingItem } from "./SitterBookingsPage";
 import { answerByText } from "./SitterRequestsPage";
 import { MAN_HOME_FEE_PAISE, SHOW_UP_FEE_PER_HOUR_PAISE, minutesLeft, underWay, type BookingReport } from "../lib/reports";
+import { type OvertimeRequest } from "../lib/overtime";
 
 // One of the sitter's requests or bookings (CLAUDE.md 6.4 and 6.11): the children's care notes (medicine
 // instructions go in the medical notes, 6.11), bath time, the camera answer, the area and her pay; on a
@@ -32,6 +33,7 @@ export type SitterBookingDetail = SitterBookingItem & {
   checked_in_at: string | null; // (6.7)
   checked_out_at: string | null;
   codes_locked: boolean;
+  overtime: OvertimeRequest | null; // (6.8)
 };
 
 /** "18 months", "2 years", "5 years". */
@@ -80,6 +82,51 @@ function Answer({ booking }: { booking: SitterBookingDetail }) {
       )}
       <div className="flex flex-wrap gap-3">
         <Button arrow loading={answer.isPending && answer.variables === "accept"} onClick={() => answer.mutate("accept")}>
+          Accept
+        </Button>
+        <Button
+          variant="secondary"
+          loading={answer.isPending && answer.variables === "decline"}
+          onClick={() => answer.mutate("decline")}
+        >
+          Decline
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+/** A family's overtime request (6.8): accept or decline once you've agreed it between you. Nothing is
+ * charged now; it's worked out at check-out. */
+function OvertimeAnswer({ booking }: { booking: SitterBookingDetail }) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const requestId = booking.overtime!.id;
+  const answer = useMutation({
+    mutationFn: (how: "accept" | "decline") =>
+      apiFetch<SitterBookingDetail>(`/sitter/overtime-requests/${requestId}/${how}`, { method: "POST" }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["sitter", "booking", booking.id], updated);
+      showToast("Thanks. We've told the family.");
+    },
+    onError: (failed) =>
+      setError(failed instanceof ApiError ? failed.message : "We couldn't send your answer. Please try again."),
+  });
+  const hours = booking.overtime!.hours;
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <p className="text-ink">
+        The family has asked if you can stay {hours === 1 ? "1 more hour" : `${hours} more hours`}. Only accept once
+        you've agreed it between you.
+      </p>
+      <p className="text-small text-muted">Nothing is charged now; it's worked out when you check out.</p>
+      {error && (
+        <p role="alert" className="text-small text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <Button loading={answer.isPending && answer.variables === "accept"} onClick={() => answer.mutate("accept")}>
           Accept
         </Button>
         <Button
@@ -613,6 +660,7 @@ export function SitterBookingPage() {
       {data.status === "confirmed" && todayInKolkata(new Date(data.starts_at)) === todayInKolkata() && (
         <CheckCodeForm booking={data} kind="check-in" />
       )}
+      {data.status === "in_progress" && data.overtime?.status === "pending" && <OvertimeAnswer booking={data} />}
       {data.status === "in_progress" && <CheckCodeForm booking={data} kind="check-out" />}
       {data.report && <ReportStatus booking={data} now={new Date()} />}
       {!data.report &&

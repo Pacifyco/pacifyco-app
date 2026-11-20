@@ -33,6 +33,7 @@ from app.services import bookings as bookings_service
 from app.services import checkin as checkin_service
 from app.services import children as children_service
 from app.services import email as email_service
+from app.services import overtime as overtime_service
 from app.services import payments as payments_service
 from app.services import reports as reports_service
 from app.services import search as search_service
@@ -530,6 +531,29 @@ def report_out(db, booking_id: uuid.UUID) -> ReportOut | None:
     )
 
 
+class OvertimeRequestOut(BaseModel):
+    """The booking's latest overtime request (6.8): nothing is charged here either way."""
+
+    id: uuid.UUID
+    hours: int
+    status: str  # pending | accepted | declined
+    requested_at: datetime
+    decided_at: datetime | None
+
+
+def overtime_out(db, booking_id: uuid.UUID) -> OvertimeRequestOut | None:
+    found = overtime_service.for_booking(db, booking_id)
+    if found is None:
+        return None
+    return OvertimeRequestOut(
+        id=found.id,
+        hours=found.requested_hours,
+        status=found.status.value,
+        requested_at=found.requested_at,
+        decided_at=found.decided_at,
+    )
+
+
 class BookingOut(BaseModel):
     """The parent's view of a booking: never the plan's name or the sitter's pay (6.1)."""
 
@@ -556,6 +580,7 @@ class BookingOut(BaseModel):
     report: ReportOut | None
     checked_in_at: datetime | None  # (6.7)
     checked_out_at: datetime | None
+    overtime: OvertimeRequestOut | None  # (6.8)
 
 
 AppSettings = Annotated[Settings, Depends(get_settings)]
@@ -599,6 +624,7 @@ def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
         report=report_out(db, booking.id),
         checked_in_at=booking.checked_in_at,
         checked_out_at=booking.checked_out_at,
+        overtime=overtime_out(db, booking.id),
     )
 
 
@@ -717,6 +743,21 @@ def get_check_out_code(booking_id: uuid.UUID, parent: Parent, db: DbSession, set
     """Only once the sitter has checked in (6.7)."""
     code = checkin_service.check_out_code(db, parent.id, booking_id, settings.field_encryption_key)
     return CodeOut(code=code)
+
+
+class OvertimeRequestIn(BaseModel):
+    hours: int = Field(ge=1, le=24)
+
+
+@router.post("/bookings/{booking_id}/overtime", status_code=201)
+def request_overtime(
+    booking_id: uuid.UUID, body: OvertimeRequestIn, parent: Parent, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> BookingOut:
+    """Asks the sitter for extra whole hours, once the booking has started (6.8). Nothing is charged
+    now; it's worked out at check-out."""
+    overtime_service.request(db, parent.id, booking_id, body.hours, datetime.now(UTC))
+    booking_mail.tell_sitter_overtime_requested(db, mailer, settings, booking_id, body.hours)
+    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
 
 
 @router.post("/bookings/{booking_id}/arrived")
