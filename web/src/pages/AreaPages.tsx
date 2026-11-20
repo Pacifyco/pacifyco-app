@@ -205,11 +205,39 @@ export function SitterHomePage() {
   );
 }
 
+/** A count of bookings needing a call (overdue check-outs, locked codes), if there are any (6.7). */
+function OverdueBanner() {
+  const needsAttention = useQuery({
+    queryKey: ["admin", "overdue-checkouts"],
+    queryFn: () => apiFetch<unknown[]>("/admin/overdue-checkouts"),
+    refetchInterval: 30_000,
+  });
+  const count = needsAttention.data?.length ?? 0;
+  if (!needsAttention.isSuccess || count === 0) return null;
+  return (
+    <Card
+      as="section"
+      padding="roomy"
+      role="alert"
+      className="mt-5 flex flex-col items-start gap-3 border-l-4 border-coral text-left"
+    >
+      <p className="text-ink">
+        {count === 1 ? "1 booking needs" : `${count} bookings need`} a call: an overdue check-out, or
+        codes locked.
+      </p>
+      <ButtonLink to="/admin/overdue-checkouts" variant="secondary">
+        Open overdue check-outs
+      </ButtonLink>
+    </Card>
+  );
+}
+
 export function AdminHomePage() {
   return (
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Admin</h1>
       <p className="mt-3 text-muted">Verifications, payments, payouts and incidents will be here.</p>
+      <OverdueBanner />
       <div className="mt-5 flex flex-wrap justify-center gap-3">
         <ButtonLink to="/admin/verifications" arrow>
           Open the verification queue
@@ -219,6 +247,9 @@ export function AdminHomePage() {
         </ButtonLink>
         <ButtonLink to="/admin/reports" variant="secondary">
           Reports
+        </ButtonLink>
+        <ButtonLink to="/admin/overdue-checkouts" variant="secondary">
+          Overdue check-outs
         </ButtonLink>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">

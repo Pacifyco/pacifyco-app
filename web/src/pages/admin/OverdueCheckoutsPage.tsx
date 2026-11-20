@@ -1,0 +1,152 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type FormEvent } from "react";
+import { BackLink, Button, Card, EmptyState, Textarea, showToast } from "../../components/ui";
+import { apiFetch } from "../../lib/api";
+import { formatDay, formatMobile, formatTime } from "../../lib/format";
+import { errorMessage } from "./shared";
+
+// Overdue check-outs and locked codes (CLAUDE.md 6.7): a booking still checked in 30+ minutes past its
+// end, or one whose codes got locked, needs an admin to call both people and, if it stays stuck, close
+// it by hand with a reason.
+
+export type NeedsAttentionItem = {
+  booking_id: string;
+  overdue: boolean; // otherwise its codes are locked
+  starts_at: string;
+  ends_at: string;
+  parent_name: string | null;
+  parent_phone: string | null;
+  sitter_name: string | null;
+  sitter_phone: string | null;
+};
+
+export const NEEDS_ATTENTION_KEY = ["admin", "overdue-checkouts"];
+
+function when(iso: string): string {
+  const moment = new Date(iso);
+  return `${formatDay(moment)}, ${formatTime(moment)}`;
+}
+
+function Phone({ label, name, phone }: { label: string; name: string | null; phone: string | null }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-small text-muted">{label}</span>
+      <span className="text-ink">{name ?? "Not given"}</span>
+      {phone && (
+        <a href={`tel:${phone}`} className="text-ui">
+          {formatMobile(phone)}
+        </a>
+      )}
+    </div>
+  );
+}
+
+function NeedsAttentionCard({ item }: { item: NeedsAttentionItem }) {
+  const queryClient = useQueryClient();
+  const [closing, setClosing] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | undefined>();
+  const close = useMutation({
+    mutationFn: () =>
+      apiFetch<NeedsAttentionItem>(`/admin/bookings/${item.booking_id}/close`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() }),
+      }),
+    onSuccess: async () => {
+      showToast("Booking closed");
+      await queryClient.invalidateQueries({ queryKey: NEEDS_ATTENTION_KEY });
+    },
+    onError: (failed) => setError(errorMessage(failed)),
+  });
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!reason.trim()) return setError("Please say why you're closing it.");
+    setError(undefined);
+    close.mutate();
+  }
+
+  return (
+    <li className="flex flex-col gap-4 border-t border-line py-5 first:border-t-0">
+      <div className="flex flex-col gap-1">
+        <p className="text-eyebrow text-muted uppercase">{item.overdue ? "Check-out overdue" : "Codes locked"}</p>
+        <p className="text-ui text-ink">
+          Booking {when(item.starts_at)} – {formatTime(new Date(item.ends_at))}
+        </p>
+        <p className="text-ink">
+          {item.overdue
+            ? "Still checked in more than 30 minutes past the end."
+            : "Too many wrong codes were entered; code entry is locked."}
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Phone label="Parent" name={item.parent_name} phone={item.parent_phone} />
+        <Phone label="Sitter" name={item.sitter_name} phone={item.sitter_phone} />
+      </div>
+      {closing ? (
+        <form noValidate onSubmit={submit} className="flex flex-col gap-3">
+          <Textarea
+            label="Why are you closing it?"
+            hint="Recorded with the booking."
+            rows={2}
+            maxLength={500}
+            value={reason}
+            error={error}
+            onChange={(event) => setReason(event.target.value)}
+          />
+          <div className="flex flex-wrap gap-3">
+            <Button type="submit" variant="secondary" loading={close.isPending}>
+              Close the booking
+            </Button>
+            <Button variant="tertiary" onClick={() => setClosing(false)}>
+              Back
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div>
+          <Button variant="secondary" fullWidthOnPhone={false} onClick={() => setClosing(true)}>
+            Close the booking
+          </Button>
+        </div>
+      )}
+      {error && !closing && (
+        <p role="alert" className="text-small text-danger">
+          {error}
+        </p>
+      )}
+    </li>
+  );
+}
+
+export function OverdueCheckoutsPage() {
+  const needsAttention = useQuery({
+    queryKey: NEEDS_ATTENTION_KEY,
+    queryFn: () => apiFetch<NeedsAttentionItem[]>("/admin/overdue-checkouts"),
+    refetchInterval: 30_000,
+  });
+  return (
+    <section className="mx-auto flex max-w-[72ch] flex-col gap-4">
+      <BackLink to="/admin" label="Admin" />
+      <h1>Overdue check-outs</h1>
+      {needsAttention.isPending && <p className="text-muted">Loading…</p>}
+      {needsAttention.isError && (
+        <p role="alert" className="text-danger">
+          {errorMessage(needsAttention.error)}
+        </p>
+      )}
+      {needsAttention.isSuccess &&
+        (needsAttention.data.length === 0 ? (
+          <EmptyState message="Nothing needs attention." />
+        ) : (
+          <Card as="section" padding="roomy" aria-label="Bookings needing attention">
+            <ul>
+              {needsAttention.data.map((item) => (
+                <NeedsAttentionCard key={item.booking_id} item={item} />
+              ))}
+            </ul>
+          </Card>
+        ))}
+    </section>
+  );
+}

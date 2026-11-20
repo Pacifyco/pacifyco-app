@@ -55,7 +55,13 @@ def test_the_frequent_run_cancels_unpaid_bookings_past_the_deadline(client, db_e
     assert response.status_code == 200
     assert response.json() == {
         "run": "frequent",
-        "ran": ["lapse_requests", "cancel_unpaid_bookings", "cancel_unverified_bookings", "alert_unchecked_payments"],
+        "ran": [
+            "lapse_requests",
+            "cancel_unpaid_bookings",
+            "cancel_unverified_bookings",
+            "alert_unchecked_payments",
+            "alert_overdue_checkouts",
+        ],
     }
     assert status(db_engine, booking["id"]) == "cancelled_unpaid"
     audit = row(

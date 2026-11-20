@@ -2,9 +2,8 @@
 starts as a request the sitter accepts or declines (6.4), then waits as `pending_payment` until an admin
 confirms the parent's UPI payment (6.1).
 
-Check-in and check-out codes and locations (6.7) were added in phase 8. Admin-closing columns (overdue
-check-out) come with that phase 8 item, still to be built. Parent and sitter links are RESTRICT: a booking
-is a money record and outlives any attempt to delete an account."""
+Check-in, check-out and admin-closing columns (6.7) were added in phase 8. Parent and sitter links are
+RESTRICT: a booking is a money record and outlives any attempt to delete an account."""
 
 import uuid
 from datetime import datetime
@@ -64,6 +63,9 @@ class BookingStatus(StrEnum):
     # She left because she felt unsafe, once the child was with a parent (6.5). Charged in full (kept
     # from the Family Terms); she's paid for the time she worked (phase 9); no strike.
     sitter_left_unsafe = "sitter_left_unsafe"
+    # An admin closed it by hand (6.7): an overdue check-out, or codes locked after 5 wrong attempts,
+    # with no other way to move the booking on.
+    closed_by_admin = "closed_by_admin"
 
 
 class Booking(Base):
@@ -75,6 +77,7 @@ class Booking(Base):
         CheckConstraint("price_paise > 0", name="price_positive"),
         CheckConstraint("code_attempts BETWEEN 0 AND 5", name="code_attempts_in_range"),
         CheckConstraint("checked_out_at IS NULL OR checked_in_at IS NOT NULL", name="checked_out_needs_checked_in"),
+        CheckConstraint("(closed_by_admin_id IS NULL) = (close_reason IS NULL)", name="closed_has_reason"),
         Index("ix_bookings_sitter_id_starts_at", "sitter_id", "starts_at"),
         Index("ix_bookings_parent_id", "parent_id"),
     )
@@ -111,6 +114,10 @@ class Booking(Base):
     checked_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     check_out_lat: Mapped[float | None] = mapped_column(Float)
     check_out_lng: Mapped[float | None] = mapped_column(Float)
+
+    # An admin's manual close (6.7): an overdue check-out, or codes locked with no other way through.
+    closed_by_admin_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="RESTRICT"))
+    close_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class BookingChild(Base):
