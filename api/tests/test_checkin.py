@@ -99,7 +99,7 @@ def test_wrong_code_counts_down_then_locks_and_alerts_admins(
     locked = do_check_in(client, sitter, under_way["id"], code=wrong_code)
     assert locked.status_code == 409 and locked.json()["error"]["code"] == "codes_locked"
     assert scalar(db_engine, "SELECT codes_locked FROM bookings WHERE id = :b", b=under_way["id"]) is True
-    assert "locked" in to(mailbox, "ops@example.com")[-1].heading.lower()
+    assert "locked" in to(mailbox, "ops@example.com")[-1].subject.lower()
     still_locked = do_check_in(client, sitter, under_way["id"], code=real_code)  # even the real code, now
     assert still_locked.status_code == 409 and still_locked.json()["error"]["code"] == "codes_locked"
 

@@ -92,10 +92,12 @@ def alert_overdue_checkouts(conn: Connection, ctx: JobContext) -> None:
             return
         checkin.mark_overdue_alerted(db, found)
         db.commit()
+        # Read these before the session closes below (its objects expire and can't be re-fetched after).
+        times = [(booking.starts_at, booking.ends_at) for booking in found]
     web_url = ctx.settings.public_web_url or "http://localhost:5173"
-    for booking in found:
+    for starts_at, ends_at in times:
         for to in recipients:
-            ctx.mailer.send(email_service.overdue_checkout_alert(to, booking.starts_at, booking.ends_at, web_url))
+            ctx.mailer.send(email_service.overdue_checkout_alert(to, starts_at, ends_at, web_url))
 
 
 RUNS: dict[str, list[tuple[str, Task]]] = {

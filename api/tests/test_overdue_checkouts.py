@@ -32,6 +32,16 @@ def lock(db_engine, booking_id):
         conn.execute(text("UPDATE bookings SET codes_locked = true WHERE id = :b"), {"b": booking_id})
 
 
+def set_in_progress(db_engine, booking_id, checked_in_at=None):
+    """`in_progress` always means she checked in (the real flow sets both together)."""
+    set_status(db_engine, booking_id, "in_progress")
+    with db_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE bookings SET checked_in_at = :t WHERE id = :b"),
+            {"t": checked_in_at or datetime.now(UTC), "b": booking_id},
+        )
+
+
 def to(mailbox, address):
     return [email for email in mailbox.sent if email.to == address]
 
@@ -60,7 +70,7 @@ def close(client, admin_, booking_id, reason="Called both; the booking went fine
 
 def test_an_overdue_checkout_is_alerted_once(db_engine, confirmed):
     move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=2, minutes=35))  # ends 35 min ago
-    set_status(db_engine, confirmed["id"], "in_progress")
+    set_in_progress(db_engine, confirmed["id"])
     mailbox = Mailbox()
     run_job(db_engine, mailbox)
     sent = overdue_alerts(mailbox)
@@ -81,7 +91,7 @@ def test_an_overdue_checkout_is_alerted_once(db_engine, confirmed):
 
 def test_not_yet_overdue_isnt_alerted(db_engine, confirmed):
     move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=1))  # still under way
-    set_status(db_engine, confirmed["id"], "in_progress")
+    set_in_progress(db_engine, confirmed["id"])
     mailbox = Mailbox()
     run_job(db_engine, mailbox)
     assert overdue_alerts(mailbox) == []
@@ -92,7 +102,7 @@ def test_not_yet_overdue_isnt_alerted(db_engine, confirmed):
 
 def test_overdue_and_locked_bookings_need_attention(client, reviewer, db_engine, confirmed):
     move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=2, minutes=35))
-    set_status(db_engine, confirmed["id"], "in_progress")
+    set_in_progress(db_engine, confirmed["id"])
     response = needing_attention(client, reviewer)
     assert response.status_code == 200, response.text
     (item,) = [row_ for row_ in response.json() if row_["booking_id"] == confirmed["id"]]
@@ -109,7 +119,7 @@ def test_a_locked_but_not_overdue_booking_needs_attention_too(client, reviewer, 
 
 def test_not_yet_overdue_and_not_locked_isnt_listed(client, reviewer, db_engine, confirmed):
     move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(minutes=10))
-    set_status(db_engine, confirmed["id"], "in_progress")
+    set_in_progress(db_engine, confirmed["id"])
     response = needing_attention(client, reviewer)
     assert confirmed["id"] not in [row_["booking_id"] for row_ in response.json()]
 
@@ -132,7 +142,7 @@ def test_closing_needs_a_reason(client, reviewer, confirmed):
 
 def test_an_admin_closes_an_overdue_booking(client, reviewer, db_engine, confirmed):
     move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=2, minutes=35))
-    set_status(db_engine, confirmed["id"], "in_progress")
+    set_in_progress(db_engine, confirmed["id"])
     response = close(client, reviewer, confirmed["id"], reason="Called both; she forgot to check out.")
     assert response.status_code == 200, response.text
     assert status(db_engine, confirmed["id"]) == "closed_by_admin"
@@ -166,12 +176,8 @@ def test_closing_doesnt_invent_a_checkout_time_if_she_never_checked_in(client, r
 def test_closing_keeps_her_real_checkin_time(client, reviewer, db_engine, confirmed):
     """If she did check in, the manual close shouldn't touch that timestamp."""
     move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=2, minutes=35))
-    set_status(db_engine, confirmed["id"], "in_progress")
     checked_in_at = datetime.now(UTC) - timedelta(hours=1)
-    with db_engine.begin() as conn:
-        conn.execute(
-            text("UPDATE bookings SET checked_in_at = :t WHERE id = :b"), {"t": checked_in_at, "b": confirmed["id"]}
-        )
+    set_in_progress(db_engine, confirmed["id"], checked_in_at)
     assert close(client, reviewer, confirmed["id"]).status_code == 200
     saved = row(db_engine, "SELECT checked_in_at, checked_out_at FROM bookings WHERE id = :b", b=confirmed["id"])
     assert abs((saved["checked_in_at"] - checked_in_at).total_seconds()) < 1
