@@ -124,6 +124,8 @@ def cleanup_documents(db_engine, profile_id) -> None:
             {"ids": overtime_request_ids},
         )
         conn.execute(text("DELETE FROM overtime_requests WHERE booking_id::text = ANY(:ids)"), {"ids": booking_ids})
+        # overtime_charged audits are recorded against the booking itself, already cleaned up above.
+        conn.execute(text("DELETE FROM overtime_charges WHERE booking_id::text = ANY(:ids)"), {"ids": booking_ids})
         conn.execute(text("DELETE FROM bookings WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM documents WHERE owner_profile_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM children WHERE parent_id = :id"), {"id": profile_id})

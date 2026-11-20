@@ -7,7 +7,7 @@ from app.models.consents import Consent, ConsentKind
 from app.models.documents import Document, DocumentAccessLog, DocumentStatus, DocumentType
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
 from app.models.marketplace import DayOff, GeocodeCache, WeeklyHours
-from app.models.overtime import OvertimeRequest, OvertimeRequestStatus
+from app.models.overtime import OvertimeCharge, OvertimeRequest, OvertimeRequestStatus
 from app.models.parents import AuthorisedAdult, Child, EmergencyContact, Parent
 from app.models.payments import Payment, PaymentKind, PaymentStatus
 from app.models.profiles import Profile, ProfileStatus, Role, ServiceAreaPincode
@@ -60,6 +60,7 @@ __all__ = [
     "OnboardingStatus",
     "OnboardingStep",
     "OnboardingStepName",
+    "OvertimeCharge",
     "OvertimeRequest",
     "OvertimeRequestStatus",
     "Parent",

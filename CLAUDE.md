@@ -425,9 +425,18 @@ Emergency button instead.
 - Overtime is always worked out **at check-out**, whether or not a request was accepted (a parent who is
   simply late still pays): if the check-out time is past the booked end time, the extra time is
   **rounded up to the next full hour** and charged at the booking's plan price per hour.
+  **Built 2026-11-20** (`api/app/services/overtime.py`'s `charge_for_checkout`, table `overtime_charges`):
+  run from `check_out()` (`api/app/services/checkin.py`) right before it commits. Even a few seconds past
+  the booked end rounds up to a full hour (minutes elapsed can be 0; the hour never is). One charge per
+  booking (a unique index on `booking_id`); an admin's manual close (6.7) doesn't run it -- there's no
+  reliable "how late was she" once a call, not a code, ended the booking (known gap, see `progress.md`).
 - It's charged right away. Beta: the parent is shown a UPI payment link or QR for the amount, payable
   within **2 hours**, and enters the UPI reference; an admin confirms. Until it's paid, it's an
-  outstanding amount and the parent can't make new bookings.
+  outstanding amount and the parent can't make new bookings. **Built 2026-11-20:** this reuses the
+  `cancellation_charge` flow built in phase 7 (`payments.py`'s `CHARGE_KINDS`, `/parent/payments/{id}`),
+  unchanged; the parent is also emailed right away (`email.overtime_charged`), since the 2-hour deadline
+  makes a proactive nudge worth it (cancellation charges, which arise from an admin's decision the parent
+  is separately told about, still don't send one).
 - The sitter earns her level pay for the same rounded-up overtime hours.
 - **Running past the plan's latest end time** (decided 2026-11-03): the sitter still can't leave the
   child. Overtime hours that fall after the plan's latest end (6 pm Pause / 10:30 pm Unwind / 12 am
@@ -692,7 +701,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `outing_requests` (id, booking_id, description, status: `pending|approved|declined`, decided_at)
 - `complaints` (id, raised_by, booking_id null, type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed`, late, first_reply_at, resolved_at, assigned_to, decided_by)
 - `overtime_requests` **(created)** (id, booking_id, requested_hours, status: `pending|accepted|declined`, requested_at, decided_at) — built 2026-11-20, migration e6c8b2d4f7a1; one open (`pending`) request per booking at a time; nothing charged here, see `overtime_charges` below
-- `overtime_charges` (id, booking_id, minutes_over, hours_charged (rounded up), amount_paise, sitter_pay_paise, created_at) — computed at check-out (6.8); its payment is a `payments` row
+- `overtime_charges` **(created)** (id, booking_id, minutes_over, hours_charged (rounded up), amount_paise, sitter_pay_paise, created_at) — built 2026-11-20, migration f1a3c5e7b9d2; computed at check-out (6.8), once per booking (a unique index on `booking_id`); its payment is a `payments` row (kind `overtime`)
 - `strikes` **(created)** (id, sitter_id, booking_id null (one strike per booking), reason: `late_cancellation|no_show|admin`, note, given_at, expires_at (6 months later), removed_by null, removed_at, removal_reason, doctor_note_document_id null) — kept, never deleted: the API's role can add rows and record a removal only
 - `incidents` (id, booking_id, raised_by, status: `open|acknowledged|resolved`, notes)
 - `messages` (id, parent_id, sitter_id, sender_id, body, created_at)

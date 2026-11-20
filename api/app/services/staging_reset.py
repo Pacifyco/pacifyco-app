@@ -22,6 +22,7 @@ from app.models import (
     Document,
     DocumentAccessLog,
     LegalAcceptance,
+    OvertimeCharge,
     OvertimeRequest,
     Payment,
     Profile,
@@ -82,6 +83,7 @@ def delete_all(db: Session, found: Found) -> None:
     overtime_request_ids = db.scalars(
         select(OvertimeRequest.id).where(OvertimeRequest.booking_id.in_(booking_ids))
     ).all()
+    overtime_charge_ids = db.scalars(select(OvertimeCharge.id).where(OvertimeCharge.booking_id.in_(booking_ids))).all()
     # Audit rows they made, and rows about them or their records (entity ids are stored as text).
     records = [
         *ids,
@@ -94,6 +96,7 @@ def delete_all(db: Session, found: Found) -> None:
         *strike_ids,
         *report_ids,
         *overtime_request_ids,
+        *overtime_charge_ids,
     ]
     about = [str(item) for item in records]
 
@@ -103,6 +106,7 @@ def delete_all(db: Session, found: Found) -> None:
     db.execute(delete(Strike).where(Strike.id.in_(strike_ids)))
     db.execute(delete(BookingReport).where(BookingReport.id.in_(report_ids)))
     db.execute(delete(OvertimeRequest).where(OvertimeRequest.id.in_(overtime_request_ids)))
+    db.execute(delete(OvertimeCharge).where(OvertimeCharge.id.in_(overtime_charge_ids)))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
     db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
     db.execute(delete(Document).where(Document.id.in_(document_ids)))

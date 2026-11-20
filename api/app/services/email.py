@@ -711,6 +711,24 @@ def overtime_decided(
     )
 
 
+def overtime_charged(
+    to: str, full_name: str | None, amount_paise: int, hours: int, payment_id: object, web_url: str
+) -> Email:
+    """To the parent: overtime was worked out at check-out (6.8), payable within 2 hours."""
+    plural = "hour" if hours == 1 else "hours"
+    return Email(
+        to=to,
+        subject="You owe Pacifyco for overtime",
+        heading=f"{hours} {plural} of overtime: {_rupees(amount_paise)}.",
+        body=(
+            f"Hi {_first_name(full_name)}, the booking ran {hours} {plural} past its booked end. "
+            "Please pay within 2 hours; you can't make new bookings until it's paid."
+        ),
+        button_label="Pay now",
+        button_url=_charge_url(web_url, payment_id),
+    )
+
+
 def _clock(moment: datetime) -> str:
     hour = moment.hour % 12 or 12
     return f"{hour}:{moment.minute:02d} {'am' if moment.hour < 12 else 'pm'}"

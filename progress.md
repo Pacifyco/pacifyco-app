@@ -9,13 +9,13 @@ tests.
 ## Current status
 
 - Phase: 7 done (PR #96 merged 2026-11-20). Phase 8 ("During the booking") under way: check-in/check-out
-  codes and overdue check-out alerts + admin manual close (PRs #97, #98, merged) and the overtime request
-  (branch `phase8/overtime-request`) all built. Couldn't run the Postgres-backed API suite locally this
-  session (no Docker here); web typecheck, lint and tests are green (353/354 — the 1 failure is the
-  pre-existing Node 20 `Intl` midnight quirk, unrelated).
+  codes, overdue check-out alerts + admin manual close, the overtime request and overtime at check-out
+  (PRs #97, #98, #99, merged, plus branch `phase8/overtime-charge`) all built. Couldn't run the
+  Postgres-backed API suite locally this session (no Docker here); web typecheck, lint and tests are
+  green (353/354 — the 1 failure is the pre-existing Node 20 `Intl` midnight quirk, unrelated).
 - Next item: phase 8, the Issues button (non-emergency reports: running late, only a man at home, a
-  complaint linked to the booking) or overtime at check-out (the actual charge) — either can go next;
-  overtime at check-out doesn't depend on the Issues button.
+  complaint linked to the booking), the Emergency/Report button, chat, or outing permission requests —
+  whichever Reuben picks next.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -23,6 +23,11 @@ tests.
 
 ## Open questions (ask Reuben; don't guess)
 
+- [ ] **Does an admin's manual close (6.7) ever charge overtime?** (added 2026-11-20, Overtime at
+  check-out). Right now it doesn't: `close_by_admin` backfills `checked_out_at` for the record but never
+  runs `charge_for_checkout`, since a booking that reached that path means no one gave a reliable
+  check-out time to measure overage from. If this comes up in practice, decide whether the admin should
+  enter a check-out time by hand that then gets charged normally, or whether it should stay uncharged.
 - [x] **Sitter 15-minute late rule vs. the sitter-no-show report** (added 2026-11-20; answered by Reuben
   2026-11-20: "trash the 15 min late thing and add the 30 min no-show report mechanism"). The 15-minute
   table row is dropped; the 30-minute no-show report (built 2026-11-19) is what's kept, and is now the
@@ -526,8 +531,18 @@ at home (CLAUDE.md 6.3).
   way). Nothing is charged by any of this — that's the separate "Overtime at check-out" item below,
   which still needs building; a parent simply running late with no accepted request will still owe it
   once that exists.
+- [x] Overtime at check-out: rounded up to the full hour at the plan price, UPI link/QR due in 2 hours,
+  unpaid blocks new bookings. Built 2026-11-20: `api/app/services/overtime.py`'s `charge_for_checkout`,
+  table `overtime_charges` (migration f1a3c5e7b9d2, one row per booking), run from `check_out()`
+  (`services/checkin.py`) right before it commits. Even a few seconds over rounds up to a full hour.
+  Reuses the `cancellation_charge` payment flow unchanged (same `/parent/payments/{id}` endpoints,
+  `CHARGE_KINDS`, admin queue); the parent is also emailed right away (`email.overtime_charged`), since
+  the 2-hour deadline makes that worth doing (cancellation charges still don't send one). "Unpaid
+  overtime blocks new bookings" was already covered generically by `test_payment_history.py`'s
+  parametrized test. An admin's manual close (6.7) doesn't run this — no reliable "how late was she"
+  once a call, not a code, ended the booking; left as a known gap (see Open questions) rather than
+  guessing a rule for it.
 - [ ] Issues button for parents and sitters (non-emergency: running late, only a man at home), a complaint linked to the booking (decided 2026-11-12)
-- [ ] Overtime at check-out: rounded up to the full hour at the plan price, UPI link/QR due in 2 hours, unpaid blocks new bookings
 - [ ] Emergency/Report button for parents and sitters; admin email alert; incident records
 - [ ] Chat between a parent and sitter with a confirmed booking (polling)
 - [ ] Outing permission requests during a booking (Recharge only)
@@ -597,6 +612,10 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-20 — Overtime at check-out: worked out in `charge_for_checkout`, rounded up to the full hour,
+  tier-switched past the plan's latest end, sitter paid her level pay, reuses the `cancellation_charge`
+  UPI-payment flow, parent emailed right away. Table `overtime_charges` (migration f1a3c5e7b9d2, one row
+  per booking). Admin manual close doesn't run it (new open question). Branch `phase8/overtime-charge`.
 - 2026-11-20 — Overtime request: parent asks for whole hours once a booking is in progress, sitter
   accepts or declines (nothing charged either way; that's the separate "Overtime at check-out" item).
   Table `overtime_requests` (migration e6c8b2d4f7a1), one open request per booking; both sides emailed.

@@ -1,17 +1,45 @@
-"""Overtime requests (CLAUDE.md 6.8; phase 8). During the booking the parent asks for extra whole hours;
-the sitter accepts or declines once they've agreed it between them. Nothing is charged here -- overtime
-is always worked out at check-out, whether or not a request was ever made or accepted, and a parent who's
-simply running late with no accepted request still owes it."""
+"""Overtime (CLAUDE.md 6.8; phase 8). During the booking the parent can ask for extra whole hours; the
+sitter accepts or declines once they've agreed it between them -- nothing is charged either way.
 
+Overtime itself is always worked out at check-out, whether or not a request was ever made or accepted:
+a parent who's simply running late still owes it. Checked-out time past the booked end is rounded up to
+the next full hour and charged at the plan's price, or the next tier's price for the hours that fall past
+the plan's own latest end (6.8) -- the sitter is still paid her own level's pay for every hour she works."""
+
+import math
 import uuid
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, time, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import Booking, BookingStatus, OvertimeRequest, OvertimeRequestStatus
-from app.services import audit
+from app.models import (
+    Booking,
+    BookingStatus,
+    OvertimeCharge,
+    OvertimeRequest,
+    OvertimeRequestStatus,
+    Payment,
+    PaymentKind,
+    PaymentStatus,
+)
+from app.models import SitterLevel as Plan
+from app.services import audit, pricing, sitter_pay
+from app.services.availability import INDIA
+from app.services.bookings import LATEST_END
+
+OVERTIME_PAYMENT_WINDOW = timedelta(hours=2)  # 6.8: payable within 2 hours
+
+# Pause overage is charged at Unwind's rate, Unwind overage at Recharge's; Recharge has no higher tier,
+# so for now overage past midnight on Recharge is charged at the Recharge rate itself (deferred default,
+# decided 2026-11-03 -- revisit if it comes up in practice).
+NEXT_TIER: dict[Plan, Plan] = {
+    Plan.pause: Plan.unwind,
+    Plan.unwind: Plan.recharge,
+    Plan.recharge: Plan.recharge,
+}
 
 
 def _booking(db: Session, booking_id: uuid.UUID, **owner: uuid.UUID) -> Booking:
@@ -89,3 +117,59 @@ def decide(db: Session, sitter_id: uuid.UUID, request_id: uuid.UUID, accept: boo
     )
     db.commit()
     return overtime_request
+
+
+@dataclass(frozen=True)
+class Charged:
+    charge: OvertimeCharge
+    payment: Payment
+
+
+def charge_for_checkout(db: Session, booking: Booking, now: datetime) -> Charged | None:
+    """Worked out at check-out (6.8), whether or not a request was ever made or accepted: if she checked
+    out past the booked end, the extra time is rounded up to the full hour and charged, at the plan's
+    price, or the next tier's for the hours that fall past the plan's own latest end. She's paid her own
+    level pay for the same hours either way. Charges once per booking -- the caller commits."""
+    assert booking.checked_out_at is not None
+    seconds_over = (booking.checked_out_at - booking.ends_at).total_seconds()
+    if seconds_over <= 0:
+        return None
+    minutes_over = int(seconds_over // 60)
+    hours_over = math.ceil(seconds_over / 3600)
+
+    midnight = datetime.combine(booking.starts_at.astimezone(INDIA).date(), time(), INDIA)
+    latest_end = midnight + LATEST_END[booking.plan]
+    amount_paise = 0
+    for hour in range(hours_over):
+        hour_end = booking.ends_at + timedelta(hours=hour + 1)
+        plan = booking.plan if hour_end <= latest_end else NEXT_TIER[booking.plan]
+        amount_paise += pricing.hourly_price_paise(plan, booking.children_count)
+    sitter_pay_paise = sitter_pay.booking_pay_paise(booking.plan, hours_over)
+
+    charge = OvertimeCharge(
+        booking_id=booking.id,
+        minutes_over=minutes_over,
+        hours_charged=hours_over,
+        amount_paise=amount_paise,
+        sitter_pay_paise=sitter_pay_paise,
+    )
+    db.add(charge)
+    payment = Payment(
+        booking_id=booking.id,
+        parent_id=booking.parent_id,
+        kind=PaymentKind.overtime,
+        amount_paise=amount_paise,
+        status=PaymentStatus.pending,
+        due_by=now + OVERTIME_PAYMENT_WINDOW,
+    )
+    db.add(payment)
+    db.flush()
+    audit.record(
+        db,
+        None,
+        "overtime_charged",
+        "booking",
+        str(booking.id),
+        after={"hours_charged": hours_over, "amount_paise": amount_paise, "payment_id": str(payment.id)},
+    )
+    return Charged(charge, payment)
