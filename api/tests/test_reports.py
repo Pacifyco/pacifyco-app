@@ -230,3 +230,42 @@ def test_only_the_right_people(client, db_engine, under_way, finished_parent, fr
     assert client.get("/admin/reports", headers=auth_for(finished_parent)).status_code == 403
     assert decide(client, uuid.UUID(str(sitter["id"])), rid, "confirm").status_code in (401, 403)
     assert client.post(f"/parent/bookings/{uuid.uuid4()}/arrived", headers=auth_for(finished_parent)).status_code == 404
+
+
+# ---------- only a man at home (6.5; decided 2026-11-12) ----------
+
+
+def man_home(client, sitter, booking_id):
+    return client.post(f"/sitter/bookings/{booking_id}/only-man-home", headers=auth_for(sitter))
+
+
+def test_she_may_decline_when_only_a_man_is_home(
+    client, reviewer, admins_told, db_engine, mailbox, under_way, finished_parent
+):
+    sitter = signed_in(db_engine, under_way["sitter_id"])
+    response = man_home(client, sitter, under_way["id"])
+    assert response.status_code == 201, response.text
+    assert response.json()["report"]["kind"] == "only_man_home"
+    assert response.json()["report"]["can_leave_at"] is None  # no wait: she may leave now
+    assert to(mailbox, finished_parent["email"])[-1].heading == "Lakshmi declined the booking."
+    assert "only adult at home is a man" in to(mailbox, "ops@example.com")[-1].heading
+
+    rid = report_id(db_engine, under_way["id"])
+    (listed,) = [item for item in client.get("/admin/reports", headers=as_user(reviewer)).json() if item["id"] == rid]
+    assert listed["show_up_fee_paise"] == 10_000  # a flat ₹100, whatever the length
+    response = decide(client, reviewer, rid, "confirm")  # no 20-minute wait for this one
+    assert response.status_code == 200, response.text
+    assert status(db_engine, under_way["id"]) == "declined_man_at_home"
+    assert (
+        scalar(db_engine, "SELECT count(*) FROM payments WHERE booking_id = :b AND kind = 'refund'", b=under_way["id"])
+        == 0
+    )  # the whole booking is charged
+    assert scalar(db_engine, "SELECT count(*) FROM strikes WHERE booking_id = :b", b=under_way["id"]) == 0
+    assert "paid ₹100" in to(mailbox, sitter["email"])[-1].body
+    assert "whole booking is charged" in to(mailbox, finished_parent["email"])[-1].body
+
+
+def test_only_man_home_once_the_booking_has_started(client, db_engine, confirmed):
+    sitter = signed_in(db_engine, confirmed["sitter_id"])
+    early = man_home(client, sitter, confirmed["id"])
+    assert early.status_code == 409 and early.json()["error"]["code"] == "not_booking_time"

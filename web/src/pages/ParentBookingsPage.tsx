@@ -66,6 +66,8 @@ export function bookingStatusText(item: BookingListItem): string {
       return `Cancelled by ${sitter}`;
     case "parent_absent":
       return "Closed: no one was home, charged";
+    case "declined_man_at_home":
+      return `Closed: ${sitter} declined (only a man was at home), charged`;
     case "sitter_no_show":
       return `${sitter} didn't come: refunded`;
     default:

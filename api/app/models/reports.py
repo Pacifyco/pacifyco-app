@@ -24,6 +24,8 @@ from app.models.common import enum_column, uuid_pk
 class ReportKind(StrEnum):
     parent_absent = "parent_absent"
     sitter_no_show = "sitter_no_show"
+    # The only adult at home is a man: she may decline on the spot (6.5; decided 2026-11-12).
+    only_man_home = "only_man_home"
 
 
 class ReportStatus(StrEnum):

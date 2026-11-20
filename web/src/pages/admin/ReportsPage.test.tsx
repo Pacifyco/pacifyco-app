@@ -85,6 +85,9 @@ describe("Reports", () => {
     );
     expect(waitText({ ...REPORT, responded_at: minutesFromNow(-2) }, now)).toMatch(/^A parent responded/);
     expect(waitText({ ...REPORT, kind: "sitter_no_show" }, now)).toBeNull();
+    expect(waitText({ ...REPORT, kind: "only_man_home", show_up_fee_paise: 10000 }, now)).toBe(
+      "She has declined and left. Confirming closes the booking, charged in full, and pays her ₹100.",
+    );
   });
 
   test("none", async () => {

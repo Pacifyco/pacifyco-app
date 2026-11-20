@@ -2,7 +2,7 @@
 
 export type BookingReport = {
   id: string;
-  kind: "parent_absent" | "sitter_no_show";
+  kind: "parent_absent" | "sitter_no_show" | "only_man_home";
   status: "open" | "confirmed" | "dismissed";
   reported_at: string;
   responded_at: string | null; // parent not home: a parent responded, so she waits
@@ -12,6 +12,7 @@ export type BookingReport = {
 
 export const NO_SHOW_AFTER_MS = 30 * 60 * 1000; // a no-show can be reported from 30 minutes in
 export const SHOW_UP_FEE_PER_HOUR_PAISE = 10_000; // ₹100 per booked hour
+export const MAN_HOME_FEE_PAISE = 10_000; // a flat ₹100 when she declines because only a man is home
 
 /** The booking is happening now: started and not yet ended. */
 export function underWay(startsAt: string, endsAt: string, now: Date): boolean {

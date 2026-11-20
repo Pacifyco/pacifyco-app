@@ -113,6 +113,10 @@ def tell_reported(db: Session, mailer: EmailClient, settings: Settings, report) 
         mailer.send(
             email_service.sitter_at_your_home(parent.email, parent.full_name, sitter.full_name, booking.id, url)
         )
+    elif report.kind.value == "only_man_home":
+        mailer.send(
+            email_service.sitter_declined_man_home(parent.email, parent.full_name, sitter.full_name, booking.id, url)
+        )
     else:
         mailer.send(
             email_service.no_show_reported(
@@ -148,6 +152,20 @@ def tell_decided(db: Session, mailer: EmailClient, settings: Settings, report, f
                 "Your report was looked at",
                 "Pacifyco has looked at your report and won't close the booking.",
             )
+    elif report.kind.value == "only_man_home":
+        if confirmed:
+            parent_says = (
+                "Your booking was closed",
+                "your sitter declined because the only adult at home was a "
+                "man, so the booking is closed and the whole booking is charged.",
+            )
+            sitter_says = (
+                "Pacifyco confirmed your report",
+                f"thank you for keeping yourself safe. You won't get a strike, and you'll be paid {rupees}.",
+            )
+        else:
+            parent_says = ("Your report was looked at", "Pacifyco has looked at your sitter's report and dismissed it.")
+            sitter_says = ("Your report was looked at", "Pacifyco has looked at your report and dismissed it.")
     elif confirmed:
         parent_says = (
             "We're sorry: your sitter didn't come",

@@ -491,7 +491,10 @@ def charge_reference_rejected(to: str, full_name: str | None, reason: str, payme
 
 def report_alert(to: str, kind: str, starts_at: datetime, web_url: str) -> Email:
     """To an admin: a report to act on now (6.5): phone both people."""
-    what = "A sitter says no one is home" if kind == "parent_absent" else "A parent says their sitter didn't come"
+    what = {
+        "parent_absent": "A sitter says no one is home",
+        "only_man_home": "A sitter declined: the only adult at home is a man",
+    }.get(kind, "A parent says their sitter didn't come")
     return Email(
         to=to,
         subject=f"{what}",
@@ -518,6 +521,25 @@ def sitter_at_your_home(
             f"Hi {_first_name(full_name)}, {sitter} has arrived but no one is home. If you're on your way, open your "
             "booking and press I have arrived, or call Pacifyco. If no one responds within 20 minutes she may leave, "
             "and the whole booking is charged."
+        ),
+        button_label="Open your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )
+
+
+def sitter_declined_man_home(
+    to: str, full_name: str | None, sitter_name: str | None, booking_id: object, web_url: str
+) -> Email:
+    """To the parent: she declined on arrival because the only adult at home was a man (6.5)."""
+    sitter = _first_name(sitter_name) if sitter_name else "Your sitter"
+    return Email(
+        to=to,
+        subject="Your sitter declined the booking",
+        heading=f"{sitter} declined the booking.",
+        body=(
+            f"Hi {_first_name(full_name)}, {sitter} declined the booking because the only adult at home was a man. "
+            "As the Family Terms say, a sitter may do this for her safety, and the whole booking is charged.\n"
+            "Pacifyco will be in touch."
         ),
         button_label="Open your booking",
         button_url=_booking_url(web_url, booking_id),

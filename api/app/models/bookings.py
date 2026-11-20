@@ -44,6 +44,9 @@ class BookingStatus(StrEnum):
     cancelled_slot_taken = "cancelled_slot_taken"
     # Paid, but a child on it still wasn't verified when it started: refunded (Reuben, 2026-11-18).
     cancelled_unverified = "cancelled_unverified"
+    # The sitter declined on arrival: the only adult at home was a man (6.5). Charged in full; no strike;
+    # Pacifyco pays her a flat ₹100.
+    declined_man_at_home = "declined_man_at_home"
 
 
 class Booking(Base):
