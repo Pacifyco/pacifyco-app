@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../../test/renderApp";
@@ -88,6 +88,20 @@ describe("Reports", () => {
     expect(waitText({ ...REPORT, kind: "only_man_home", show_up_fee_paise: 10000 }, now)).toBe(
       "She has declined and left. Confirming closes the booking, charged in full, and pays her ₹100.",
     );
+    expect(waitText({ ...REPORT, kind: "child_under_age", show_up_fee_paise: 20000 }, now)).toBe(
+      "She's reported it. Confirming charges 1 hour and refunds the rest, and pays her ₹200 for that hour.",
+    );
+    expect(waitText({ ...REPORT, kind: "sitter_unsafe" }, now)).toBe(
+      "She's left once the child was with a parent. Confirming charges the whole booking; she's paid for the time she worked once payouts are built.",
+    );
+  });
+
+  test("the words for an under-age or unsafe-exit report", async () => {
+    renderWith([{ ...REPORT, kind: "child_under_age" }]);
+    expect(await screen.findByText("Sitter says a child is under 18 months")).toBeTruthy();
+    cleanup();
+    renderWith([{ ...REPORT, kind: "sitter_unsafe" }]);
+    expect(await screen.findByText("Sitter left for her own safety")).toBeTruthy();
   });
 
   test("none", async () => {

@@ -188,6 +188,119 @@ function OnlyManHome({ booking }: { booking: SitterBookingDetail }) {
   );
 }
 
+/** A child on the booking is under 18 months, which should never happen (6.5). */
+function UnderAge({ booking }: { booking: SitterBookingDetail }) {
+  const queryClient = useQueryClient();
+  const [asking, setAsking] = useState(false);
+  const [adultWithChild, setAdultWithChild] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const report = useMutation({
+    mutationFn: () =>
+      apiFetch<SitterBookingDetail>(`/sitter/bookings/${booking.id}/under-18-months`, {
+        method: "POST",
+        body: JSON.stringify({ adult_with_child: adultWithChild }),
+      }),
+    onSuccess: (updated) => queryClient.setQueryData(["sitter", "booking", booking.id], updated),
+    onError: (failed) => setError(failed instanceof ApiError ? failed.message : "That didn't go through. Please try again."),
+  });
+  if (!asking) {
+    return (
+      <div>
+        <Button variant="tertiary" fullWidthOnPhone={false} onClick={() => setAsking(true)}>
+          This child is under 18 months
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <p className="text-ink">
+        Pacifyco doesn't take bookings for children under 18 months. You aren't required to care for them.
+        Don't leave until an adult is with the child.
+      </p>
+      <Checkbox
+        label="An adult is now with the child"
+        checked={adultWithChild}
+        onChange={(event) => setAdultWithChild(event.target.checked)}
+      />
+      {error && (
+        <p role="alert" className="text-small text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <Button
+          variant="secondary"
+          loading={report.isPending}
+          disabled={!adultWithChild}
+          onClick={() => report.mutate()}
+        >
+          Tell Pacifyco
+        </Button>
+        <Button variant="tertiary" onClick={() => setAsking(false)}>
+          Not now
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+/** She feels unsafe and needs to leave (6.5), only once the child is with a parent. */
+function Unsafe({ booking }: { booking: SitterBookingDetail }) {
+  const queryClient = useQueryClient();
+  const [asking, setAsking] = useState(false);
+  const [childWithParent, setChildWithParent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const report = useMutation({
+    mutationFn: () =>
+      apiFetch<SitterBookingDetail>(`/sitter/bookings/${booking.id}/unsafe`, {
+        method: "POST",
+        body: JSON.stringify({ child_with_parent: childWithParent }),
+      }),
+    onSuccess: (updated) => queryClient.setQueryData(["sitter", "booking", booking.id], updated),
+    onError: (failed) => setError(failed instanceof ApiError ? failed.message : "That didn't go through. Please try again."),
+  });
+  if (!asking) {
+    return (
+      <div>
+        <Button variant="tertiary" fullWidthOnPhone={false} onClick={() => setAsking(true)}>
+          I feel unsafe
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <p className="text-ink">
+        Don't leave until the child is with a parent. Call Pacifyco on +91 8848873841, and 112 if you need help.
+      </p>
+      <Checkbox
+        label="The child is now with a parent"
+        checked={childWithParent}
+        onChange={(event) => setChildWithParent(event.target.checked)}
+      />
+      {error && (
+        <p role="alert" className="text-small text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <Button
+          variant="secondary"
+          loading={report.isPending}
+          disabled={!childWithParent}
+          onClick={() => report.mutate()}
+        >
+          Tell Pacifyco and leave
+        </Button>
+        <Button variant="tertiary" onClick={() => setAsking(false)}>
+          Not now
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 /** What happens now that a report has been made about this booking. */
 function ReportStatus({ booking, now }: { booking: SitterBookingDetail; now: Date }) {
   const report = booking.report!;
@@ -207,6 +320,21 @@ function ReportStatus({ booking, now }: { booking: SitterBookingDetail; now: Dat
         : report.status === "confirmed"
           ? "Pacifyco confirmed you didn't arrive. It counts as a strike."
           : "Pacifyco looked at the family's report and dismissed it.";
+  } else if (report.kind === "child_under_age") {
+    const perHour = rupees(booking.pay_paise / booking.hours);
+    text =
+      report.status === "open"
+        ? "We've told Pacifyco and the family. Don't leave until an adult is with the child."
+        : report.status === "confirmed"
+          ? `Pacifyco confirmed. You won't get a strike, and you'll be paid ${perHour} for that hour.`
+          : "Pacifyco looked at your report and the booking goes ahead.";
+  } else if (report.kind === "sitter_unsafe") {
+    text =
+      report.status === "open"
+        ? "We've told Pacifyco and the family. Stay safe."
+        : report.status === "confirmed"
+          ? "Pacifyco confirmed. You won't get a strike, and you'll be paid for the time you worked."
+          : "Pacifyco looked at your report and the booking goes ahead.";
   } else if (report.status === "confirmed") {
     text = `Pacifyco confirmed no one was home. You'll be paid a show-up fee of ${fee}.`;
   } else if (report.status === "dismissed") {
@@ -390,6 +518,8 @@ export function SitterBookingPage() {
           <div className="flex flex-col gap-3">
             <NoOneHome booking={data} />
             <OnlyManHome booking={data} />
+            <UnderAge booking={data} />
+            <Unsafe booking={data} />
           </div>
         )}
       {SITTER_CAN_CANCEL.includes(data.status) && new Date(data.starts_at) > new Date() && (

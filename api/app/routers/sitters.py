@@ -746,3 +746,36 @@ def report_only_man_home(
     report = reports_service.only_man_home(db, sitter.id, booking_id, datetime.now(UTC))
     booking_mail.tell_reported(db, mailer, settings, report)
     return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
+
+
+class UnderAgeIn(BaseModel):
+    # She confirms an adult is with the child before she may leave (6.5).
+    adult_with_child: bool
+
+
+@router.post("/bookings/{booking_id}/under-18-months", status_code=201)
+def report_under_18_months(
+    booking_id: uuid.UUID, body: UnderAgeIn, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    """A child on the booking is under 18 months, which should never happen. She isn't required to care
+    for them and may leave once an adult is with them. Parent charged 1 hour, refunded the rest; no
+    strike (6.5)."""
+    report = reports_service.child_under_age(db, sitter.id, booking_id, body.adult_with_child, datetime.now(UTC))
+    booking_mail.tell_reported(db, mailer, settings, report)
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
+
+
+class UnsafeIn(BaseModel):
+    # Only once the child is with a parent may she leave (6.5).
+    child_with_parent: bool
+
+
+@router.post("/bookings/{booking_id}/unsafe", status_code=201)
+def report_unsafe(
+    booking_id: uuid.UUID, body: UnsafeIn, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> SitterBookingDetail:
+    """She feels unsafe and needs to leave, only once the child is with a parent. The whole booking is
+    still charged; no strike (6.5)."""
+    report = reports_service.sitter_unsafe(db, sitter.id, booking_id, body.child_with_parent, datetime.now(UTC))
+    booking_mail.tell_reported(db, mailer, settings, report)
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))

@@ -117,6 +117,12 @@ def tell_reported(db: Session, mailer: EmailClient, settings: Settings, report) 
         mailer.send(
             email_service.sitter_declined_man_home(parent.email, parent.full_name, sitter.full_name, booking.id, url)
         )
+    elif report.kind.value == "child_under_age":
+        mailer.send(
+            email_service.sitter_reported_under_age(parent.email, parent.full_name, sitter.full_name, booking.id, url)
+        )
+    elif report.kind.value == "sitter_unsafe":
+        mailer.send(email_service.sitter_left_unsafe(parent.email, parent.full_name, sitter.full_name, booking.id, url))
     else:
         mailer.send(
             email_service.no_show_reported(
@@ -162,6 +168,35 @@ def tell_decided(db: Session, mailer: EmailClient, settings: Settings, report, f
             sitter_says = (
                 "Pacifyco confirmed your report",
                 f"thank you for keeping yourself safe. You won't get a strike, and you'll be paid {rupees}.",
+            )
+        else:
+            parent_says = ("Your report was looked at", "Pacifyco has looked at your sitter's report and dismissed it.")
+            sitter_says = ("Your report was looked at", "Pacifyco has looked at your report and dismissed it.")
+    elif report.kind.value == "child_under_age":
+        if confirmed:
+            parent_says = (
+                "Your booking was closed",
+                "your sitter found that a child on this booking is under 18 months, which Pacifyco doesn't take "
+                "bookings for. You're charged for 1 hour and refunded the rest.",
+            )
+            sitter_says = (
+                "Pacifyco confirmed your report",
+                f"you won't get a strike, and you'll be paid {rupees} for that hour.",
+            )
+        else:
+            parent_says = ("Your report was looked at", "Pacifyco has looked at your sitter's report and dismissed it.")
+            sitter_says = ("Your report was looked at", "Pacifyco has looked at your report and dismissed it.")
+    elif report.kind.value == "sitter_unsafe":
+        if confirmed:
+            parent_says = (
+                "Your booking was closed",
+                "your sitter had to leave for her own safety, so the booking is closed. As usual, the whole "
+                "booking is charged.",
+            )
+            sitter_says = (
+                "Pacifyco confirmed your report",
+                "thank you for keeping yourself safe. You won't get a strike, and you'll be paid for the time "
+                "you worked.",
             )
         else:
             parent_says = ("Your report was looked at", "Pacifyco has looked at your sitter's report and dismissed it.")

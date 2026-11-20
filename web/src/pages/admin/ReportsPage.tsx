@@ -14,7 +14,7 @@ import { errorMessage } from "./shared";
 
 export type AdminReport = {
   id: string;
-  kind: "parent_absent" | "sitter_no_show" | "only_man_home";
+  kind: "parent_absent" | "sitter_no_show" | "only_man_home" | "child_under_age" | "sitter_unsafe";
   reported_at: string;
   responded_at: string | null;
   can_leave_at: string | null;
@@ -35,6 +35,8 @@ const KIND_WORDS: Record<AdminReport["kind"], string> = {
   parent_absent: "No one home, says the sitter",
   sitter_no_show: "Sitter didn't come, says the parent",
   only_man_home: "Sitter declined: only a man at home",
+  child_under_age: "Sitter says a child is under 18 months",
+  sitter_unsafe: "Sitter left for her own safety",
 };
 
 function when(iso: string): string {
@@ -60,6 +62,12 @@ function Phone({ label, name, phone }: { label: string; name: string | null; pho
 export function waitText(report: AdminReport, now: Date): string | null {
   if (report.kind === "only_man_home") {
     return `She has declined and left. Confirming closes the booking, charged in full, and pays her ${rupees(report.show_up_fee_paise)}.`;
+  }
+  if (report.kind === "child_under_age") {
+    return `She's reported it. Confirming charges 1 hour and refunds the rest, and pays her ${rupees(report.show_up_fee_paise)} for that hour.`;
+  }
+  if (report.kind === "sitter_unsafe") {
+    return "She's left once the child was with a parent. Confirming charges the whole booking; she's paid for the time she worked once payouts are built.";
   }
   if (report.kind !== "parent_absent") return null;
   if (report.responded_at) return "A parent responded: the sitter waits. Dismiss it once they're together.";

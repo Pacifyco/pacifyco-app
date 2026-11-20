@@ -23,6 +23,7 @@ from tests.test_marketplace import finished_parent, make_sitter  # noqa: F401  (
 from tests.test_payments import booking, get, pay  # noqa: F401  (fixture)
 from tests.test_roles import make_profile  # noqa: F401  (fixture)
 from tests.test_sign_up import auth_for, user  # noqa: F401  (fixture)
+from tests.test_sitter_bookings import listed as sitter_booking_list
 from tests.test_sitter_bookings import signed_in
 from tests.test_verification import reviewer  # noqa: F401  (fixture)
 
@@ -263,9 +264,105 @@ def test_she_may_decline_when_only_a_man_is_home(
     assert scalar(db_engine, "SELECT count(*) FROM strikes WHERE booking_id = :b", b=under_way["id"]) == 0
     assert "paid ₹100" in to(mailbox, sitter["email"])[-1].body
     assert "whole booking is charged" in to(mailbox, finished_parent["email"])[-1].body
+    assert any(item["id"] == under_way["id"] for item in sitter_booking_list(client, sitter)["past"])
 
 
 def test_only_man_home_once_the_booking_has_started(client, db_engine, confirmed):
     sitter = signed_in(db_engine, confirmed["sitter_id"])
     early = man_home(client, sitter, confirmed["id"])
+    assert early.status_code == 409 and early.json()["error"]["code"] == "not_booking_time"
+
+
+# ---------- a child under 18 months (6.5) ----------
+
+
+def under_age(client, sitter, booking_id, adult_with_child=True):
+    return client.post(
+        f"/sitter/bookings/{booking_id}/under-18-months",
+        json={"adult_with_child": adult_with_child},
+        headers=auth_for(sitter),
+    )
+
+
+def test_she_must_wait_for_an_adult_before_reporting_it(client, db_engine, under_way):
+    sitter = signed_in(db_engine, under_way["sitter_id"])
+    alone = under_age(client, sitter, under_way["id"], adult_with_child=False)
+    assert alone.status_code == 422 and alone.json()["error"]["code"] == "child_alone"
+
+
+def test_confirmed_1_hour_is_charged_and_the_rest_refunded_no_strike(
+    client, reviewer, admins_told, db_engine, mailbox, under_way, finished_parent
+):
+    sitter = signed_in(db_engine, under_way["sitter_id"])
+    response = under_age(client, sitter, under_way["id"])
+    assert response.status_code == 201, response.text
+    assert response.json()["report"]["kind"] == "child_under_age"
+    assert "under 18 months" in to(mailbox, "ops@example.com")[-1].heading
+
+    rid = report_id(db_engine, under_way["id"])
+    (listed,) = [item for item in client.get("/admin/reports", headers=as_user(reviewer)).json() if item["id"] == rid]
+    assert listed["show_up_fee_paise"] == 30_000  # her level pay (Unwind) for 1 hour
+
+    response = decide(client, reviewer, rid, "confirm")
+    assert response.status_code == 200, response.text
+    assert status(db_engine, under_way["id"]) == "child_under_age"
+    refund = row(
+        db_engine, "SELECT amount_paise FROM payments WHERE booking_id = :b AND kind = 'refund'", b=under_way["id"]
+    )
+    assert refund["amount_paise"] == -(under_way["price_paise"] - 69_900)  # Unwind, 1 child: ₹699 kept
+    assert scalar(db_engine, "SELECT count(*) FROM strikes WHERE booking_id = :b", b=under_way["id"]) == 0
+    assert "paid ₹300 for that hour" in to(mailbox, sitter["email"])[-1].body
+    assert "charged for 1 hour" in to(mailbox, finished_parent["email"])[-1].body
+    assert any(item["id"] == under_way["id"] for item in sitter_booking_list(client, sitter)["past"])
+
+
+def test_under_age_once_the_booking_has_started(client, db_engine, confirmed):
+    sitter = signed_in(db_engine, confirmed["sitter_id"])
+    early = under_age(client, sitter, confirmed["id"])
+    assert early.status_code == 409 and early.json()["error"]["code"] == "not_booking_time"
+
+
+# ---------- she feels unsafe (6.5) ----------
+
+
+def unsafe(client, sitter, booking_id, child_with_parent=True):
+    return client.post(
+        f"/sitter/bookings/{booking_id}/unsafe",
+        json={"child_with_parent": child_with_parent},
+        headers=auth_for(sitter),
+    )
+
+
+def test_she_must_wait_for_a_parent_before_leaving(client, db_engine, under_way):
+    sitter = signed_in(db_engine, under_way["sitter_id"])
+    alone = unsafe(client, sitter, under_way["id"], child_with_parent=False)
+    assert alone.status_code == 422 and alone.json()["error"]["code"] == "child_alone"
+
+
+def test_confirmed_the_whole_booking_stays_charged_no_strike(
+    client, reviewer, admins_told, db_engine, mailbox, under_way, finished_parent
+):
+    sitter = signed_in(db_engine, under_way["sitter_id"])
+    response = unsafe(client, sitter, under_way["id"])
+    assert response.status_code == 201, response.text
+    assert response.json()["report"]["kind"] == "sitter_unsafe"
+    assert "own safety" in to(mailbox, "ops@example.com")[-1].heading
+
+    rid = report_id(db_engine, under_way["id"])
+    response = decide(client, reviewer, rid, "confirm")
+    assert response.status_code == 200, response.text
+    assert status(db_engine, under_way["id"]) == "sitter_left_unsafe"
+    assert (
+        scalar(db_engine, "SELECT count(*) FROM payments WHERE booking_id = :b AND kind = 'refund'", b=under_way["id"])
+        == 0
+    )  # the whole booking stays charged
+    assert scalar(db_engine, "SELECT count(*) FROM strikes WHERE booking_id = :b", b=under_way["id"]) == 0
+    assert "paid for the time you worked" in to(mailbox, sitter["email"])[-1].body
+    assert "whole booking is charged" in to(mailbox, finished_parent["email"])[-1].body
+    assert any(item["id"] == under_way["id"] for item in sitter_booking_list(client, sitter)["past"])
+
+
+def test_unsafe_once_the_booking_has_started(client, db_engine, confirmed):
+    sitter = signed_in(db_engine, confirmed["sitter_id"])
+    early = unsafe(client, sitter, confirmed["id"])
     assert early.status_code == 409 and early.json()["error"]["code"] == "not_booking_time"

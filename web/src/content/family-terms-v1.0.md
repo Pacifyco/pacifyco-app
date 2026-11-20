@@ -95,7 +95,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 | No one is home when the sitter arrives, and no one responds within 20 minutes | The full booking is charged. The sitter leaves and Pacifyco pays them a show-up fee |
 | The child is under 18 months | You are charged for 1 hour; the rest is refunded (see 3.8) |
 | The sitter cancels, or does not turn up | Refunded |
-| The sitter is more than 15 minutes late without telling you and Pacifyco | You may cancel in the app, and the booking is refunded |
+| The sitter is more than 15 minutes late without telling you and Pacifyco | You can report them as a no-show from 30 minutes after the start, and the booking is refunded |
 | The sitter leaves because they felt unsafe or because you broke these Terms | Full booking charged (see 6.6) |
 | The only adult at home when the sitter arrives is a man, and the sitter declines the booking | Full booking charged (see 6.2) |
 

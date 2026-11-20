@@ -316,8 +316,7 @@ documents; the LLPIN, registered office and emergency line were taken out of the
 | Parent not home when sitter arrives | Sitter reports it from the booking screen. Parent pays for the whole booking. Pacify pays the sitter **₹100 per booked hour** (show-up fee). Admin confirms. |
 | Sitter cancels ≥ 8 hours before start | Parent's money refunded. No penalty. |
 | Sitter cancels < 8 hours before start | Parent's money refunded. Sitter earns nothing and gets a strike. |
-| Sitter no-show | Parent reports it, admin confirms. Parent's money refunded. Sitter earns nothing and gets a strike. |
-| Sitter more than 15 minutes late without telling the parent and Pacify | Parent may cancel from the booking screen; it then counts as a sitter no-show. If not cancelled, the sitter is paid only from check-in. |
+| Sitter no-show | Parent reports it from 30 minutes after the start, admin confirms. Parent's money refunded. Sitter earns nothing and gets a strike. (Decided 2026-11-19; drops the earlier 15-minute-late cancellation rule, which this replaces.) |
 | Sitter ill | Must tell Pacify and the parent at least 8 hours before (a normal cancellation). With less notice it's a late cancellation and a strike, but an admin can remove the strike if she uploads a doctor's note. |
 | Child under 18 months at the booking | Should never happen (bookings are blocked), but if it does: sitter presses Report, isn't required to care for the child and may leave once an adult is with the child. Parent is charged for 1 hour; the rest is refunded. Sitter is paid for that 1 hour (her level pay); no strike. (Decided 2026-11-03.) |
 | Only adult at home is a man (decided 2026-11-12) | The sitter may decline the booking on the spot and reports it with the Issues button (6.9). Parent pays for the whole booking (no refund, as in the Family Terms). No strike; Pacify pays the sitter a **flat ₹100**. |
@@ -344,6 +343,15 @@ emailed, and when the sitter cancels the admins are too, to look for a replaceme
   (CLAUDE.md asks for this through the Issues button, phase 8; it's a report for now.)
 - **Sitter no-show:** the parent reports it from **30 minutes after the start** (Reuben, 2026-11-19).
   The admins and the sitter are emailed. Confirmed, it's `sitter_no_show`: refunded, a strike.
+- **Child under 18 months** (built 2026-11-20): should never happen, but once the booking has started the
+  sitter presses "This child is under 18 months", after ticking that an adult is now with the child. The
+  admins and the parent are emailed. Confirmed, it's `child_under_age`: the parent is charged for 1 hour
+  and refunded the rest; she's paid her level pay for that hour (with her earnings, phase 9); no strike.
+- **She feels unsafe** (built 2026-11-20): once the booking has started, the sitter presses "I feel
+  unsafe", after ticking that the child is now with a parent. The admins and the parent are emailed.
+  Confirmed, it's `sitter_left_unsafe`: the whole booking stays charged (kept from the Family Terms); she's
+  paid for the time she worked (phase 9, once check-in exists); no strike. (CLAUDE.md asks for this through
+  the Emergency button, phase 8; it's a report for now, same as "only a man at home".)
 - Admins see open reports on `/admin/reports`, with both phone numbers, and confirm or dismiss each
   (dismissing needs a reason). Both people are told the outcome.
 
@@ -701,7 +709,7 @@ in the beta phase.
 | Payouts | Earnings released only after checkout + overtime worked out + no open incident; due within 12 hours; alerts at 3 hours left and when overdue; show-up fee ₹100 per booked hour; bank or UPI; mark-paid records reference |
 | Reviews | Only after a completed booking, once per author per booking; average updates; flag when last-10 average < 3.5 |
 | Child age and home info | Child under 18 months can't be booked; camera declaration required; outing needs parent approval |
-| New cancellation rows | 15-minute late rule; 20-minute parent-not-home wait; under-18-months: parent charged 1 hour, rest refunded, sitter paid for that hour, no strike; unsafe early exit paid for time worked with no strike after admin confirms; doctor's note strike removal |
+| New cancellation rows | sitter no-show reportable from 30 minutes after the start; 20-minute parent-not-home wait; under-18-months: parent charged 1 hour, rest refunded, sitter paid for that hour, no strike; unsafe early exit paid for time worked with no strike after admin confirms; doctor's note strike removal |
 | Complaints | SLA timers; escalation; original decider can't handle the appeal; late complaints flagged |
 | Sitter terms | Wording matches `sitter-terms-v1.1.md`; placeholders filled from config; production refuses to serve it with an empty placeholder |
 | Sitter onboarding extras | Under-18 rejected; health disclosure admin-only and access logged |

@@ -6,12 +6,21 @@
   booking is `declined_man_at_home`: the parent pays the whole booking, no strike, ₹100 to her.
 - Sitter no-show: the parent reports it, from 30 minutes after the start until the end. Confirmed by an
   admin, it's `sitter_no_show`: the parent is refunded, and she gets a strike and earns nothing.
+- Child under 18 months: should never happen (bookings are blocked), but if it does the sitter reports it
+  once an adult is with the child. Confirmed by an admin, it's `child_under_age`: the parent is charged for
+  1 hour and refunded the rest; she's paid her level pay for that hour; no strike.
+- Sitter feels unsafe: she may leave only once the child is with a parent. Confirmed by an admin, it's
+  `sitter_left_unsafe`: the parent still pays the whole booking (kept from the Family Terms); she's paid
+  for the time she worked (phase 9, once check-in exists); no strike.
 
 Parent not home: she may leave only if no parent responds within 20 minutes of her report. A parent responds
 with "I have arrived" in the app, or an admin marks that they answered the phone (Reuben, 2026-11-19); she
 then waits for them. If a child is at home without an adult she must not report this and leave: she calls
 for help instead (the Emergency button comes in phase 8). The show-up fee is paid with her other earnings
 (phase 9, payouts); here the booking is marked `parent_absent`, which is what that will pay from.
+
+The two reports below are also written through the Issues button's eventual place (phase 8); for now
+they're the booking-page actions themselves, same as "only a man at home".
 """
 
 import uuid
@@ -23,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import Booking, BookingReport, BookingStatus, ReportKind, ReportStatus, StrikeReason
-from app.services import audit, bookings, strikes
+from app.services import audit, bookings, pricing, sitter_pay, strikes
 
 PARENT_WAIT = timedelta(minutes=20)  # 6.5: she may leave if no parent responds within 20 minutes
 NO_SHOW_AFTER = timedelta(minutes=30)  # Reuben, 2026-11-19: a no-show can be reported from 30 minutes in
@@ -44,12 +53,15 @@ def show_up_fee_paise(booking: Booking) -> int:
 
 
 def fee_paise(report: BookingReport, booking: Booking) -> int:
-    """What Pacifyco pays her if the report is confirmed: the show-up fee, or a flat ₹100; nothing for a
-    no-show."""
+    """What Pacifyco pays her if the report is confirmed: the show-up fee, a flat ₹100, her level pay for
+    one hour, or nothing (a no-show, or an unsafe exit -- she's paid for hours worked, worked out once
+    check-in exists in phase 8)."""
     if report.kind == ReportKind.parent_absent:
         return show_up_fee_paise(booking)
     if report.kind == ReportKind.only_man_home:
         return MAN_HOME_FEE_PAISE
+    if report.kind == ReportKind.child_under_age:
+        return sitter_pay.booking_pay_paise(booking.plan, 1)
     return 0
 
 
@@ -116,6 +128,45 @@ def only_man_home(db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID, now:
     if not booking.starts_at <= now < booking.ends_at:
         raise AppError(409, "not_booking_time", "You can report this once the booking has started.")
     return _new(db, booking, ReportKind.only_man_home, sitter_id, now)
+
+
+def child_under_age(
+    db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID, adult_with_child: bool, now: datetime
+) -> BookingReport:
+    """A child on the booking is under 18 months, which should never happen (6.5): she isn't required to
+    care for the child and may leave once an adult is with them."""
+    booking = _booking(db, booking_id, sitter_id=sitter_id)
+    if booking.status not in UNDER_WAY:
+        raise AppError(409, "cannot_report", "This booking can't be reported now.")
+    if not booking.starts_at <= now < booking.ends_at:
+        raise AppError(409, "not_booking_time", "You can report this once the booking has started.")
+    if not adult_with_child:
+        raise AppError(
+            422,
+            "child_alone",
+            "Don't leave until an adult is with the child. Call the parent and Pacifyco on +91 8848873841.",
+        )
+    return _new(db, booking, ReportKind.child_under_age, sitter_id, now)
+
+
+def sitter_unsafe(
+    db: Session, sitter_id: uuid.UUID, booking_id: uuid.UUID, child_with_parent: bool, now: datetime
+) -> BookingReport:
+    """She feels unsafe and needs to leave (6.5): only once the child is with a parent. The whole booking
+    is still charged (kept from the Family Terms); she's paid for the time she worked (phase 9) and it's
+    not a strike."""
+    booking = _booking(db, booking_id, sitter_id=sitter_id)
+    if booking.status not in UNDER_WAY:
+        raise AppError(409, "cannot_report", "This booking can't be reported now.")
+    if not booking.starts_at <= now < booking.ends_at:
+        raise AppError(409, "not_booking_time", "You can report this once the booking has started.")
+    if not child_with_parent:
+        raise AppError(
+            422,
+            "child_alone",
+            "Don't leave until the child is with a parent. Call Pacifyco on +91 8848873841, and 112 if you need help.",
+        )
+    return _new(db, booking, ReportKind.sitter_unsafe, sitter_id, now)
 
 
 def sitter_no_show(db: Session, parent_id: uuid.UUID, booking_id: uuid.UUID, now: datetime) -> BookingReport:
@@ -195,6 +246,10 @@ def decide(
             status = BookingStatus.parent_absent
         elif report.kind == ReportKind.only_man_home:
             status = BookingStatus.declined_man_at_home  # charged in full, no strike (6.5)
+        elif report.kind == ReportKind.child_under_age:
+            status = BookingStatus.child_under_age
+        elif report.kind == ReportKind.sitter_unsafe:
+            status = BookingStatus.sitter_left_unsafe  # charged in full, no strike (6.5)
         else:
             status = BookingStatus.sitter_no_show
         if booking.status not in UNDER_WAY:
@@ -214,6 +269,10 @@ def decide(
             # The parent's money comes back; she earns nothing and gets a strike (6.5, 6.6).
             bookings.refund_booking(db, admin_id, booking.id)
             outcome = strikes.give(db, admin_id, booking.sitter_id, StrikeReason.no_show, now, booking_id=booking.id)
+        elif status == BookingStatus.child_under_age:
+            # 1 hour charged, the rest refunded (6.5).
+            keep = pricing.hourly_price_paise(booking.plan, booking.children_count)
+            bookings.refund_under_age(db, admin_id, booking.id, keep)
     report.status = ReportStatus.confirmed if confirm else ReportStatus.dismissed
     report.decided_by = admin_id
     report.decided_at = now

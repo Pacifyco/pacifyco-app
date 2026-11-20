@@ -494,6 +494,8 @@ def report_alert(to: str, kind: str, starts_at: datetime, web_url: str) -> Email
     what = {
         "parent_absent": "A sitter says no one is home",
         "only_man_home": "A sitter declined: the only adult at home is a man",
+        "child_under_age": "A sitter says a child is under 18 months",
+        "sitter_unsafe": "A sitter left a booking for her own safety",
     }.get(kind, "A parent says their sitter didn't come")
     return Email(
         to=to,
@@ -540,6 +542,43 @@ def sitter_declined_man_home(
             f"Hi {_first_name(full_name)}, {sitter} declined the booking because the only adult at home was a man. "
             "As the Family Terms say, a sitter may do this for her safety, and the whole booking is charged.\n"
             "Pacifyco will be in touch."
+        ),
+        button_label="Open your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )
+
+
+def sitter_reported_under_age(
+    to: str, full_name: str | None, sitter_name: str | None, booking_id: object, web_url: str
+) -> Email:
+    """To the parent: a child on this booking turned out to be under 18 months (6.5)."""
+    sitter = _first_name(sitter_name) if sitter_name else "Your sitter"
+    return Email(
+        to=to,
+        subject="Your sitter ended the booking",
+        heading=f"{sitter} ended the booking.",
+        body=(
+            f"Hi {_first_name(full_name)}, {sitter} says a child on this booking is under 18 months, which "
+            "Pacifyco doesn't take bookings for. She isn't required to care for them. You're charged for 1 hour "
+            "and the rest is refunded.\nPacifyco will be in touch."
+        ),
+        button_label="Open your booking",
+        button_url=_booking_url(web_url, booking_id),
+    )
+
+
+def sitter_left_unsafe(
+    to: str, full_name: str | None, sitter_name: str | None, booking_id: object, web_url: str
+) -> Email:
+    """To the parent: the sitter had to leave for her own safety, once the child was with you (6.5)."""
+    sitter = _first_name(sitter_name) if sitter_name else "Your sitter"
+    return Email(
+        to=to,
+        subject="Your sitter had to leave",
+        heading=f"{sitter} had to leave.",
+        body=(
+            f"Hi {_first_name(full_name)}, {sitter} left this booking for her own safety, once the child was "
+            "with you. As usual, the whole booking is charged.\nPacifyco will be in touch."
         ),
         button_label="Open your booking",
         button_url=_booking_url(web_url, booking_id),

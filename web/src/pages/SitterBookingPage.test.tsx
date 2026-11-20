@@ -254,5 +254,35 @@ describe("No one's home (6.5)", () => {
     await screen.findByRole("heading", { name: "Meera's family" });
     expect(screen.queryByRole("button", { name: "No one's home" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Only a man is at home" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "This child is under 18 months" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "I feel unsafe" })).toBeNull();
+  });
+
+  test("a child under 18 months: she reports it once an adult is with them", async () => {
+    const reported = { ...OPEN, kind: "child_under_age" as const, can_leave_at: null };
+    const posted = renderWithBooking(NOW, { ...NOW, report: reported });
+    fireEvent.click(await screen.findByRole("button", { name: "This child is under 18 months" }));
+    const send = screen.getByRole("button", { name: "Tell Pacifyco" }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("An adult is now with the child"));
+    fireEvent.click(send);
+    expect(await screen.findByText(/Don't leave until an adult is with the child\./)).toBeTruthy();
+    expect(posted.map((call) => call)).toEqual([
+      { url: expect.stringMatching(/\/sitter\/bookings\/b1\/under-18-months$/), body: { adult_with_child: true } },
+    ]);
+  });
+
+  test("she feels unsafe: she reports it once the child is with a parent", async () => {
+    const reported = { ...OPEN, kind: "sitter_unsafe" as const, can_leave_at: null };
+    const posted = renderWithBooking(NOW, { ...NOW, report: reported });
+    fireEvent.click(await screen.findByRole("button", { name: "I feel unsafe" }));
+    const send = screen.getByRole("button", { name: "Tell Pacifyco and leave" }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("The child is now with a parent"));
+    fireEvent.click(send);
+    expect(await screen.findByText("We've told Pacifyco and the family. Stay safe.")).toBeTruthy();
+    expect(posted.map((call) => call)).toEqual([
+      { url: expect.stringMatching(/\/sitter\/bookings\/b1\/unsafe$/), body: { child_with_parent: true } },
+    ]);
   });
 });

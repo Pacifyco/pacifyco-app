@@ -506,7 +506,7 @@ class ReportOut(BaseModel):
     """A report during the booking (6.5): the parent wasn't home, or the sitter didn't come."""
 
     id: uuid.UUID
-    kind: str  # parent_absent | sitter_no_show
+    kind: str  # parent_absent | sitter_no_show | only_man_home | child_under_age | sitter_unsafe
     status: str  # open | confirmed | dismissed
     reported_at: datetime
     responded_at: datetime | None  # parent not home: a parent responded, so she waits

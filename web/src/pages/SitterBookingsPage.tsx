@@ -64,6 +64,10 @@ export function sitterStatusText(status: string): string {
       return "No one was home: show-up fee";
     case "declined_man_at_home":
       return "You declined: only a man was at home";
+    case "child_under_age":
+      return "Closed: a child was under 18 months";
+    case "sitter_left_unsafe":
+      return "You left: your safety";
     case "sitter_no_show":
       return "Marked as missed";
     default:
