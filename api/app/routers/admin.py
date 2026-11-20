@@ -33,6 +33,7 @@ from app.models import (
 from app.routers.sitters import StrikeOut, strikes_out
 from app.services import booking_mail, documents, verification
 from app.services import bookings as bookings_service
+from app.services import checkin as checkin_service
 from app.services import children as children_service
 from app.services import email as email_service
 from app.services import payments as payments_service
@@ -981,3 +982,64 @@ def dismiss_report(
     done = reports_service.decide(db, admin.id, report_id, False, note, datetime.now(UTC))
     booking_mail.tell_decided(db, mailer, settings, done.report, reports_service.fee_paise(done.report, done.booking))
     return _admin_report(db, done.report)
+
+
+# ---------- overdue check-outs and locked codes (CLAUDE.md 6.7) ----------
+
+
+class NeedsAttentionOut(BaseModel):
+    """A booking to call about: still checked in long past its end, or its codes are locked."""
+
+    booking_id: uuid.UUID
+    overdue: bool  # otherwise it's here because its codes are locked
+    starts_at: datetime
+    ends_at: datetime
+    parent_name: str | None
+    parent_phone: str | None
+    sitter_name: str | None
+    sitter_phone: str | None
+
+
+@router.get("/overdue-checkouts")
+def get_needing_attention(admin: Admin, db: DbSession) -> list[NeedsAttentionOut]:
+    found = checkin_service.needing_attention(db, datetime.now(UTC))
+    out = []
+    for item in found:
+        parent, sitter = _people(db, item.booking)
+        out.append(
+            NeedsAttentionOut(
+                booking_id=item.booking.id,
+                overdue=item.overdue,
+                starts_at=item.booking.starts_at,
+                ends_at=item.booking.ends_at,
+                parent_name=parent.full_name,
+                parent_phone=parent.phone,
+                sitter_name=sitter.full_name if sitter else None,
+                sitter_phone=sitter.phone if sitter else None,
+            )
+        )
+    return out
+
+
+class CloseBookingIn(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/bookings/{booking_id}/close")
+def close_booking(booking_id: uuid.UUID, body: CloseBookingIn, admin: Admin, db: DbSession) -> NeedsAttentionOut:
+    """An admin closes a booking by hand after calling both people (6.7)."""
+    reason = _clean_reason(body.reason or "")
+    if reason is None:
+        raise AppError(422, "reason_needed", "Please say why you're closing it.")
+    booking = checkin_service.close_by_admin(db, admin.id, booking_id, reason, datetime.now(UTC))
+    parent, sitter = _people(db, booking)
+    return NeedsAttentionOut(
+        booking_id=booking.id,
+        overdue=False,
+        starts_at=booking.starts_at,
+        ends_at=booking.ends_at,
+        parent_name=parent.full_name,
+        parent_phone=parent.phone,
+        sitter_name=sitter.full_name if sitter else None,
+        sitter_phone=sitter.phone if sitter else None,
+    )

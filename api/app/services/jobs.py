@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Connection, text
 from sqlalchemy.orm import Session
 
-from app.services import booking_mail, bookings, payments
+from app.services import booking_mail, bookings, checkin, payments
 from app.services import email as email_service
 from app.services.email import EmailClient
 from app.settings import Settings
@@ -80,6 +80,24 @@ def alert_unchecked_payments(conn: Connection, ctx: JobContext) -> None:
         ctx.mailer.send(email_service.unchecked_payments_alert(to, len(found), earliest, web_url))
 
 
+def alert_overdue_checkouts(conn: Connection, ctx: JobContext) -> None:
+    """A booking still `in_progress` 30+ minutes past its end: the admins are emailed once for each
+    (6.7), so they can call both people and close it by hand if it stays stuck."""
+    recipients = ctx.settings.admin_alert_emails
+    with Session(bind=conn) as db:
+        found = checkin.overdue_not_alerted(db, datetime.now(UTC))
+        if not found:
+            return
+        if not recipients:  # nobody to tell: left unmarked, so they're sent once someone is set
+            return
+        checkin.mark_overdue_alerted(db, found)
+        db.commit()
+    web_url = ctx.settings.public_web_url or "http://localhost:5173"
+    for booking in found:
+        for to in recipients:
+            ctx.mailer.send(email_service.overdue_checkout_alert(to, booking.starts_at, booking.ends_at, web_url))
+
+
 RUNS: dict[str, list[tuple[str, Task]]] = {
     "daily": [("keep_database_active", keep_database_active)],
     "frequent": [
@@ -87,5 +105,6 @@ RUNS: dict[str, list[tuple[str, Task]]] = {
         ("cancel_unpaid_bookings", cancel_unpaid_bookings),
         ("cancel_unverified_bookings", cancel_unverified_bookings),
         ("alert_unchecked_payments", alert_unchecked_payments),
+        ("alert_overdue_checkouts", alert_overdue_checkouts),
     ],
 }

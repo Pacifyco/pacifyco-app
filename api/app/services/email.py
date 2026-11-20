@@ -649,6 +649,22 @@ def codes_locked_alert(to: str, which: str, starts_at: datetime, web_url: str) -
     )
 
 
+def overdue_checkout_alert(to: str, starts_at: datetime, ends_at: datetime, web_url: str) -> Email:
+    """To an admin: a booking is still in progress 30+ minutes past its end (6.7). No names; the admin
+    looks it up and calls both people."""
+    return Email(
+        to=to,
+        subject="A booking's check-out is overdue",
+        heading="A check-out is overdue.",
+        body=(
+            f"For the booking that ran {_when(starts_at)} to {_clock(ends_at.astimezone(INDIA))}. It still hasn't "
+            "been checked out. Please call both people and close the booking once you know what happened."
+        ),
+        button_label="Open the admin panel",
+        button_url=f"{web_url.rstrip('/')}/admin",
+    )
+
+
 def _clock(moment: datetime) -> str:
     hour = moment.hour % 12 or 12
     return f"{hour}:{moment.minute:02d} {'am' if moment.hour < 12 else 'pm'}"

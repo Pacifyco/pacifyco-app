@@ -8,13 +8,12 @@ tests.
 
 ## Current status
 
-- Phase: 7 done (PR #96 merged 2026-11-20). Phase 8 ("During the booking") started: check-in and
-  check-out codes built (`api/app/services/checkin.py`, migration c9e2a4f6b8d1, branch
-  `phase8/check-in-check-out`). Couldn't run the Postgres-backed API suite locally this session (no
-  Docker here); web typecheck, lint and tests are green (341/342 — the 1 failure is the pre-existing
+- Phase: 7 done (PR #96 merged 2026-11-20). Phase 8 ("During the booking") under way: check-in/check-out
+  codes (PR #97, merged) and overdue check-out alerts + admin manual close (branch
+  `phase8/overdue-checkout`) both built. Couldn't run the Postgres-backed API suite locally this session
+  (no Docker here); web typecheck, lint and tests are green (348/349 — the 1 failure is the pre-existing
   Node 20 `Intl` midnight quirk, unrelated).
-- Next item: phase 8, overdue check-out alert job and admin manual close (the natural remedy for a
-  booking whose codes get locked, since there's no other way to unstick one yet).
+- Next item: phase 8, overtime request (parent picks whole hours, sitter accepts or declines).
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -509,7 +508,15 @@ at home (CLAUDE.md 6.3).
   location (`lat`/`lng`, left out if she denies permission), moving the booking to `in_progress` then
   `completed`. 5 wrong codes sets `codes_locked` and emails admins; nothing else can unlock it yet (see
   Current status). Migration c9e2a4f6b8d1
-- [ ] Overdue check-out alert job (end + 30 min) and admin manual close
+- [x] Overdue check-out alert job (end + 30 min) and admin manual close. Built 2026-11-20:
+  `services/checkin.py` (`needing_attention`, `overdue_not_alerted`/`mark_overdue_alerted`,
+  `close_by_admin`), frequent job `alert_overdue_checkouts`, `/admin/overdue-checkouts` (also lists
+  codes-locked bookings, since they need the same remedy and had no way through until now — closes the
+  gap flagged in the check-in/out PR) and `POST /admin/bookings/{id}/close` (reason required, audit
+  logged). Admin home page shows a banner and a link when anything needs attention. Migration
+  d3f5b7a9c1e4 adds `closed_by_admin` to the status list and `closed_by_admin_id`/`close_reason`.
+  Backfilled the backend tests that PR #97 shipped without (`test_checkin.py`, new) alongside this
+  item's own (`test_overdue_checkouts.py`).
 - [ ] Overtime request: parent picks whole hours, sitter accepts or declines; charged at check-out (decided 2026-11-12)
 - [ ] Issues button for parents and sitters (non-emergency: running late, only a man at home), a complaint linked to the booking (decided 2026-11-12)
 - [ ] Overtime at check-out: rounded up to the full hour at the plan price, UPI link/QR due in 2 hours, unpaid blocks new bookings
@@ -582,6 +589,12 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-20 — Overdue check-out alerts (frequent job, once per booking) and admin manual close
+  (`/admin/overdue-checkouts`, also listing codes-locked bookings; `POST /admin/bookings/{id}/close`),
+  with a banner on the admin home page. Found and fixed a bug while writing tests: closing a booking
+  that was never checked in would have tried to set `checked_out_at` without `checked_in_at`, violating
+  the check constraint — fixed to leave it empty in that case. Also wrote `test_checkin.py`, the backend
+  tests PR #97 shipped without. Branch `phase8/overdue-checkout`.
 - 2026-11-20 — Phase 8 started: check-in and check-out codes, with location recorded and lockout after 5
   wrong attempts. Codes are encrypted (not hashed) since the parent needs to see the same one again.
   Branch `phase8/check-in-check-out`.
