@@ -21,7 +21,7 @@ version: 1.0
 
 ## Showing up
 
-- **Be on time.** Parents plan their time around you. If you’re running late, tell the parent and us through the app straight away. If you’re more than 15 minutes late without telling us, you’re only paid from when you check in, and the parent can cancel the booking. A cancelled booking counts as a no-show and a strike.
+- **Be on time.** Parents plan their time around you. If you’re running late, tell the parent and us through the app straight away. If you’re more than 15 minutes late without telling us, you’re only paid from when you check in, and from 30 minutes after the start the parent can report you as a no-show. A confirmed no-show is a strike.
 - **Feeling unwell?** Tell us at least 8 hours before so we can find a replacement.
 
 ## Caring for the child

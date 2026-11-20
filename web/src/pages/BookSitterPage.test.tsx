@@ -494,6 +494,61 @@ describe("during the booking (6.5)", () => {
     expect(screen.queryByRole("button", { name: /I have arrived/ })).toBeNull();
   });
 
+  test("the sitter reported a child under 18 months", async () => {
+    const report = {
+      id: "r4",
+      kind: "child_under_age" as const,
+      status: "open" as const,
+      reported_at: minutesFromNow(-2),
+      responded_at: null,
+      can_leave_at: null,
+      decision_note: null,
+    };
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(10), report }) });
+    renderAt("/parent/bookings/b1");
+    expect(
+      await screen.findByText(
+        "Lakshmi found that a child on this booking is under 18 months, which Pacifyco doesn't take bookings for. Pacifyco will be in touch.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /I have arrived/ })).toBeNull();
+  });
+
+  test("closed: a child was under 18 months", async () => {
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(10), status: "child_under_age", report: null }) });
+    renderAt("/parent/bookings/b1");
+    expect(
+      await screen.findByText(
+        "Lakshmi found that a child on this booking was under 18 months, which Pacifyco doesn't take bookings for, so it was closed. You're charged for 1 hour and refunded the rest.",
+      ),
+    ).toBeTruthy();
+  });
+
+  test("the sitter left: she felt unsafe", async () => {
+    const report = {
+      id: "r5",
+      kind: "sitter_unsafe" as const,
+      status: "open" as const,
+      reported_at: minutesFromNow(-2),
+      responded_at: null,
+      can_leave_at: null,
+      decision_note: null,
+    };
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(10), report }) });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText("Lakshmi had to leave for her own safety. Pacifyco will be in touch.")).toBeTruthy();
+  });
+
+  test("closed: the sitter left for her safety", async () => {
+    api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(10), status: "sitter_left_unsafe", report: null }) });
+    renderAt("/parent/bookings/b1");
+    expect(
+      await screen.findByText(
+        "Lakshmi had to leave for her own safety, so the booking was closed. As usual, the whole booking is charged.",
+      ),
+    ).toBeTruthy();
+  });
+
   test("the sitter didn't come: from 30 minutes in", async () => {
     api(UNWIND, TIMES, { "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(20), report: null }) });
     renderAt("/parent/bookings/b1");

@@ -69,7 +69,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 | You cancel at least 8 hours before the start                           | No penalty                                                                                 |
 | You cancel less than 8 hours before                                    | No pay for that booking, and a strike                                                      |
 | You don't turn up                                                      | No pay for that booking, and a strike                                                      |
-| You arrive more than 15 minutes late without telling the parent and us | Paid only from check-in. The parent may cancel the booking, which then counts as a no-show |
+| You arrive more than 15 minutes late without telling the parent and us | Paid only from check-in. The parent can report you as a no-show from 30 minutes after the start |
 | Parent is not home when you arrive                                     | You receive ₹100 (see 4.7)                                                                 |
 | Child is under 18 months old                                           | You receive ₹100 and no strike (see 4.8)                                                   |
 

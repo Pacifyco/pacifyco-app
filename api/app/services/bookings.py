@@ -330,6 +330,9 @@ SITTER_SEES = (
     BookingStatus.cancelled_sitter_late,
     BookingStatus.parent_absent,
     BookingStatus.sitter_no_show,
+    BookingStatus.declined_man_at_home,
+    BookingStatus.child_under_age,
+    BookingStatus.sitter_left_unsafe,
 )
 SITTER_UPCOMING = (BookingStatus.pending_payment, BookingStatus.confirmed, BookingStatus.in_progress)
 # The home address and the family's emergency contact: only once it's confirmed (paid), while ahead.
@@ -664,14 +667,15 @@ def cancel_overlapping(db: Session, confirmed: Booking) -> list[uuid.UUID]:
 # ---------- refunds (6.1) ----------
 
 
-def owe_refund(db: Session, actor_id: uuid.UUID | None, paid: Payment) -> Payment:
+def owe_refund(db: Session, actor_id: uuid.UUID | None, paid: Payment, keep_paise: int = 0) -> Payment:
     """Money received for a booking that won't go ahead is paid back (6.1): a pending refund row for the
-    full amount, for an admin to pay by UPI or bank transfer and mark paid."""
+    full amount, or all but `keep_paise` kept as a charge (6.5, a child under 18 months), for an admin to
+    pay by UPI or bank transfer and mark paid."""
     refund = Payment(
         booking_id=paid.booking_id,
         parent_id=paid.parent_id,
         kind=PaymentKind.refund,
-        amount_paise=-paid.amount_paise,
+        amount_paise=-(paid.amount_paise - keep_paise),
         status=PaymentStatus.pending,
     )
     db.add(refund)
@@ -697,6 +701,25 @@ def refund_booking(db: Session, actor_id: uuid.UUID | None, booking_id: uuid.UUI
         )
     ).all()
     return [owe_refund(db, actor_id, payment) for payment in paid]
+
+
+def refund_under_age(db: Session, actor_id: uuid.UUID | None, booking_id: uuid.UUID, keep_paise: int) -> list[Payment]:
+    """A child on the booking was under 18 months (6.5): the parent is charged for one hour and refunded
+    the rest."""
+    paid = db.scalars(
+        select(Payment).where(
+            Payment.booking_id == booking_id,
+            Payment.kind == PaymentKind.booking,
+            Payment.status == PaymentStatus.confirmed,
+        )
+    ).all()
+    refunds = []
+    remaining_keep = keep_paise
+    for payment in paid:
+        keep_here = min(remaining_keep, payment.amount_paise)
+        remaining_keep -= keep_here
+        refunds.append(owe_refund(db, actor_id, payment, keep_paise=keep_here))
+    return refunds
 
 
 # ---------- once paid (6.1 and 6.4) ----------

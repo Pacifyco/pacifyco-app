@@ -6,17 +6,28 @@ on the first unchecked item of the current phase. When an item is done and its t
 Reuben; don't do them, but you may remind him when they block you. Don't tick anything with failing
 tests.
 
-## Current status
-
-- Phase: 6 — Plans and payments (onboarding polish on `onboarding-polish`; needs merging. Beta uses
-  a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch)
-- Next item: phase 6, pricing service.
+- Phase: 7 — Bookings, cancellations, strikes. Everything in phase 7 is built and decided, including the
+  15-minute late rule (dropped 2026-11-20; the 30-minute no-show report is the only mechanism). Tests for
+  the phase as a whole aren't ticked yet; couldn't run the Postgres-backed suite locally this session (no
+  Docker here), so CI is what confirms it.
+- Next item: once CI confirms this session's work (two new report kinds, the `SITTER_SEES` fix, and the
+  legal-document wording), start phase 8 ("During the booking": check-in/check-out codes, overdue
+  check-out alerts, overtime request and charging, the Issues and Emergency buttons, chat, outing requests).
+- Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
 
 ## Open questions (ask Reuben; don't guess)
 
+- [x] **Sitter 15-minute late rule vs. the sitter-no-show report** (added 2026-11-20; answered by Reuben
+  2026-11-20: "trash the 15 min late thing and add the 30 min no-show report mechanism"). The 15-minute
+  table row is dropped; the 30-minute no-show report (built 2026-11-19) is what's kept, and is now the
+  only mechanism. CLAUDE.md 6.5's table row and the "New cancellation rows" test row updated to match;
+  the three legal documents that still described the 15-minute/cancel version (Sitter Terms of Use,
+  Family Terms, sitter consent) updated in place to the 30-minute/report wording, with their fingerprints
+  in `web/src/lib/legal.test.tsx` recomputed. The "paid only from check-in" half stays true in principle
+  (6.2) but can't be built concretely until check-in exists (phase 8).
 - [x] **Family Terms 4.3 and booking requests** (Reuben, 2026-11-19): 4.3 rewritten in place to match 6.4
   (the request goes to the sitter, who has up to 5 hours to accept; then the parent pays by 3 hours
   before the start). Fingerprint updated in `web/src/lib/legal.test.tsx`.
@@ -468,7 +479,16 @@ at home (CLAUDE.md 6.3).
   Built 2026-11-20 as a third report kind (`only_man_home`, migration a8c0e2f4b6d7): "Only a man is at home"
   on her booking page once it's started; no wait; admin confirms on /admin/reports → `declined_man_at_home`.
   The Issues button (phase 8) can link to it; the ₹100 is paid with payouts (phase 9)
-- [ ] Sitter 15-minute late rule, under-18-months report (no sitter fee, no strike), unsafe early exit (doctor's note strike removal was built with Strikes, 2026-11-19)
+- [x] Under-18-months report (no strike) and unsafe early exit (no strike, full booking charged): built
+  2026-11-20 as two more `booking_reports` kinds, `child_under_age` and `sitter_unsafe`, same pattern as
+  "only a man at home". Child under 18 months: she reports it once an adult is with the child; confirmed,
+  the parent is charged 1 hour and refunded the rest, she's paid her level pay for that hour. Unsafe exit:
+  she reports it once the child is with a parent; confirmed, the whole booking stays charged (kept from
+  the Family Terms), she's paid for the time she worked once check-in exists (phase 8/9). Also fixed a gap
+  from the "only a man at home" PR: `declined_man_at_home` was never added to `SITTER_SEES`, so the sitter
+  couldn't see that closed booking in her own list; added it there along with the two new statuses.
+- [x] **Sitter 15-minute late rule**: dropped (Reuben, 2026-11-20); the 30-minute no-show report (above)
+  is the only mechanism now. See "Open questions" for what changed in CLAUDE.md and the legal documents.
 - [x] Strikes: ladder, blocking, 6-month expiry, admin add/remove. `services/strikes.py`; `sitters.blocked_until`
   (migration e495d3416292) hides a blocked sitter from parents, booking and accepting; the 5th strike
   removes her account (she and the admins are emailed). Expiry is by date, so no daily job (CLAUDE.md 5
@@ -553,6 +573,15 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-20 — Reuben: drop the 15-minute late rule, keep only the 30-minute no-show report. CLAUDE.md's
+  6.5 table and the "New cancellation rows" test row updated; the Sitter Terms, Family Terms and sitter
+  consent wording updated in place to match (fingerprints recomputed in `legal.test.tsx`). Phase 7 is now
+  fully decided; only CI confirmation of the Postgres-backed suite remains.
+- 2026-11-20 — Under-18-months and unsafe-exit reports (two more `booking_reports` kinds, same pattern as
+  "only a man at home"); fixed `SITTER_SEES` missing `declined_man_at_home`. Flagged the 15-minute late
+  rule as an open question (looks superseded by the 30-minute no-show report) rather than guessing at it.
+  Couldn't run the Postgres-backed API suite locally (no Docker here); web typecheck, lint and tests green
+  (332/333, the one failure is the pre-existing Node 20 `Intl` midnight quirk), API lint and format green.
 - 2026-11-20 — Ticked Book a time (checked against its tests); sitter declines when only a man is home.
 - 2026-11-19 — Reports: parent not home (20-minute wait, I have arrived) and sitter no-show (from 30 minutes).
 - 2026-11-19 — Paying a charge by UPI (late cancellation charges; overtime later).

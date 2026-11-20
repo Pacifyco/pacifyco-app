@@ -47,6 +47,12 @@ class BookingStatus(StrEnum):
     # The sitter declined on arrival: the only adult at home was a man (6.5). Charged in full; no strike;
     # Pacifyco pays her a flat ₹100.
     declined_man_at_home = "declined_man_at_home"
+    # A child on the booking was under 18 months, which should never happen (6.5). Parent charged for 1
+    # hour, refunded the rest; sitter paid her level pay for that hour; no strike.
+    child_under_age = "child_under_age"
+    # She left because she felt unsafe, once the child was with a parent (6.5). Charged in full (kept
+    # from the Family Terms); she's paid for the time she worked (phase 9); no strike.
+    sitter_left_unsafe = "sitter_left_unsafe"
 
 
 class Booking(Base):

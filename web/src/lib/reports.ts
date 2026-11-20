@@ -2,7 +2,7 @@
 
 export type BookingReport = {
   id: string;
-  kind: "parent_absent" | "sitter_no_show" | "only_man_home";
+  kind: "parent_absent" | "sitter_no_show" | "only_man_home" | "child_under_age" | "sitter_unsafe";
   status: "open" | "confirmed" | "dismissed";
   reported_at: string;
   responded_at: string | null; // parent not home: a parent responded, so she waits

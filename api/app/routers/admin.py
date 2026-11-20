@@ -907,7 +907,7 @@ class AdminReport(BaseModel):
     """A report to act on: phone both people, then confirm or dismiss."""
 
     id: uuid.UUID
-    kind: str  # parent_absent | sitter_no_show
+    kind: str  # parent_absent | sitter_no_show | only_man_home | child_under_age | sitter_unsafe
     reported_at: datetime
     responded_at: datetime | None
     can_leave_at: datetime | None
@@ -919,7 +919,7 @@ class AdminReport(BaseModel):
     parent_phone: str | None
     sitter_name: str | None
     sitter_phone: str | None
-    show_up_fee_paise: int  # what she's due if it's confirmed: show-up fee, or ₹100 when only a man is home
+    show_up_fee_paise: int  # what she's due if confirmed: show-up fee, ₹100, or her pay for 1 hour (under age)
 
 
 def _admin_report(db: DbSession, report) -> AdminReport:

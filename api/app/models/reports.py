@@ -4,8 +4,16 @@
   only if no parent responds within 20 minutes of the report. The parent responds in the app ("I have
   arrived") or an admin marks that they answered the phone (Reuben, 2026-11-19). An admin confirms it; the
   parent pays for the whole booking.
+- Only a man at home: she may decline on the spot (decided 2026-11-12). An admin confirms it; the parent
+  pays for the whole booking, no strike, a flat ₹100 to her.
 - Sitter no-show: the parent reports it, from 30 minutes after the start (Reuben, 2026-11-19). An admin
   confirms it; the parent is refunded and the sitter gets a strike and earns nothing.
+- Child under 18 months: should never happen (bookings are blocked), but if it does, she reports it once
+  an adult is with the child (6.5). An admin confirms it; the parent is charged for 1 hour and refunded
+  the rest, she's paid her level pay for that hour, no strike.
+- Sitter feels unsafe: only once the child is with a parent (6.5). An admin confirms it; the parent still
+  pays for the whole booking (kept from the Family Terms), she's paid for the time she worked (phase 9),
+  no strike.
 
 Each decision is audit logged; a dismissed report changes nothing.
 """
@@ -26,6 +34,10 @@ class ReportKind(StrEnum):
     sitter_no_show = "sitter_no_show"
     # The only adult at home is a man: she may decline on the spot (6.5; decided 2026-11-12).
     only_man_home = "only_man_home"
+    # A child on the booking is under 18 months, which should never happen (6.5).
+    child_under_age = "child_under_age"
+    # She feels unsafe and needs to leave, once the child is with a parent (6.5).
+    sitter_unsafe = "sitter_unsafe"
 
 
 class ReportStatus(StrEnum):

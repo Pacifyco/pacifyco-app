@@ -581,6 +581,22 @@ export function BookingPage() {
           </div>
         </Card>
       )}
+      {data.status === "child_under_age" && (
+        <Card as="section" padding="roomy">
+          <p className="text-ink">
+            {firstName} found that a child on this booking was under 18 months, which Pacifyco doesn't take
+            bookings for, so it was closed. You're charged for 1 hour and refunded the rest.
+          </p>
+        </Card>
+      )}
+      {data.status === "sitter_left_unsafe" && (
+        <Card as="section" padding="roomy">
+          <p className="text-ink">
+            {firstName} had to leave for her own safety, so the booking was closed. As usual, the whole booking
+            is charged.
+          </p>
+        </Card>
+      )}
       {!data.report &&
         ["confirmed", "in_progress"].includes(data.status) &&
         noShowReportable(data.starts_at, data.ends_at, new Date()) && (
@@ -621,6 +637,23 @@ function ParentReport({ booking, firstName }: { booking: Booking; firstName: str
         <p className="text-ink">
           {firstName} declined the booking because the only adult at home was a man. Pacifyco will be in touch.
         </p>
+      </Card>
+    );
+  }
+  if (report.kind === "child_under_age") {
+    return (
+      <Card as="section" padding="roomy" role="status">
+        <p className="text-ink">
+          {firstName} found that a child on this booking is under 18 months, which Pacifyco doesn't take
+          bookings for. Pacifyco will be in touch.
+        </p>
+      </Card>
+    );
+  }
+  if (report.kind === "sitter_unsafe") {
+    return (
+      <Card as="section" padding="roomy" role="status">
+        <p className="text-ink">{firstName} had to leave for her own safety. Pacifyco will be in touch.</p>
       </Card>
     );
   }
@@ -750,6 +783,8 @@ function statusLabel(status: string): string {
   if (status.startsWith("cancelled_sitter")) return "Cancelled by the sitter";
   if (status === "parent_absent") return "Closed: no one was home";
   if (status === "declined_man_at_home") return "Closed: the sitter declined";
+  if (status === "child_under_age") return "Closed: child under 18 months";
+  if (status === "sitter_left_unsafe") return "Closed: the sitter left";
   if (status === "sitter_no_show") return "The sitter didn't come";
   if (status === "pending_payment") return "Accepted: waiting for payment";
   if (status === "awaiting_verification") return "Paid";
