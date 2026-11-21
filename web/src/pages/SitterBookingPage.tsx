@@ -7,6 +7,7 @@ import { formatBookingTime, formatMobile } from "../lib/format";
 import { rupees } from "../lib/prices";
 import { todayInKolkata } from "../lib/times";
 import { sitterBookingLine, sitterStatusText, type SitterBookingItem } from "./SitterBookingsPage";
+import { BookingHelp, type BookingIncident } from "../components/BookingHelp";
 import { answerByText } from "./SitterRequestsPage";
 import { MAN_HOME_FEE_PAISE, SHOW_UP_FEE_PER_HOUR_PAISE, minutesLeft, underWay, type BookingReport } from "../lib/reports";
 import { type OvertimeRequest } from "../lib/overtime";
@@ -30,6 +31,8 @@ export type SitterBookingDetail = SitterBookingItem & {
   pin_code: string | null;
   emergency_contact: { name: string; relationship: string; phone: string } | null;
   report: BookingReport | null;
+  buttons_open: boolean; // Emergency and Issues (6.9)
+  incident: BookingIncident | null;
   checked_in_at: string | null; // (6.7)
   checked_out_at: string | null;
   codes_locked: boolean;
@@ -662,6 +665,13 @@ export function SitterBookingPage() {
       )}
       {data.status === "in_progress" && data.overtime?.status === "pending" && <OvertimeAnswer booking={data} />}
       {data.status === "in_progress" && <CheckCodeForm booking={data} kind="check-out" />}
+      <BookingHelp
+        role="sitter"
+        bookingId={data.id}
+        buttonsOpen={data.buttons_open}
+        incident={data.incident}
+        queryKey={["sitter", "booking", data.id]}
+      />
       {data.report && <ReportStatus booking={data} now={new Date()} />}
       {!data.report &&
         ["confirmed", "in_progress"].includes(data.status) &&

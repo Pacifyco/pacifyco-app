@@ -66,6 +66,8 @@ const BOOKING: Booking = {
   seen_by_sitter: true,
   answer_by: null,
   report: null,
+  buttons_open: false,
+  incident: null,
   checked_in_at: null,
   checked_out_at: null,
   overtime: null,

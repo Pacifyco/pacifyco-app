@@ -248,6 +248,12 @@ export function AdminHomePage() {
         <ButtonLink to="/admin/reports" variant="secondary">
           Reports
         </ButtonLink>
+        <ButtonLink to="/admin/incidents" variant="secondary">
+          Emergencies
+        </ButtonLink>
+        <ButtonLink to="/admin/issues" variant="secondary">
+          Issues
+        </ButtonLink>
         <ButtonLink to="/admin/overdue-checkouts" variant="secondary">
           Overdue check-outs
         </ButtonLink>

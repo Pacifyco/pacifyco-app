@@ -43,6 +43,8 @@ const BOOKING: SitterBookingDetail = {
   pin_code: "560034",
   emergency_contact: { name: "Ravi Rao", relationship: "Uncle", phone: "+919876543210" },
   report: null,
+  buttons_open: false,
+  incident: null,
   checked_in_at: null,
   checked_out_at: null,
   codes_locked: false,

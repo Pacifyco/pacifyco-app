@@ -459,6 +459,17 @@ Emergency button instead.
 - A theft or abuse report suspends the sitter's account immediately until an admin resolves it. A
   confirmed theft normally ends in removal (the sitter consent says "permanent removal and a police
   complaint"; decided 2026-11-12).
+- **How it works (built 2026-11-21, `api/app/services/incidents.py`):** both buttons are on a confirmed,
+  in-progress or just-completed booking from its start until 1 hour after its end or check-out (Reuben,
+  2026-11-21). **Emergency:** the parent picks an emergency (safety or medical), theft or abuse; the sitter
+  picks an emergency or "I'm being abused or I feel unsafe"; either can add a note (Reuben, 2026-11-21).
+  Every `ADMIN_ALERT_EMAILS` address is emailed at once and a banner shows on every admin page until an
+  admin acknowledges it on `/admin/incidents`; resolving needs a note. A parent's theft or abuse report sets
+  the sitter's account to `suspended` (she's emailed); resolving it, the admin decides whether she's made
+  active again. `incidents.has_open_incident` is for payouts (phase 9) to hold her pay. **Issues:** running
+  late or something else (with a note), kept as a `complaints` row (type `booking`) and emailed to admins;
+  admins mark it replied and resolved on `/admin/issues`. For "only a man at home" the sitter uses that
+  report (6.5). The full complaints process (6.12: timers, escalation, appeals) comes later.
 
 ### 6.10 Payouts (beta: manual)
 
@@ -699,11 +710,11 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `booking_children` **(created)** (booking_id, child_id)
 - `booking_home_info` **(created)** (booking_id, cameras_on, camera_locations)
 - `outing_requests` (id, booking_id, description, status: `pending|approved|declined`, decided_at)
-- `complaints` (id, raised_by, booking_id null, type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed`, late, first_reply_at, resolved_at, assigned_to, decided_by)
+- `complaints` **(created)** (id, raised_by, booking_id null, topic (Issues button: `running_late|other`), type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed`, late, first_reply_at, resolved_at, assigned_to, decided_by)
 - `overtime_requests` **(created)** (id, booking_id, requested_hours, status: `pending|accepted|declined`, requested_at, decided_at) — built 2026-11-20, migration e6c8b2d4f7a1; one open (`pending`) request per booking at a time; nothing charged here, see `overtime_charges` below
 - `overtime_charges` **(created)** (id, booking_id, minutes_over, hours_charged (rounded up), amount_paise, sitter_pay_paise, created_at) — built 2026-11-20, migration f1a3c5e7b9d2; computed at check-out (6.8), once per booking (a unique index on `booking_id`); its payment is a `payments` row (kind `overtime`)
 - `strikes` **(created)** (id, sitter_id, booking_id null (one strike per booking), reason: `late_cancellation|no_show|admin`, note, given_at, expires_at (6 months later), removed_by null, removed_at, removal_reason, doctor_note_document_id null) — kept, never deleted: the API's role can add rows and record a removal only
-- `incidents` (id, booking_id, raised_by, status: `open|acknowledged|resolved`, notes)
+- `incidents` **(created)** (id, booking_id, raised_by, kind: `emergency|theft|abuse|sitter_unsafe`, note, status: `open|acknowledged|resolved`, suspended_sitter, acknowledged_by/at, resolved_by/at, resolution_note, created_at)
 - `messages` (id, parent_id, sitter_id, sender_id, body, created_at)
 - `reviews` (id, booking_id, author_id, subject_id, rating, body)
 - `sitter_earnings` (id, sitter_id, booking_id null, kind: `booking|overtime|show_up_fee`, amount_paise, status: `held|released|paid`, due_by, payout_id null)

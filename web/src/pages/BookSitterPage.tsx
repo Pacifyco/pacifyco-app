@@ -22,6 +22,7 @@ import { monthsOld } from "../lib/sitterLists";
 import { dayLabel, hourLabel, kolkataTime, todayInKolkata } from "../lib/times";
 import { noShowReportable, type BookingReport } from "../lib/reports";
 import { type OvertimeRequest } from "../lib/overtime";
+import { BookingHelp, type BookingIncident } from "../components/BookingHelp";
 import { firstNameOf } from "./FindSittersPage";
 
 // "Book this sitter" (CLAUDE.md 6.1 and 6.4; phase 6). The parent picks a day and time from her free
@@ -60,6 +61,8 @@ export type Booking = {
   seen_by_sitter: boolean;
   answer_by: string | null;
   report: BookingReport | null; // parent not home, or the sitter didn't come (6.5)
+  buttons_open: boolean; // Emergency and Issues (6.9)
+  incident: BookingIncident | null;
   /** How to pay by UPI: only while it waits for payment and Pacifyco's UPI ID is set. */
   pay_by_upi: PayByUpi | null;
   /** The latest payment the parent sent for it. */
@@ -591,6 +594,13 @@ export function BookingPage() {
           </div>
         </Card>
       )}
+      <BookingHelp
+        role="parent"
+        bookingId={data.id}
+        buttonsOpen={data.buttons_open}
+        incident={data.incident}
+        queryKey={["booking", data.id]}
+      />
       {data.report && <ParentReport booking={data} firstName={firstName} />}
       {data.status === "parent_absent" && (
         <Card as="section" padding="roomy">

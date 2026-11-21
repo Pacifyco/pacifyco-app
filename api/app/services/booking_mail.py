@@ -262,3 +262,22 @@ def tell_decided(db: Session, mailer: EmailClient, settings: Settings, report, f
     mailer.send(
         email_service.report_decided(sitter.email, sitter.full_name, *sitter_says, "Open the booking", sitter_url)
     )
+
+
+def tell_incident(db: Session, mailer: EmailClient, settings: Settings, incident) -> None:
+    """Every admin address, straight away; and the sitter, if a report suspended her (6.9)."""
+    booking, parent, sitter = _people(db, incident.booking_id)
+    by = "parent" if incident.raised_by == parent.id else "sitter"
+    for to in settings.admin_alert_emails:
+        mailer.send(
+            email_service.incident_alert(to, incident.kind.value, by, incident.suspended_sitter, web_url(settings))
+        )
+    if incident.suspended_sitter:
+        mailer.send(email_service.sitter_suspended(sitter.email, sitter.full_name))
+
+
+def tell_issue(db: Session, mailer: EmailClient, settings: Settings, complaint, topic_words: str) -> None:
+    booking, parent, sitter = _people(db, complaint.booking_id)
+    by = "parent" if complaint.raised_by == parent.id else "sitter"
+    for to in settings.admin_alert_emails:
+        mailer.send(email_service.issue_alert(to, topic_words, by, web_url(settings)))
