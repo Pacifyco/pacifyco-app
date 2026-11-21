@@ -34,6 +34,7 @@ from app.models import (
 from app.routers.sitters import StrikeOut, strikes_out
 from app.services import booking_mail, documents, verification
 from app.services import bookings as bookings_service
+from app.services import chat as chat_service
 from app.services import checkin as checkin_service
 from app.services import children as children_service
 from app.services import email as email_service
@@ -1173,3 +1174,23 @@ def issue_replied(complaint_id: uuid.UUID, admin: Admin, db: DbSession) -> Admin
 def issue_resolved(complaint_id: uuid.UUID, admin: Admin, db: DbSession) -> AdminIssue:
     done = incidents_service.update_issue(db, admin.id, complaint_id, ComplaintStatus.resolved, datetime.now(UTC))
     return _admin_issue(db, done)
+
+
+class AdminMessage(BaseModel):
+    sender: str  # parent | sitter
+    body: str
+    created_at: datetime
+
+
+@router.get("/incidents/{incident_id}/chat")
+def incident_chat(incident_id: uuid.UUID, admin: Admin, db: DbSession) -> list[AdminMessage]:
+    """The chat between the incident's parent and sitter, for handling it (6.11). Every read is audit logged."""
+    found = chat_service.read_for_incident(db, admin.id, incident_id)
+    return [
+        AdminMessage(
+            sender="parent" if message.sender_id == message.parent_id else "sitter",
+            body=message.body,
+            created_at=message.created_at,
+        )
+        for message in found
+    ]

@@ -24,6 +24,7 @@ from app.models import (
     DocumentAccessLog,
     Incident,
     LegalAcceptance,
+    Message,
     OvertimeCharge,
     OvertimeRequest,
     Payment,
@@ -117,6 +118,7 @@ def delete_all(db: Session, found: Found) -> None:
     db.execute(delete(OvertimeCharge).where(OvertimeCharge.id.in_(overtime_charge_ids)))
     db.execute(delete(Incident).where(Incident.id.in_(incident_ids)))
     db.execute(delete(Complaint).where(Complaint.id.in_(complaint_ids)))
+    db.execute(delete(Message).where(or_(Message.parent_id.in_(ids), Message.sitter_id.in_(ids))))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
     db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
     db.execute(delete(Document).where(Document.id.in_(document_ids)))

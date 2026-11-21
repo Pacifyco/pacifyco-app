@@ -262,8 +262,8 @@ export function SitterProfilePage() {
           <p className="mt-3 text-small text-muted">Not free on {sitter.days_off.map(dayLabel).join(", ")}.</p>
         )}
         <p className="mt-5 rounded-lg bg-surface-sunken p-5 text-small text-ink">
-          New to {firstName}? Start with a 1-hour booking while you're at home, to see how {firstName} gets on with
-          your family.
+          New to {firstName}? We recommend you're at home for your first 2 bookings with {firstName}. At the least,
+          make the first one a 1-hour booking while you're at home.
         </p>
         <div className="mt-5">
           <ButtonLink to={`/parent/sitters/${sitter.id}/book`} arrow>

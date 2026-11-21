@@ -32,6 +32,7 @@ from app.routers.auth import TermsVersion, request_info
 from app.services import availability as availability_service
 from app.services import booking_mail, cancellations, checklists, consent, family, legal, pricing
 from app.services import bookings as bookings_service
+from app.services import chat as chat_service
 from app.services import checkin as checkin_service
 from app.services import children as children_service
 from app.services import email as email_service
@@ -957,3 +958,85 @@ def get_payments(parent: Parent, db: DbSession) -> PaymentHistory:
             for item in payments_service.history(db, parent.id)
         ],
     )
+
+
+# ---------- chat (CLAUDE.md 6.11) ----------
+
+
+class MessageOut(BaseModel):
+    id: uuid.UUID
+    from_me: bool
+    body: str
+    created_at: datetime
+
+
+class ChatOut(BaseModel):
+    """One conversation. The app asks again every 10 seconds while it's open, with `after` set to the last
+    message's time, to get only new ones."""
+
+    other_id: uuid.UUID
+    other_name: str | None  # first name
+    can_send: bool  # while they have a booking now or to come, and 24 hours after the last one
+    messages: list[MessageOut]
+
+
+class ChatSummaryOut(BaseModel):
+    other_id: uuid.UUID
+    other_name: str | None
+    last_body: str | None
+    last_at: datetime | None
+    last_from_me: bool
+    can_send: bool
+
+
+class MessageIn(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
+
+
+def _first(name: str | None) -> str | None:
+    name = (name or "").strip()
+    return name.split()[0] if name else None
+
+
+def chat_out(db, person, other_id: uuid.UUID, after: datetime | None) -> ChatOut:
+    found = chat_service.read(db, person, other_id, datetime.now(UTC), after)
+    other = db.get(Profile, other_id)
+    return ChatOut(
+        other_id=other_id,
+        other_name=_first(other.full_name if other else None),
+        can_send=found.can_send,
+        messages=[
+            MessageOut(id=m.id, from_me=m.sender_id == person.id, body=m.body, created_at=m.created_at)
+            for m in found.messages
+        ],
+    )
+
+
+def chat_summaries(db, person) -> list[ChatSummaryOut]:
+    return [
+        ChatSummaryOut(
+            other_id=item.other_id,
+            other_name=_first(item.other_name),
+            last_body=item.last_body,
+            last_at=item.last_at,
+            last_from_me=item.last_from_me,
+            can_send=item.can_send,
+        )
+        for item in chat_service.conversations(db, person, datetime.now(UTC))
+    ]
+
+
+@router.get("/chats")
+def get_chats(parent: Parent, db: DbSession) -> list[ChatSummaryOut]:
+    return chat_summaries(db, parent)
+
+
+@router.get("/chats/{sitter_id}")
+def get_chat(sitter_id: uuid.UUID, parent: Parent, db: DbSession, after: AwareDatetime | None = None) -> ChatOut:
+    return chat_out(db, parent, sitter_id, after)
+
+
+@router.post("/chats/{sitter_id}", status_code=201)
+def send_message(sitter_id: uuid.UUID, body: MessageIn, parent: Parent, db: DbSession) -> ChatOut:
+    chat_service.send(db, parent, sitter_id, body.body, datetime.now(UTC))
+    return chat_out(db, parent, sitter_id, None)
