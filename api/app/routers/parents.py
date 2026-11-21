@@ -18,6 +18,8 @@ from app.models import (
     BookingStatus,
     Child,
     EmergencyContact,
+    IncidentKind,
+    IssueTopic,
     Payment,
     PaymentKind,
     PaymentStatus,
@@ -33,6 +35,7 @@ from app.services import bookings as bookings_service
 from app.services import checkin as checkin_service
 from app.services import children as children_service
 from app.services import email as email_service
+from app.services import incidents as incidents_service
 from app.services import overtime as overtime_service
 from app.services import payments as payments_service
 from app.services import reports as reports_service
@@ -554,6 +557,37 @@ def overtime_out(db, booking_id: uuid.UUID) -> OvertimeRequestOut | None:
     )
 
 
+class IncidentOut(BaseModel):
+    """The booking's latest Emergency report (6.9)."""
+
+    kind: str
+    status: str  # open | acknowledged | resolved
+    created_at: datetime
+
+
+def incident_out(db, booking_id: uuid.UUID) -> IncidentOut | None:
+    incident = incidents_service.latest_incident(db, booking_id)
+    if incident is None:
+        return None
+    return IncidentOut(kind=incident.kind.value, status=incident.status.value, created_at=incident.created_at)
+
+
+class EmergencyIn(BaseModel):
+    kind: IncidentKind
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class IssueIn(BaseModel):
+    topic: IssueTopic
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class IssueOut(BaseModel):
+    id: uuid.UUID
+    topic: str
+    status: str
+
+
 class BookingOut(BaseModel):
     """The parent's view of a booking: never the plan's name or the sitter's pay (6.1)."""
 
@@ -578,6 +612,9 @@ class BookingOut(BaseModel):
     pay_by_upi: PayByUpi | None
     payment: PaymentOut | None
     report: ReportOut | None
+    # The Emergency and Issues buttons: from the start until 1 hour after the end or check-out (6.9).
+    buttons_open: bool
+    incident: IncidentOut | None
     checked_in_at: datetime | None  # (6.7)
     checked_out_at: datetime | None
     overtime: OvertimeRequestOut | None  # (6.8)
@@ -622,6 +659,8 @@ def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
         if payment
         else None,
         report=report_out(db, booking.id),
+        buttons_open=incidents_service.buttons_open(booking, datetime.now(UTC)),
+        incident=incident_out(db, booking.id),
         checked_in_at=booking.checked_in_at,
         checked_out_at=booking.checked_out_at,
         overtime=overtime_out(db, booking.id),
@@ -758,6 +797,26 @@ def request_overtime(
     overtime_service.request(db, parent.id, booking_id, body.hours, datetime.now(UTC))
     booking_mail.tell_sitter_overtime_requested(db, mailer, settings, booking_id, body.hours)
     return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
+
+
+@router.post("/bookings/{booking_id}/emergency", status_code=201)
+def parent_emergency(
+    booking_id: uuid.UUID, body: EmergencyIn, parent: Parent, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> BookingOut:
+    """Emergency, theft or abuse (6.9): every admin is emailed at once; theft or abuse suspends the sitter."""
+    incident = incidents_service.raise_emergency(db, parent, booking_id, body.kind, body.note, datetime.now(UTC))
+    booking_mail.tell_incident(db, mailer, settings, incident)
+    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
+
+
+@router.post("/bookings/{booking_id}/issues", status_code=201)
+def parent_issue(
+    booking_id: uuid.UUID, body: IssueIn, parent: Parent, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> IssueOut:
+    """A non-emergency issue, linked to the booking, for admins (6.9)."""
+    complaint = incidents_service.raise_issue(db, parent, booking_id, body.topic, body.note, datetime.now(UTC))
+    booking_mail.tell_issue(db, mailer, settings, complaint, incidents_service.TOPIC_WORDS[body.topic])
+    return IssueOut(id=complaint.id, topic=body.topic.value, status=complaint.status.value)
 
 
 @router.post("/bookings/{booking_id}/arrived")

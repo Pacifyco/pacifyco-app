@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
@@ -6,6 +7,7 @@ import wordmarkReversedUrl from "../assets/brand/wordmark-reversed.png";
 import wordmarkUrl from "../assets/brand/wordmark.png";
 import { useAuth } from "../auth/AuthProvider";
 import { useMe } from "../auth/useMe";
+import { apiFetch } from "../lib/api";
 import { Toaster } from "../components/ui";
 import { cx } from "../components/ui/cx";
 import { ThemeToggle } from "../theme/ThemeToggle";
@@ -84,6 +86,7 @@ export function AppLayout() {
           <HeaderActions />
         </div>
         <AreaNav />
+        <EmergencyAlert />
       </header>
 
       <main id="main" className="mx-auto w-full max-w-content flex-1 px-4 py-5 sm:px-5 sm:py-7">
@@ -141,6 +144,32 @@ const TABS: Record<"parent" | "sitter", { label: string; tabs: Tab[] }> = {
     ],
   },
 };
+
+// For admins: an emergency stays at the top of every admin page until someone acknowledges it (6.9).
+function EmergencyAlert() {
+  const me = useMe();
+  const isAdmin = me.data?.profile?.role === "admin";
+  const incidents = useQuery({
+    queryKey: ["admin", "incidents"],
+    queryFn: () => apiFetch<{ status: string }[]>("/admin/incidents"),
+    enabled: isAdmin,
+    refetchInterval: 30_000,
+  });
+  const open = incidents.data?.filter((incident) => incident.status === "open").length ?? 0;
+  if (!isAdmin || open === 0) return null;
+  return (
+    <div role="alert" className="bg-surface-inverse text-surface-default">
+      <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-5">
+        <p className="text-ui">
+          {open === 1 ? "An emergency needs" : `${open} emergencies need`} acknowledging. Call both people now.
+        </p>
+        <Link to="/admin/incidents" className="text-ui text-surface-default underline">
+          Open the emergencies
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 function AreaNav() {
   const me = useMe();

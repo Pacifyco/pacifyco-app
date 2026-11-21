@@ -542,8 +542,16 @@ at home (CLAUDE.md 6.3).
   parametrized test. An admin's manual close (6.7) doesn't run this — no reliable "how late was she"
   once a call, not a code, ended the booking; left as a known gap (see Open questions) rather than
   guessing a rule for it.
-- [ ] Issues button for parents and sitters (non-emergency: running late, only a man at home), a complaint linked to the booking (decided 2026-11-12)
-- [ ] Emergency/Report button for parents and sitters; admin email alert; incident records
+- [x] Issues button for parents and sitters (non-emergency: running late, only a man at home), a complaint linked to the booking (decided 2026-11-12).
+  Built 2026-11-21: "Report an issue" on both booking pages (running late, or something else with a note),
+  a `complaints` row (migration afa47267ff41) emailed to admins; `/admin/issues` (mark replied, resolved).
+  The sitter's "only a man at home" stays its own report. Complaint timers and escalation: complaints phase
+- [x] Emergency/Report button for parents and sitters; admin email alert; incident records.
+  Built 2026-11-21 (`services/incidents.py`, `incidents` table): the design's EmergencyButton with a choice
+  of what's happening (Reuben, 2026-11-21); from the start until 1 hour after the end or check-out. Every
+  admin emailed; a banner on every admin page until acknowledged on `/admin/incidents`; a parent's theft or
+  abuse report suspends the sitter, and resolving decides whether she comes back. `has_open_incident` is
+  ready for payouts (phase 9) to hold her pay
 - [ ] Chat between a parent and sitter with a confirmed booking (polling)
 - [ ] Outing permission requests during a booking (Recharge only)
 - [ ] Tests for this phase
@@ -612,6 +620,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-21 — Emergency button (incidents, admin alert, theft/abuse suspends) and Issues button (complaints).
 - 2026-11-20 — Overtime at check-out: worked out in `charge_for_checkout`, rounded up to the full hour,
   tier-switched past the plan's latest end, sitter paid her level pay, reuses the `cancellation_charge`
   UPI-payment flow, parent emailed right away. Table `overtime_charges` (migration f1a3c5e7b9d2, one row

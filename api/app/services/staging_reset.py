@@ -18,9 +18,11 @@ from app.models import (
     Booking,
     BookingReport,
     Child,
+    Complaint,
     Consent,
     Document,
     DocumentAccessLog,
+    Incident,
     LegalAcceptance,
     OvertimeCharge,
     OvertimeRequest,
@@ -84,6 +86,10 @@ def delete_all(db: Session, found: Found) -> None:
         select(OvertimeRequest.id).where(OvertimeRequest.booking_id.in_(booking_ids))
     ).all()
     overtime_charge_ids = db.scalars(select(OvertimeCharge.id).where(OvertimeCharge.booking_id.in_(booking_ids))).all()
+    incident_ids = db.scalars(select(Incident.id).where(Incident.booking_id.in_(booking_ids))).all()
+    complaint_ids = db.scalars(
+        select(Complaint.id).where(or_(Complaint.booking_id.in_(booking_ids), Complaint.raised_by.in_(ids)))
+    ).all()
     # Audit rows they made, and rows about them or their records (entity ids are stored as text).
     records = [
         *ids,
@@ -97,6 +103,8 @@ def delete_all(db: Session, found: Found) -> None:
         *report_ids,
         *overtime_request_ids,
         *overtime_charge_ids,
+        *incident_ids,
+        *complaint_ids,
     ]
     about = [str(item) for item in records]
 
@@ -107,6 +115,8 @@ def delete_all(db: Session, found: Found) -> None:
     db.execute(delete(BookingReport).where(BookingReport.id.in_(report_ids)))
     db.execute(delete(OvertimeRequest).where(OvertimeRequest.id.in_(overtime_request_ids)))
     db.execute(delete(OvertimeCharge).where(OvertimeCharge.id.in_(overtime_charge_ids)))
+    db.execute(delete(Incident).where(Incident.id.in_(incident_ids)))
+    db.execute(delete(Complaint).where(Complaint.id.in_(complaint_ids)))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
     db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
     db.execute(delete(Document).where(Document.id.in_(document_ids)))

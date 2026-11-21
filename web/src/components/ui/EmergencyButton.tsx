@@ -1,5 +1,5 @@
 import { Siren } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 // design.md section 10: always visible on active bookings, chocolate surface (not coral), clear label,
 // and a confirmation step so it isn't pressed by accident. Pressing confirm raises an incident (CLAUDE.md 6.9).
@@ -7,9 +7,11 @@ type EmergencyButtonProps = {
   onConfirm: () => void;
   /** True while the report is being sent. */
   sending?: boolean;
+  /** Extra choices shown in the confirmation step (what's happening, a note). */
+  children?: ReactNode;
 };
 
-export function EmergencyButton({ onConfirm, sending = false }: EmergencyButtonProps) {
+export function EmergencyButton({ onConfirm, sending = false, children }: EmergencyButtonProps) {
   const [confirming, setConfirming] = useState(false);
   const headingId = useId();
 
@@ -38,6 +40,7 @@ export function EmergencyButton({ onConfirm, sending = false }: EmergencyButtonP
       <p className="text-body">
         We'll be told straight away and will call you. If anyone is in danger, call 112 first.
       </p>
+      {children}
       <div className="flex flex-col gap-3 sm:flex-row">
         <button
           type="button"

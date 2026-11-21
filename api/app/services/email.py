@@ -613,6 +613,69 @@ def report_decided(
     )
 
 
+INCIDENT_WORDS = {
+    "emergency": "an emergency",
+    "theft": "a theft",
+    "abuse": "abuse",
+    "sitter_unsafe": "the sitter being abused or feeling unsafe",
+}
+
+
+def incident_alert(to: str, kind: str, by: str, suspended: bool, web_url: str) -> Email:
+    """To every admin, at once (6.9): phone both people."""
+    what = INCIDENT_WORDS.get(kind, "an emergency")
+    return Email(
+        to=to,
+        subject=f"EMERGENCY on a Pacifyco booking: {what}",
+        heading=f"A {by} has reported {what}.",
+        body=(
+            "Please call both of them now, then acknowledge it in the admin panel."
+            + ("\nThe sitter's account has been suspended until you resolve it." if suspended else "")
+        ),
+        button_label="Open the emergencies",
+        button_url=f"{web_url.rstrip('/')}/admin/incidents",
+    )
+
+
+def issue_alert(to: str, topic_words: str, by: str, web_url: str) -> Email:
+    """To admins: a non-emergency issue on a booking (6.9)."""
+    return Email(
+        to=to,
+        subject=f"An issue on a Pacifyco booking: {topic_words.lower()}",
+        heading=f"A {by} has raised an issue.",
+        body=f"{topic_words}. Please get in touch with them, then mark it replied or resolved.",
+        button_label="Open the issues",
+        button_url=f"{web_url.rstrip('/')}/admin/issues",
+    )
+
+
+def sitter_suspended(to: str, full_name: str | None) -> Email:
+    """To the sitter: a report has suspended her account until an admin looks into it (6.9)."""
+    return Email(
+        to=to,
+        subject="Your Pacifyco account is suspended",
+        heading="Your account is suspended for now.",
+        body=(
+            f"Hi {_first_name(full_name)}, a family has made a serious report about a booking, so your account is "
+            "suspended while Pacifyco looks into it. We'll be in touch. If you need to reach us, write to "
+            "founders@pacifyco.in."
+        ),
+        button_label="Contact Pacifyco",
+        button_url="mailto:founders@pacifyco.in",
+    )
+
+
+def sitter_reinstated(to: str, full_name: str | None, web_url: str) -> Email:
+    return Email(
+        to=to,
+        subject="Your Pacifyco account is active again",
+        heading="Your account is active again.",
+        body=f"Hi {_first_name(full_name)}, Pacifyco has looked into the report and your account is active again.",
+        button_label="Open Pacifyco",
+        button_url=f"{web_url.rstrip('/')}/sitter",
+    )
+
+
 def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_url: str) -> Email:
     """To an admin: payments to check before their bookings start. No names or amounts, only the count
     and the earliest start."""

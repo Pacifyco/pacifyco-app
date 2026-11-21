@@ -14,6 +14,7 @@ from app.errors import AppError
 from app.models import (
     Booking,
     BookingStatus,
+    ComplaintStatus,
     DocumentType,
     OnboardingStatus,
     OnboardingStepName,
@@ -36,6 +37,7 @@ from app.services import bookings as bookings_service
 from app.services import checkin as checkin_service
 from app.services import children as children_service
 from app.services import email as email_service
+from app.services import incidents as incidents_service
 from app.services import payments as payments_service
 from app.services import psych_tests as psych_tests_service
 from app.services import reports as reports_service
@@ -1043,3 +1045,131 @@ def close_booking(booking_id: uuid.UUID, body: CloseBookingIn, admin: Admin, db:
         sitter_name=sitter.full_name if sitter else None,
         sitter_phone=sitter.phone if sitter else None,
     )
+
+
+# ---------- emergencies and issues (CLAUDE.md 6.9) ----------
+
+
+class AdminIncident(BaseModel):
+    id: uuid.UUID
+    kind: str
+    status: str  # open (needs acknowledging) | acknowledged
+    note: str | None
+    raised_by: str  # parent | sitter
+    created_at: datetime
+    suspended_sitter: bool
+    sitter_status: str
+    booking_id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+    parent_name: str | None
+    parent_phone: str | None
+    sitter_name: str | None
+    sitter_phone: str | None
+
+
+def _admin_incident(db: DbSession, incident) -> AdminIncident:
+    booking = db.get(Booking, incident.booking_id)
+    assert booking is not None
+    parent, sitter = _people(db, booking)
+    return AdminIncident(
+        id=incident.id,
+        kind=incident.kind.value,
+        status=incident.status.value,
+        note=incident.note,
+        raised_by="parent" if incident.raised_by == parent.id else "sitter",
+        created_at=incident.created_at,
+        suspended_sitter=incident.suspended_sitter,
+        sitter_status=sitter.status.value if sitter else "removed",
+        booking_id=booking.id,
+        starts_at=booking.starts_at,
+        ends_at=booking.ends_at,
+        parent_name=parent.full_name,
+        parent_phone=parent.phone,
+        sitter_name=sitter.full_name if sitter else None,
+        sitter_phone=sitter.phone if sitter else None,
+    )
+
+
+@router.get("/incidents")
+def get_incidents(admin: Admin, db: DbSession) -> list[AdminIncident]:
+    """Unresolved emergencies, newest first. Open ones show at the top of the admin panel until acknowledged."""
+    return [_admin_incident(db, incident) for incident in incidents_service.open_incidents(db)]
+
+
+@router.post("/incidents/{incident_id}/acknowledge")
+def acknowledge_incident(incident_id: uuid.UUID, admin: Admin, db: DbSession) -> AdminIncident:
+    return _admin_incident(db, incidents_service.acknowledge(db, admin.id, incident_id, datetime.now(UTC)))
+
+
+class ResolveIn(BaseModel):
+    note: str = Field(min_length=1, max_length=1000)
+    reinstate_sitter: bool = False  # only matters if the report suspended her
+
+
+@router.post("/incidents/{incident_id}/resolve")
+def resolve_incident(
+    incident_id: uuid.UUID, body: ResolveIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AdminIncident:
+    note = _clean_reason(body.note)
+    if note is None:
+        raise AppError(422, "note_needed", "Please say what happened.")
+    incident = incidents_service.resolve(db, admin.id, incident_id, note, body.reinstate_sitter, datetime.now(UTC))
+    booking = db.get(Booking, incident.booking_id)
+    assert booking is not None
+    _, sitter = _people(db, booking)
+    if incident.suspended_sitter and sitter and sitter.status == ProfileStatus.active:
+        mailer.send(email_service.sitter_reinstated(sitter.email, sitter.full_name, _web_url(settings)))
+    return _admin_incident(db, incident)
+
+
+class AdminIssue(BaseModel):
+    id: uuid.UUID
+    topic: str | None
+    description: str
+    status: str  # open | replied
+    raised_by: str  # parent | sitter
+    created_at: datetime
+    booking_id: uuid.UUID | None
+    starts_at: datetime | None
+    parent_name: str | None
+    parent_phone: str | None
+    sitter_name: str | None
+    sitter_phone: str | None
+
+
+def _admin_issue(db: DbSession, complaint) -> AdminIssue:
+    booking = db.get(Booking, complaint.booking_id) if complaint.booking_id else None
+    parent, sitter = _people(db, booking) if booking else (None, None)
+    return AdminIssue(
+        id=complaint.id,
+        topic=complaint.topic.value if complaint.topic else None,
+        description=complaint.description,
+        status=complaint.status.value,
+        raised_by="parent" if parent and complaint.raised_by == parent.id else "sitter",
+        created_at=complaint.created_at,
+        booking_id=booking.id if booking else None,
+        starts_at=booking.starts_at if booking else None,
+        parent_name=parent.full_name if parent else None,
+        parent_phone=parent.phone if parent else None,
+        sitter_name=sitter.full_name if sitter else None,
+        sitter_phone=sitter.phone if sitter else None,
+    )
+
+
+@router.get("/issues")
+def get_issues(admin: Admin, db: DbSession) -> list[AdminIssue]:
+    """Issues not yet resolved, oldest first."""
+    return [_admin_issue(db, complaint) for complaint in incidents_service.open_issues(db)]
+
+
+@router.post("/issues/{complaint_id}/replied")
+def issue_replied(complaint_id: uuid.UUID, admin: Admin, db: DbSession) -> AdminIssue:
+    done = incidents_service.update_issue(db, admin.id, complaint_id, ComplaintStatus.replied, datetime.now(UTC))
+    return _admin_issue(db, done)
+
+
+@router.post("/issues/{complaint_id}/resolved")
+def issue_resolved(complaint_id: uuid.UUID, admin: Admin, db: DbSession) -> AdminIssue:
+    done = incidents_service.update_issue(db, admin.id, complaint_id, ComplaintStatus.resolved, datetime.now(UTC))
+    return _admin_issue(db, done)

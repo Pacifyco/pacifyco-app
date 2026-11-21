@@ -31,10 +31,15 @@ from app.models import (
 )
 from app.routers.parents import (
     ChecklistItem,
+    EmergencyIn,
+    IncidentOut,
+    IssueIn,
+    IssueOut,
     OvertimeRequestOut,
     ReportOut,
     WeekHours,
     checklist_out,
+    incident_out,
     overtime_out,
     report_out,
 )
@@ -43,6 +48,7 @@ from app.services import booking_mail, cancellations, checklists, sitter_pay, ve
 from app.services import bookings as bookings_service
 from app.services import checkin as checkin_service
 from app.services import email as email_service
+from app.services import incidents as incidents_service
 from app.services import overtime as overtime_service
 from app.services import psych_tests as psych_tests_service
 from app.services import reports as reports_service
@@ -591,6 +597,8 @@ class SitterBookingDetail(SitterBookingItem):
     pin_code: str | None
     emergency_contact: FamilyContactOut | None
     report: ReportOut | None  # parent not home, or a no-show reported about her (6.5)
+    buttons_open: bool  # Emergency and Issues: from the start until 1 hour after the end or check-out (6.9)
+    incident: IncidentOut | None
     checked_in_at: datetime | None  # (6.7)
     checked_out_at: datetime | None
     codes_locked: bool
@@ -626,6 +634,8 @@ def _detail(db: Session, booking) -> SitterBookingDetail:
         if contact
         else None,
         report=report_out(db, booking.id),
+        buttons_open=incidents_service.buttons_open(booking, datetime.now(UTC)),
+        incident=incident_out(db, booking.id),
         checked_in_at=booking.checked_in_at,
         checked_out_at=booking.checked_out_at,
         codes_locked=booking.codes_locked,
@@ -898,3 +908,28 @@ def decline_overtime(
     request_id: uuid.UUID, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
 ) -> SitterBookingDetail:
     return _overtime_decision(request_id, False, sitter, db, mailer, settings)
+
+
+@router.post("/bookings/{booking_id}/emergency", status_code=201)
+def sitter_emergency(
+    booking_id: uuid.UUID,
+    body: EmergencyIn,
+    sitter: SitterProfile,
+    db: DbSession,
+    mailer: Mailer,
+    settings: AppSettings,
+) -> SitterBookingDetail:
+    """Emergency, or she's being abused or feels unsafe (6.9): every admin is emailed at once."""
+    incident = incidents_service.raise_emergency(db, sitter, booking_id, body.kind, body.note, datetime.now(UTC))
+    booking_mail.tell_incident(db, mailer, settings, incident)
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
+
+
+@router.post("/bookings/{booking_id}/issues", status_code=201)
+def sitter_issue(
+    booking_id: uuid.UUID, body: IssueIn, sitter: SitterProfile, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> IssueOut:
+    """A non-emergency issue, linked to the booking, for admins (6.9)."""
+    complaint = incidents_service.raise_issue(db, sitter, booking_id, body.topic, body.note, datetime.now(UTC))
+    booking_mail.tell_issue(db, mailer, settings, complaint, incidents_service.TOPIC_WORDS[body.topic])
+    return IssueOut(id=complaint.id, topic=body.topic.value, status=complaint.status.value)

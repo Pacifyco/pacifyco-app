@@ -1090,6 +1090,18 @@ describe("the profile button and its bubble", () => {
     expect(screen.queryByRole("link", { name: "Finish your profile" })).toBeNull();
   });
 
+  test("an emergency waiting to be acknowledged shows at the top of admin pages", async () => {
+    fake.state.session = fake.session;
+    const profile = { ...PARENT_PROFILE, role: "admin", status: "active" };
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      url.endsWith("/admin/incidents")
+        ? Promise.resolve(jsonResponse([{ id: "i1", status: "open" }, { id: "i2", status: "acknowledged" }]))
+        : meResponse(profile)(url)) as typeof fetch);
+    renderApp("/admin");
+    expect(await screen.findByText("An emergency needs acknowledging. Call both people now.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open the emergencies" }).getAttribute("href")).toBe("/admin/incidents");
+  });
+
   test("admins have no profile button", async () => {
     signedIn({ ...PARENT_PROFILE, role: "admin", status: "active" }, PARENT_CHECKLIST);
     renderApp("/admin");

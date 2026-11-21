@@ -3,6 +3,8 @@ import { RequireRole } from "./auth/RequireRole";
 import { FamilyReviewPage } from "./pages/admin/FamilyReviewPage";
 import { OverdueCheckoutsPage } from "./pages/admin/OverdueCheckoutsPage";
 import { PaymentsPage } from "./pages/admin/PaymentsPage";
+import { IncidentsPage } from "./pages/admin/IncidentsPage";
+import { IssuesPage } from "./pages/admin/IssuesPage";
 import { ReportsPage } from "./pages/admin/ReportsPage";
 import { SitterReviewPage } from "./pages/admin/SitterReviewPage";
 import { VerificationQueuePage } from "./pages/admin/VerificationQueuePage";
@@ -146,6 +148,8 @@ export const routes: RouteObject[] = [
           ["admin/verifications", <VerificationQueuePage />],
           ["admin/payments", <PaymentsPage />],
           ["admin/reports", <ReportsPage />],
+          ["admin/incidents", <IncidentsPage />],
+          ["admin/issues", <IssuesPage />],
           ["admin/overdue-checkouts", <OverdueCheckoutsPage />],
           ["admin/sitters/:sitterId", <SitterReviewPage />],
           ["admin/parents/:parentId", <FamilyReviewPage />],

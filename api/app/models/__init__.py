@@ -5,6 +5,15 @@ from app.models.bookings import Booking, BookingChild, BookingHomeInfo, BookingS
 from app.models.common import VerificationStatus
 from app.models.consents import Consent, ConsentKind
 from app.models.documents import Document, DocumentAccessLog, DocumentStatus, DocumentType
+from app.models.incidents import (
+    Complaint,
+    ComplaintStatus,
+    ComplaintType,
+    Incident,
+    IncidentKind,
+    IncidentStatus,
+    IssueTopic,
+)
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
 from app.models.marketplace import DayOff, GeocodeCache, WeeklyHours
 from app.models.overtime import OvertimeCharge, OvertimeRequest, OvertimeRequestStatus
@@ -32,6 +41,13 @@ from app.models.sitters import (
 from app.models.strikes import Strike, StrikeReason
 
 __all__ = [
+    "Complaint",
+    "ComplaintStatus",
+    "ComplaintType",
+    "Incident",
+    "IncidentKind",
+    "IncidentStatus",
+    "IssueTopic",
     "BookingReport",
     "ReportKind",
     "ReportStatus",
