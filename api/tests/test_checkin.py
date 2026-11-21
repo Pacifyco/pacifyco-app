@@ -9,6 +9,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import text
 
 from tests.test_admin_payments import confirm, paid, verify_children  # noqa: F401
 from tests.test_auto_cancel import move, status
@@ -176,3 +177,71 @@ def test_the_check_in_code_doesnt_check_her_out(client, db_engine, under_way, fi
     assert do_check_in(client, sitter, under_way["id"], code=in_code_value).status_code == 200
     wrong = do_check_out(client, sitter, under_way["id"], code=in_code_value)
     assert wrong.status_code == 409 and wrong.json()["error"]["code"] == "wrong_code"
+
+
+# ---------- Phase 8 test check (CLAUDE.md 9: check-in/out codes) ----------
+
+
+def _set_code(db_engine, booking_id, column, code):
+    from app.services import encryption
+    from tests.test_auth import TEST_FIELD_ENCRYPTION_KEY
+
+    with db_engine.begin() as conn:
+        conn.execute(
+            text(f"UPDATE bookings SET {column} = :c WHERE id = :b"),
+            {"c": encryption.encrypt(TEST_FIELD_ENCRYPTION_KEY, code), "b": booking_id},
+        )
+
+
+def _copy_booking(db_engine, booking_id, starts_at):
+    """Another confirmed booking for the same parent and sitter (a copy at another time)."""
+    with db_engine.begin() as conn:
+        return conn.execute(
+            text(
+                "INSERT INTO bookings SELECT (jsonb_populate_record(NULL::bookings, to_jsonb(b) || "
+                "jsonb_build_object('id', gen_random_uuid(), 'starts_at', CAST(:s AS timestamptz), "
+                "'ends_at', CAST(:s AS timestamptz) + interval '1 hour', 'check_in_code_encrypted', NULL, "
+                "'check_out_code_encrypted', NULL))).* FROM bookings b WHERE b.id = :b RETURNING id"
+            ),
+            {"s": starts_at, "b": booking_id},
+        ).scalar_one()
+
+
+def test_a_code_works_only_for_its_own_booking(client, db_engine, under_way, finished_parent):
+    sitter = signed_in(db_engine, under_way["sitter_id"])
+    other = _copy_booking(db_engine, under_way["id"], datetime.now(UTC) - timedelta(minutes=2))
+    _set_code(db_engine, under_way["id"], "check_in_code_encrypted", "1111")
+    _set_code(db_engine, other, "check_in_code_encrypted", "2222")
+    wrong = do_check_in(client, sitter, other, code="1111")
+    assert wrong.status_code == 409 and wrong.json()["error"]["code"] == "wrong_code"
+    assert status(db_engine, other) == "confirmed"
+    assert do_check_in(client, sitter, under_way["id"], code="1111").status_code == 200
+    assert do_check_in(client, sitter, other, code="2222").status_code == 200
+    with db_engine.begin() as conn:  # the copy shares the original's child rows: none to clean up
+        conn.execute(text("DELETE FROM audit_log WHERE entity_id = :b"), {"b": str(other)})
+        conn.execute(text("DELETE FROM bookings WHERE id = :b"), {"b": other})
+
+
+def test_an_early_check_out_refunds_nothing_and_both_steps_are_audited(client, db_engine, under_way, finished_parent):
+    sitter = signed_in(db_engine, under_way["sitter_id"])
+    payments_before = scalar(db_engine, "SELECT count(*) FROM payments WHERE booking_id = :b", b=under_way["id"])
+    in_code_value = in_code(client, finished_parent, under_way["id"]).json()["code"]
+    assert do_check_in(client, sitter, under_way["id"], code=in_code_value).status_code == 200
+    out_code_value = out_code(client, finished_parent, under_way["id"]).json()["code"]
+    # Well before the booked end (it started 5 minutes ago and runs 2 hours).
+    assert do_check_out(client, sitter, under_way["id"], code=out_code_value).status_code == 200
+    assert status(db_engine, under_way["id"]) == "completed"
+    assert (
+        scalar(db_engine, "SELECT count(*) FROM payments WHERE booking_id = :b", b=under_way["id"]) == payments_before
+    )
+    assert (
+        scalar(db_engine, "SELECT count(*) FROM payments WHERE booking_id = :b AND amount_paise < 0", b=under_way["id"])
+        == 0
+    )
+    actions = [
+        r["action"]
+        for r in rows(
+            db_engine, "SELECT action FROM audit_log WHERE entity_id = :b ORDER BY created_at", b=str(under_way["id"])
+        )
+    ]
+    assert "checked_in" in actions and "checked_out" in actions

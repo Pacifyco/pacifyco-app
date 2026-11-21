@@ -8,14 +8,8 @@ tests.
 
 ## Current status
 
-- Phase: 7 done (PR #96 merged 2026-11-20). Phase 8 ("During the booking") under way: check-in/check-out
-  codes, overdue check-out alerts + admin manual close, the overtime request and overtime at check-out
-  (PRs #97, #98, #99, merged, plus branch `phase8/overtime-charge`) all built. Couldn't run the
-  Postgres-backed API suite locally this session (no Docker here); web typecheck, lint and tests are
-  green (353/354 — the 1 failure is the pre-existing Node 20 `Intl` midnight quirk, unrelated).
-- Next item: phase 8, the Issues button (non-emergency reports: running late, only a man at home, a
-  complaint linked to the booking), the Emergency/Report button, chat, or outing permission requests —
-  whichever Reuben picks next.
+- Phase: 8 done (2026-11-21; PRs #97 to #104 plus the test check). Next: phase 9 (reviews, sitter pay,
+  earnings dashboard, admin payouts list).
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -502,7 +496,7 @@ at home (CLAUDE.md 6.3).
   updated). Admin: Strikes on the sitter review page (give, remove with a reason, view a doctor's note).
   Sitter: `/sitter/strikes` and a notice on her home; a doctor's note for a late cancellation
   (`POST /sitter/strikes/{id}/doctor-note`). Bringing back a removed account is left to an admin
-- [ ] Tests for this phase
+- [x] Tests for this phase. Phase 7 test check 2026-11-21: CLAUDE.md 9 rows for plans and pricing, payments, bookings, cancellations (3- and 8-hour boundaries), strikes and child age and home info all covered; the Bookings row updated for requests (6.4)
 
 ## Phase 8 — During the booking
 
@@ -565,7 +559,7 @@ at home (CLAUDE.md 6.3).
   the request and meets them there; the exact address goes in the chat; changeable until the start
   (`PUT /parent/bookings/{id}/outing`, an accepted sitter is emailed). `booking_home_info.outing_where`
   (migration fade452dbb43). Family Terms 3.6 changed in place with Reuben's wording
-- [ ] Tests for this phase
+- [x] Tests for this phase. Phase 8 test check 2026-11-21: added a code working only for its own booking, an early check-out refunding nothing (with the check-in/out audit rows) and unpaid overtime blocking new bookings; the rest of the check-in/out, overtime, incidents, new cancellation rows and chat rows were already covered. Still for phase 9: "unsafe early exit paid for time worked" and the show-up fee payouts (sitter pay)
 
 ## Phase 9 — After the booking
 
@@ -631,6 +625,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-21 — Phase 7 and 8 test checks; Phase 8 done.
 - 2026-11-21 — Overtime option on an admin's manual close.
 - 2026-11-21 — Outings: set by the parent when booking (Recharge only); Family Terms 3.6 updated.
 - 2026-11-21 — Chat; answered: manual close overtime option (to build), first-2-bookings nudge.
