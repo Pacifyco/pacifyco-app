@@ -392,7 +392,9 @@ Emergency button instead.
 - If the parent is late, the sitter can't check out early; she waits, and the extra time becomes
   overtime at check-out (6.8).
 - **Overdue check-out:** if a booking isn't checked out 30 minutes after its end time, admins get an email alert and a banner in the admin panel. An admin calls both people and
-  can close the booking manually with a reason (audit logged).
+  can close the booking manually with a reason (audit logged). A manual close charges **no overtime by
+  itself**; the admin may choose 1 to 6 whole hours to charge, priced as at check-out (6.8), and the parent
+  is emailed to pay within 2 hours (Reuben, 2026-11-21).
 - Parents pay for the booked time plus overtime. An early check-out refunds nothing. Sitters are paid
   for hours worked (6.2).
 - **How it works (built 2026-11-20, `api/app/services/checkin.py`):** a code is generated the first time

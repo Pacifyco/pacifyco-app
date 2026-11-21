@@ -134,9 +134,34 @@ def charge_for_checkout(db: Session, booking: Booking, now: datetime) -> Charged
     seconds_over = (booking.checked_out_at - booking.ends_at).total_seconds()
     if seconds_over <= 0:
         return None
-    minutes_over = int(seconds_over // 60)
-    hours_over = math.ceil(seconds_over / 3600)
+    return _charge(db, None, booking, math.ceil(seconds_over / 3600), int(seconds_over // 60), now, "check_out")
 
+
+# An admin's manual close (6.7) charges no overtime by itself; the admin may choose to (Reuben, 2026-11-21).
+MAX_CLOSE_HOURS = 6
+
+
+def charge_on_close(db: Session, admin_id: uuid.UUID, booking: Booking, hours: int, now: datetime) -> Charged:
+    """The admin closing a booking by hand chooses to charge whole hours of overtime past the booked end,
+    priced as at check-out. The parent is told and pays within 2 hours. The caller commits."""
+    if not 1 <= hours <= MAX_CLOSE_HOURS:
+        raise AppError(422, "invalid_overtime_hours", f"Overtime is 1 to {MAX_CLOSE_HOURS} whole hours.")
+    if db.scalar(select(OvertimeCharge.id).where(OvertimeCharge.booking_id == booking.id)) is not None:
+        raise AppError(409, "overtime_already_charged", "Overtime has already been charged for this booking.")
+    return _charge(db, admin_id, booking, hours, hours * 60, now, "admin_close")
+
+
+def _charge(
+    db: Session,
+    actor_id: uuid.UUID | None,
+    booking: Booking,
+    hours_over: int,
+    minutes_over: int,
+    now: datetime,
+    source: str,
+) -> Charged:
+    """The charge for these whole hours past the booked end: the plan's price, or the next tier's for the
+    hours past the plan's own latest end (6.8); she's paid her level pay for the same hours."""
     midnight = datetime.combine(booking.starts_at.astimezone(INDIA).date(), time(), INDIA)
     latest_end = midnight + LATEST_END[booking.plan]
     amount_paise = 0
@@ -166,10 +191,15 @@ def charge_for_checkout(db: Session, booking: Booking, now: datetime) -> Charged
     db.flush()
     audit.record(
         db,
-        None,
+        actor_id,
         "overtime_charged",
         "booking",
         str(booking.id),
-        after={"hours_charged": hours_over, "amount_paise": amount_paise, "payment_id": str(payment.id)},
+        after={
+            "hours_charged": hours_over,
+            "amount_paise": amount_paise,
+            "payment_id": str(payment.id),
+            "source": source,
+        },
     )
     return Charged(charge, payment)

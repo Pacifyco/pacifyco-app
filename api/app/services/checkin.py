@@ -210,10 +210,18 @@ def mark_overdue_alerted(db: Session, overdue: list[Booking]) -> None:
         audit.record(db, None, OVERDUE_ALERTED, "booking", str(booking.id), after={})
 
 
-def close_by_admin(db: Session, admin_id: uuid.UUID, booking_id: uuid.UUID, reason: str, now: datetime) -> Booking:
+def close_by_admin(
+    db: Session,
+    admin_id: uuid.UUID,
+    booking_id: uuid.UUID,
+    reason: str,
+    now: datetime,
+    overtime_hours: int | None = None,
+) -> Booking:
     """An admin closes a booking by hand after calling both people (6.7): an overdue check-out, or codes
     locked with no other way through. If she checked in but never checked out, this stands in for that
-    timestamp; if she never checked in at all, it's left empty too."""
+    timestamp; if she never checked in at all, it's left empty too. No overtime is charged unless the admin
+    chooses some whole hours (`overtime_hours`; Reuben, 2026-11-21), which the parent is then asked to pay."""
     booking = _locked_booking(db, booking_id)
     if booking.status not in NEEDS_ATTENTION:
         raise AppError(409, "cannot_close", "This booking can't be closed.")
@@ -233,5 +241,7 @@ def close_by_admin(db: Session, admin_id: uuid.UUID, booking_id: uuid.UUID, reas
     # constraint), and if she never checked in there's no check-out time to stand in for.
     if booking.checked_in_at is not None and booking.checked_out_at is None:
         booking.checked_out_at = now
+    if overtime_hours:
+        overtime_service.charge_on_close(db, admin_id, booking, overtime_hours, now)
     db.commit()
     return booking

@@ -18,6 +18,7 @@ from app.models import (
     DocumentType,
     OnboardingStatus,
     OnboardingStepName,
+    OvertimeCharge,
     Payment,
     PaymentKind,
     PaymentStatus,
@@ -1026,15 +1027,38 @@ def get_needing_attention(admin: Admin, db: DbSession) -> list[NeedsAttentionOut
 
 class CloseBookingIn(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
+    # Not charged by default; the admin may charge whole hours of overtime (Reuben, 2026-11-21).
+    overtime_hours: int | None = Field(default=None, ge=1, le=6)
 
 
 @router.post("/bookings/{booking_id}/close")
-def close_booking(booking_id: uuid.UUID, body: CloseBookingIn, admin: Admin, db: DbSession) -> NeedsAttentionOut:
+def close_booking(
+    booking_id: uuid.UUID, body: CloseBookingIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> NeedsAttentionOut:
     """An admin closes a booking by hand after calling both people (6.7)."""
     reason = _clean_reason(body.reason or "")
     if reason is None:
         raise AppError(422, "reason_needed", "Please say why you're closing it.")
-    booking = checkin_service.close_by_admin(db, admin.id, booking_id, reason, datetime.now(UTC))
+    booking = checkin_service.close_by_admin(db, admin.id, booking_id, reason, datetime.now(UTC), body.overtime_hours)
+    if body.overtime_hours:
+        charge = db.scalar(select(OvertimeCharge).where(OvertimeCharge.booking_id == booking.id))
+        payment = db.scalar(
+            select(Payment).where(
+                Payment.booking_id == booking.id,
+                Payment.kind == PaymentKind.overtime,
+                Payment.status == PaymentStatus.pending,
+            )
+        )
+        if charge is not None and payment is not None:
+            booking_mail.tell_parent_overtime_charged(
+                db,
+                mailer,
+                settings,
+                booking.id,
+                amount_paise=charge.amount_paise,
+                hours=charge.hours_charged,
+                payment_id=payment.id,
+            )
     parent, sitter = _people(db, booking)
     return NeedsAttentionOut(
         booking_id=booking.id,
