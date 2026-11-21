@@ -6,6 +6,7 @@ import { kolkataTime } from "../lib/times";
 import { jsonResponse } from "../test/renderApp";
 import {
   SitterBookingsPage,
+  outingText,
   sitterStatusText,
   type SitterBookingItem,
   type SitterBookingList,
@@ -36,6 +37,7 @@ const NEXT: SitterBookingItem = {
   bath_time: true,
   cameras_on: true,
   camera_locations: "Living room",
+  outing_where: null,
   pay_paise: 60000,
   status: "confirmed",
   answer_by: null,
@@ -72,5 +74,12 @@ describe("The sitter's bookings", () => {
     expect(sitterStatusText("in_progress")).toBe("Happening now");
     expect(sitterStatusText("cancelled_sitter_late")).toBe("Cancelled by you, less than 8 hours before: a strike");
     expect(sitterStatusText("parent_absent")).toBe("No one was home: show-up fee");
+  });
+
+  test("an outing: meet the family there", () => {
+    expect(outingText({ ...NEXT, outing_where: "Cubbon Park" })).toBe(
+      "Outing: the family will be out (Cubbon Park). Meet them there; they'll send the exact address in the chat.",
+    );
+    expect(outingText(NEXT)).toBeNull();
   });
 });

@@ -131,7 +131,8 @@ class BookingChild(Base):
 
 class BookingHomeInfo(Base):
     """The parent's camera declaration (6.4): whether cameras are on and where. The sitter sees it before
-    the booking starts."""
+    the booking starts. And an outing (Recharge only; Reuben, 2026-11-21): where the family will be, so the
+    sitter meets them there instead of at home; the exact address is shared in the chat."""
 
     __tablename__ = "booking_home_info"
     __table_args__ = (CheckConstraint("NOT cameras_on OR camera_locations IS NOT NULL", name="cameras_have_locations"),)
@@ -139,3 +140,4 @@ class BookingHomeInfo(Base):
     booking_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bookings.id", ondelete="CASCADE"), primary_key=True)
     cameras_on: Mapped[bool] = mapped_column(Boolean)
     camera_locations: Mapped[str | None] = mapped_column(Text)
+    outing_where: Mapped[str | None] = mapped_column(Text)  # None: no outing

@@ -145,6 +145,23 @@ class NewBooking:
     bath_time: bool
     cameras_on: bool
     camera_locations: str | None
+    outing_where: str | None = None  # Recharge only: where the family will be (Reuben, 2026-11-21)
+
+
+# Outings: Recharge only (6.1), set up by the parent when booking, changeable until the start.
+OUTINGS = {Plan.pause: False, Plan.unwind: False, Plan.recharge: True}
+OUTING_MAX = 300
+
+
+def clean_outing(plan: Plan, where: str | None) -> str | None:
+    where = (where or "").strip() or None
+    if where is None:
+        return None
+    if not OUTINGS[plan]:
+        raise AppError(422, "no_outings", "Outings are only part of bookings with this kind of sitter.")
+    if len(where) > OUTING_MAX:
+        raise AppError(422, "outing_too_long", "Please keep where you'll be short.")
+    return where
 
 
 def _check_time(db: Session, sitter: Sitter, starts_at: datetime, ends_at: datetime, now: datetime) -> None:
@@ -229,6 +246,7 @@ def create(db: Session, parent: Profile, new: NewBooking, now: datetime) -> Book
     starts_at = new.starts_at
     ends_at = starts_at + timedelta(hours=new.hours)
     _check_time(db, sitter, starts_at, ends_at, now)
+    outing_where = clean_outing(sitter.level, new.outing_where)
     if new.bath_time and not BATH_TIME[sitter.level]:
         raise AppError(422, "no_bath_time", "Bath time isn't part of bookings with this sitter.")
     camera_locations = (new.camera_locations or "").strip() or None
@@ -260,6 +278,7 @@ def create(db: Session, parent: Profile, new: NewBooking, now: datetime) -> Book
             booking_id=booking.id,
             cameras_on=new.cameras_on,
             camera_locations=camera_locations if new.cameras_on else None,
+            outing_where=outing_where,
         )
     )
     audit.record(
@@ -849,3 +868,40 @@ def _holder(db: Session, booking: Booking) -> uuid.UUID | None:
             Booking.ends_at > booking.starts_at,
         )
     )
+
+
+# ---------- outings (Recharge only; Reuben, 2026-11-21) ----------
+
+OUTING_CHANGEABLE = (BookingStatus.requested, BookingStatus.pending_payment, BookingStatus.confirmed)
+
+
+def set_outing(
+    db: Session, parent_id: uuid.UUID, booking_id: uuid.UUID, where: str | None, now: datetime
+) -> tuple[Booking, bool]:
+    """The parent adds, changes or removes an outing until the start. Returns the booking and whether the
+    sitter had already accepted it (so she's told)."""
+    booking = db.scalar(
+        select(Booking).where(Booking.id == booking_id, Booking.parent_id == parent_id).with_for_update()
+    )
+    if booking is None:
+        raise AppError(404, "not_found", "We couldn't find that booking.")
+    if booking.status not in OUTING_CHANGEABLE or booking.starts_at <= now:
+        raise AppError(409, "outing_locked", "An outing can only be changed before the booking starts.")
+    where = clean_outing(booking.plan, where)
+    home = db.get(BookingHomeInfo, booking.id)
+    assert home is not None
+    before = home.outing_where
+    if before == where:
+        return booking, False
+    home.outing_where = where
+    audit.record(
+        db,
+        parent_id,
+        "outing_set",
+        "booking",
+        str(booking.id),
+        before={"outing_where": before},
+        after={"outing_where": where},
+    )
+    db.commit()
+    return booking, booking.status in (BookingStatus.pending_payment, BookingStatus.confirmed)

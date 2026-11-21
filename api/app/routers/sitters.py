@@ -516,6 +516,7 @@ class SitterBookingItem(BaseModel):
     bath_time: bool
     cameras_on: bool
     camera_locations: str | None
+    outing_where: str | None  # an outing: meet the family there; the exact address comes in the chat
     pay_paise: int
     status: str
     answer_by: datetime | None  # a request: when it lapses unanswered
@@ -544,6 +545,7 @@ def _item(db: Session, booking, children: list[str] | None = None) -> SitterBook
         bath_time=booking.bath_time,
         cameras_on=home.cameras_on if home else False,
         camera_locations=home.camera_locations if home else None,
+        outing_where=home.outing_where if home else None,
         # The plan is her level (6.2), so her level's pay for the booked hours.
         pay_paise=sitter_pay.booking_pay_paise(booking.plan, booking.units),
         status=booking.status.value,
