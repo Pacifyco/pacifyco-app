@@ -197,8 +197,8 @@ function BookingForm({
     <form onSubmit={submit} noValidate className="flex flex-col gap-6">
       {options.first_booking && (
         <p className="rounded-lg bg-surface-sunken p-5 text-small text-ink">
-          New to {firstName}? Start with a 1-hour booking while you're at home, to see how {firstName} gets on with
-          your family.
+          New to {firstName}? We recommend you're at home for your first 2 bookings with {firstName}. At the least,
+          make the first one a 1-hour booking while you're at home.
         </p>
       )}
 
@@ -594,6 +594,13 @@ export function BookingPage() {
           </div>
         </Card>
       )}
+      {CHAT_STATUSES.includes(data.status) && (
+        <div>
+          <ButtonLink to={`/parent/chats/${data.sitter_id}`} variant="secondary" fullWidthOnPhone={false}>
+            Message {firstName}
+          </ButtonLink>
+        </div>
+      )}
       <BookingHelp
         role="parent"
         bookingId={data.id}
@@ -764,6 +771,9 @@ function NoShow({ booking, firstName }: { booking: Booking; firstName: string })
     </Card>
   );
 }
+
+// Bookings that open a chat with the sitter (6.11): confirmed, and those that went ahead.
+const CHAT_STATUSES = ["confirmed", "in_progress", "completed", "closed_by_admin"];
 
 // What a parent can cancel (6.5): a request, an accepted booking, a paid one, before it starts.
 const PARENT_CAN_CANCEL = ["requested", "pending_payment", "awaiting_verification", "confirmed"];

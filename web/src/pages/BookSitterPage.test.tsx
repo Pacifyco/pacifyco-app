@@ -123,7 +123,7 @@ describe("Book this sitter", () => {
     api();
     renderAt("/parent/sitters/s1/book");
     expect(await screen.findByRole("heading", { name: "Choose a time with Lakshmi" })).toBeTruthy();
-    expect(screen.getByText(/Start with a 1-hour booking/)).toBeTruthy();
+    expect(screen.getByText(/At the least, make the first one a 1-hour booking while you're at home/)).toBeTruthy();
 
     const day = screen.getByLabelText("Day") as HTMLSelectElement;
     expect([...day.options].map((option) => option.text)).toEqual(["Mon 7 Jan", "Tue 8 Jan"]);

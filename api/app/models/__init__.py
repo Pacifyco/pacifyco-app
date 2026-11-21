@@ -16,6 +16,7 @@ from app.models.incidents import (
 )
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
 from app.models.marketplace import DayOff, GeocodeCache, WeeklyHours
+from app.models.messages import Message
 from app.models.overtime import OvertimeCharge, OvertimeRequest, OvertimeRequestStatus
 from app.models.parents import AuthorisedAdult, Child, EmergencyContact, Parent
 from app.models.payments import Payment, PaymentKind, PaymentStatus
@@ -41,6 +42,7 @@ from app.models.sitters import (
 from app.models.strikes import Strike, StrikeReason
 
 __all__ = [
+    "Message",
     "Complaint",
     "ComplaintStatus",
     "ComplaintType",

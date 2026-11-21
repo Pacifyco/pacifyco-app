@@ -68,6 +68,7 @@ def test_only_bookings_she_accepted_show(client, db_engine, booking, finished_pa
         "ends_at": booking["ends_at"],
         "hours": 2,
         "family_name": parent_name.split()[0],
+        "parent_id": str(finished_parent["id"]),
         "children": booking["children"],
         "bath_time": False,
         "cameras_on": booking["cameras_on"],

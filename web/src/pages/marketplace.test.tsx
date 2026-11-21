@@ -379,7 +379,7 @@ describe("a sitter's profile page", () => {
     const tuesday = screen.getByRole("rowheader", { name: "Tue" }).closest("tr")!;
     expect(within(tuesday).getByText("Not available")).toBeTruthy();
     expect(screen.getByText("Not free on Sun 15 Nov.")).toBeTruthy();
-    expect(screen.getByText(/Start with a 1-hour booking while you're at home/)).toBeTruthy();
+    expect(screen.getByText(/We recommend you're at home for your first 2 bookings/)).toBeTruthy();
     expect(screen.queryByText("First-aid certified")).toBeNull();
     expect(container.textContent).not.toMatch(/Pause|Unwind|Recharge|plan/); // rate only (Reuben, 2026-11-17)
   });

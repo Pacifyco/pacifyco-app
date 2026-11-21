@@ -18,6 +18,7 @@ export type SitterBookingItem = {
   ends_at: string;
   hours: number;
   family_name: string;
+  parent_id: string;
   children: string[];
   bath_time: boolean;
   cameras_on: boolean;

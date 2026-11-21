@@ -55,6 +55,44 @@ function Person({ label, name, phone }: { label: string; name: string | null; ph
   );
 }
 
+type AdminMessage = { sender: "parent" | "sitter"; body: string; created_at: string };
+
+/** Their chat, read only when handling the incident (6.11); every read is logged. */
+function TheirChat({ incidentId }: { incidentId: string }) {
+  const [open, setOpen] = useState(false);
+  const chat = useQuery({
+    queryKey: ["admin", "incident-chat", incidentId],
+    queryFn: () => apiFetch<AdminMessage[]>(`/admin/incidents/${incidentId}/chat`),
+    enabled: open,
+  });
+  if (!open) {
+    return (
+      <div>
+        <Button variant="tertiary" fullWidthOnPhone={false} onClick={() => setOpen(true)}>
+          Read their chat
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-surface-sunken p-3">
+      <p className="text-small text-muted">Reading this is logged.</p>
+      {chat.isPending && <p className="text-muted">Loading…</p>}
+      {chat.isSuccess && chat.data.length === 0 && <p className="text-ink">They haven't messaged each other.</p>}
+      {chat.isSuccess && (
+        <ul className="flex flex-col gap-2">
+          {chat.data.map((message, index) => (
+            <li key={index} className="text-small text-ink">
+              <span className="font-semibold">{message.sender === "parent" ? "Parent" : "Sitter"}</span> ·{" "}
+              {when(message.created_at)}: {message.body}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function IncidentItem({ incident }: { incident: AdminIncident }) {
   const queryClient = useQueryClient();
   const [resolving, setResolving] = useState(false);
@@ -99,6 +137,7 @@ function IncidentItem({ incident }: { incident: AdminIncident }) {
         <Person label="Parent" name={incident.parent_name} phone={incident.parent_phone} />
         <Person label="Sitter" name={incident.sitter_name} phone={incident.sitter_phone} />
       </div>
+      <TheirChat incidentId={incident.id} />
       {resolving ? (
         <form noValidate onSubmit={resolve} className="flex flex-col gap-3">
           <Textarea

@@ -27,6 +27,7 @@ const REQUEST: SitterBookingItem = {
   ends_at: kolkataTime("2030-01-07", 11),
   hours: 2,
   family_name: "Meera",
+  parent_id: "p1",
   children: ["Asha"],
   bath_time: false,
   cameras_on: false,

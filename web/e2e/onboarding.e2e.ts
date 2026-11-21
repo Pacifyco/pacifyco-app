@@ -308,7 +308,7 @@ test("the parent finds the sitter, with her photo and her rate, never a plan nam
   // Her week as a grid: Monday morning free, Sunday not available.
   await expect(page.getByRole("rowheader", { name: "Mon" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Sun/ }).getByText("Not available")).toBeVisible();
-  await expect(page.getByText(/Start with a 1-hour booking while you're at home/)).toBeVisible();
+  await expect(page.getByText(/We recommend you're at home for your first 2 bookings/)).toBeVisible();
   await expect(page.getByText("₹499 an hour, for one child")).toBeVisible();
   await expect(page.locator("body")).not.toContainText(/Pause|Unwind|Recharge|₹200/);
 });
