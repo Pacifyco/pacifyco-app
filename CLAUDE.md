@@ -252,8 +252,9 @@ documents; the LLPIN, registered office and emergency line were taken out of the
 - **No interviews.** There is no sitter onboarding interview and no parent–sitter introduction (no
   Google Meet, no Google Calendar). A verified parent can book any live sitter of the plan's level
   straight away; there is no pair-unlock step.
-- Parents are **asked** to make their first booking with a new sitter a **1-hour booking with a parent
-  at home**, to see if the sitter suits them. This is a nudge on the booking screen, not enforced:
+- Parents are **asked** to be at home for their **first 2 bookings** with a new sitter (recommended), and
+  at the least to make the first a **1-hour booking with a parent at home** (Reuben, 2026-11-21, matching
+  the Parent consent document). This is a nudge on the booking screen and her profile, not enforced:
   longer first bookings are allowed.
 
 ### 6.4 Bookings
@@ -500,6 +501,13 @@ Emergency button instead.
 - Chat opens between a parent and sitter once they have a confirmed booking (no messaging before
   booking; decided 2026-11-08) and stays open while they have bookings. Admins can read chats when
   handling an incident (audit logged).
+  **How it works (built 2026-11-21, `api/app/services/chat.py`):** one conversation per parent and sitter,
+  readable once they've had a confirmed booking. New messages can be sent while they have a booking
+  confirmed, in progress or to come, and for **24 hours after their last booking ends** (Reuben,
+  2026-11-21); then it's read-only until they book again. A "Messages" tab for both, and "Message …" on
+  the booking pages; an open chat asks for new messages every 10 seconds. Messages are append-only (up to
+  2,000 characters). Admins read a pair's chat from the incident ("Read their chat"), logged as
+  `chat_read_by_admin`. No email per message.
 
 ### 6.12 Complaints and grievances
 
@@ -715,7 +723,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `overtime_charges` **(created)** (id, booking_id, minutes_over, hours_charged (rounded up), amount_paise, sitter_pay_paise, created_at) — built 2026-11-20, migration f1a3c5e7b9d2; computed at check-out (6.8), once per booking (a unique index on `booking_id`); its payment is a `payments` row (kind `overtime`)
 - `strikes` **(created)** (id, sitter_id, booking_id null (one strike per booking), reason: `late_cancellation|no_show|admin`, note, given_at, expires_at (6 months later), removed_by null, removed_at, removal_reason, doctor_note_document_id null) — kept, never deleted: the API's role can add rows and record a removal only
 - `incidents` **(created)** (id, booking_id, raised_by, kind: `emergency|theft|abuse|sitter_unsafe`, note, status: `open|acknowledged|resolved`, suspended_sitter, acknowledged_by/at, resolved_by/at, resolution_note, created_at)
-- `messages` (id, parent_id, sitter_id, sender_id, body, created_at)
+- `messages` **(created)** (id, parent_id, sitter_id, sender_id, body, created_at) — append-only
 - `reviews` (id, booking_id, author_id, subject_id, rating, body)
 - `sitter_earnings` (id, sitter_id, booking_id null, kind: `booking|overtime|show_up_fee`, amount_paise, status: `held|released|paid`, due_by, payout_id null)
 - `payouts` (id, sitter_id, amount_paise, method: `bank|upi`, transfer_reference, paid_by, paid_at)

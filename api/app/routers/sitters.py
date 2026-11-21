@@ -30,14 +30,19 @@ from app.models import (
     VerificationStatus,
 )
 from app.routers.parents import (
+    ChatOut,
+    ChatSummaryOut,
     ChecklistItem,
     EmergencyIn,
     IncidentOut,
     IssueIn,
     IssueOut,
+    MessageIn,
     OvertimeRequestOut,
     ReportOut,
     WeekHours,
+    chat_out,
+    chat_summaries,
     checklist_out,
     incident_out,
     overtime_out,
@@ -46,6 +51,7 @@ from app.routers.parents import (
 from app.services import availability as availability_service
 from app.services import booking_mail, cancellations, checklists, sitter_pay, verification
 from app.services import bookings as bookings_service
+from app.services import chat as chat_service
 from app.services import checkin as checkin_service
 from app.services import email as email_service
 from app.services import incidents as incidents_service
@@ -505,6 +511,7 @@ class SitterBookingItem(BaseModel):
     ends_at: datetime
     hours: int
     family_name: str  # the parent's first name
+    parent_id: uuid.UUID  # for the chat with them (6.11)
     children: list[str]
     bath_time: bool
     cameras_on: bool
@@ -532,6 +539,7 @@ def _item(db: Session, booking, children: list[str] | None = None) -> SitterBook
         ends_at=booking.ends_at,
         hours=booking.units,
         family_name=_first_name(db, booking.parent_id),
+        parent_id=booking.parent_id,
         children=children if children is not None else bookings_service.child_names(db, booking.id),
         bath_time=booking.bath_time,
         cameras_on=home.cameras_on if home else False,
@@ -933,3 +941,22 @@ def sitter_issue(
     complaint = incidents_service.raise_issue(db, sitter, booking_id, body.topic, body.note, datetime.now(UTC))
     booking_mail.tell_issue(db, mailer, settings, complaint, incidents_service.TOPIC_WORDS[body.topic])
     return IssueOut(id=complaint.id, topic=body.topic.value, status=complaint.status.value)
+
+
+# ---------- chat (CLAUDE.md 6.11) ----------
+
+
+@router.get("/chats")
+def get_chats(sitter: SitterProfile, db: DbSession) -> list[ChatSummaryOut]:
+    return chat_summaries(db, sitter)
+
+
+@router.get("/chats/{parent_id}")
+def get_chat(parent_id: uuid.UUID, sitter: SitterProfile, db: DbSession, after: datetime | None = None) -> ChatOut:
+    return chat_out(db, sitter, parent_id, after)
+
+
+@router.post("/chats/{parent_id}", status_code=201)
+def send_message(parent_id: uuid.UUID, body: MessageIn, sitter: SitterProfile, db: DbSession) -> ChatOut:
+    chat_service.send(db, sitter, parent_id, body.body, datetime.now(UTC))
+    return chat_out(db, sitter, parent_id, None)

@@ -665,6 +665,13 @@ export function SitterBookingPage() {
       )}
       {data.status === "in_progress" && data.overtime?.status === "pending" && <OvertimeAnswer booking={data} />}
       {data.status === "in_progress" && <CheckCodeForm booking={data} kind="check-out" />}
+      {["confirmed", "in_progress", "completed", "closed_by_admin"].includes(data.status) && (
+        <div>
+          <ButtonLink to={`/sitter/chats/${data.parent_id}`} variant="secondary" fullWidthOnPhone={false}>
+            Message {data.family_name}
+          </ButtonLink>
+        </div>
+      )}
       <BookingHelp
         role="sitter"
         bookingId={data.id}

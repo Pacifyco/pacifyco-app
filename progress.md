@@ -23,11 +23,10 @@ tests.
 
 ## Open questions (ask Reuben; don't guess)
 
-- [ ] **Does an admin's manual close (6.7) ever charge overtime?** (added 2026-11-20, Overtime at
-  check-out). Right now it doesn't: `close_by_admin` backfills `checked_out_at` for the record but never
-  runs `charge_for_checkout`, since a booking that reached that path means no one gave a reliable
-  check-out time to measure overage from. If this comes up in practice, decide whether the admin should
-  enter a check-out time by hand that then gets charged normally, or whether it should stay uncharged.
+- [x] **Does an admin's manual close (6.7) ever charge overtime?** (Reuben, 2026-11-21): no, not by
+  itself; manual closes are for outlier cases. But the admin gets an option when closing to charge the
+  parent overtime, which notifies the parent (to build: Phase 8 "Overtime charge option on an admin's
+  manual close", below).
 - [x] **Sitter 15-minute late rule vs. the sitter-no-show report** (added 2026-11-20; answered by Reuben
   2026-11-20: "trash the 15 min late thing and add the 30 min no-show report mechanism"). The 15-minute
   table row is dropped; the 30-minute no-show report (built 2026-11-19) is what's kept, and is now the
@@ -172,8 +171,9 @@ tests.
 - [ ] **Parent consent document vs the build rules** (added 2026-11-13). Built word for word from Reuben's
   "Parent consent" document on `/parent/consent`; these points differ from CLAUDE.md. Change the rules
   (and app), or the document?
-  1. "Be at home for the first **2** bookings with a new sitter": CLAUDE.md 6.3 suggests a **1-hour first
-     booking** at home, as a nudge only.
+  1. ~~"Be at home for the first **2** bookings with a new sitter" vs a 1-hour first booking~~ Answered
+     (Reuben, 2026-11-21): both, the first as recommended and the second as the least; CLAUDE.md 6.3 and
+     the booking page and sitter profile nudge updated.
   2. "If you're running late, your sitter can only stay on if they're available and you approve the
      overtime": CLAUDE.md 6.8 says the sitter can't leave the child, and overtime is worked out at
      check-out whether or not it was approved.
@@ -187,9 +187,8 @@ tests.
 - [ ] **UX review (staging) items that need Reuben** (added 2026-11-13, from "Pacifyco web app — UXUI
   review (staging)"). Everything else in the review is built (see "UX review fixes" below). These
   clash with a rule in CLAUDE.md or design.md, need something only Reuben has, or are a new feature:
-  1. **Booking as a request the sitter accepts within 30 minutes** (review #4, 07): CLAUDE.md 6.4 and
-     design.md 12 say bookings confirm automatically once paid. Which wins? Booking is phase 7, so
-     nothing is built either way yet.
+  1. ~~**Booking as a request the sitter accepts within 30 minutes** (review #4, 07)~~ Settled 2026-11-19:
+     bookings are requests the sitter accepts (5 hours to answer), then the parent pays (CLAUDE.md 6.4).
   2. **Weekly availability confirmation with a Sunday WhatsApp check-in** (#5): a new rule, and
      WhatsApp is out of scope for v1 (CLAUDE.md 10).
   3. [x] **Notifications** (#6, 02.4, 05, 06.13, 07.1): answered 2026-11-13, approval emails now
@@ -552,7 +551,13 @@ at home (CLAUDE.md 6.3).
   admin emailed; a banner on every admin page until acknowledged on `/admin/incidents`; a parent's theft or
   abuse report suspends the sitter, and resolving decides whether she comes back. `has_open_incident` is
   ready for payouts (phase 9) to hold her pay
-- [ ] Chat between a parent and sitter with a confirmed booking (polling)
+- [ ] Overtime charge option on an admin's manual close (Reuben, 2026-11-21): not charged by default;
+  the admin may choose to charge the parent overtime, which notifies them
+- [x] Chat between a parent and sitter with a confirmed booking (polling). Built 2026-11-21:
+  `services/chat.py`, `messages` (migration 0cebf522a6a7, append-only); `/parent/chats` and `/sitter/chats`
+  (list, read with `after`, send), a Messages tab, "Message …" on booking pages, 10-second polling. Open
+  while they have a booking now or to come and 24 hours after the last one (Reuben, 2026-11-21). Admins
+  read it from an incident (logged). No notification per message yet (emails phase)
 - [ ] Outing permission requests during a booking (Recharge only)
 - [ ] Tests for this phase
 
@@ -620,6 +625,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-21 — Chat; answered: manual close overtime option (to build), first-2-bookings nudge.
 - 2026-11-21 — Emergency button (incidents, admin alert, theft/abuse suspends) and Issues button (complaints).
 - 2026-11-20 — Overtime at check-out: worked out in `charge_for_checkout`, rounded up to the full hour,
   tier-switched past the plan's latest end, sitter paid her level pay, reuses the `cancellation_charge`
