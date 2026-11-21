@@ -72,7 +72,24 @@ describe("Overdue check-outs", () => {
       expect(posted).toEqual([
         {
           url: expect.stringMatching(/\/admin\/bookings\/b1\/close$/),
-          body: { reason: "Called both; she forgot to check out." },
+          body: { reason: "Called both; she forgot to check out.", overtime_hours: null },
+        },
+      ]),
+    );
+  });
+
+  test("the admin may choose to charge overtime", async () => {
+    const posted = renderWith([OVERDUE]);
+    fireEvent.click(await screen.findByRole("button", { name: "Close the booking" }));
+    expect((screen.getByLabelText(/Charge overtime\?/) as HTMLSelectElement).value).toBe("0"); // none by default
+    fireEvent.change(screen.getByLabelText(/Why are you closing it\?/), { target: { value: "Parent back 2 hours late" } });
+    fireEvent.change(screen.getByLabelText(/Charge overtime\?/), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Close the booking" }));
+    await vi.waitFor(() =>
+      expect(posted).toEqual([
+        {
+          url: expect.stringMatching(/\/admin\/bookings\/b1\/close$/),
+          body: { reason: "Parent back 2 hours late", overtime_hours: 2 },
         },
       ]),
     );

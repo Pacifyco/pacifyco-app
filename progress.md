@@ -551,8 +551,10 @@ at home (CLAUDE.md 6.3).
   admin emailed; a banner on every admin page until acknowledged on `/admin/incidents`; a parent's theft or
   abuse report suspends the sitter, and resolving decides whether she comes back. `has_open_incident` is
   ready for payouts (phase 9) to hold her pay
-- [ ] Overtime charge option on an admin's manual close (Reuben, 2026-11-21): not charged by default;
-  the admin may choose to charge the parent overtime, which notifies them
+- [x] Overtime charge option on an admin's manual close (Reuben, 2026-11-21): not charged by default;
+  the admin may choose to charge the parent overtime, which notifies them. Built 2026-11-21: "Charge
+  overtime?" (none, or 1 to 6 hours) on the close form; `overtime.charge_on_close` prices it as at
+  check-out (shared `_charge`), the parent is emailed to pay within 2 hours; audit `source: admin_close`
 - [x] Chat between a parent and sitter with a confirmed booking (polling). Built 2026-11-21:
   `services/chat.py`, `messages` (migration 0cebf522a6a7, append-only); `/parent/chats` and `/sitter/chats`
   (list, read with `after`, send), a Messages tab, "Message …" on booking pages, 10-second polling. Open
@@ -629,6 +631,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-21 — Overtime option on an admin's manual close.
 - 2026-11-21 — Outings: set by the parent when booking (Recharge only); Family Terms 3.6 updated.
 - 2026-11-21 — Chat; answered: manual close overtime option (to build), first-2-bookings nudge.
 - 2026-11-21 — Emergency button (incidents, admin alert, theft/abuse suspends) and Issues button (complaints).

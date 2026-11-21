@@ -188,9 +188,9 @@ def test_checking_out_on_time_charges_nothing(client, db_engine, mailbox, confir
 
 
 def test_admin_manual_close_doesnt_charge_overtime(db_engine, confirmed, admin):
-    """Scope boundary (CLAUDE.md 6.7/6.8): a manual admin close stands in for a missed check-out, but
-    doesn't run the overtime calculation -- there's no reliable "how late was she" once a call, not a
-    code, is what ended the booking. Known gap, see progress.md."""
+    """A manual admin close (6.7) charges no overtime by itself (Reuben, 2026-11-21): there's no reliable
+    "how late was she" once a call, not a code, ended the booking. The admin can choose to charge some
+    (below)."""
     from app.services import checkin as checkin_service
 
     move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=2), hours=1)
@@ -198,3 +198,53 @@ def test_admin_manual_close_doesnt_charge_overtime(db_engine, confirmed, admin):
     with Session(db_engine) as db:
         checkin_service.close_by_admin(db, admin, confirmed["id"], "No answer from either side.", datetime.now(UTC))
     assert scalar(db_engine, "SELECT count(*) FROM overtime_charges WHERE booking_id = :b", b=confirmed["id"]) == 0
+
+
+def _close(client, admin_id, booking_id, **body):
+    from tests.test_documents import as_user
+
+    return client.post(
+        f"/admin/bookings/{booking_id}/close", json={"reason": "Called both", **body}, headers=as_user(admin_id)
+    )
+
+
+def test_the_admin_may_charge_overtime_when_closing(client, reviewer, db_engine, mailbox, confirmed, finished_parent):
+    move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=3), hours=2)  # ended an hour ago
+    set_in_progress(db_engine, confirmed["id"])
+    response = _close(client, reviewer, confirmed["id"], overtime_hours=2)
+    assert response.status_code == 200, response.text
+    charge = row(
+        db_engine, "SELECT hours_charged, amount_paise FROM overtime_charges WHERE booking_id = :b", b=confirmed["id"]
+    )
+    assert charge["hours_charged"] == 2 and charge["amount_paise"] > 0
+    payment = row(
+        db_engine,
+        "SELECT amount_paise, status, due_by FROM payments WHERE booking_id = :b AND kind = 'overtime'",
+        b=confirmed["id"],
+    )
+    assert payment["amount_paise"] == charge["amount_paise"] and payment["status"] == "pending"
+    assert payment["due_by"] is not None
+    email = to(mailbox, finished_parent["email"])[-1]
+    assert "2 hours of overtime" in email.heading
+    audit = row(
+        db_engine,
+        "SELECT actor_id, after FROM audit_log WHERE action = 'overtime_charged' AND entity_id = :b",
+        b=confirmed["id"],
+    )
+    assert audit["actor_id"] == reviewer and audit["after"]["source"] == "admin_close"
+
+
+def test_closing_without_choosing_charges_nothing(client, reviewer, db_engine, mailbox, confirmed, finished_parent):
+    move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=3), hours=2)
+    set_in_progress(db_engine, confirmed["id"])
+    assert _close(client, reviewer, confirmed["id"]).status_code == 200
+    assert scalar(db_engine, "SELECT count(*) FROM overtime_charges WHERE booking_id = :b", b=confirmed["id"]) == 0
+    assert not any("overtime" in email.subject.lower() for email in to(mailbox, finished_parent["email"]))
+
+
+def test_overtime_hours_on_close_are_checked(client, reviewer, db_engine, confirmed):
+    move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=3), hours=2)
+    set_in_progress(db_engine, confirmed["id"])
+    assert _close(client, reviewer, confirmed["id"], overtime_hours=0).status_code == 422
+    assert _close(client, reviewer, confirmed["id"], overtime_hours=7).status_code == 422
+    assert scalar(db_engine, "SELECT status FROM bookings WHERE id = :b", b=confirmed["id"]) == "in_progress"

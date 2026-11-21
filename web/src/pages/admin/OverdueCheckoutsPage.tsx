@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { BackLink, Button, Card, EmptyState, Textarea, showToast } from "../../components/ui";
+import { BackLink, Button, Card, EmptyState, Select, Textarea, showToast } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { formatDay, formatMobile, formatTime } from "../../lib/format";
 import { errorMessage } from "./shared";
 
 // Overdue check-outs and locked codes (CLAUDE.md 6.7): a booking still checked in 30+ minutes past its
 // end, or one whose codes got locked, needs an admin to call both people and, if it stays stuck, close
-// it by hand with a reason.
+// it by hand with a reason. No overtime is charged by itself; the admin may choose whole hours to charge,
+// and the parent is then asked to pay (Reuben, 2026-11-21).
 
 export type NeedsAttentionItem = {
   booking_id: string;
@@ -45,15 +46,19 @@ function NeedsAttentionCard({ item }: { item: NeedsAttentionItem }) {
   const queryClient = useQueryClient();
   const [closing, setClosing] = useState(false);
   const [reason, setReason] = useState("");
+  const [overtimeHours, setOvertimeHours] = useState("0");
   const [error, setError] = useState<string | undefined>();
   const close = useMutation({
     mutationFn: () =>
       apiFetch<NeedsAttentionItem>(`/admin/bookings/${item.booking_id}/close`, {
         method: "POST",
-        body: JSON.stringify({ reason: reason.trim() }),
+        body: JSON.stringify({
+          reason: reason.trim(),
+          overtime_hours: overtimeHours === "0" ? null : Number(overtimeHours),
+        }),
       }),
     onSuccess: async () => {
-      showToast("Booking closed");
+      showToast(overtimeHours === "0" ? "Booking closed" : "Booking closed. The parent has been asked to pay the overtime.");
       await queryClient.invalidateQueries({ queryKey: NEEDS_ATTENTION_KEY });
     },
     onError: (failed) => setError(errorMessage(failed)),
@@ -94,6 +99,19 @@ function NeedsAttentionCard({ item }: { item: NeedsAttentionItem }) {
             error={error}
             onChange={(event) => setReason(event.target.value)}
           />
+          <Select
+            label="Charge overtime?"
+            hint="Not charged unless you choose. Priced as at check-out; the parent is emailed to pay within 2 hours."
+            value={overtimeHours}
+            onChange={(event) => setOvertimeHours(event.target.value)}
+          >
+            <option value="0">No overtime</option>
+            {[1, 2, 3, 4, 5, 6].map((hours) => (
+              <option key={hours} value={String(hours)}>
+                {hours === 1 ? "1 hour" : `${hours} hours`}
+              </option>
+            ))}
+          </Select>
           <div className="flex flex-wrap gap-3">
             <Button type="submit" variant="secondary" loading={close.isPending}>
               Close the booking
