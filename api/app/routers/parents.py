@@ -455,6 +455,7 @@ class BookableTime(BaseModel):
 class BookingOptions(BaseModel):
     price: Price
     bath_time_allowed: bool
+    outings_allowed: bool  # Recharge only (6.1)
     times: list[BookableTime]
     # No earlier booking with her: the booking page asks for a 1-hour first booking at home (6.3).
     first_booking: bool
@@ -472,6 +473,7 @@ def get_booking_options(sitter_id: uuid.UUID, parent: Parent, db: DbSession) -> 
     return BookingOptions(
         price=_price(plan),
         bath_time_allowed=bookings_service.BATH_TIME[plan],
+        outings_allowed=bookings_service.OUTINGS[plan],
         times=[BookableTime(starts_at=item.starts_at, ends_at=item.ends_at) for item in times],
         first_booking=bookings_service.first_booking_with(db, parent.id, sitter_id),
         owed_paise=bookings_service.amount_owed(db, parent.id),
@@ -486,6 +488,8 @@ class BookingIn(BaseModel):
     bath_time: bool = False
     cameras_on: bool  # required: the parent must say (6.4)
     camera_locations: str | None = Field(default=None, max_length=500)
+    # Recharge only: where the family will be out (Reuben, 2026-11-21); the address goes in the chat.
+    outing_where: str | None = Field(default=None, max_length=300)
 
 
 class PayByUpi(BaseModel):
@@ -603,6 +607,8 @@ class BookingOut(BaseModel):
     bath_time: bool
     cameras_on: bool
     camera_locations: str | None
+    outing_where: str | None  # an outing: where the family will be (Recharge only)
+    outings_allowed: bool  # the plan allows outings (Recharge)
     status: str
     pay_by: datetime  # unpaid bookings are cancelled at this time (6.1)
     # A request (6.4): whether the sitter can see it yet (every child verified), and when it lapses if she
@@ -646,6 +652,8 @@ def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
         bath_time=booking.bath_time,
         cameras_on=home.cameras_on if home else False,
         camera_locations=home.camera_locations if home else None,
+        outing_where=home.outing_where if home else None,
+        outings_allowed=bookings_service.OUTINGS[booking.plan],
         status=booking.status.value,
         pay_by=bookings_service.pay_by(booking),
         seen_by_sitter=booking.request_visible_at is not None,
@@ -836,6 +844,22 @@ def report_no_show(
     report = reports_service.sitter_no_show(db, parent.id, booking_id, datetime.now(UTC))
     booking_mail.tell_reported(db, mailer, settings, report)
     return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
+
+
+class OutingIn(BaseModel):
+    outing_where: str | None = Field(default=None, max_length=300)  # None or blank: no outing
+
+
+@router.put("/bookings/{booking_id}/outing")
+def set_outing(
+    booking_id: uuid.UUID, body: OutingIn, parent: Parent, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> BookingOut:
+    """Add, change or remove an outing (Recharge only) until the start. A sitter who has accepted is told."""
+    booking, tell = bookings_service.set_outing(db, parent.id, booking_id, body.outing_where, datetime.now(UTC))
+    if tell:
+        home = bookings_service.home_info(db, booking.id)
+        booking_mail.tell_outing_changed(db, mailer, settings, booking.id, home.outing_where if home else None)
+    return _booking_out(db, booking, settings)
 
 
 @router.post("/bookings/{booking_id}/cancel")

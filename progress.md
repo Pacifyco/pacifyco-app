@@ -177,8 +177,8 @@ tests.
   2. "If you're running late, your sitter can only stay on if they're available and you approve the
      overtime": CLAUDE.md 6.8 says the sitter can't leave the child, and overtime is worked out at
      check-out whether or not it was approved.
-  3. "Outings and travel: let them know beforehand": CLAUDE.md 6.4 has outings on Recharge only, asked by
-     the sitter and approved by the parent in the app during the booking; travel isn't in the plan.
+  3. ~~"Outings and travel: let them know beforehand"~~ Answered (Reuben, 2026-11-21): outings are set up
+     by the parent beforehand, when booking (Recharge only); CLAUDE.md 6.4 and Family Terms 3.6 updated.
   4. "Potty training and diaper changes ... agree on before the booking": chat opens only once a booking
      is confirmed (6.11), so that's in chat after booking, or in person.
   Also: are the screening questions (Screening_Questions.docx) from a licensed psychologist? Until
@@ -560,7 +560,11 @@ at home (CLAUDE.md 6.3).
   (list, read with `after`, send), a Messages tab, "Message …" on booking pages, 10-second polling. Open
   while they have a booking now or to come and 24 hours after the last one (Reuben, 2026-11-21). Admins
   read it from an incident (logged). No notification per message yet (emails phase)
-- [ ] Outing permission requests during a booking (Recharge only)
+- [x] Outings (Recharge only), changed by Reuben 2026-11-21: set up by the parent when booking, not asked
+  by the sitter during it. "We'll be out (an outing)" and where on the booking form; the sitter sees it on
+  the request and meets them there; the exact address goes in the chat; changeable until the start
+  (`PUT /parent/bookings/{id}/outing`, an accepted sitter is emailed). `booking_home_info.outing_where`
+  (migration fade452dbb43). Family Terms 3.6 changed in place with Reuben's wording
 - [ ] Tests for this phase
 
 ## Phase 9 — After the booking
@@ -628,6 +632,7 @@ at home (CLAUDE.md 6.3).
 
 ## Session log (one line per session, newest first)
 - 2026-11-21 — Overtime option on an admin's manual close.
+- 2026-11-21 — Outings: set by the parent when booking (Recharge only); Family Terms 3.6 updated.
 - 2026-11-21 — Chat; answered: manual close overtime option (to build), first-2-bookings nudge.
 - 2026-11-21 — Emergency button (incidents, admin alert, theft/abuse suspends) and Issues button (complaints).
 - 2026-11-20 — Overtime at check-out: worked out in `charge_for_checkout`, rounded up to the full hour,

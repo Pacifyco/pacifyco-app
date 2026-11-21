@@ -34,6 +34,7 @@ const BOOKING: SitterBookingDetail = {
   bath_time: true,
   cameras_on: true,
   camera_locations: "Living room",
+  outing_where: null,
   pay_paise: 60000,
   status: "confirmed",
   answer_by: null,

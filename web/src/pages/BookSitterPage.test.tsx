@@ -61,6 +61,8 @@ const BOOKING: Booking = {
   bath_time: true,
   cameras_on: false,
   camera_locations: null,
+  outing_where: null,
+  outings_allowed: false,
   status: "pending_payment",
   pay_by: kolkataTime("2030-01-07", 6),
   seen_by_sitter: true,
@@ -177,6 +179,7 @@ describe("Book this sitter", () => {
       bath_time: true,
       cameras_on: true,
       camera_locations: "Living room",
+      outing_where: null,
     });
     expect(screen.getByText("Request sent")).toBeTruthy();
     expect(screen.getByText("Lakshmi is looking after Asha and Rohan at home, with bath time.")).toBeTruthy();
@@ -662,5 +665,60 @@ describe("during the booking (6.5)", () => {
     renderAt("/parent/bookings/b1");
     expect(await screen.findByText("Lakshmi couldn't stay longer last time. You can ask again.")).toBeTruthy();
     expect(await screen.findByRole("button", { name: "Request overtime" })).toBeTruthy();
+  });
+});
+
+describe("outings (Recharge only; Reuben, 2026-11-21)", () => {
+  const RECHARGE = { per_hour_paise: 89900, extra_child_paise: 0, one_child_only: false };
+
+  function withOutings(extra: Record<string, (body: unknown) => Response> = {}) {
+    return api(RECHARGE, TIMES, {
+      "GET /parent/sitters/s1/booking-options": () =>
+        jsonResponse({
+          price: RECHARGE,
+          bath_time_allowed: true,
+          outings_allowed: true,
+          times: TIMES,
+          first_booking: false,
+          owed_paise: 0,
+        }),
+      ...extra,
+    });
+  }
+
+  test("the parent says where they'll be when booking", async () => {
+    const calls = withOutings();
+    renderAt("/parent/sitters/s1/book");
+    fireEvent.click(await screen.findByLabelText("We'll be out (an outing)"));
+    fireEvent.click(screen.getByLabelText("No"));
+    fireEvent.click(screen.getByRole("button", { name: /Send the request/ }));
+    expect(await screen.findByText("Please tell us where you'll be.")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(/Where will you be\?/), { target: { value: " Cubbon Park " } });
+    fireEvent.click(screen.getByRole("button", { name: /Send the request/ }));
+    await screen.findByRole("heading", { name: "Your booking with Lakshmi" });
+    const sent = calls.find((call) => call.method === "POST")?.body as { outing_where: string };
+    expect(sent.outing_where).toBe("Cubbon Park");
+  });
+
+  test("no outing option on other plans", async () => {
+    api();
+    renderAt("/parent/sitters/s1/book");
+    await screen.findByLabelText("How long");
+    expect(screen.queryByLabelText("We'll be out (an outing)")).toBeNull();
+  });
+
+  test("the booking shows the outing, and it can be changed until the start", async () => {
+    const booking = { ...BOOKING, outing_where: "Cubbon Park", outings_allowed: true };
+    const calls = withOutings({
+      "GET /parent/bookings/b1": () => jsonResponse(booking),
+      "PUT /parent/bookings/b1/outing": () => jsonResponse({ ...booking, outing_where: "Lalbagh" }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText(/Outing: Cubbon Park\. Lakshmi meets you there; share the exact address in the chat\./)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Change the outing" }));
+    fireEvent.change(screen.getByLabelText(/Where will you be\?/), { target: { value: "Lalbagh" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save the outing" }));
+    expect(await screen.findByText(/Outing: Lalbagh\./)).toBeTruthy();
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ outing_where: "Lalbagh" });
   });
 });

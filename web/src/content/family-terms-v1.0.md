@@ -58,7 +58,7 @@ The summary below is part of these Terms. If anything in it differs from the ful
 
 3.5 **Instructions.** You may give reasonable instructions about your child's care. You must not ask the sitter to do anything unlawful, unsafe, humiliating or outside the booking. The sitter may refuse any such instruction.
 
-3.6 **Outings and bath time.** Outings are available only on the Recharge plan, and the sitter may take your child out of the home only if you have given permission in the app during that booking. Bath time is available on the Unwind and Recharge plans if you ask for it when booking.
+3.6 **Outings and bath time.** Outings are available only on the Recharge plan. If you'll be out with your child, tell us when you book, with where you'll be; your sitter meets you there and you share the exact address in the chat. The sitter may take your child out of the home only for an outing you have set up in the app. Bath time is available on the Unwind and Recharge plans if you ask for it when booking.
 
 3.7 **Medicine.** A sitter will give medicine only if you have written the instruction (name, dose and time) in your child's medical notes in the app, and only oral medicine in its original labelled pack. Sitters do not give injections or other medical treatment.
 

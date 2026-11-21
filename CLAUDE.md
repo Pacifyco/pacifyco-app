@@ -186,7 +186,7 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   | --- | --- | --- | --- | --- | --- |
   | Pause | ₹499 | one child only | 6 pm | no | no |
   | Unwind | ₹699 for the first child, +₹150 per extra child (2 children = ₹849) | any number | 10:30 pm | can be ticked | no |
-  | Recharge | ₹899 for any number of children | any number | 12 am (midnight) | can be ticked | yes, with the parent's approval |
+  | Recharge | ₹899 for any number of children | any number | 12 am (midnight) | can be ticked | yes, set up by the parent when booking |
 
 - **Children on a booking (decided 2026-11-09):** a booking starts as one child, whatever the number
   of verified children on the account; the parent adds each extra child who'll be there. Pause takes
@@ -268,12 +268,15 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   answer, the area's pin code and her pay, never the price. The home address and the family's emergency
   contact show only once it's confirmed (paid), while it's ahead or under way; not on a request, and not
   for past or cancelled bookings.
-- Taking the child out of the home needs the parent's permission in the app: the sitter requests it
-  during the booking and the parent approves or declines (logged).
+- **Outings (Reuben, 2026-11-21; replaces the sitter asking during the booking):** Recharge only, and set
+  up by the **parent** beforehand: when booking they tick "We'll be out (an outing)" and say where
+  (`booking_home_info.outing_where`). The sitter sees it on the request before she accepts, and meets the
+  family there instead of at home; the exact address is shared in the chat. The parent can add, change or
+  remove it until the start (audit logged); a sitter who has accepted is emailed. The sitter may take the
+  child out only for an outing the parent set up (Family Terms 3.6, changed in place 2026-11-21).
 - Scheduled in advance only, with a plan (6.1). Pause takes one child only. The booking must end by the
   plan's latest end time, overtime included.
-- Bath time is ticked when booking (Unwind and Recharge only). Outings are allowed only on Recharge,
-  still approved by the parent during the booking (above).
+- Bath time is ticked when booking (Unwind and Recharge only). Outings only on Recharge (above).
 - **Sitter availability (decided 2026-11-09):** a sitter sets her usual week once (whole-hour times per
   weekday, India time) and it repeats every week until she changes it. (Single **days off** were taken out of
   her availability page on 2026-11-13; the API still has them.)
@@ -656,7 +659,7 @@ not its name).
   Changed in place on 2026-11-13: founders@pacifyco.in in all three documents, and in the Family Terms
   (6.2 and the Section 5 table) that a sitter may decline when the only adult at home is a man, with the
   full booking charged (6.5). Changed in place on 2026-11-19: Family Terms 4.3 (Paying) for booking
-  requests (6.4).
+  requests (6.4). Changed in place on 2026-11-21: Family Terms 3.6 (Outings) for parent-set outings (6.4).
 - The Privacy policy is a generic policy (Reuben, 2026-11-13), written from what the app actually collects and
   who it's shared with. It still needs the lawyer's review before production launch (phase 15).
 - Changes to the sitter terms that affect pay or rights must be announced in the app at least **14 days**
@@ -719,7 +722,6 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `bookings` **(created)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `requested|request_declined|request_lapsed|pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show|cancelled_unpaid|cancelled_slot_taken|awaiting_verification|cancelled_unverified|declined_man_at_home|child_under_age|sitter_left_unsafe|closed_by_admin`, request_visible_at (when the sitter could first see the request: every child verified), check_in_code_encrypted, check_out_code_encrypted (bytea, `FIELD_ENCRYPTION_KEY` — encrypted, not hashed, so the same code can be shown to the parent again; built 2026-11-20, migration c9e2a4f6b8d1), code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason (an admin's manual close, 6.7; built 2026-11-20, migration d3f5b7a9c1e4) — the parent's app gets a code from an endpoint that only the booking's parent can call
 - `booking_children` **(created)** (booking_id, child_id)
 - `booking_home_info` **(created)** (booking_id, cameras_on, camera_locations)
-- `outing_requests` (id, booking_id, description, status: `pending|approved|declined`, decided_at)
 - `complaints` **(created)** (id, raised_by, booking_id null, topic (Issues button: `running_late|other`), type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed`, late, first_reply_at, resolved_at, assigned_to, decided_by)
 - `overtime_requests` **(created)** (id, booking_id, requested_hours, status: `pending|accepted|declined`, requested_at, decided_at) — built 2026-11-20, migration e6c8b2d4f7a1; one open (`pending`) request per booking at a time; nothing charged here, see `overtime_charges` below
 - `overtime_charges` **(created)** (id, booking_id, minutes_over, hours_charged (rounded up), amount_paise, sitter_pay_paise, created_at) — built 2026-11-20, migration f1a3c5e7b9d2; computed at check-out (6.8), once per booking (a unique index on `booking_id`); its payment is a `payments` row (kind `overtime`)
@@ -761,7 +763,7 @@ in the beta phase.
 | Sitter pay | Level pay × hours worked, whatever the number of children; hours worked = check-in to booked end; late check-in paid from check-in; overtime hours rounded up like the parent's |
 | Payouts | Earnings released only after checkout + overtime worked out + no open incident; due within 12 hours; alerts at 3 hours left and when overdue; show-up fee ₹100 per booked hour; bank or UPI; mark-paid records reference |
 | Reviews | Only after a completed booking, once per author per booking; average updates; flag when last-10 average < 3.5 |
-| Child age and home info | Child under 18 months can't be booked; camera declaration required; outing needs parent approval |
+| Child age and home info | Child under 18 months can't be booked; camera declaration required; outings only on Recharge, set by the parent, changeable until the start |
 | New cancellation rows | sitter no-show reportable from 30 minutes after the start; 20-minute parent-not-home wait; under-18-months: parent charged 1 hour, rest refunded, sitter paid for that hour, no strike; unsafe early exit paid for time worked with no strike after admin confirms; doctor's note strike removal |
 | Complaints | SLA timers; escalation; original decider can't handle the appeal; late complaints flagged |
 | Sitter terms | Wording matches `sitter-terms-v1.1.md`; placeholders filled from config; production refuses to serve it with an empty placeholder |
