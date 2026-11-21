@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { kolkataTime } from "../lib/times";
+import { laterTodayInIndia } from "../test/time";
 import { jsonResponse } from "../test/renderApp";
 import { SitterBookingPage, ageText, sitterCancelOutcome, type SitterBookingDetail } from "./SitterBookingPage";
 
@@ -297,7 +298,13 @@ describe("No one's home (6.5)", () => {
 
 describe("Check-in and check-out (6.7)", () => {
   const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
-  const TODAY: SitterBookingDetail = { ...BOOKING, starts_at: minutesFromNow(60), ends_at: minutesFromNow(180) };
+  // Later today in India, even when the tests run just before midnight there.
+  const start = laterTodayInIndia(60);
+  const TODAY: SitterBookingDetail = {
+    ...BOOKING,
+    starts_at: start.toISOString(),
+    ends_at: new Date(start.getTime() + 120 * 60_000).toISOString(),
+  };
 
   function renderWithBooking(first: SitterBookingDetail, after?: SitterBookingDetail) {
     let current = first;

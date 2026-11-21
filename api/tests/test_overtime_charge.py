@@ -248,3 +248,15 @@ def test_overtime_hours_on_close_are_checked(client, reviewer, db_engine, confir
     assert _close(client, reviewer, confirmed["id"], overtime_hours=0).status_code == 422
     assert _close(client, reviewer, confirmed["id"], overtime_hours=7).status_code == 422
     assert scalar(db_engine, "SELECT status FROM bookings WHERE id = :b", b=confirmed["id"]) == "in_progress"
+
+
+def test_unpaid_overtime_blocks_new_bookings(client, db_engine, confirmed, finished_parent, free_sitter):
+    """6.8: until it's paid, it's an outstanding amount and the parent can't make new bookings."""
+    from tests.test_charges import can_book
+
+    move(db_engine, confirmed["id"], datetime.now(UTC) - timedelta(hours=1, minutes=20), hours=1)
+    set_in_progress(db_engine, confirmed["id"])
+    sitter = signed_in(db_engine, confirmed["sitter_id"])
+    out_code_value = out_code(client, finished_parent, confirmed["id"]).json()["code"]
+    assert do_check_out(client, sitter, confirmed["id"], code=out_code_value).status_code == 200
+    assert can_book(client, db_engine, finished_parent, free_sitter) == 409
