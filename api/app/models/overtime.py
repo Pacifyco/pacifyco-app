@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, SmallInteger, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, SmallInteger, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -42,3 +42,27 @@ class OvertimeRequest(Base):
     )
     requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OvertimeCharge(Base):
+    """Worked out at check-out (6.8): whether or not a request was ever made, extra time past the
+    booked end is rounded up to the full hour and charged. Its payment is a separate `payments` row
+    (kind=overtime); this row is the record of how the amount was worked out."""
+
+    __tablename__ = "overtime_charges"
+    __table_args__ = (
+        CheckConstraint("minutes_over >= 0", name="minutes_over_not_negative"),
+        CheckConstraint("hours_charged >= 1", name="hours_charged_positive"),
+        CheckConstraint("amount_paise >= 0", name="amount_paise_not_negative"),
+        CheckConstraint("sitter_pay_paise >= 0", name="sitter_pay_paise_not_negative"),
+        # Overtime is worked out once, at check-out.
+        Index("uq_overtime_charges_booking_id", "booking_id", unique=True),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    booking_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bookings.id", ondelete="RESTRICT"))
+    minutes_over: Mapped[int] = mapped_column(Integer)
+    hours_charged: Mapped[int] = mapped_column(SmallInteger)
+    amount_paise: Mapped[int] = mapped_column(Integer)
+    sitter_pay_paise: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))

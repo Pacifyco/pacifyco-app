@@ -856,12 +856,22 @@ def post_check_out(
     """Handing the child back to a parent: their check-out code and, if she allows it, her location (6.7)."""
     booking = bookings_service.sitters_booking(db, sitter.id, booking_id)
     try:
-        checkin_service.check_out(
+        checked = checkin_service.check_out(
             db, sitter.id, booking_id, body.code, body.lat, body.lng, settings.field_encryption_key, datetime.now(UTC)
         )
     except AppError as exc:
         _alert_if_locked(exc, mailer, settings, "check-out", booking.starts_at)
         raise
+    if checked.overtime is not None:
+        booking_mail.tell_parent_overtime_charged(
+            db,
+            mailer,
+            settings,
+            booking_id,
+            amount_paise=checked.overtime.charge.amount_paise,
+            hours=checked.overtime.charge.hours_charged,
+            payment_id=checked.overtime.payment.id,
+        )
     return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
 
 

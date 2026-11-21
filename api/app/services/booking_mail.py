@@ -127,6 +127,25 @@ def tell_parent_overtime_decided(
     )
 
 
+def tell_parent_overtime_charged(
+    db: Session,
+    mailer: EmailClient,
+    settings: Settings,
+    booking_id: uuid.UUID,
+    *,
+    amount_paise: int,
+    hours: int,
+    payment_id,
+) -> None:
+    """Overtime was worked out at check-out (6.8): payable within 2 hours."""
+    booking, parent, sitter = _people(db, booking_id)
+    mailer.send(
+        email_service.overtime_charged(
+            parent.email, parent.full_name, amount_paise, hours, payment_id, web_url(settings)
+        )
+    )
+
+
 def tell_reported(db: Session, mailer: EmailClient, settings: Settings, report) -> None:
     """A report was made: the admins (to phone both), and the other side."""
     booking, parent, sitter = _people(db, report.booking_id)

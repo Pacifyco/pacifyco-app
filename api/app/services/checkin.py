@@ -29,7 +29,9 @@ from sqlalchemy.orm import Session
 from app.errors import AppError
 from app.models import AuditLog, Booking, BookingStatus
 from app.services import audit, encryption
+from app.services import overtime as overtime_service
 from app.services.availability import INDIA, today_in_india
+from app.services.overtime import Charged
 
 MAX_ATTEMPTS = 5  # 6.7: lock after 5 wrong attempts
 OVERDUE_AFTER = timedelta(minutes=30)  # 6.7: an alert once a booking is this late to check out
@@ -78,6 +80,7 @@ def check_out_code(db: Session, parent_id: uuid.UUID, booking_id: uuid.UUID, key
 @dataclass(frozen=True)
 class Checked:
     booking: Booking
+    overtime: Charged | None = None
 
 
 def _check_code(
@@ -155,8 +158,9 @@ def check_out(
     booking.check_out_lng = lng
     booking.status = BookingStatus.completed
     audit.record(db, sitter_id, "checked_out", "booking", str(booking.id), after={"status": "completed"})
+    charged = overtime_service.charge_for_checkout(db, booking, now)
     db.commit()
-    return Checked(booking)
+    return Checked(booking, charged)
 
 
 def is_overdue(booking: Booking, now: datetime) -> bool:
