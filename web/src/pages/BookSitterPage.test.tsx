@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { kolkataTime } from "../lib/times";
 import { jsonResponse } from "../test/renderApp";
+import { laterTodayInIndia } from "../test/time";
 import { BookSitterPage, BookingPage, parentCancelOutcome, windowsFrom, type Booking } from "./BookSitterPage";
 
 // "Book this sitter" (CLAUDE.md 6.1 and 6.4): her free times, children, bath time, cameras and a live
@@ -583,7 +584,9 @@ describe("during the booking (6.5)", () => {
 
   test("confirmed, on the day: shows the check-in code", async () => {
     api(UNWIND, TIMES, {
-      "GET /parent/bookings/b1": () => jsonResponse(STARTED(-60)), // starts in an hour, today
+      // Starts later today in India, even when the tests run just before midnight there.
+      "GET /parent/bookings/b1": () =>
+        jsonResponse(STARTED(Math.round((Date.now() - laterTodayInIndia(60).getTime()) / 60_000))),
       "GET /parent/bookings/b1/check-in-code": () => jsonResponse({ code: "4821" }),
     });
     renderAt("/parent/bookings/b1");
