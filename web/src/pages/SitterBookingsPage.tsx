@@ -23,6 +23,7 @@ export type SitterBookingItem = {
   bath_time: boolean;
   cameras_on: boolean;
   camera_locations: string | null;
+  outing_where: string | null; // meet the family there; the exact address comes in the chat
   pay_paise: number;
   status: string;
   answer_by: string | null; // a request: when it lapses unanswered
@@ -76,6 +77,13 @@ export function sitterStatusText(status: string): string {
   }
 }
 
+/** An outing (Recharge only): she meets the family where they'll be, not at home. */
+export function outingText(item: SitterBookingItem): string | null {
+  return item.outing_where
+    ? `Outing: the family will be out (${item.outing_where}). Meet them there; they'll send the exact address in the chat.`
+    : null;
+}
+
 function camerasText(item: SitterBookingItem): string {
   if (!item.cameras_on) return "No cameras on at home.";
   return item.camera_locations ? `Cameras on: ${item.camera_locations}` : "Cameras are on at home.";
@@ -92,6 +100,7 @@ function BookingRow({ item }: { item: SitterBookingItem }) {
             {item.bath_time ? " Bath time included." : ""}
           </span>
           <span className="text-small text-muted">{camerasText(item)}</span>
+      {outingText(item) && <span className="text-small text-ink">{outingText(item)}</span>}
           <span className="text-small text-muted">
             {sitterStatusText(item.status)} · {rupees(item.pay_paise)} for{" "}
             {item.hours === 1 ? "1 hour" : `${item.hours} hours`}

@@ -35,6 +35,7 @@ type BookableTime = { starts_at: string; ends_at: string };
 type BookingOptions = {
   price: Price;
   bath_time_allowed: boolean;
+  outings_allowed: boolean; // Recharge only
   times: BookableTime[];
   first_booking: boolean;
   /** Unpaid charges: no new booking until they're paid (6.4). */
@@ -55,6 +56,8 @@ export type Booking = {
   bath_time: boolean;
   cameras_on: boolean;
   camera_locations: string | null;
+  outing_where: string | null; // an outing: where the family will be (Recharge only)
+  outings_allowed: boolean;
   status: string;
   pay_by: string;
   // A request (6.4): whether the sitter can see it yet, and when it lapses unanswered.
@@ -106,7 +109,7 @@ function monthsOldOn(dateOfBirth: string, day: string): number {
 
 const MIN_AGE_MONTHS = 18; // 6.4
 
-type Errors = Partial<Record<"time" | "children" | "cameras" | "camera_locations", string>>;
+type Errors = Partial<Record<"time" | "children" | "cameras" | "camera_locations" | "outing", string>>;
 
 function BookingForm({
   sitterId,
@@ -133,6 +136,8 @@ function BookingForm({
     return first ? [first.id] : [];
   });
   const [bathTime, setBathTime] = useState(false);
+  const [outing, setOuting] = useState(false);
+  const [outingWhere, setOutingWhere] = useState("");
   const [cameras, setCameras] = useState<"" | "yes" | "no">("");
   const [cameraLocations, setCameraLocations] = useState("");
   const [errors, setErrors] = useState<Errors>({});
@@ -179,6 +184,7 @@ function BookingForm({
     if (!chosenChildren.length) found.children = `Please choose who ${firstName} will be looking after.`;
     if (!cameras) found.cameras = "Please tell us whether cameras are on at home.";
     if (cameras === "yes" && !cameraLocations.trim()) found.camera_locations = "Please tell us where the cameras are.";
+    if (outing && !outingWhere.trim()) found.outing = "Please tell us where you'll be.";
     setErrors(found);
     setFormError(undefined);
     if (Object.keys(found).length || startsAt === null) return;
@@ -190,6 +196,7 @@ function BookingForm({
       bath_time: options.bath_time_allowed && bathTime,
       cameras_on: cameras === "yes",
       camera_locations: cameras === "yes" ? cameraLocations.trim() : null,
+      outing_where: options.outings_allowed && outing ? outingWhere.trim() : null,
     });
   }
 
@@ -292,6 +299,25 @@ function BookingForm({
             checked={bathTime}
             onChange={(event) => setBathTime(event.target.checked)}
           />
+        )}
+        {options.outings_allowed && (
+          <div className="flex flex-col gap-3">
+            <Checkbox
+              label="We'll be out (an outing)"
+              checked={outing}
+              onChange={(event) => setOuting(event.target.checked)}
+            />
+            {outing && (
+              <TextInput
+                label="Where will you be?"
+                hint={`${firstName} meets you there. You'll share the exact address in the chat once it's confirmed.`}
+                maxLength={300}
+                value={outingWhere}
+                error={errors.outing}
+                onChange={(event) => setOutingWhere(event.target.value)}
+              />
+            )}
+          </div>
         )}
       </Card>
 
@@ -497,7 +523,15 @@ export function BookingPage() {
         <p className="text-small text-muted">
           {plural(data.hours, "hour", "hours")} · {rupees(data.price_paise)}
         </p>
+        {data.outing_where && (
+          <p className="text-ink">
+            Outing: {data.outing_where}. {firstName} meets you there; share the exact address in the chat.
+          </p>
+        )}
       </Card>
+      {OUTING_CHANGEABLE.includes(data.status) && new Date(data.starts_at) > new Date() && data.outings_allowed && (
+        <ChangeOuting booking={data} />
+      )}
       {data.status === "requested" && <RequestCard booking={data} firstName={firstName} />}
       {waiting && <PaymentCard booking={data} />}
       {data.status === "awaiting_verification" && (
@@ -766,6 +800,60 @@ function NoShow({ booking, firstName }: { booking: Booking; firstName: string })
         </Button>
         <Button variant="tertiary" onClick={() => setAsking(false)}>
           Not now
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+const OUTING_CHANGEABLE = ["requested", "pending_payment", "confirmed"];
+
+/** Add, change or remove an outing until the start (Recharge only; Reuben, 2026-11-21). */
+function ChangeOuting({ booking }: { booking: Booking }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [where, setWhere] = useState(booking.outing_where ?? "");
+  const save = useMutation({
+    mutationFn: (outing_where: string | null) =>
+      apiFetch<Booking>(`/parent/bookings/${booking.id}/outing`, {
+        method: "PUT",
+        body: JSON.stringify({ outing_where }),
+      }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["booking", booking.id], updated);
+      setOpen(false);
+      showToast(updated.outing_where ? "Outing saved" : "Outing removed");
+    },
+  });
+  if (!open) {
+    return (
+      <div>
+        <Button variant="tertiary" fullWidthOnPhone={false} onClick={() => setOpen(true)}>
+          {booking.outing_where ? "Change the outing" : "Add an outing"}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Card as="section" padding="roomy" className="flex flex-col gap-3">
+      <TextInput
+        label="Where will you be?"
+        hint="Your sitter meets you there. Share the exact address in the chat."
+        maxLength={300}
+        value={where}
+        onChange={(event) => setWhere(event.target.value)}
+      />
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" loading={save.isPending} disabled={!where.trim()} onClick={() => save.mutate(where.trim())}>
+          Save the outing
+        </Button>
+        {booking.outing_where && (
+          <Button variant="tertiary" onClick={() => save.mutate(null)}>
+            Remove it
+          </Button>
+        )}
+        <Button variant="tertiary" onClick={() => setOpen(false)}>
+          Cancel
         </Button>
       </div>
     </Card>

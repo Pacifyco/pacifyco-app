@@ -73,6 +73,7 @@ def test_only_bookings_she_accepted_show(client, db_engine, booking, finished_pa
         "bath_time": False,
         "cameras_on": booking["cameras_on"],
         "camera_locations": booking["camera_locations"],
+        "outing_where": None,
         "pay_paise": 2 * 30_000,  # Unwind level pay, ₹300 an hour (6.2)
         "status": "confirmed",
         "answer_by": None,

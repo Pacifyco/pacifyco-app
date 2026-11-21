@@ -5,7 +5,7 @@ import { Card, EmptyState } from "../components/ui";
 import { apiFetch } from "../lib/api";
 import { formatBookingTime, formatDay, formatTime } from "../lib/format";
 import { rupees } from "../lib/prices";
-import { sitterBookingLine, type SitterBookingItem } from "./SitterBookingsPage";
+import { outingText, sitterBookingLine, type SitterBookingItem } from "./SitterBookingsPage";
 
 // The sitter's requests (CLAUDE.md 6.4; Reuben, 2026-11-19): families ask, she accepts or declines before
 // they pay. She sees a request once every child on it is verified, and has 5 hours to answer (less if
@@ -50,6 +50,7 @@ export function SitterRequestsPage() {
                         {formatBookingTime(new Date(item.starts_at), new Date(item.ends_at))}
                       </span>
                       <span className="text-small text-ink">{sitterBookingLine(item)}</span>
+                      {outingText(item) && <span className="text-small text-ink">{outingText(item)}</span>}
                       <span className="text-small text-muted">
                         {rupees(item.pay_paise)} for {item.hours === 1 ? "1 hour" : `${item.hours} hours`}
                       </span>

@@ -676,6 +676,31 @@ def sitter_reinstated(to: str, full_name: str | None, web_url: str) -> Email:
     )
 
 
+def outing_changed(
+    to: str,
+    full_name: str | None,
+    family_name: str,
+    where: str | None,
+    starts_at: datetime,
+    booking_id: object,
+    web_url: str,
+) -> Email:
+    """To the sitter: the family added, changed or removed an outing on a booking she accepted."""
+    what = (
+        f"they'll be out: {where}. Meet them there; they'll send the exact address in the chat."
+        if where
+        else "they've removed the outing, so the booking is at their home."
+    )
+    return Email(
+        to=to,
+        subject="A booking's outing has changed",
+        heading="The family has changed the outing.",
+        body=f"Hi {_first_name(full_name)}, for {family_name}'s booking on {_when(starts_at)}, {what}",
+        button_label="See the booking",
+        button_url=f"{web_url.rstrip('/')}/sitter/bookings/{booking_id}",
+    )
+
+
 def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_url: str) -> Email:
     """To an admin: payments to check before their bookings start. No names or amounts, only the count
     and the earliest start."""

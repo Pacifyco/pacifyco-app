@@ -32,6 +32,7 @@ const REQUEST: SitterBookingItem = {
   bath_time: false,
   cameras_on: false,
   camera_locations: null,
+  outing_where: null,
   pay_paise: 60000,
   status: "requested",
   answer_by: kolkataTime("2030-01-06", 14),

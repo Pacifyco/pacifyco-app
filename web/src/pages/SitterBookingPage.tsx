@@ -6,7 +6,7 @@ import { ApiError, apiFetch } from "../lib/api";
 import { formatBookingTime, formatMobile } from "../lib/format";
 import { rupees } from "../lib/prices";
 import { todayInKolkata } from "../lib/times";
-import { sitterBookingLine, sitterStatusText, type SitterBookingItem } from "./SitterBookingsPage";
+import { outingText, sitterBookingLine, sitterStatusText, type SitterBookingItem } from "./SitterBookingsPage";
 import { BookingHelp, type BookingIncident } from "../components/BookingHelp";
 import { answerByText } from "./SitterRequestsPage";
 import { MAN_HOME_FEE_PAISE, SHOW_UP_FEE_PER_HOUR_PAISE, minutesLeft, underWay, type BookingReport } from "../lib/reports";
@@ -601,6 +601,7 @@ export function SitterBookingPage() {
         <p className="text-small text-muted">
           {rupees(data.pay_paise)} for {data.hours === 1 ? "1 hour" : `${data.hours} hours`}
         </p>
+        {outingText(data) && <p className="text-ink">{outingText(data)}</p>}
       </Card>
 
       {isRequest && <Answer booking={data} />}
