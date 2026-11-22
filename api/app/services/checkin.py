@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import AuditLog, Booking, BookingStatus
-from app.services import audit, encryption
+from app.services import audit, earnings, encryption
 from app.services import overtime as overtime_service
 from app.services.availability import INDIA, today_in_india
 from app.services.overtime import Charged
@@ -159,6 +159,7 @@ def check_out(
     booking.status = BookingStatus.completed
     audit.record(db, sitter_id, "checked_out", "booking", str(booking.id), after={"status": "completed"})
     charged = overtime_service.charge_for_checkout(db, booking, now)
+    earnings.record_check_out(db, booking, now)  # her pay, after overtime is worked out (phase 9)
     db.commit()
     return Checked(booking, charged)
 
@@ -217,14 +218,22 @@ def close_by_admin(
     reason: str,
     now: datetime,
     overtime_hours: int | None = None,
+    pay_hours: int | None = None,
 ) -> Booking:
     """An admin closes a booking by hand after calling both people (6.7): an overdue check-out, or codes
     locked with no other way through. If she checked in but never checked out, this stands in for that
     timestamp; if she never checked in at all, it's left empty too. No overtime is charged unless the admin
-    chooses some whole hours (`overtime_hours`; Reuben, 2026-11-21), which the parent is then asked to pay."""
+    chooses some whole hours (`overtime_hours`; Reuben, 2026-11-21), which the parent is then asked to pay.
+    Her pay: hours worked if she checked in; if she never did, only the whole hours the admin chooses to pay
+    her (`pay_hours`, at most the booked hours; none by default; Reuben, 2026-11-22)."""
     booking = _locked_booking(db, booking_id)
     if booking.status not in NEEDS_ATTENTION:
         raise AppError(409, "cannot_close", "This booking can't be closed.")
+    if pay_hours is not None:
+        if booking.checked_in_at is not None:
+            raise AppError(422, "pay_hours_not_needed", "She checked in, so she's paid for the hours she worked.")
+        if not 1 <= pay_hours <= booking.units:
+            raise AppError(422, "invalid_pay_hours", "Pay her for 1 hour up to the booked hours.")
     audit.record(
         db,
         admin_id,
@@ -243,5 +252,6 @@ def close_by_admin(
         booking.checked_out_at = now
     if overtime_hours:
         overtime_service.charge_on_close(db, admin_id, booking, overtime_hours, now)
+    earnings.record_admin_close(db, booking, pay_hours, now)
     db.commit()
     return booking

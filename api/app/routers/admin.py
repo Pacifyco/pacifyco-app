@@ -1002,6 +1002,7 @@ class NeedsAttentionOut(BaseModel):
     parent_phone: str | None
     sitter_name: str | None
     sitter_phone: str | None
+    checked_in: bool  # if she never did, the admin may choose hours to pay her when closing it
 
 
 @router.get("/overdue-checkouts")
@@ -1020,6 +1021,7 @@ def get_needing_attention(admin: Admin, db: DbSession) -> list[NeedsAttentionOut
                 parent_phone=parent.phone,
                 sitter_name=sitter.full_name if sitter else None,
                 sitter_phone=sitter.phone if sitter else None,
+                checked_in=item.booking.checked_in_at is not None,
             )
         )
     return out
@@ -1029,6 +1031,8 @@ class CloseBookingIn(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
     # Not charged by default; the admin may charge whole hours of overtime (Reuben, 2026-11-21).
     overtime_hours: int | None = Field(default=None, ge=1, le=6)
+    # Only if she never checked in: whole hours to pay her, none by default (Reuben, 2026-11-22).
+    pay_hours: int | None = Field(default=None, ge=1, le=24)
 
 
 @router.post("/bookings/{booking_id}/close")
@@ -1039,7 +1043,9 @@ def close_booking(
     reason = _clean_reason(body.reason or "")
     if reason is None:
         raise AppError(422, "reason_needed", "Please say why you're closing it.")
-    booking = checkin_service.close_by_admin(db, admin.id, booking_id, reason, datetime.now(UTC), body.overtime_hours)
+    booking = checkin_service.close_by_admin(
+        db, admin.id, booking_id, reason, datetime.now(UTC), body.overtime_hours, body.pay_hours
+    )
     if body.overtime_hours:
         charge = db.scalar(select(OvertimeCharge).where(OvertimeCharge.booking_id == booking.id))
         payment = db.scalar(
@@ -1069,6 +1075,7 @@ def close_booking(
         parent_phone=parent.phone,
         sitter_name=sitter.full_name if sitter else None,
         sitter_phone=sitter.phone if sitter else None,
+        checked_in=booking.checked_in_at is not None,
     )
 
 

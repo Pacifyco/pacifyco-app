@@ -19,6 +19,7 @@ export type NeedsAttentionItem = {
   parent_phone: string | null;
   sitter_name: string | null;
   sitter_phone: string | null;
+  checked_in: boolean; // if she never did, the admin may choose hours to pay her when closing it
 };
 
 export const NEEDS_ATTENTION_KEY = ["admin", "overdue-checkouts"];
@@ -47,6 +48,8 @@ function NeedsAttentionCard({ item }: { item: NeedsAttentionItem }) {
   const [closing, setClosing] = useState(false);
   const [reason, setReason] = useState("");
   const [overtimeHours, setOvertimeHours] = useState("0");
+  const [payHours, setPayHours] = useState("0"); // only if she never checked in (Reuben, 2026-11-22)
+  const bookedHours = Math.round((new Date(item.ends_at).getTime() - new Date(item.starts_at).getTime()) / 3_600_000);
   const [error, setError] = useState<string | undefined>();
   const close = useMutation({
     mutationFn: () =>
@@ -55,6 +58,7 @@ function NeedsAttentionCard({ item }: { item: NeedsAttentionItem }) {
         body: JSON.stringify({
           reason: reason.trim(),
           overtime_hours: overtimeHours === "0" ? null : Number(overtimeHours),
+          pay_hours: item.checked_in || payHours === "0" ? null : Number(payHours),
         }),
       }),
     onSuccess: async () => {
@@ -112,6 +116,21 @@ function NeedsAttentionCard({ item }: { item: NeedsAttentionItem }) {
               </option>
             ))}
           </Select>
+          {!item.checked_in && (
+            <Select
+              label="Pay the sitter?"
+              hint="She never checked in, so she isn't paid unless you choose hours here."
+              value={payHours}
+              onChange={(event) => setPayHours(event.target.value)}
+            >
+              <option value="0">Nothing</option>
+              {Array.from({ length: bookedHours }, (_, index) => index + 1).map((hours) => (
+                <option key={hours} value={String(hours)}>
+                  {hours === 1 ? "1 hour" : `${hours} hours`}
+                </option>
+              ))}
+            </Select>
+          )}
           <div className="flex flex-wrap gap-3">
             <Button type="submit" variant="secondary" loading={close.isPending}>
               Close the booking

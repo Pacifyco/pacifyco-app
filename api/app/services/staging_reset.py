@@ -32,6 +32,7 @@ from app.models import (
     PsychAttempt,
     Reference,
     Role,
+    SitterEarning,
     Strike,
 )
 
@@ -88,6 +89,9 @@ def delete_all(db: Session, found: Found) -> None:
     ).all()
     overtime_charge_ids = db.scalars(select(OvertimeCharge.id).where(OvertimeCharge.booking_id.in_(booking_ids))).all()
     incident_ids = db.scalars(select(Incident.id).where(Incident.booking_id.in_(booking_ids))).all()
+    earning_ids = db.scalars(
+        select(SitterEarning.id).where(or_(SitterEarning.booking_id.in_(booking_ids), SitterEarning.sitter_id.in_(ids)))
+    ).all()
     complaint_ids = db.scalars(
         select(Complaint.id).where(or_(Complaint.booking_id.in_(booking_ids), Complaint.raised_by.in_(ids)))
     ).all()
@@ -105,6 +109,7 @@ def delete_all(db: Session, found: Found) -> None:
         *overtime_request_ids,
         *overtime_charge_ids,
         *incident_ids,
+        *earning_ids,
         *complaint_ids,
     ]
     about = [str(item) for item in records]
@@ -112,6 +117,7 @@ def delete_all(db: Session, found: Found) -> None:
     # Payments, then bookings: they hold their parent, sitter and children (RESTRICT); a booking's
     # children and home info rows go with it.
     db.execute(delete(Payment).where(Payment.id.in_(payment_ids)))
+    db.execute(delete(SitterEarning).where(SitterEarning.id.in_(earning_ids)))
     db.execute(delete(Strike).where(Strike.id.in_(strike_ids)))
     db.execute(delete(BookingReport).where(BookingReport.id.in_(report_ids)))
     db.execute(delete(OvertimeRequest).where(OvertimeRequest.id.in_(overtime_request_ids)))

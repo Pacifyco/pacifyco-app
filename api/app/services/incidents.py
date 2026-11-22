@@ -33,7 +33,7 @@ from app.models import (
     ProfileStatus,
     Role,
 )
-from app.services import audit
+from app.services import audit, earnings
 
 AFTER_END = timedelta(hours=1)
 OPEN_TO = (BookingStatus.confirmed, BookingStatus.in_progress, BookingStatus.completed)
@@ -106,6 +106,7 @@ def raise_emergency(
             )
             sitter.status = ProfileStatus.suspended
             incident.suspended_sitter = True
+    earnings.hold(db, booking.id)  # an open incident holds her pay for this booking (6.9)
     db.commit()
     return incident
 
@@ -171,6 +172,7 @@ def resolve(
         str(incident.id),
         after={"status": "resolved", "note": note, "sitter_reinstated": reinstated},
     )
+    earnings.release_booking(db, incident.booking_id, now)
     db.commit()
     return incident
 

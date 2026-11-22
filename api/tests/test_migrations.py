@@ -183,6 +183,8 @@ DECIDED_ONLY = {
     "payments": {"status", "confirmed_by", "confirmed_at", "rejection_reason", "transfer_reference", "upi_reference"},
     # A strike is kept; only its removal is recorded later (CLAUDE.md 6.6).
     "strikes": {"removed_by", "removed_at", "removal_reason", "doctor_note_document_id"},
+    # What she's earned: only its progress (held, released, paid) and when it's due (CLAUDE.md 6.10).
+    "sitter_earnings": {"status", "released_at", "due_by"},
 }
 # Published by migrations only; the API reads them.
 READ_ONLY = {"legal_documents"}
