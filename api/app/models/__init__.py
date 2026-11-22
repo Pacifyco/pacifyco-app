@@ -5,7 +5,7 @@ from app.models.bookings import Booking, BookingChild, BookingHomeInfo, BookingS
 from app.models.common import VerificationStatus
 from app.models.consents import Consent, ConsentKind
 from app.models.documents import Document, DocumentAccessLog, DocumentStatus, DocumentType
-from app.models.earnings import EarningKind, EarningStatus, SitterEarning
+from app.models.earnings import EarningKind, EarningStatus, Payout, SitterEarning
 from app.models.incidents import (
     Complaint,
     ComplaintStatus,
@@ -82,6 +82,7 @@ __all__ = [
     "EarningKind",
     "EarningStatus",
     "OvertimeCharge",
+    "Payout",
     "SitterEarning",
     "OvertimeRequest",
     "OvertimeRequestStatus",

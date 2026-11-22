@@ -41,6 +41,7 @@ from app.services import children as children_service
 from app.services import email as email_service
 from app.services import incidents as incidents_service
 from app.services import payments as payments_service
+from app.services import payouts as payouts_service
 from app.services import psych_tests as psych_tests_service
 from app.services import reports as reports_service
 from app.services import strikes as strikes_service
@@ -1225,3 +1226,114 @@ def incident_chat(incident_id: uuid.UUID, admin: Admin, db: DbSession) -> list[A
         )
         for message in found
     ]
+
+
+# ---------- payouts due (CLAUDE.md 6.10; phase 9) ----------
+
+
+class BankOut(BaseModel):
+    account_holder_name: str
+    account_number: str
+    ifsc_code: str
+
+
+class DueEarningOut(BaseModel):
+    id: uuid.UUID
+    booking_id: uuid.UUID
+    booking_starts_at: datetime
+    kind: str  # booking | overtime | show_up_fee
+    amount_paise: int
+    minutes: int | None
+    due_by: datetime
+
+
+class SitterDueOut(BaseModel):
+    """Everything due to one sitter: one transfer (Reuben, 2026-11-22)."""
+
+    sitter_id: uuid.UUID
+    sitter_name: str | None
+    sitter_phone: str | None
+    payout_method: str | None  # bank | upi
+    upi_id: str | None
+    bank: BankOut | None  # shown, so an audit row is written (Reuben, 2026-11-22)
+    total_paise: int
+    next_due_by: datetime
+    earnings: list[DueEarningOut]
+
+
+@router.get("/payouts")
+def payouts_due(admin: Admin, db: DbSession, settings: AppSettings) -> list[SitterDueOut]:
+    """Released, unpaid earnings by sitter, soonest deadline first."""
+    found = payouts_service.due(db, admin.id, settings.field_encryption_key)
+    return [
+        SitterDueOut(
+            sitter_id=group.sitter.profile_id,
+            sitter_name=group.profile.full_name,
+            sitter_phone=group.profile.phone,
+            payout_method=group.sitter.payout_method.value if group.sitter.payout_method else None,
+            upi_id=group.sitter.upi_id,
+            bank=BankOut(**group.bank.__dict__) if group.bank else None,
+            total_paise=group.total_paise,
+            next_due_by=group.next_due_by,
+            earnings=[
+                DueEarningOut(
+                    id=item.earning.id,
+                    booking_id=item.booking.id,
+                    booking_starts_at=item.booking.starts_at,
+                    kind=item.earning.kind.value,
+                    amount_paise=item.earning.amount_paise,
+                    minutes=item.earning.minutes,
+                    due_by=item.earning.due_by,
+                )
+                for item in group.earnings
+            ],
+        )
+        for group in found
+    ]
+
+
+class PayoutsSummaryOut(BaseModel):
+    due: int
+    overdue: int
+
+
+@router.get("/payouts/summary")
+def payouts_summary(admin: Admin, db: DbSession) -> PayoutsSummaryOut:
+    """Counts only, for the banner on the admin home page: no details shown, nothing logged."""
+    found = payouts_service.summary(db, datetime.now(UTC))
+    return PayoutsSummaryOut(due=found.due, overdue=found.overdue)
+
+
+class MarkPaidIn(BaseModel):
+    earning_ids: list[uuid.UUID] = Field(min_length=1, max_length=200)  # the ones shown on the list
+    transfer_reference: str = Field(max_length=40)
+
+
+class PayoutOut(BaseModel):
+    id: uuid.UUID
+    amount_paise: int
+    method: str
+    transfer_reference: str
+    paid_at: datetime
+
+
+@router.post("/payouts/{sitter_id}/paid")
+def mark_payout_paid(
+    sitter_id: uuid.UUID, body: MarkPaidIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> PayoutOut:
+    """Everything shown as due to her, paid in one transfer: recorded with its reference; she's emailed."""
+    payout = payouts_service.mark_paid(db, admin.id, sitter_id, body.earning_ids, body.transfer_reference)
+    profile = db.get(Profile, sitter_id)
+    if profile is not None:
+        mailer.send(
+            email_service.payout_paid(
+                profile.email, profile.full_name, payout.amount_paise, payout.method.value, _web_url(settings)
+            )
+        )
+    return PayoutOut(
+        id=payout.id,
+        amount_paise=payout.amount_paise,
+        method=payout.method.value,
+        transfer_reference=payout.transfer_reference,
+        paid_at=payout.paid_at,
+    )

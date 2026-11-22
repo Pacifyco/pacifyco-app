@@ -141,6 +141,14 @@ def cleanup_documents(db_engine, profile_id) -> None:
             text("DELETE FROM sitter_earnings WHERE booking_id::text = ANY(:ids) OR sitter_id = :id"),
             {"ids": booking_ids, "id": profile_id},
         )
+        payout_ids = [
+            str(item)
+            for item in conn.execute(text("SELECT id FROM payouts WHERE sitter_id = :id"), {"id": profile_id}).scalars()
+        ]
+        conn.execute(
+            text("DELETE FROM audit_log WHERE entity = 'payout' AND entity_id = ANY(:ids)"), {"ids": payout_ids}
+        )
+        conn.execute(text("DELETE FROM payouts WHERE sitter_id = :id"), {"id": profile_id})
         for table, entity in (("incidents", "incident"), ("complaints", "complaint")):
             found = [
                 str(item)
