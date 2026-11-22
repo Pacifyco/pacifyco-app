@@ -5,6 +5,7 @@ import { useMe } from "../auth/useMe";
 import { Link } from "react-router";
 import { ButtonLink, Card, EmptyState, IconTile } from "../components/ui";
 import { formatBookingTime, formatDay, formatTime } from "../lib/format";
+import { PAYOUTS_SUMMARY_KEY, type PayoutsSummary } from "./admin/PayoutsPage";
 import { apiFetch } from "../lib/api";
 import { useChecklist, type SitterChecklist } from "./ProfileChecklist";
 import { STRIKES_KEY, type SitterStrikes } from "./SitterStrikesPage";
@@ -232,12 +233,40 @@ function OverdueBanner() {
   );
 }
 
+/** Payouts past their 12-hour deadline (6.10), if there are any. Counts only: no bank details. */
+function PayoutsOverdueBanner() {
+  const summary = useQuery({
+    queryKey: PAYOUTS_SUMMARY_KEY,
+    queryFn: () => apiFetch<PayoutsSummary>("/admin/payouts/summary"),
+    refetchInterval: 60_000,
+  });
+  const overdue = summary.data?.overdue ?? 0;
+  if (!summary.isSuccess || overdue === 0) return null;
+  return (
+    <Card
+      as="section"
+      padding="roomy"
+      role="alert"
+      className="mt-5 flex flex-col items-start gap-3 border-l-4 border-coral text-left"
+    >
+      <p className="text-ink">
+        {overdue === 1 ? "1 payout is" : `${overdue} payouts are`} past the 12-hour deadline. Sitters must be paid
+        within 12 hours.
+      </p>
+      <ButtonLink to="/admin/payouts" variant="secondary">
+        Open payouts
+      </ButtonLink>
+    </Card>
+  );
+}
+
 export function AdminHomePage() {
   return (
     <section className="mx-auto max-w-[62ch] text-center">
       <h1>Admin</h1>
       <p className="mt-3 text-muted">Verifications, payments, payouts and incidents will be here.</p>
       <OverdueBanner />
+      <PayoutsOverdueBanner />
       <div className="mt-5 flex flex-wrap justify-center gap-3">
         <ButtonLink to="/admin/verifications" arrow>
           Open the verification queue
@@ -256,6 +285,9 @@ export function AdminHomePage() {
         </ButtonLink>
         <ButtonLink to="/admin/overdue-checkouts" variant="secondary">
           Overdue check-outs
+        </ButtonLink>
+        <ButtonLink to="/admin/payouts" variant="secondary">
+          Payouts
         </ButtonLink>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">

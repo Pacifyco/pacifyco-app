@@ -498,7 +498,19 @@ Emergency button instead.
 - The admin panel shows a payouts-due list: each released, unpaid earning (booking, overtime, show-up
   fee) with the sitter's bank or UPI details and a countdown to its 12-hour
   deadline. Someone pays it and marks it paid with the transfer reference.
-- Admins get an email when a payout has under 3 hours left, and again if it's overdue.
+  **The list (built 2026-11-22, `api/app/services/payouts.py`, `/admin/payouts`):** grouped by sitter, one
+  transfer for everything due to her (Reuben, 2026-11-22), soonest deadline first, each earning with a
+  countdown; overdue ones in red, and a banner on the admin home page when any are overdue (it reads
+  `/admin/payouts/summary`, counts only). Her bank details are shown there and every showing writes a
+  `bank_details_viewed` audit row (Reuben, 2026-11-22), so the list isn't refetched on a timer; only the
+  countdowns tick. **Mark paid** (same page): the admin enters the UPI reference or bank UTR (6–35 letters
+  and digits, each used once) for exactly the earnings shown; one `payouts` row, those earnings become
+  `paid` with its `payout_id`, audit logged (`payout_paid`, `earning_paid`), and she's emailed (no account
+  details). Refused if she has no payout details or what's due has changed since the list was loaded.
+- Admins get an email when a payout has under 3 hours left, and again if it's overdue. **Built
+  2026-11-22:** the frequent job's `alert_payouts` emails `ADMIN_ALERT_EMAILS` once per earning for each
+  (counts only, no names or bank details), remembered in the audit log; an earning held by an incident and
+  released again isn't alerted a second time.
 - Sitters see earnings, pending and paid history in their dashboard.
 
 ### 6.11 Reviews and chat
@@ -741,8 +753,8 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `incidents` **(created)** (id, booking_id, raised_by, kind: `emergency|theft|abuse|sitter_unsafe`, note, status: `open|acknowledged|resolved`, suspended_sitter, acknowledged_by/at, resolved_by/at, resolution_note, created_at)
 - `messages` **(created)** (id, parent_id, sitter_id, sender_id, body, created_at) — append-only
 - `reviews` (id, booking_id, author_id, subject_id, rating, body)
-- `sitter_earnings` **(created)** (id, sitter_id, booking_id, kind: `booking|overtime|show_up_fee` (the flat ₹100 is a `show_up_fee` too), amount_paise, minutes (the time it pays for), status: `held|released|paid`, released_at, due_by, created_at) — built 2026-11-22, migration e1087ff8b02c; one of each kind per booking; the API's role can update only status, released_at and due_by. `payout_id` comes with the payouts list
-- `payouts` (id, sitter_id, amount_paise, method: `bank|upi`, transfer_reference, paid_by, paid_at)
+- `sitter_earnings` **(created)** (id, sitter_id, booking_id, kind: `booking|overtime|show_up_fee` (the flat ₹100 is a `show_up_fee` too), amount_paise, minutes (the time it pays for), status: `held|released|paid`, released_at, due_by, payout_id (set when paid; a paid earning must have one), created_at) — built 2026-11-22, migrations e1087ff8b02c and ed9b32937157; one of each kind per booking; the API's role can update only status, released_at, due_by and payout_id
+- `payouts` **(created)** (id, sitter_id, amount_paise, method: `bank|upi`, transfer_reference (unique), paid_by, paid_at) — built 2026-11-22, migration ed9b32937157; one transfer for everything due to her; append-only
 - `audit_log` **(created)** (id, actor_id, action, entity, entity_id, before, after, created_at)
 - `service_area_pincodes` **(created)** (pin_code, active) — seeded with the launch pin codes
 

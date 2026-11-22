@@ -2,6 +2,7 @@ import { Navigate, type RouteObject } from "react-router";
 import { RequireRole } from "./auth/RequireRole";
 import { FamilyReviewPage } from "./pages/admin/FamilyReviewPage";
 import { OverdueCheckoutsPage } from "./pages/admin/OverdueCheckoutsPage";
+import { PayoutsPage } from "./pages/admin/PayoutsPage";
 import { PaymentsPage } from "./pages/admin/PaymentsPage";
 import { IncidentsPage } from "./pages/admin/IncidentsPage";
 import { IssuesPage } from "./pages/admin/IssuesPage";
@@ -156,6 +157,7 @@ export const routes: RouteObject[] = [
           ["admin/incidents", <IncidentsPage />],
           ["admin/issues", <IssuesPage />],
           ["admin/overdue-checkouts", <OverdueCheckoutsPage />],
+          ["admin/payouts", <PayoutsPage />],
           ["admin/sitters/:sitterId", <SitterReviewPage />],
           ["admin/parents/:parentId", <FamilyReviewPage />],
         ] as const

@@ -701,6 +701,48 @@ def outing_changed(
     )
 
 
+def payouts_due_soon_alert(to: str, count: int, earliest_due: datetime, web_url: str) -> Email:
+    """To an admin: payouts with under 3 hours left (6.10). Counts only: no names, amounts or bank details."""
+    payouts = "1 payout" if count == 1 else f"{count} payouts"
+    return Email(
+        to=to,
+        subject=f"{payouts} due within 3 hours",
+        heading=f"{payouts} due soon.",
+        body=(
+            f"The first is due by {_when(earliest_due)}. Sitters must be paid within 12 hours, so please pay "
+            "and mark it paid on the Payouts page before then."
+        ),
+        button_label="Open payouts",
+        button_url=f"{web_url.rstrip('/')}/admin/payouts",
+    )
+
+
+def payouts_overdue_alert(to: str, count: int, web_url: str) -> Email:
+    """To an admin: payouts past their 12-hour deadline (6.10). Counts only."""
+    payouts = "1 payout is" if count == 1 else f"{count} payouts are"
+    return Email(
+        to=to,
+        subject=f"{payouts} overdue",
+        heading=f"{payouts} past the 12-hour deadline.",
+        body="Sitters must be paid within 12 hours. Please pay them now and mark them paid on the Payouts page.",
+        button_label="Open payouts",
+        button_url=f"{web_url.rstrip('/')}/admin/payouts",
+    )
+
+
+def payout_paid(to: str, full_name: str | None, amount_paise: int, method: str, web_url: str) -> Email:
+    """To the sitter: we've paid her (6.10). No account details."""
+    how = "by UPI" if method == "upi" else "to your bank account"
+    return Email(
+        to=to,
+        subject=f"We've paid you {_rupees(amount_paise)}",
+        heading=f"We've paid you {_rupees(amount_paise)}.",
+        body=f"Hi {_first_name(full_name)}, we've sent it {how}. Thank you for your work with Pacifyco.",
+        button_label="Open Pacifyco",
+        button_url=f"{web_url.rstrip('/')}/sitter",
+    )
+
+
 def unchecked_payments_alert(to: str, count: int, earliest_start: datetime, web_url: str) -> Email:
     """To an admin: payments to check before their bookings start. No names or amounts, only the count
     and the earliest start."""

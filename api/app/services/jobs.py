@@ -5,8 +5,8 @@ Later phases add their tasks here:
 - daily: keeping the staging database active (strikes expire by their date, so they need no job)
 - frequent (every 30 minutes, 6 am to midnight IST): cancelling unpaid bookings and paid ones that
   started with a child unverified, lapsing requests the sitter didn't answer in time, and alerting
-  admins to payments unchecked near the start (phase 6), overdue check-out alerts (phase 8),
-  payouts-due alerts (phase 9). Keep these quick.
+  admins to payments unchecked near the start (phase 6), overdue check-out alerts (phase 8), and payouts
+  due within 3 hours or overdue (phase 9). Keep these quick.
 """
 
 from collections.abc import Callable
@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Connection, text
 from sqlalchemy.orm import Session
 
-from app.services import booking_mail, bookings, checkin, payments
+from app.services import booking_mail, bookings, checkin, payments, payouts
 from app.services import email as email_service
 from app.services.email import EmailClient
 from app.settings import Settings
@@ -100,6 +100,31 @@ def alert_overdue_checkouts(conn: Connection, ctx: JobContext) -> None:
             ctx.mailer.send(email_service.overdue_checkout_alert(to, starts_at, ends_at, web_url))
 
 
+def alert_payouts(conn: Connection, ctx: JobContext) -> None:
+    """Payouts with under 3 hours left, and payouts overdue: the admins are emailed once for each (6.10),
+    one email per kind per run."""
+    recipients = ctx.settings.admin_alert_emails
+    if not recipients:  # nobody to tell: left unmarked, so they're sent once someone is set
+        return
+    now = datetime.now(UTC)
+    with Session(bind=conn) as db:
+        soon = payouts.due_soon_not_alerted(db, now)
+        overdue = payouts.overdue_not_alerted(db, now)
+        if not soon and not overdue:
+            return
+        earliest = min((item.due_by for item in soon), default=None)
+        payouts.mark_alerted(db, payouts.DUE_SOON_ALERTED, soon)
+        payouts.mark_alerted(db, payouts.OVERDUE_ALERTED, overdue)
+        db.commit()
+        counts = (len(soon), len(overdue))
+    web_url = ctx.settings.public_web_url or "http://localhost:5173"
+    for to in recipients:
+        if counts[0] and earliest is not None:
+            ctx.mailer.send(email_service.payouts_due_soon_alert(to, counts[0], earliest, web_url))
+        if counts[1]:
+            ctx.mailer.send(email_service.payouts_overdue_alert(to, counts[1], web_url))
+
+
 RUNS: dict[str, list[tuple[str, Task]]] = {
     "daily": [("keep_database_active", keep_database_active)],
     "frequent": [
@@ -108,5 +133,6 @@ RUNS: dict[str, list[tuple[str, Task]]] = {
         ("cancel_unverified_bookings", cancel_unverified_bookings),
         ("alert_unchecked_payments", alert_unchecked_payments),
         ("alert_overdue_checkouts", alert_overdue_checkouts),
+        ("alert_payouts", alert_payouts),
     ],
 }

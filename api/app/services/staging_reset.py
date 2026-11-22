@@ -28,6 +28,7 @@ from app.models import (
     OvertimeCharge,
     OvertimeRequest,
     Payment,
+    Payout,
     Profile,
     PsychAttempt,
     Reference,
@@ -92,6 +93,7 @@ def delete_all(db: Session, found: Found) -> None:
     earning_ids = db.scalars(
         select(SitterEarning.id).where(or_(SitterEarning.booking_id.in_(booking_ids), SitterEarning.sitter_id.in_(ids)))
     ).all()
+    payout_ids = db.scalars(select(Payout.id).where(Payout.sitter_id.in_(ids))).all()
     complaint_ids = db.scalars(
         select(Complaint.id).where(or_(Complaint.booking_id.in_(booking_ids), Complaint.raised_by.in_(ids)))
     ).all()
@@ -110,6 +112,7 @@ def delete_all(db: Session, found: Found) -> None:
         *overtime_charge_ids,
         *incident_ids,
         *earning_ids,
+        *payout_ids,
         *complaint_ids,
     ]
     about = [str(item) for item in records]
@@ -118,6 +121,7 @@ def delete_all(db: Session, found: Found) -> None:
     # children and home info rows go with it.
     db.execute(delete(Payment).where(Payment.id.in_(payment_ids)))
     db.execute(delete(SitterEarning).where(SitterEarning.id.in_(earning_ids)))
+    db.execute(delete(Payout).where(Payout.id.in_(payout_ids)))
     db.execute(delete(Strike).where(Strike.id.in_(strike_ids)))
     db.execute(delete(BookingReport).where(BookingReport.id.in_(report_ids)))
     db.execute(delete(OvertimeRequest).where(OvertimeRequest.id.in_(overtime_request_ids)))

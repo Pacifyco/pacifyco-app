@@ -176,7 +176,7 @@ def test_api_role_cannot_touch_alembic_version(conn):
 
 
 # Records that must never be changed or removed by the API.
-APPEND_ONLY = {"audit_log", "consents", "legal_acceptances", "document_access_log", "messages"}
+APPEND_ONLY = {"audit_log", "consents", "legal_acceptances", "document_access_log", "messages", "payouts"}
 # Append-only too, except an admin's decision on a row (CLAUDE.md 5): these columns, and only these.
 DECIDED_ONLY = {
     # The UPI reference too: a charge's reference is kept on it and cleared if rejected (CLAUDE.md 6.5).
@@ -184,7 +184,7 @@ DECIDED_ONLY = {
     # A strike is kept; only its removal is recorded later (CLAUDE.md 6.6).
     "strikes": {"removed_by", "removed_at", "removal_reason", "doctor_note_document_id"},
     # What she's earned: only its progress (held, released, paid) and when it's due (CLAUDE.md 6.10).
-    "sitter_earnings": {"status", "released_at", "due_by"},
+    "sitter_earnings": {"status", "released_at", "due_by", "payout_id"},
 }
 # Published by migrations only; the API reads them.
 READ_ONLY = {"legal_documents"}
