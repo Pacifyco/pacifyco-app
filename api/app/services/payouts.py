@@ -183,3 +183,53 @@ def mark_alerted(db: Session, action: str, found: list[SitterEarning]) -> None:
     """Remembers each alert in the audit log, so none is sent twice. The caller commits."""
     for earning in found:
         audit.record(db, None, action, "sitter_earning", str(earning.id), after={"due_by": earning.due_by.isoformat()})
+
+
+# ---------- her earnings (6.10: "Sitters see earnings, pending and paid history in their dashboard") ----------
+
+
+@dataclass(frozen=True)
+class HerEarning:
+    earning: SitterEarning
+    booking: Booking
+    paid_at: datetime | None
+
+
+@dataclass(frozen=True)
+class HerEarnings:
+    held_paise: int  # waiting for the booking to end, her overtime answer, or an incident
+    due_paise: int  # released: Pacifyco pays it within 12 hours
+    paid_paise: int  # paid, all time
+    earnings: list[HerEarning]  # newest booking first
+    payouts: list[Payout]  # newest first
+
+
+HISTORY_LIMIT = 100
+
+
+def for_sitter(db: Session, sitter_id: uuid.UUID) -> HerEarnings:
+    totals = dict(
+        db.execute(
+            select(SitterEarning.status, func.sum(SitterEarning.amount_paise))
+            .where(SitterEarning.sitter_id == sitter_id)
+            .group_by(SitterEarning.status)
+        ).all()
+    )
+    found = db.execute(
+        select(SitterEarning, Booking, Payout.paid_at)
+        .join(Booking, Booking.id == SitterEarning.booking_id)
+        .outerjoin(Payout, Payout.id == SitterEarning.payout_id)
+        .where(SitterEarning.sitter_id == sitter_id)
+        .order_by(Booking.starts_at.desc(), SitterEarning.kind)
+        .limit(HISTORY_LIMIT)
+    ).all()
+    paid = db.scalars(
+        select(Payout).where(Payout.sitter_id == sitter_id).order_by(Payout.paid_at.desc()).limit(HISTORY_LIMIT)
+    ).all()
+    return HerEarnings(
+        held_paise=totals.get(EarningStatus.held, 0) or 0,
+        due_paise=totals.get(EarningStatus.released, 0) or 0,
+        paid_paise=totals.get(EarningStatus.paid, 0) or 0,
+        earnings=[HerEarning(earning, booking, paid_at) for earning, booking, paid_at in found],
+        payouts=list(paid),
+    )

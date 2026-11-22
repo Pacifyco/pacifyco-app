@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { BackLink, Button, Card, EmptyState, TextInput, showToast } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { formatDay, formatMobile, formatTime } from "../../lib/format";
+import { earningLabel, type EarningKind } from "../../lib/earnings";
 import { rupees } from "../../lib/prices";
 import { errorMessage } from "./shared";
 
@@ -15,7 +16,7 @@ export type DueEarning = {
   id: string;
   booking_id: string;
   booking_starts_at: string;
-  kind: "booking" | "overtime" | "show_up_fee";
+  kind: EarningKind;
   amount_paise: number;
   minutes: number | null;
   due_by: string;
@@ -32,6 +33,8 @@ export type SitterDue = {
   next_due_by: string;
   earnings: DueEarning[];
 };
+
+export { earningLabel };
 
 export type PayoutsSummary = { due: number; overdue: number };
 
@@ -52,20 +55,6 @@ export function countdown(dueBy: string, now: Date): { text: string; overdue: bo
   return left > 0
     ? { text: `Due in ${hoursAndMinutes(left)}`, overdue: false }
     : { text: `Overdue by ${hoursAndMinutes(-left)}`, overdue: true };
-}
-
-function duration(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (hours === 0) return `${rest} min`;
-  const h = hours === 1 ? "1 hour" : `${hours} hours`;
-  return rest === 0 ? h : `${h} ${rest} min`;
-}
-
-export function earningLabel(earning: DueEarning): string {
-  if (earning.kind === "show_up_fee") return "Show-up fee";
-  const what = earning.kind === "overtime" ? "Overtime" : "Booking pay";
-  return earning.minutes ? `${what}, ${duration(earning.minutes)}` : what;
 }
 
 function useNow(everyMs = 30_000): Date {

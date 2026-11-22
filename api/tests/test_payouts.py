@@ -264,3 +264,55 @@ def test_no_alert_with_plenty_of_time_left(client, db_engine, confirmed, finishe
     run_job(db_engine, Mailbox())
     assert alerted(db_engine, "payout_due_soon_alerted", confirmed) == 0
     assert alerted(db_engine, "payout_overdue_alerted", confirmed) == 0
+
+
+# ---------- her earnings dashboard (6.10) ----------
+
+
+def her_earnings(client, db_engine, booking):
+    from tests.test_sitter_bookings import signed_in
+
+    sitter = signed_in(db_engine, booking["sitter_id"])
+    return client.get("/sitter/earnings", headers=auth_for(sitter))
+
+
+def test_she_sees_whats_held_due_and_paid(client, db_engine, reviewer, confirmed, finished_parent):
+    checked_out(client, db_engine, confirmed, finished_parent)
+    found = her_earnings(client, db_engine, confirmed).json()
+    assert found["held_paise"] == 0 and found["due_paise"] == 3 * HOUR and found["paid_paise"] == 0
+    assert [item["kind"] for item in found["earnings"]] == ["booking", "overtime"]
+    first = found["earnings"][0]
+    assert first["status"] == "released" and first["due_by"] is not None and first["paid_at"] is None
+    assert first["family_name"] and first["minutes"] == 120 and first["booking_id"] == confirmed["id"]
+    assert "price" not in str(found).lower() and "plan" not in str(found).lower()
+
+    upi_sitter(db_engine, confirmed)
+    assert pay(client, reviewer, confirmed, due_ids(client, reviewer, confirmed), "555566667777").status_code == 200
+    paid = her_earnings(client, db_engine, confirmed).json()
+    assert paid["due_paise"] == 0 and paid["paid_paise"] == 3 * HOUR
+    assert all(item["status"] == "paid" and item["paid_at"] for item in paid["earnings"])
+    (payout,) = paid["payouts"]
+    assert payout["amount_paise"] == 3 * HOUR and payout["method"] == "upi"
+    assert payout["transfer_reference"] == "555566667777"
+
+
+def test_held_while_an_overtime_request_waits(client, db_engine, confirmed, finished_parent):
+    started(db_engine, confirmed["id"], 60)
+    asked = client.post(
+        f"/parent/bookings/{confirmed['id']}/overtime", json={"hours": 1}, headers=auth_for(finished_parent)
+    )
+    assert asked.status_code == 201
+    check_out(client, db_engine, confirmed["id"], finished_parent)
+    found = her_earnings(client, db_engine, confirmed).json()
+    assert found["held_paise"] == 2 * HOUR and found["due_paise"] == 0
+    assert found["earnings"][0]["status"] == "held" and found["earnings"][0]["due_by"] is None
+
+
+def test_nothing_yet_and_only_her_own(client, db_engine, confirmed, finished_parent, free_sitter):
+    from tests.test_sitter_bookings import signed_in
+
+    checked_out(client, db_engine, confirmed, finished_parent)
+    other = signed_in(db_engine, free_sitter("unwind")["id"])
+    empty = client.get("/sitter/earnings", headers=auth_for(other)).json()
+    assert empty == {"held_paise": 0, "due_paise": 0, "paid_paise": 0, "earnings": [], "payouts": []}
+    assert client.get("/sitter/earnings", headers=auth_for(finished_parent)).status_code == 403
