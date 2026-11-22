@@ -70,6 +70,9 @@ const SITTER = {
     { id: "r1", name: "Asha Rao", phone: "+919876500000", relationship: "Former employer", outcome: "pending", notes: null },
   ],
   psych_attempt: { id: "a1", status: "submitted", submitted_at: "2026-11-03T10:00:00Z" },
+  avg_rating: null,
+  review_count: 0,
+  reviews: [],
 };
 
 const PSYCH = {
@@ -256,6 +259,16 @@ describe("reviewing a family", () => {
     pin_code: "560034",
     verification_status: "pending",
     signed_up_at: "2026-11-01T10:00:00Z",
+    reviews: [
+      {
+        id: "rv1",
+        booking_id: "b1",
+        rating: 2,
+        body: "Came home two hours late.",
+        author_name: "Lakshmi Nair",
+        created_at: "2026-11-20T10:00:00Z",
+      },
+    ],
     children: [
       {
         id: "c1",
@@ -294,5 +307,18 @@ describe("reviewing a family", () => {
     await waitFor(() =>
       expect(calls).toContainEqual({ method: "POST", path: "/admin/children/c1/decision", body: { approved: true, notes: null, rejection_reason: null } }),
     );
+  });
+
+  test("sitters' reviews of the family, which only admins see", async () => {
+    mockApi({
+      "GET /admin/parents/p1": () => jsonResponse(FAMILY),
+      "GET /admin/verifications": () => jsonResponse({ sitters: [], families: [] }),
+    });
+    renderAt("/admin/parents/p1");
+    const section = within(await screen.findByRole("region", { name: "Sitters' reviews of this family" }));
+    expect(section.getByText("Only admins see these.")).toBeTruthy();
+    expect(section.getByText("Came home two hours late.")).toBeTruthy();
+    expect(section.getByRole("img", { name: "2 out of 5 stars" })).toBeTruthy();
+    expect(section.getByText(/Lakshmi Nair/)).toBeTruthy();
   });
 });

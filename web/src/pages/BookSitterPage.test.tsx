@@ -74,6 +74,7 @@ const BOOKING: Booking = {
   checked_in_at: null,
   checked_out_at: null,
   overtime: null,
+  review: { mine: null, can_review: false, open_until: null },
   pay_by_upi: {
     upi_id: "pacifyco@okaxis",
     payee_name: "Pacifyco",
@@ -621,6 +622,43 @@ describe("during the booking (6.5)", () => {
     });
     renderAt("/parent/bookings/b1");
     expect(await screen.findByText(/This booking is complete\. Lakshmi checked out at/)).toBeTruthy();
+  });
+
+  test("completed: the parent rates her once, and sees their review after", async () => {
+    const done = {
+      ...STARTED(130),
+      status: "completed",
+      report: null,
+      review: { mine: null, can_review: true, open_until: kolkataTime("2030-01-21", 12) },
+    };
+    const calls = api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () => jsonResponse(done),
+      "POST /parent/bookings/b1/review": () =>
+        jsonResponse({
+          ...done,
+          review: { mine: { rating: 4, body: "Kind and calm", created_at: minutesFromNow(0) }, can_review: false, open_until: null },
+        }),
+    });
+    renderAt("/parent/bookings/b1");
+    expect(await screen.findByText(/Your rating and review show on Lakshmi's profile, with your first name\./)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Send review" }));
+    expect(await screen.findByText("Choose from 1 to 5 stars.")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("4 stars"));
+    fireEvent.change(screen.getByLabelText(/A few words/), { target: { value: " Kind and calm " } });
+    fireEvent.click(screen.getByRole("button", { name: "Send review" }));
+    expect(await screen.findByRole("img", { name: "4 out of 5 stars" })).toBeTruthy();
+    expect(screen.getByText("Kind and calm")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Send review" })).toBeNull();
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ rating: 4, body: "Kind and calm" });
+  });
+
+  test("no review form once it's closed", async () => {
+    api(UNWIND, TIMES, {
+      "GET /parent/bookings/b1": () => jsonResponse({ ...STARTED(130), status: "completed", report: null }),
+    });
+    renderAt("/parent/bookings/b1");
+    await screen.findByText(/This booking is complete\./);
+    expect(screen.queryByRole("button", { name: "Send review" })).toBeNull();
   });
 
   test("in progress: can request overtime", async () => {

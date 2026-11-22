@@ -39,14 +39,19 @@ from app.routers.parents import (
     IssueOut,
     MessageIn,
     OvertimeRequestOut,
+    PublicReview,
     ReportOut,
+    ReviewIn,
+    ReviewState,
     WeekHours,
     chat_out,
     chat_summaries,
     checklist_out,
     incident_out,
     overtime_out,
+    public_reviews,
     report_out,
+    review_state,
 )
 from app.services import availability as availability_service
 from app.services import booking_mail, cancellations, checklists, sitter_pay, verification
@@ -59,6 +64,7 @@ from app.services import overtime as overtime_service
 from app.services import payouts as payouts_service
 from app.services import psych_tests as psych_tests_service
 from app.services import reports as reports_service
+from app.services import reviews as reviews_service
 from app.services import sitters as sitters_service
 from app.services import strikes as strikes_service
 from app.services.accounts import normalise_mobile
@@ -614,6 +620,7 @@ class SitterBookingDetail(SitterBookingItem):
     checked_out_at: datetime | None
     codes_locked: bool
     overtime: OvertimeRequestOut | None  # (6.8)
+    review: ReviewState  # her review of the family; only admins see it (Reuben, 2026-11-22)
 
 
 def _detail(db: Session, booking) -> SitterBookingDetail:
@@ -651,6 +658,7 @@ def _detail(db: Session, booking) -> SitterBookingDetail:
         checked_out_at=booking.checked_out_at,
         codes_locked=booking.codes_locked,
         overtime=overtime_out(db, booking.id),
+        review=review_state(db, booking, booking.sitter_id),
     )
 
 
@@ -1031,3 +1039,78 @@ def get_earnings(sitter: SitterProfile, db: DbSession) -> SitterEarnings:
             for payout in found.payouts
         ],
     )
+
+
+# ---------- reviews (CLAUDE.md 6.11; phase 9) ----------
+
+
+@router.post("/bookings/{booking_id}/review", status_code=201)
+def post_review(booking_id: uuid.UUID, body: ReviewIn, sitter: SitterProfile, db: DbSession) -> SitterBookingDetail:
+    """Her rating and review of the family, once, within 14 days of the end. Only admins see it."""
+    reviews_service.leave(db, sitter, booking_id, body.rating, body.body, datetime.now(UTC))
+    return _detail(db, bookings_service.sitters_booking(db, sitter.id, booking_id))
+
+
+class HerFlag(BaseModel):
+    """Her ratings are being reviewed: why, and her response (6.11)."""
+
+    id: uuid.UUID
+    reason: str
+    told_at: datetime
+    response: str | None
+    responded_at: datetime | None
+    respond_by: datetime  # 12 hours from being told (Reuben, 2026-11-22)
+
+
+class SitterReviews(BaseModel):
+    avg_rating: float | None
+    review_count: int
+    reviews: list[PublicReview]  # families' reviews of her, as parents see them on her profile
+    flag: HerFlag | None
+
+
+def _her_reviews(db: Session, sitter_id: uuid.UUID) -> SitterReviews:
+    sitter = db.get(Sitter, sitter_id)
+    assert sitter is not None
+    flag = reviews_service.her_flag(db, sitter_id)
+    return SitterReviews(
+        avg_rating=float(sitter.avg_rating) if sitter.avg_rating is not None else None,
+        review_count=sitter.review_count,
+        reviews=public_reviews(db, sitter_id),
+        flag=HerFlag(
+            id=flag.id,
+            reason=flag.reason or "",
+            told_at=flag.told_at,
+            response=flag.response,
+            responded_at=flag.responded_at,
+            respond_by=reviews_service.respond_by(flag),
+        )
+        if flag is not None and flag.told_at is not None
+        else None,
+    )
+
+
+@router.get("/reviews")
+def get_reviews(sitter: SitterProfile, db: DbSession) -> SitterReviews:
+    """What families have said about her, and any review of her ratings she's been told about."""
+    return _her_reviews(db, sitter.id)
+
+
+class FlagResponseIn(BaseModel):
+    response: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/rating-flags/{flag_id}/respond")
+def respond_to_flag(
+    flag_id: uuid.UUID,
+    body: FlagResponseIn,
+    sitter: SitterProfile,
+    db: DbSession,
+    mailer: Mailer,
+    settings: AppSettings,
+) -> SitterReviews:
+    """Her side, recorded before any decision (6.11). The admins are emailed."""
+    reviews_service.respond(db, sitter.id, flag_id, body.response, datetime.now(UTC))
+    for to in settings.admin_alert_emails:
+        mailer.send(email_service.rating_flag_response_alert(to, sitter.full_name, booking_mail.web_url(settings)))
+    return _her_reviews(db, sitter.id)

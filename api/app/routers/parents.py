@@ -40,6 +40,7 @@ from app.services import incidents as incidents_service
 from app.services import overtime as overtime_service
 from app.services import payments as payments_service
 from app.services import reports as reports_service
+from app.services import reviews as reviews_service
 from app.services import search as search_service
 from app.services import sitters as sitters_service
 from app.services.accounts import normalise_mobile
@@ -337,6 +338,32 @@ class SharedReference(BaseModel):
     relationship: str
 
 
+def first_name(name: str | None) -> str | None:
+    name = (name or "").strip()
+    return name.split()[0] if name else None
+
+
+class PublicReview(BaseModel):
+    """A parent's review of a sitter, as shown on her profile: the parent's first name only."""
+
+    rating: int
+    body: str | None
+    author_first_name: str | None
+    created_at: datetime
+
+
+def public_reviews(db, sitter_id: uuid.UUID) -> list[PublicReview]:
+    return [
+        PublicReview(
+            rating=item.rating,
+            body=item.body,
+            author_first_name=first_name(item.author_name),
+            created_at=item.created_at,
+        )
+        for item in reviews_service.about(db, sitter_id, limit=reviews_service.PUBLIC_LIMIT)
+    ]
+
+
 class SitterDetail(SitterSummary):
     bio: str | None
     # Shown to parents on her profile page (Reuben, 2026-11-16).
@@ -347,6 +374,8 @@ class SitterDetail(SitterSummary):
     # Recharge sitters only, with her consent (CLAUDE.md 6.2).
     reference: SharedReference | None
     joined_at: datetime  # shown as "Joined Nov 2026" (UX review 2026-11-13)
+    # Families' reviews of her, newest first (Reuben, 2026-11-22): the parent's first name only.
+    reviews: list[PublicReview]
 
 
 def _photo_url(db: DbSession, storage: StorageClient, sitter_id: uuid.UUID) -> str | None:
@@ -438,6 +467,7 @@ def get_sitter(sitter_id: uuid.UUID, parent: Parent, db: DbSession, storage: Sto
         days_off=[day for day in availability_service.days_off(db, sitter_id, today) if day <= last_day],
         reference=(SharedReference(name=shared.name, relationship=shared.relationship) if shared else None),
         joined_at=found.profile.created_at,
+        reviews=public_reviews(db, sitter_id),
     )
 
 
@@ -593,6 +623,36 @@ class IssueOut(BaseModel):
     status: str
 
 
+class ReviewIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    body: str | None = Field(default=None, max_length=reviews_service.BODY_MAX)
+
+
+class MyReviewOut(BaseModel):
+    rating: int
+    body: str | None
+    created_at: datetime
+
+
+class ReviewState(BaseModel):
+    """The person's own review of this booking (6.11): what they left, or whether they can leave one now
+    and until when. Never the other person's review of them."""
+
+    mine: MyReviewOut | None
+    can_review: bool
+    open_until: datetime | None  # only while they can
+
+
+def review_state(db, booking, author_id: uuid.UUID) -> ReviewState:
+    mine = reviews_service.mine(db, booking.id, author_id)
+    can = mine is None and reviews_service.can_review(db, booking, author_id, datetime.now(UTC))
+    return ReviewState(
+        mine=MyReviewOut(rating=mine.rating, body=mine.body, created_at=mine.created_at) if mine else None,
+        can_review=can,
+        open_until=reviews_service.open_until(booking) if can else None,
+    )
+
+
 class BookingOut(BaseModel):
     """The parent's view of a booking: never the plan's name or the sitter's pay (6.1)."""
 
@@ -625,6 +685,7 @@ class BookingOut(BaseModel):
     checked_in_at: datetime | None  # (6.7)
     checked_out_at: datetime | None
     overtime: OvertimeRequestOut | None  # (6.8)
+    review: ReviewState  # the parent's review of the sitter (6.11)
 
 
 AppSettings = Annotated[Settings, Depends(get_settings)]
@@ -673,6 +734,7 @@ def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
         checked_in_at=booking.checked_in_at,
         checked_out_at=booking.checked_out_at,
         overtime=overtime_out(db, booking.id),
+        review=review_state(db, booking, booking.parent_id),
     )
 
 
@@ -860,6 +922,17 @@ def set_outing(
         home = bookings_service.home_info(db, booking.id)
         booking_mail.tell_outing_changed(db, mailer, settings, booking.id, home.outing_where if home else None)
     return _booking_out(db, booking, settings)
+
+
+@router.post("/bookings/{booking_id}/review", status_code=201)
+def post_review(
+    booking_id: uuid.UUID, body: ReviewIn, parent: Parent, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> BookingOut:
+    """The parent's rating and review of the sitter, once, within 14 days of the end (6.11)."""
+    left = reviews_service.leave(db, parent, booking_id, body.rating, body.body, datetime.now(UTC))
+    if left.flag is not None:
+        booking_mail.tell_admins_rating_flag(db, mailer, settings, left.flag)
+    return _booking_out(db, bookings_service.parents_booking(db, parent.id, booking_id), settings)
 
 
 @router.post("/bookings/{booking_id}/cancel")

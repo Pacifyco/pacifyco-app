@@ -356,6 +356,7 @@ describe("a sitter's profile page", () => {
     days_off: ["2026-11-15"],
     reference: null,
     joined_at: "2026-11-02T10:00:00Z",
+    reviews: [] as { rating: number; body: string | null; author_first_name: string | null; created_at: string }[],
   };
   const CHILDREN = () => jsonResponse([{ id: "c1", name: "Diya", date_of_birth: "2022-05-01" }]);
 
@@ -408,6 +409,27 @@ describe("a sitter's profile page", () => {
     renderAt("/parent/sitters/s1");
     await screen.findByRole("heading", { level: 1, name: "Lakshmi Nair" });
     expect(screen.queryByRole("heading", { name: /A reference for/ })).toBeNull();
+  });
+
+  test("families' reviews, with their first name and the month", async () => {
+    const reviews = [
+      { rating: 5, body: "Diya loved her.", author_first_name: "Priya", created_at: "2026-11-20T10:00:00Z" },
+      { rating: 4, body: null, author_first_name: "Arjun", created_at: "2026-10-03T10:00:00Z" },
+    ];
+    mockApi({ "GET /parent/sitters/s1": () => jsonResponse({ ...DETAIL, reviews }), "GET /parent/children": CHILDREN });
+    renderAt("/parent/sitters/s1");
+    const list = await screen.findByRole("list", { name: "Reviews of Lakshmi" });
+    expect(screen.getByRole("heading", { name: "What families say" })).toBeTruthy();
+    expect(within(list).getByText("Diya loved her.")).toBeTruthy();
+    expect(within(list).getByText("Priya · Nov 2026")).toBeTruthy();
+    expect(within(list).getByRole("img", { name: "4 out of 5 stars" })).toBeTruthy();
+  });
+
+  test("no reviews card before any review", async () => {
+    mockApi({ "GET /parent/sitters/s1": () => jsonResponse(DETAIL), "GET /parent/children": CHILDREN });
+    renderAt("/parent/sitters/s1");
+    await screen.findByRole("heading", { level: 1, name: "Lakshmi Nair" });
+    expect(screen.queryByRole("heading", { name: "What families say" })).toBeNull();
   });
 
   test("a sitter who isn't available says so", async () => {

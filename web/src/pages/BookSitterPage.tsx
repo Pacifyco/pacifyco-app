@@ -23,6 +23,7 @@ import { dayLabel, hourLabel, kolkataTime, todayInKolkata } from "../lib/times";
 import { noShowReportable, type BookingReport } from "../lib/reports";
 import { type OvertimeRequest } from "../lib/overtime";
 import { BookingHelp, type BookingIncident } from "../components/BookingHelp";
+import { ReviewCard, type ReviewState } from "../components/ReviewCard";
 import { firstNameOf } from "./FindSittersPage";
 
 // "Book this sitter" (CLAUDE.md 6.1 and 6.4; phase 6). The parent picks a day and time from her free
@@ -73,6 +74,7 @@ export type Booking = {
   checked_in_at: string | null; // (6.7)
   checked_out_at: string | null;
   overtime: OvertimeRequest | null; // (6.8)
+  review: ReviewState; // the parent's review of the sitter (6.11)
 };
 
 export type PayByUpi = { upi_id: string; payee_name: string; amount_paise: number; note: string; upi_link: string };
@@ -576,6 +578,13 @@ export function BookingPage() {
           </p>
         </Card>
       )}
+      <ReviewCard<Booking>
+        path={`/parent/bookings/${data.id}/review`}
+        queryKey={["booking", data.id]}
+        review={data.review}
+        question={`How was ${firstName}?`}
+        note={`Your rating and review show on ${firstName}'s profile, with your first name.`}
+      />
       {data.status === "cancelled_unpaid" && (
         <CancelledCard sitterId={data.sitter_id}>
           This booking was cancelled because it wasn't paid by {formatDay(new Date(data.pay_by))},{" "}

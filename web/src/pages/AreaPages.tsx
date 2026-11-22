@@ -9,6 +9,7 @@ import { PAYOUTS_SUMMARY_KEY, type PayoutsSummary } from "./admin/PayoutsPage";
 import { apiFetch } from "../lib/api";
 import { useChecklist, type SitterChecklist } from "./ProfileChecklist";
 import { STRIKES_KEY, type SitterStrikes } from "./SitterStrikesPage";
+import { REVIEWS_KEY, type SitterReviews } from "./SitterReviewsPage";
 import { sitterBookingLine, type SitterBookingItem, type SitterBookingList } from "./SitterBookingsPage";
 
 // Each role's home (gated by RequireRole in routes.tsx). Parents have none: they land on Find a sitter.
@@ -115,6 +116,23 @@ function StrikesNotice() {
   );
 }
 
+/** Her ratings are being reviewed and she hasn't responded yet (6.11); otherwise a link to her reviews. */
+function ReviewsNotice() {
+  const reviews = useQuery({ queryKey: REVIEWS_KEY, queryFn: () => apiFetch<SitterReviews>("/sitter/reviews") });
+  if (!reviews.data) return null;
+  if (reviews.data.flag && !reviews.data.flag.response) {
+    return (
+      <Card as="section" className="flex flex-col items-start gap-3 border-l-4 border-coral">
+        <p className="text-ui text-ink">Pacifyco is reviewing your ratings. Please tell us your side.</p>
+        <ButtonLink to="/sitter/reviews" arrow>
+          Respond
+        </ButtonLink>
+      </Card>
+    );
+  }
+  return null;
+}
+
 /** Requests waiting for her answer: they lapse unanswered, so they come first (6.4). */
 function RequestsWaiting() {
   const list = useQuery({ queryKey: ["sitter", "requests"], queryFn: () => apiFetch<SitterBookingItem[]>("/sitter/requests") });
@@ -196,9 +214,13 @@ export function SitterHomePage() {
         <>
           {!welcomed && <ApprovedWelcome pinCode={me.data?.profile?.pin_code ?? null} onClose={closeWelcome} />}
           <StrikesNotice />
+          <ReviewsNotice />
           <RequestsWaiting />
           <h2 className="mt-2 text-ui font-semibold">Your bookings</h2>
           <NextBooking />
+          <Link to="/sitter/reviews" className="text-small">
+            See your reviews
+          </Link>
           <FirstBooking hasWeek={hasWeek} />
         </>
       )}
@@ -288,6 +310,9 @@ export function AdminHomePage() {
         </ButtonLink>
         <ButtonLink to="/admin/payouts" variant="secondary">
           Payouts
+        </ButtonLink>
+        <ButtonLink to="/admin/ratings" variant="secondary">
+          Low ratings
         </ButtonLink>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">

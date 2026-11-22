@@ -31,7 +31,9 @@ from app.models import (
     Payout,
     Profile,
     PsychAttempt,
+    RatingFlag,
     Reference,
+    Review,
     Role,
     SitterEarning,
     Strike,
@@ -94,6 +96,12 @@ def delete_all(db: Session, found: Found) -> None:
         select(SitterEarning.id).where(or_(SitterEarning.booking_id.in_(booking_ids), SitterEarning.sitter_id.in_(ids)))
     ).all()
     payout_ids = db.scalars(select(Payout.id).where(Payout.sitter_id.in_(ids))).all()
+    review_ids = db.scalars(
+        select(Review.id).where(
+            or_(Review.booking_id.in_(booking_ids), Review.author_id.in_(ids), Review.subject_id.in_(ids))
+        )
+    ).all()
+    flag_ids = db.scalars(select(RatingFlag.id).where(RatingFlag.sitter_id.in_(ids))).all()
     complaint_ids = db.scalars(
         select(Complaint.id).where(or_(Complaint.booking_id.in_(booking_ids), Complaint.raised_by.in_(ids)))
     ).all()
@@ -113,6 +121,8 @@ def delete_all(db: Session, found: Found) -> None:
         *incident_ids,
         *earning_ids,
         *payout_ids,
+        *review_ids,
+        *flag_ids,
         *complaint_ids,
     ]
     about = [str(item) for item in records]
@@ -128,6 +138,8 @@ def delete_all(db: Session, found: Found) -> None:
     db.execute(delete(OvertimeCharge).where(OvertimeCharge.id.in_(overtime_charge_ids)))
     db.execute(delete(Incident).where(Incident.id.in_(incident_ids)))
     db.execute(delete(Complaint).where(Complaint.id.in_(complaint_ids)))
+    db.execute(delete(Review).where(Review.id.in_(review_ids)))
+    db.execute(delete(RatingFlag).where(RatingFlag.id.in_(flag_ids)))
     db.execute(delete(Message).where(or_(Message.parent_id.in_(ids), Message.sitter_id.in_(ids))))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
     db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))

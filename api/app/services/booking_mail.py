@@ -296,3 +296,13 @@ def tell_outing_changed(db: Session, mailer: EmailClient, settings: Settings, bo
             web_url(settings),
         )
     )
+
+
+def tell_admins_rating_flag(db: Session, mailer: EmailClient, settings: Settings, flag) -> None:
+    """A sitter's last-10 average fell below 3.5 (6.11)."""
+    sitter = db.get(Profile, flag.sitter_id)
+    name = sitter.full_name if sitter else None
+    for to in settings.admin_alert_emails:
+        mailer.send(
+            email_service.rating_flag_alert(to, name, str(flag.average), flag.reviews_counted, web_url(settings))
+        )

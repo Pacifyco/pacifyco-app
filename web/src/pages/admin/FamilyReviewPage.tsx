@@ -12,6 +12,7 @@ import {
   StatusPill,
   ViewDocumentButton,
 } from "./shared";
+import { AdminReviews, type ReviewForAdmin } from "./RatingsPage";
 import { QUEUE_KEY } from "./VerificationQueuePage";
 
 // Checking a family's birth certificates (CLAUDE.md 7). Approving a child deletes the certificate at
@@ -37,6 +38,7 @@ type FamilyReview = {
   verification_status: ReviewStatus;
   signed_up_at: string;
   children: ChildReview[];
+  reviews: ReviewForAdmin[]; // sitters' reviews of the family: only admins see them (Reuben, 2026-11-22)
 };
 
 function ChildCard({ child, invalidate }: { child: ChildReview; invalidate: unknown[][] }) {
@@ -117,6 +119,7 @@ export function FamilyReviewPage() {
           ))}
         </ul>
       )}
+      <AdminReviews title="Sitters' reviews of this family" reviews={family.reviews} summary="Only admins see these." />
     </section>
   );
 }

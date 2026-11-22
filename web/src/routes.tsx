@@ -3,6 +3,7 @@ import { RequireRole } from "./auth/RequireRole";
 import { FamilyReviewPage } from "./pages/admin/FamilyReviewPage";
 import { OverdueCheckoutsPage } from "./pages/admin/OverdueCheckoutsPage";
 import { PayoutsPage } from "./pages/admin/PayoutsPage";
+import { RatingsPage } from "./pages/admin/RatingsPage";
 import { PaymentsPage } from "./pages/admin/PaymentsPage";
 import { IncidentsPage } from "./pages/admin/IncidentsPage";
 import { IssuesPage } from "./pages/admin/IssuesPage";
@@ -30,6 +31,7 @@ import { SitterBookingPage } from "./pages/SitterBookingPage";
 import { SitterBookingsPage } from "./pages/SitterBookingsPage";
 import { SitterRequestsPage } from "./pages/SitterRequestsPage";
 import { SitterEarningsPage } from "./pages/SitterEarningsPage";
+import { SitterReviewsPage } from "./pages/SitterReviewsPage";
 import { SitterStrikesPage } from "./pages/SitterStrikesPage";
 import { ParentPaymentsPage } from "./pages/ParentPaymentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -91,6 +93,7 @@ export const routes: RouteObject[] = [
           ["sitter/requests", "sitter", <SitterRequestsPage />],
           ["sitter/strikes", "sitter", <SitterStrikesPage />],
           ["sitter/earnings", "sitter", <SitterEarningsPage />],
+          ["sitter/reviews", "sitter", <SitterReviewsPage />],
           ["sitter/bookings", "sitter", <SitterBookingsPage />],
           ["sitter/bookings/:bookingId", "sitter", <SitterBookingPage />],
         ] as const
@@ -160,6 +163,7 @@ export const routes: RouteObject[] = [
           ["admin/issues", <IssuesPage />],
           ["admin/overdue-checkouts", <OverdueCheckoutsPage />],
           ["admin/payouts", <PayoutsPage />],
+          ["admin/ratings", <RatingsPage />],
           ["admin/sitters/:sitterId", <SitterReviewPage />],
           ["admin/parents/:parentId", <FamilyReviewPage />],
         ] as const
