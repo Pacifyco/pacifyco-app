@@ -483,6 +483,18 @@ Emergency button instead.
   (or closed by an admin), any overtime request is resolved and there's no open incident.
 - **Sitters must be paid within 12 hours** of check-out (or of overtime approval, if later). This is in
   the signed Sitter Terms (2.6).
+- **What she earns, and when (built 2026-11-22, `api/app/services/earnings.py`, table `sitter_earnings`):**
+  at check-out, her level pay from check-in (or the start, if early) to the booked end, to the minute, plus
+  her overtime pay. On an admin's manual close, the same if she checked in; if she never did, only the
+  whole hours the admin chooses on the close form (none by default, at most the booked hours; Reuben,
+  2026-11-22). On a confirmed report: the show-up fee (₹100 per booked hour), the flat ₹100 (only a man
+  home), 1 hour of level pay (child under 18 months), or for an unsafe exit her level pay from check-in (or
+  the start) until she reported, rounded up to the full hour (Reuben, 2026-11-22); a no-show earns nothing.
+  Each earning is **held** until the booking has ended, no overtime request is waiting for her answer and
+  no incident is open; then it's **released**, due 12 hours later. So the 12 hours run from check-out, her
+  overtime answer, the admin's decision on a report (Reuben, 2026-11-22) or the incident's resolution,
+  whichever is last. An incident raised after release holds it again, unless it's paid. Amounts are never
+  changed (the API's role can update only `status`, `released_at` and `due_by`).
 - The admin panel shows a payouts-due list: each released, unpaid earning (booking, overtime, show-up
   fee) with the sitter's bank or UPI details and a countdown to its 12-hour
   deadline. Someone pays it and marks it paid with the transfer reference.
@@ -729,7 +741,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `incidents` **(created)** (id, booking_id, raised_by, kind: `emergency|theft|abuse|sitter_unsafe`, note, status: `open|acknowledged|resolved`, suspended_sitter, acknowledged_by/at, resolved_by/at, resolution_note, created_at)
 - `messages` **(created)** (id, parent_id, sitter_id, sender_id, body, created_at) — append-only
 - `reviews` (id, booking_id, author_id, subject_id, rating, body)
-- `sitter_earnings` (id, sitter_id, booking_id null, kind: `booking|overtime|show_up_fee`, amount_paise, status: `held|released|paid`, due_by, payout_id null)
+- `sitter_earnings` **(created)** (id, sitter_id, booking_id, kind: `booking|overtime|show_up_fee` (the flat ₹100 is a `show_up_fee` too), amount_paise, minutes (the time it pays for), status: `held|released|paid`, released_at, due_by, created_at) — built 2026-11-22, migration e1087ff8b02c; one of each kind per booking; the API's role can update only status, released_at and due_by. `payout_id` comes with the payouts list
 - `payouts` (id, sitter_id, amount_paise, method: `bank|upi`, transfer_reference, paid_by, paid_at)
 - `audit_log` **(created)** (id, actor_id, action, entity, entity_id, before, after, created_at)
 - `service_area_pincodes` **(created)** (pin_code, active) — seeded with the launch pin codes

@@ -8,14 +8,19 @@ tests.
 
 ## Current status
 
-- Phase: 8 done (2026-11-21; PRs #97 to #104 plus the test check). Next: phase 9 (reviews, sitter pay,
-  earnings dashboard, admin payouts list).
+- Phase: 9 under way (2026-11-22): sitter pay built. Next: the admin payouts list, then her earnings
+  dashboard, then reviews.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
 
 ## Open questions (ask Reuben; don't guess)
+
+- [x] **Sitter pay edge cases** (Reuben, 2026-11-22): an unsafe exit pays from check-in (or the start)
+  until she reported, rounded up to the full hour; money from a confirmed report is due 12 hours after the
+  admin confirms it; a booking an admin closes where she never checked in pays only the hours the admin
+  chooses on the close form (none by default). CLAUDE.md 6.10 updated.
 
 - [x] **Does an admin's manual close (6.7) ever charge overtime?** (Reuben, 2026-11-21): no, not by
   itself; manual closes are for outlier cases. But the admin gets an option when closing to charge the
@@ -564,7 +569,12 @@ at home (CLAUDE.md 6.3).
 ## Phase 9 — After the booking
 
 - [ ] Reviews and ratings both ways; low-rating flag (last 10 < 3.5) with right to respond
-- [ ] Sitter pay: level pay × hours worked, plus overtime; held → released rules
+- [x] Sitter pay: level pay × hours worked, plus overtime; held → released rules. Built 2026-11-22:
+  `api/app/services/earnings.py`, table `sitter_earnings` (migration e1087ff8b02c); earnings recorded at
+  check-out, on an admin's manual close (new "Pay the sitter?" choice when she never checked in) and on a
+  confirmed report; held while the booking is open, an overtime request waits or an incident is open,
+  then due 12 hours after release. A late check-in is paid to the minute from check-in (CLAUDE.md 6.2
+  "paid from check-in"). Not shown to her yet (earnings dashboard, next) or to admins (payouts list)
 - [ ] Sitter earnings dashboard (pending, paid)
 - [ ] Admin payouts-due list with 12-hour countdown, alerts at 3 hours left and overdue; mark paid with transfer reference (bank or UPI)
 - [ ] Tests for this phase
@@ -625,6 +635,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-22 — Phase 9 started: sitter pay (earnings recorded, held and released).
 - 2026-11-21 — Phase 7 and 8 test checks; Phase 8 done.
 - 2026-11-21 — Overtime option on an admin's manual close.
 - 2026-11-21 — Outings: set by the parent when booking (Recharge only); Family Terms 3.6 updated.

@@ -126,6 +126,21 @@ def cleanup_documents(db_engine, profile_id) -> None:
         conn.execute(text("DELETE FROM overtime_requests WHERE booking_id::text = ANY(:ids)"), {"ids": booking_ids})
         # overtime_charged audits are recorded against the booking itself, already cleaned up above.
         conn.execute(text("DELETE FROM overtime_charges WHERE booking_id::text = ANY(:ids)"), {"ids": booking_ids})
+        earning_ids = [
+            str(item)
+            for item in conn.execute(
+                text("SELECT id FROM sitter_earnings WHERE booking_id::text = ANY(:ids) OR sitter_id = :id"),
+                {"ids": booking_ids, "id": profile_id},
+            ).scalars()
+        ]
+        conn.execute(
+            text("DELETE FROM audit_log WHERE entity = 'sitter_earning' AND entity_id = ANY(:ids)"),
+            {"ids": earning_ids},
+        )
+        conn.execute(
+            text("DELETE FROM sitter_earnings WHERE booking_id::text = ANY(:ids) OR sitter_id = :id"),
+            {"ids": booking_ids, "id": profile_id},
+        )
         for table, entity in (("incidents", "incident"), ("complaints", "complaint")):
             found = [
                 str(item)

@@ -26,7 +26,7 @@ from app.models import (
     PaymentStatus,
 )
 from app.models import SitterLevel as Plan
-from app.services import audit, pricing, sitter_pay
+from app.services import audit, earnings, pricing, sitter_pay
 from app.services.availability import INDIA
 from app.services.bookings import LATEST_END
 
@@ -115,6 +115,8 @@ def decide(db: Session, sitter_id: uuid.UUID, request_id: uuid.UUID, accept: boo
         str(overtime_request.id),
         after={"status": overtime_request.status.value},
     )
+    # Her pay waits for her answer if the booking has already ended (6.10).
+    earnings.release_booking(db, overtime_request.booking_id, now)
     db.commit()
     return overtime_request
 

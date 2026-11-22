@@ -18,6 +18,7 @@ const OVERDUE: NeedsAttentionItem = {
   parent_phone: "+919876543210",
   sitter_name: "Lakshmi Nair",
   sitter_phone: "+919812345678",
+  checked_in: true,
 };
 
 function renderWith(list: NeedsAttentionItem[]) {
@@ -72,7 +73,7 @@ describe("Overdue check-outs", () => {
       expect(posted).toEqual([
         {
           url: expect.stringMatching(/\/admin\/bookings\/b1\/close$/),
-          body: { reason: "Called both; she forgot to check out.", overtime_hours: null },
+          body: { reason: "Called both; she forgot to check out.", overtime_hours: null, pay_hours: null },
         },
       ]),
     );
@@ -89,7 +90,7 @@ describe("Overdue check-outs", () => {
       expect(posted).toEqual([
         {
           url: expect.stringMatching(/\/admin\/bookings\/b1\/close$/),
-          body: { reason: "Parent back 2 hours late", overtime_hours: 2 },
+          body: { reason: "Parent back 2 hours late", overtime_hours: 2, pay_hours: null },
         },
       ]),
     );
@@ -98,5 +99,22 @@ describe("Overdue check-outs", () => {
   test("none", async () => {
     renderWith([]);
     expect(await screen.findByText("Nothing needs attention.")).toBeTruthy();
+  });
+
+  test("she never checked in: the admin may choose hours to pay her, nothing by default", async () => {
+    const posted = renderWith([{ ...OVERDUE, overdue: false, checked_in: false }]);
+    fireEvent.click(await screen.findByRole("button", { name: "Close the booking" }));
+    const pay = screen.getByLabelText(/Pay the sitter\?/) as HTMLSelectElement;
+    expect(pay.value).toBe("0");
+    fireEvent.change(screen.getByLabelText(/Why are you closing it\?/), { target: { value: "Codes locked at the door" } });
+    fireEvent.change(pay, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Close the booking" }));
+    await vi.waitFor(() => expect(posted[0]?.body).toEqual({ reason: "Codes locked at the door", overtime_hours: null, pay_hours: 1 }));
+  });
+
+  test("she checked in: no pay choice (she's paid for the hours she worked)", async () => {
+    renderWith([OVERDUE]);
+    fireEvent.click(await screen.findByRole("button", { name: "Close the booking" }));
+    expect(screen.queryByLabelText(/Pay the sitter\?/)).toBeNull();
   });
 });

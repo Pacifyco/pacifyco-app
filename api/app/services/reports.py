@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import Booking, BookingReport, BookingStatus, ReportKind, ReportStatus, StrikeReason
-from app.services import audit, bookings, pricing, sitter_pay, strikes
+from app.services import audit, bookings, earnings, pricing, sitter_pay, strikes
 
 PARENT_WAIT = timedelta(minutes=20)  # 6.5: she may leave if no parent responds within 20 minutes
 NO_SHOW_AFTER = timedelta(minutes=30)  # Reuben, 2026-11-19: a no-show can be reported from 30 minutes in
@@ -273,6 +273,8 @@ def decide(
             # 1 hour charged, the rest refunded (6.5).
             keep = pricing.hourly_price_paise(booking.plan, booking.children_count)
             bookings.refund_under_age(db, admin_id, booking.id, keep)
+        # What Pacifyco pays her, due 12 hours from this decision (Reuben, 2026-11-22).
+        earnings.record_report(db, booking, report.reported_at, now)
     report.status = ReportStatus.confirmed if confirm else ReportStatus.dismissed
     report.decided_by = admin_id
     report.decided_at = now
