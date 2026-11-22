@@ -77,6 +77,20 @@ def test_paid_for_the_booked_hours_even_if_she_checks_out_early(client, db_engin
     assert "earning_recorded" in audit and "earning_released" in audit
 
 
+@pytest.mark.parametrize(("plan", "per_hour"), [("pause", 20_000), ("unwind", 30_000), ("recharge", 40_000)])
+def test_her_level_pay_times_hours_worked_at_each_level(client, db_engine, confirmed, finished_parent, plan, per_hour):
+    """Level pay (6.2): Pause ₹200, Unwind ₹300, Recharge ₹400 an hour. Nothing is recorded before check-out."""
+    with db_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE bookings SET plan = :p, children_count = 1 WHERE id = :b"), {"p": plan, "b": confirmed["id"]}
+        )
+    started(db_engine, confirmed["id"], 60)
+    assert earnings(db_engine, confirmed["id"]) == {}
+    check_out(client, db_engine, confirmed["id"], finished_parent)
+    found = earnings(db_engine, confirmed["id"])
+    assert set(found) == {"booking"} and found["booking"]["amount_paise"] == 2 * per_hour
+
+
 def test_a_late_check_in_is_paid_from_check_in_whatever_the_number_of_children(
     client, db_engine, confirmed, finished_parent
 ):

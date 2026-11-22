@@ -8,14 +8,22 @@ tests.
 
 ## Current status
 
-- Phase: 9 under way (2026-11-22): sitter pay, admin payouts and her earnings dashboard built. Next:
-  reviews, then the phase 9 test check.
+- Phase: 9 done (2026-11-22): sitter pay, admin payouts, her earnings dashboard, reviews and the test
+  check. Next: phase 10 (admin panel completion).
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
 
 ## Open questions (ask Reuben; don't guess)
+
+- [x] **How long does a flagged sitter have to respond before she can be removed for ratings?** (Reuben,
+  2026-11-22): 12 hours from being told. The flag can't be closed before her response or the end of those
+  12 hours; phase 10's removal must wait the same way. CLAUDE.md 6.11 updated.
+- [x] **Reviews** (Reuben, 2026-11-22): open for 14 days after the booking's end; only bookings where care
+  happened (checked out, or closed by an admin after she checked in); parents see her average, count and
+  written reviews (first name and month); only admins see a sitter's review of a parent; the low-rating
+  flag applies from 5 reviews (average of her last 10, or all of them if fewer). CLAUDE.md 6.11 updated.
 
 - [x] **Sitter pay edge cases** (Reuben, 2026-11-22): an unsafe exit pays from check-in (or the start)
   until she reported, rounded up to the full hour; money from a confirmed report is due 12 hours after the
@@ -568,7 +576,13 @@ at home (CLAUDE.md 6.3).
 
 ## Phase 9 — After the booking
 
-- [ ] Reviews and ratings both ways; low-rating flag (last 10 < 3.5) with right to respond
+- [x] Reviews and ratings both ways; low-rating flag (last 10 < 3.5) with right to respond. Built
+  2026-11-22: tables `reviews` and `rating_flags` (migration aa0d951a16d9), `api/app/services/reviews.py`.
+  A "Leave a review" card on both booking pages (1-5 stars, up to 500 characters, once, for 14 days); her
+  profile shows "What families say"; `/sitter/reviews` (linked from her home) shows families' reviews and,
+  if she's flagged and told, the reason and a response form; admins see `/admin/ratings` ("Low ratings":
+  tell her, read her response, close with a note) and the reviews on the sitter and family pages. Admins
+  are emailed when she's flagged and when she responds; she's emailed when told, and has 12 hours to respond
 - [x] Sitter pay: level pay × hours worked, plus overtime; held → released rules. Built 2026-11-22:
   `api/app/services/earnings.py`, table `sitter_earnings` (migration e1087ff8b02c); earnings recorded at
   check-out, on an admin's manual close (new "Pay the sitter?" choice when she never checked in) and on a
@@ -584,7 +598,11 @@ at home (CLAUDE.md 6.3).
   - [x] Mark paid with the transfer reference (2026-11-22): a `payouts` row (migration ed9b32937157), the
     earnings shown become paid, she's emailed
   - [x] Alert emails at 3 hours left and when overdue (2026-11-22): frequent job `alert_payouts`, once each
-- [ ] Tests for this phase
+- [x] Tests for this phase. Phase 9 test check 2026-11-22: CLAUDE.md 9 rows for sitter pay, payouts and
+  reviews all covered, plus phase 8's leftovers (an unsafe early exit paid for time worked with no strike,
+  the show-up fee paid with her earnings). Added: level pay at each level (Pause ₹200, Unwind ₹300,
+  Recharge ₹400), with nothing recorded before check-out; the Reviews row updated (14 days, from 5 reviews,
+  admins only for reviews of parents, 12 hours to respond)
 
 ## Phase 10 — Admin panel completion
 
@@ -642,6 +660,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-22 — Reviews both ways and the low-rating flag (12 hours to respond); phase 9 test check.
 - 2026-11-22 — Sitter earnings dashboard.
 - 2026-11-22 — Admin payouts: the due list (by sitter, countdowns, overdue banner, bank-detail views logged),
   mark paid with the reference, alert emails at 3 hours left and overdue.

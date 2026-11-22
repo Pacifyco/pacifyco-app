@@ -876,3 +876,48 @@ def refund_paid(to: str, full_name: str | None, amount_paise: int, booking_id: o
         button_label="Open your booking",
         button_url=_booking_url(web_url, booking_id),
     )
+
+
+def rating_flag_alert(to: str, sitter_name: str | None, average: str, count: int, web_url: str) -> Email:
+    """To an admin: a sitter's last-10 average is below 3.5 (6.11)."""
+    who = sitter_name or "A sitter"
+    return Email(
+        to=to,
+        subject="A sitter's ratings are low",
+        heading=f"{who}'s average is {average} over her last {count} reviews.",
+        body=(
+            "That's below 3.5, so she's flagged for review. Before any decision, tell her the reason and give her "
+            "a chance to respond."
+        ),
+        button_label="Open low ratings",
+        button_url=f"{web_url.rstrip('/')}/admin/ratings",
+    )
+
+
+def rating_flag_told(to: str, full_name: str | None, reason: str, web_url: str) -> Email:
+    """To the sitter: why her ratings are being reviewed, and that she can respond (6.11)."""
+    return Email(
+        to=to,
+        subject="Your ratings are being reviewed",
+        heading="Pacifyco is reviewing your ratings.",
+        body=(
+            f"Hi {_first_name(full_name)}, your recent ratings from families are low, so Pacifyco is reviewing "
+            f"them.\nThe reason: {reason}\nPlease tell us your side in the app within 12 hours. We'll read it "
+            "before we decide anything."
+        ),
+        button_label="Respond",
+        button_url=f"{web_url.rstrip('/')}/sitter/reviews",
+    )
+
+
+def rating_flag_response_alert(to: str, sitter_name: str | None, web_url: str) -> Email:
+    """To an admin: the flagged sitter has responded (6.11)."""
+    who = sitter_name or "The sitter"
+    return Email(
+        to=to,
+        subject="A sitter has responded about her ratings",
+        heading=f"{who} has responded about her ratings.",
+        body="Read her response and close the flag with your decision.",
+        button_label="Open low ratings",
+        button_url=f"{web_url.rstrip('/')}/admin/ratings",
+    )

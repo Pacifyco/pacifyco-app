@@ -8,6 +8,7 @@ import { rupees } from "../lib/prices";
 import { todayInKolkata } from "../lib/times";
 import { outingText, sitterBookingLine, sitterStatusText, type SitterBookingItem } from "./SitterBookingsPage";
 import { BookingHelp, type BookingIncident } from "../components/BookingHelp";
+import { ReviewCard, type ReviewState } from "../components/ReviewCard";
 import { answerByText } from "./SitterRequestsPage";
 import { MAN_HOME_FEE_PAISE, SHOW_UP_FEE_PER_HOUR_PAISE, minutesLeft, underWay, type BookingReport } from "../lib/reports";
 import { type OvertimeRequest } from "../lib/overtime";
@@ -37,6 +38,7 @@ export type SitterBookingDetail = SitterBookingItem & {
   checked_out_at: string | null;
   codes_locked: boolean;
   overtime: OvertimeRequest | null; // (6.8)
+  review: ReviewState; // her review of the family; only Pacifyco sees it (6.11)
 };
 
 /** "18 months", "2 years", "5 years". */
@@ -673,6 +675,13 @@ export function SitterBookingPage() {
           </ButtonLink>
         </div>
       )}
+      <ReviewCard<SitterBookingDetail>
+        path={`/sitter/bookings/${data.id}/review`}
+        queryKey={["sitter", "booking", data.id]}
+        review={data.review}
+        question={`How was the booking with ${data.family_name}?`}
+        note="Only Pacifyco sees your rating and review. The family doesn't."
+      />
       <BookingHelp
         role="sitter"
         bookingId={data.id}

@@ -161,6 +161,20 @@ def cleanup_documents(db_engine, profile_id) -> None:
                 text("DELETE FROM audit_log WHERE entity = :e AND entity_id = ANY(:ids)"), {"e": entity, "ids": found}
             )
             conn.execute(text(f"DELETE FROM {table} WHERE id::text = ANY(:ids)"), {"ids": found})
+        for table, entity, where in (
+            ("reviews", "review", "booking_id::text = ANY(:ids) OR author_id = :id OR subject_id = :id"),
+            ("rating_flags", "rating_flag", "sitter_id = :id"),
+        ):
+            found = [
+                str(item)
+                for item in conn.execute(
+                    text(f"SELECT id FROM {table} WHERE {where}"), {"ids": booking_ids, "id": profile_id}
+                ).scalars()
+            ]
+            conn.execute(
+                text("DELETE FROM audit_log WHERE entity = :e AND entity_id = ANY(:ids)"), {"e": entity, "ids": found}
+            )
+            conn.execute(text(f"DELETE FROM {table} WHERE id::text = ANY(:ids)"), {"ids": found})
         conn.execute(text("DELETE FROM messages WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM bookings WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM documents WHERE owner_profile_id = :id"), {"id": profile_id})

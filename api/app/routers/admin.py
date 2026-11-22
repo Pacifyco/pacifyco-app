@@ -44,6 +44,7 @@ from app.services import payments as payments_service
 from app.services import payouts as payouts_service
 from app.services import psych_tests as psych_tests_service
 from app.services import reports as reports_service
+from app.services import reviews as reviews_service
 from app.services import strikes as strikes_service
 from app.services.storage import StorageClient, get_storage
 from app.settings import LOCAL_WEB_ORIGIN, Settings, get_settings
@@ -298,6 +299,21 @@ class PsychAttemptRef(BaseModel):
     submitted_at: datetime | None
 
 
+class ReviewForAdmin(BaseModel):
+    """A review, with the author's full name and the booking (6.11)."""
+
+    id: uuid.UUID
+    booking_id: uuid.UUID
+    rating: int
+    body: str | None
+    author_name: str | None
+    created_at: datetime
+
+
+def _reviews_about(db, subject_id: uuid.UUID) -> list[ReviewForAdmin]:
+    return [ReviewForAdmin(**vars(item)) for item in reviews_service.about(db, subject_id)]
+
+
 class SitterReview(BaseModel):
     """Everything an admin needs to review a sitter, except health data and payout details: the
     health disclosure has its own logged endpoint, and payout details aren't part of vetting."""
@@ -326,6 +342,10 @@ class SitterReview(BaseModel):
     documents: list[DocumentSummary]
     references: list[ReferenceOut]
     psych_attempt: PsychAttemptRef | None
+    # Families' reviews of her (6.11)
+    avg_rating: float | None
+    review_count: int
+    reviews: list[ReviewForAdmin]
 
 
 @router.get("/sitters/{sitter_id}")
@@ -375,6 +395,9 @@ def get_sitter_review(sitter_id: uuid.UUID, admin: Admin, db: DbSession) -> Sitt
             if attempt is not None
             else None
         ),
+        avg_rating=float(sitter.avg_rating) if sitter.avg_rating is not None else None,
+        review_count=sitter.review_count,
+        reviews=_reviews_about(db, sitter_id),
     )
 
 
@@ -486,6 +509,8 @@ class FamilyReview(BaseModel):
     verification_status: VerificationStatus
     signed_up_at: datetime
     children: list[ChildReview]
+    # Sitters' reviews of the family: only admins see them (Reuben, 2026-11-22).
+    reviews: list[ReviewForAdmin]
 
 
 @router.get("/parents/{parent_id}")
@@ -516,6 +541,7 @@ def get_family_review(parent_id: uuid.UUID, admin: Admin, db: DbSession) -> Fami
             )
             for child in children_service.list_children(db, parent_id)
         ],
+        reviews=_reviews_about(db, parent_id),
     )
 
 
@@ -1337,3 +1363,75 @@ def mark_payout_paid(
         transfer_reference=payout.transfer_reference,
         paid_at=payout.paid_at,
     )
+
+
+# ---------- low ratings (CLAUDE.md 6.11; phase 9) ----------
+
+
+class RatingFlagOut(BaseModel):
+    id: uuid.UUID
+    sitter_id: uuid.UUID
+    sitter_name: str | None
+    sitter_phone: str | None
+    average: float  # of her last 10 reviews when flagged
+    reviews_counted: int
+    status: str  # open (not told yet), told, responded
+    created_at: datetime
+    reason: str | None  # what she was told
+    told_at: datetime | None
+    response: str | None  # hers
+    responded_at: datetime | None
+    respond_by: datetime | None  # her 12 hours to respond end (Reuben, 2026-11-22)
+    can_close: bool  # not told yet, or she has responded or her 12 hours have passed
+
+
+def _flag_out(db, flag) -> RatingFlagOut:
+    profile = db.get(Profile, flag.sitter_id)
+    return RatingFlagOut(
+        id=flag.id,
+        sitter_id=flag.sitter_id,
+        sitter_name=profile.full_name if profile else None,
+        sitter_phone=profile.phone if profile else None,
+        average=float(flag.average),
+        reviews_counted=flag.reviews_counted,
+        status=flag.status.value,
+        created_at=flag.created_at,
+        reason=flag.reason,
+        told_at=flag.told_at,
+        response=flag.response,
+        responded_at=flag.responded_at,
+        respond_by=reviews_service.respond_by(flag),
+        can_close=flag.told_at is None or reviews_service.can_decide(flag, datetime.now(UTC)),
+    )
+
+
+@router.get("/rating-flags")
+def get_rating_flags(admin: Admin, db: DbSession) -> list[RatingFlagOut]:
+    """Sitters whose last-10 average fell below 3.5, not yet closed, oldest first."""
+    return [_flag_out(db, flag) for flag in reviews_service.open_flags(db)]
+
+
+class TellIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+@router.post("/rating-flags/{flag_id}/tell")
+def tell_rating_flag(
+    flag_id: uuid.UUID, body: TellIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> RatingFlagOut:
+    """Tells her the reason; she can then respond in the app (6.11). She's emailed."""
+    flag = reviews_service.tell(db, admin.id, flag_id, body.reason, datetime.now(UTC))
+    sitter = db.get(Profile, flag.sitter_id)
+    if sitter is not None:
+        mailer.send(email_service.rating_flag_told(sitter.email, sitter.full_name, flag.reason, _web_url(settings)))
+    return _flag_out(db, flag)
+
+
+class CloseFlagIn(BaseModel):
+    note: str = Field(min_length=1, max_length=1000)
+
+
+@router.post("/rating-flags/{flag_id}/close")
+def close_rating_flag(flag_id: uuid.UUID, body: CloseFlagIn, admin: Admin, db: DbSession) -> RatingFlagOut:
+    """The admin's decision, as an internal note. Removing her account is a separate step (phase 10)."""
+    return _flag_out(db, reviews_service.close(db, admin.id, flag_id, body.note, datetime.now(UTC)))

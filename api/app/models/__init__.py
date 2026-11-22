@@ -31,6 +31,7 @@ from app.models.psych_tests import (
     PsychTest,
 )
 from app.models.reports import BookingReport, ReportKind, ReportStatus
+from app.models.reviews import RatingFlag, RatingFlagStatus, Review
 from app.models.sitters import (
     OnboardingStatus,
     OnboardingStep,
@@ -99,7 +100,10 @@ __all__ = [
     "PsychQuestion",
     "PsychQuestionKind",
     "PsychTest",
+    "RatingFlag",
+    "RatingFlagStatus",
     "Reference",
+    "Review",
     "Role",
     "ServiceAreaPincode",
     "Sitter",

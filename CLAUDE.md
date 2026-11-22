@@ -522,6 +522,19 @@ Emergency button instead.
   other. A sitter's average rating and count show on their profile.
 - If a sitter's average over her last 10 bookings falls below **3.5**, flag her for admin review. Before
   removal for ratings, she must be told the reason and given a chance to respond (recorded).
+- **How it works (built 2026-11-22, `api/app/services/reviews.py`, tables `reviews` and `rating_flags`):**
+  a review can be left once by each of the booking's parent and sitter, only where care happened (checked
+  out, or closed by an admin after she checked in), for **14 days** after the booking's end (Reuben,
+  2026-11-22): 1-5 stars and up to 500 characters, kept as written. Parents see her average, count and
+  written reviews (the parent's first name and the month) on her profile, and she sees them at
+  `/sitter/reviews`; **only admins see a sitter's review of a parent** (Reuben, 2026-11-22). Her average is
+  all time; the flag looks at the average of her last 10 reviews, **once she has at least 5** (Reuben,
+  2026-11-22), and admins are emailed. On `/admin/ratings` an admin tells her the reason (she's emailed and
+  sees it on her home), she responds in the app (admins are emailed), and an admin closes the flag with a
+  note; each step is audit logged and kept. **She has 12 hours from being told to respond** (Reuben,
+  2026-11-22): until she has responded or those 12 hours have passed, the flag can't be closed (one she was
+  never told about can be, with no action against her). Removing an account for ratings is phase 10, and
+  must wait for the same: her response, or the end of her 12 hours.
 - Pacify connects families and sitters through the in-app chat, and sitters never have to share their
   number. After the first booking they may choose to exchange numbers; the app doesn't stop it
   (decided 2026-11-12).
@@ -755,7 +768,8 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `strikes` **(created)** (id, sitter_id, booking_id null (one strike per booking), reason: `late_cancellation|no_show|admin`, note, given_at, expires_at (6 months later), removed_by null, removed_at, removal_reason, doctor_note_document_id null) — kept, never deleted: the API's role can add rows and record a removal only
 - `incidents` **(created)** (id, booking_id, raised_by, kind: `emergency|theft|abuse|sitter_unsafe`, note, status: `open|acknowledged|resolved`, suspended_sitter, acknowledged_by/at, resolved_by/at, resolution_note, created_at)
 - `messages` **(created)** (id, parent_id, sitter_id, sender_id, body, created_at) — append-only
-- `reviews` (id, booking_id, author_id, subject_id, rating, body)
+- `reviews` **(created)** (id, booking_id, author_id, subject_id, rating 1-5, body (up to 500 characters), created_at) — built 2026-11-22, migration aa0d951a16d9; once per author per booking; append-only
+- `rating_flags` **(created)** (id, sitter_id, average, reviews_counted, status: `open|told|responded|closed`, created_at, told_by, told_at, reason, response, responded_at, closed_by, closed_at, close_note) — a low-rating flag (6.11), one in progress per sitter; the API's role can update only its progress columns, never delete
 - `sitter_earnings` **(created)** (id, sitter_id, booking_id, kind: `booking|overtime|show_up_fee` (the flat ₹100 is a `show_up_fee` too), amount_paise, minutes (the time it pays for), status: `held|released|paid`, released_at, due_by, payout_id (set when paid; a paid earning must have one), created_at) — built 2026-11-22, migrations e1087ff8b02c and ed9b32937157; one of each kind per booking; the API's role can update only status, released_at, due_by and payout_id
 - `payouts` **(created)** (id, sitter_id, amount_paise, method: `bank|upi`, transfer_reference (unique), paid_by, paid_at) — built 2026-11-22, migration ed9b32937157; one transfer for everything due to her; append-only
 - `audit_log` **(created)** (id, actor_id, action, entity, entity_id, before, after, created_at)
@@ -789,7 +803,7 @@ in the beta phase.
 | Incidents | Email sent to every admin address (mocked); payout held while open |
 | Sitter pay | Level pay × hours worked, whatever the number of children; hours worked = check-in to booked end; late check-in paid from check-in; overtime hours rounded up like the parent's |
 | Payouts | Earnings released only after checkout + overtime worked out + no open incident; due within 12 hours; alerts at 3 hours left and when overdue; show-up fee ₹100 per booked hour; bank or UPI; mark-paid records reference |
-| Reviews | Only after a completed booking, once per author per booking; average updates; flag when last-10 average < 3.5 |
+| Reviews | Only after a completed booking, once per author per booking, within 14 days; average updates; flag when last-10 average < 3.5 (from 5 reviews); a sitter's review of a parent seen only by admins; 12 hours to respond before the flag is decided |
 | Child age and home info | Child under 18 months can't be booked; camera declaration required; outings only on Recharge, set by the parent, changeable until the start |
 | New cancellation rows | sitter no-show reportable from 30 minutes after the start; 20-minute parent-not-home wait; under-18-months: parent charged 1 hour, rest refunded, sitter paid for that hour, no strike; unsafe early exit paid for time worked with no strike after admin confirms; doctor's note strike removal |
 | Complaints | SLA timers; escalation; original decider can't handle the appeal; late complaints flagged |

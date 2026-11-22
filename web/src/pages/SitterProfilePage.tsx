@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BadgeCheck, CircleCheck, Star } from "lucide-react";
 import { useParams } from "react-router";
 import { BackLink, ButtonLink, Card, Chip, EmptyState, VERIFIED_LABELS, type VerifiedCheck } from "../components/ui";
+import { ReviewList, type PublicReview } from "../components/ReviewCard";
 import { ApiError, apiFetch } from "../lib/api";
 import { plural } from "../lib/format";
 import { priceOnProfile } from "../lib/prices";
@@ -24,6 +25,8 @@ type SitterDetail = SitterSummary & {
   /** Recharge sitters only, with her consent (CLAUDE.md 6.2). */
   reference: { name: string; relationship: string } | null;
   joined_at: string;
+  /** Families' reviews of her, newest first (Reuben, 2026-11-22). */
+  reviews: PublicReview[];
 };
 
 type Child = { id: string; name: string; date_of_birth: string };
@@ -250,6 +253,17 @@ export function SitterProfilePage() {
             </figcaption>
           </figure>
           <p className="mt-3 text-small text-muted">Checked by Pacifyco and shared with {firstName}'s permission.</p>
+        </Card>
+      )}
+
+      {sitter.reviews.length > 0 && (
+        <Card as="section" padding="roomy" aria-labelledby="reviews-heading">
+          <h2 id="reviews-heading" className="text-h3">
+            What families say
+          </h2>
+          <div className="mt-3">
+            <ReviewList reviews={sitter.reviews} label={`Reviews of ${firstName}`} />
+          </div>
         </Card>
       )}
 

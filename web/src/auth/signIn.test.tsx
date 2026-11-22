@@ -585,7 +585,13 @@ describe("role-gated areas", () => {
     expect(screen.queryByText(/No bookings yet/)).toBeNull();
   });
 
-  function liveSitter(week: unknown[], upcoming: unknown[] = [], requests: unknown[] = [], strikes: unknown = null) {
+  function liveSitter(
+    week: unknown[],
+    upcoming: unknown[] = [],
+    requests: unknown[] = [],
+    strikes: unknown = null,
+    reviews: unknown = null,
+  ) {
     fake.state.session = fake.session;
     const profile = { role: "sitter", status: "active", full_name: "Asha K", pin_code: "560034" };
     vi.mocked(fetch).mockImplementation(((url: string) =>
@@ -597,6 +603,8 @@ describe("role-gated areas", () => {
             ? Promise.resolve(jsonResponse(requests))
             : url.endsWith("/sitter/strikes") && strikes
               ? Promise.resolve(jsonResponse(strikes))
+            : url.endsWith("/sitter/reviews") && reviews
+              ? Promise.resolve(jsonResponse(reviews))
           : url.endsWith("/sitter/checklist")
           ? Promise.resolve(jsonResponse({ ...SITTER_CHECKLIST, live: true }))
           : meResponse(profile)(url)) as typeof fetch);
@@ -624,6 +632,23 @@ describe("role-gated areas", () => {
     renderApp("/sitter");
     expect(await screen.findByText("You can't take new bookings until Sun, 6 Jan, 10:00 am.")).toBeTruthy();
     expect(screen.getByRole("link", { name: "See your strikes" }).getAttribute("href")).toBe("/sitter/strikes");
+  });
+
+  test("asked to respond on her home when her ratings are being reviewed", async () => {
+    const flag = {
+      id: "f1",
+      reason: "Low ratings",
+      told_at: "2030-01-05T10:00:00Z",
+      response: null,
+      responded_at: null,
+      respond_by: "2030-01-05T22:00:00Z",
+    };
+    const reviews = { avg_rating: 3.1, review_count: 6, reviews: [], flag };
+    liveSitter([{ weekday: 0, start_hour: 9, end_hour: 13 }], [], [], null, reviews);
+    renderApp("/sitter");
+    expect(await screen.findByText("Pacifyco is reviewing your ratings. Please tell us your side.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Respond/ }).getAttribute("href")).toBe("/sitter/reviews");
+    expect(screen.getByRole("link", { name: "See your reviews" }).getAttribute("href")).toBe("/sitter/reviews");
   });
 
   test("requests waiting for her answer come first on her home", async () => {

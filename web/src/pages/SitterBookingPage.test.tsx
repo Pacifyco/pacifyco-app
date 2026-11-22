@@ -52,6 +52,7 @@ const BOOKING: SitterBookingDetail = {
   checked_out_at: null,
   codes_locked: false,
   overtime: null,
+  review: { mine: null, can_review: false, open_until: null },
 };
 
 beforeEach(() => {
@@ -463,5 +464,43 @@ describe("Overtime requests (6.8)", () => {
     );
     fireEvent.click(await screen.findByRole("button", { name: "Decline" }));
     await vi.waitFor(() => expect(posted).toEqual([expect.stringMatching(/\/sitter\/overtime-requests\/o1\/decline$/)]));
+  });
+});
+
+describe("Her review of the family (6.11)", () => {
+  test("she rates the family; only Pacifyco sees it", async () => {
+    const done: SitterBookingDetail = {
+      ...BOOKING,
+      status: "completed",
+      review: { mine: null, can_review: true, open_until: kolkataTime("2030-01-21", 12) },
+    };
+    const posted: { url: string; body: unknown }[] = [];
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posted.push({ url, body: JSON.parse(init.body as string) as unknown });
+        return Promise.resolve(
+          jsonResponse({
+            ...done,
+            review: { mine: { rating: 2, body: null, created_at: done.ends_at }, can_review: false, open_until: null },
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse(done));
+    }) as unknown as typeof fetch);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/sitter/bookings/b1"]}>
+          <Routes>
+            <Route path="/sitter/bookings/:bookingId" element={<SitterBookingPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/Only Pacifyco sees your rating and review\. The family doesn't\./)).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("2 stars"));
+    fireEvent.click(screen.getByRole("button", { name: "Send review" }));
+    expect(await screen.findByRole("img", { name: "2 out of 5 stars" })).toBeTruthy();
+    expect(posted).toEqual([{ url: expect.stringMatching(/\/sitter\/bookings\/b1\/review$/), body: { rating: 2, body: null } }]);
   });
 });

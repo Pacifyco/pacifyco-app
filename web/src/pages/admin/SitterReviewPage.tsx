@@ -14,6 +14,7 @@ import {
   StatusPill,
   ViewDocumentButton,
 } from "./shared";
+import { AdminReviews, type ReviewForAdmin } from "./RatingsPage";
 import { StrikesSection } from "./StrikesSection";
 import { QUEUE_KEY } from "./VerificationQueuePage";
 
@@ -57,6 +58,9 @@ type SitterReview = {
   documents: DocumentSummary[];
   references: Reference[];
   psych_attempt: { id: string; status: string; submitted_at: string | null } | null;
+  avg_rating: number | null;
+  review_count: number;
+  reviews: ReviewForAdmin[]; // families' reviews of her (6.11)
 };
 
 type PsychAnswer = { question_id: string; kind: string; prompt: string; options: string[] | null; answer_text: string | null };
@@ -373,6 +377,15 @@ export function SitterReviewPage() {
         />
       </Section>
       <StrikesSection sitterId={sitter.id} />
+      <AdminReviews
+        title="Families' reviews"
+        reviews={sitter.reviews}
+        summary={
+          sitter.avg_rating !== null && sitter.review_count > 0
+            ? `${sitter.avg_rating.toFixed(1)} average from ${sitter.review_count} ${sitter.review_count === 1 ? "review" : "reviews"}.`
+            : undefined
+        }
+      />
     </section>
   );
 }
