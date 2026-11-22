@@ -8,8 +8,8 @@ tests.
 
 ## Current status
 
-- Phase: 9 under way (2026-11-22): sitter pay and admin payouts built. Next: her earnings dashboard, then
-  reviews.
+- Phase: 9 under way (2026-11-22): sitter pay, admin payouts and her earnings dashboard built. Next:
+  reviews, then the phase 9 test check.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -575,7 +575,8 @@ at home (CLAUDE.md 6.3).
   confirmed report; held while the booking is open, an overtime request waits or an incident is open,
   then due 12 hours after release. A late check-in is paid to the minute from check-in (CLAUDE.md 6.2
   "paid from check-in"). Not shown to her yet (earnings dashboard, next) or to admins (payouts list)
-- [ ] Sitter earnings dashboard (pending, paid)
+- [x] Sitter earnings dashboard (pending, paid). Built 2026-11-22: `/sitter/earnings` ("Earnings" tab), `GET
+  /sitter/earnings`: due, on hold, paid so far, each earning and each payout
 - [x] Admin payouts-due list with 12-hour countdown, alerts at 3 hours left and overdue; mark paid with transfer reference (bank or UPI)
   - [x] The list (2026-11-22): `/admin/payouts`, by sitter (one transfer each, Reuben 2026-11-22), soonest
     deadline first, countdowns, overdue in red, admin home banner; bank details shown with every showing
@@ -641,6 +642,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-22 — Sitter earnings dashboard.
 - 2026-11-22 — Admin payouts: the due list (by sitter, countdowns, overdue banner, bank-detail views logged),
   mark paid with the reference, alert emails at 3 hours left and overdue.
 - 2026-11-22 — Phase 9 started: sitter pay (earnings recorded, held and released).

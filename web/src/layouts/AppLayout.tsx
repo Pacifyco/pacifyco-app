@@ -141,6 +141,7 @@ const TABS: Record<"parent" | "sitter", { label: string; tabs: Tab[] }> = {
       { to: "/sitter", label: "Home", end: true },
       { to: "/sitter/requests", label: "Requests" },
       { to: "/sitter/bookings", label: "Bookings" },
+      { to: "/sitter/earnings", label: "Earnings" },
       { to: "/sitter/chats", label: "Messages" },
       { to: "/sitter/availability", label: "Availability" },
     ],

@@ -511,7 +511,10 @@ Emergency button instead.
   2026-11-22:** the frequent job's `alert_payouts` emails `ADMIN_ALERT_EMAILS` once per earning for each
   (counts only, no names or bank details), remembered in the audit log; an earning held by an incident and
   released again isn't alerted a second time.
-- Sitters see earnings, pending and paid history in their dashboard.
+- Sitters see earnings, pending and paid history in their dashboard. **Built 2026-11-22**
+  (`/sitter/earnings`, an "Earnings" tab): due to her (paid within 12 hours), on hold and paid so far; each
+  earning with the family, the booking and when it'll be or was paid; and each payment to her (date,
+  amount, UPI or bank, reference). Never the price.
 
 ### 6.11 Reviews and chat
 

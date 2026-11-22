@@ -56,6 +56,7 @@ from app.services import checkin as checkin_service
 from app.services import email as email_service
 from app.services import incidents as incidents_service
 from app.services import overtime as overtime_service
+from app.services import payouts as payouts_service
 from app.services import psych_tests as psych_tests_service
 from app.services import reports as reports_service
 from app.services import sitters as sitters_service
@@ -962,3 +963,71 @@ def get_chat(parent_id: uuid.UUID, sitter: SitterProfile, db: DbSession, after: 
 def send_message(parent_id: uuid.UUID, body: MessageIn, sitter: SitterProfile, db: DbSession) -> ChatOut:
     chat_service.send(db, sitter, parent_id, body.body, datetime.now(UTC))
     return chat_out(db, sitter, parent_id, None)
+
+
+# ---------- her earnings (CLAUDE.md 6.10; phase 9) ----------
+
+
+class EarningItem(BaseModel):
+    id: uuid.UUID
+    booking_id: uuid.UUID
+    booking_starts_at: datetime
+    family_name: str
+    kind: str  # booking | overtime | show_up_fee
+    amount_paise: int
+    minutes: int | None
+    status: str  # held | released | paid
+    due_by: datetime | None
+    paid_at: datetime | None
+
+
+class PayoutItem(BaseModel):
+    id: uuid.UUID
+    amount_paise: int
+    method: str  # bank | upi
+    transfer_reference: str
+    paid_at: datetime
+
+
+class SitterEarnings(BaseModel):
+    held_paise: int
+    due_paise: int
+    paid_paise: int
+    earnings: list[EarningItem]
+    payouts: list[PayoutItem]
+
+
+@router.get("/earnings")
+def get_earnings(sitter: SitterProfile, db: DbSession) -> SitterEarnings:
+    """What she's earned: held, due (paid within 12 hours) and paid, with each payout. Never the price."""
+    found = payouts_service.for_sitter(db, sitter.id)
+    return SitterEarnings(
+        held_paise=found.held_paise,
+        due_paise=found.due_paise,
+        paid_paise=found.paid_paise,
+        earnings=[
+            EarningItem(
+                id=item.earning.id,
+                booking_id=item.booking.id,
+                booking_starts_at=item.booking.starts_at,
+                family_name=_first_name(db, item.booking.parent_id),
+                kind=item.earning.kind.value,
+                amount_paise=item.earning.amount_paise,
+                minutes=item.earning.minutes,
+                status=item.earning.status.value,
+                due_by=item.earning.due_by,
+                paid_at=item.paid_at,
+            )
+            for item in found.earnings
+        ],
+        payouts=[
+            PayoutItem(
+                id=payout.id,
+                amount_paise=payout.amount_paise,
+                method=payout.method.value,
+                transfer_reference=payout.transfer_reference,
+                paid_at=payout.paid_at,
+            )
+            for payout in found.payouts
+        ],
+    )
