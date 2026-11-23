@@ -40,6 +40,7 @@ from app.models import (
 from app.routers.sitters import StrikeOut, strikes_out
 from app.services import account_status as account_service
 from app.services import admin_bookings as admin_bookings_service
+from app.services import admin_logs as admin_logs_service
 from app.services import booking_mail, documents, verification
 from app.services import bookings as bookings_service
 from app.services import chat as chat_service
@@ -1952,3 +1953,151 @@ def waive_charge(
         )
     )
     return _admin_booking(db, charge.booking_id)
+
+
+# ---------- the audit log and the document access log (phase 10) ----------
+
+
+class AdminOption(BaseModel):
+    id: uuid.UUID
+    full_name: str | None
+
+
+@router.get("/admins")
+def list_admins(admin: Admin, db: DbSession) -> list[AdminOption]:
+    """Every admin, for the logs' "who did it" filters."""
+    found = admin_logs_service.admins(db)
+    return [AdminOption(id=id, full_name=name) for id, name in sorted(found, key=lambda item: item[1] or "")]
+
+
+class LogPerson(BaseModel):
+    id: uuid.UUID
+    full_name: str | None
+    role: str
+
+
+class AuditEntryOut(BaseModel):
+    id: int
+    at: datetime
+    by: str | None  # the admin's or person's name; None when the rules did it
+    by_id: uuid.UUID | None
+    action: str
+    entity: str
+    entity_id: str
+    person: LogPerson | None  # who the row is about, when it's about a person
+    before: dict | None
+    after: dict | None
+
+
+class AuditLogPage(BaseModel):
+    entries: list[AuditEntryOut]
+    more: bool
+
+
+@router.get("/audit-log")
+def get_audit_log(
+    admin: Admin,
+    db: DbSession,
+    by: str | None = None,  # an admin's id, or "rules" for what the rules did
+    entity: Annotated[str | None, Query(max_length=40)] = None,
+    entity_id: Annotated[str | None, Query(max_length=100)] = None,
+    action: Annotated[str | None, Query(max_length=100)] = None,
+    on_from: date | None = None,  # India dates, inclusive
+    on_to: date | None = None,
+    page: Annotated[int, Query(ge=0, le=1000)] = 0,
+) -> AuditLogPage:
+    actor_id = None
+    if by and by != "rules":
+        try:
+            actor_id = uuid.UUID(by)
+        except ValueError:
+            raise AppError(422, "invalid_actor", "Choose an admin from the list.") from None
+    found, more = admin_logs_service.audit_entries(
+        db,
+        actor_id=actor_id,
+        by_rules=by == "rules",
+        entity=entity,
+        entity_id=entity_id,
+        action=action,
+        on_from=on_from,
+        on_to=on_to,
+        page=page,
+    )
+    return AuditLogPage(
+        entries=[
+            AuditEntryOut(
+                id=item.row.id,
+                at=item.row.created_at,
+                by=(item.actor_name or "Someone") if item.row.actor_id else None,
+                by_id=item.row.actor_id,
+                action=item.row.action,
+                entity=item.row.entity,
+                entity_id=item.row.entity_id,
+                person=LogPerson(id=item.person.id, full_name=item.person.name, role=item.person.role.value)
+                if item.person
+                else None,
+                before=item.row.before,
+                after=item.row.after,
+            )
+            for item in found
+        ],
+        more=more,
+    )
+
+
+class DocumentViewOut(BaseModel):
+    id: int
+    at: datetime
+    admin_name: str | None
+    admin_id: uuid.UUID
+    document_id: uuid.UUID
+    document_type: str
+    deleted: bool  # the file has since been deleted (birth certificates, once the child is verified)
+    owner: LogPerson
+    child_name: str | None
+
+
+class DocumentViewsPage(BaseModel):
+    views: list[DocumentViewOut]
+    more: bool
+
+
+@router.get("/document-access-log")
+def get_document_access_log(
+    admin: Admin,
+    db: DbSession,
+    admin_id: uuid.UUID | None = None,
+    document_type: DocumentType | None = None,
+    owner: Annotated[str | None, Query(max_length=100)] = None,  # the owner's name
+    owner_id: uuid.UUID | None = None,
+    on_from: date | None = None,  # India dates, inclusive
+    on_to: date | None = None,
+    page: Annotated[int, Query(ge=0, le=1000)] = 0,
+) -> DocumentViewsPage:
+    found, more = admin_logs_service.document_views(
+        db,
+        admin_id=admin_id,
+        document_type=document_type,
+        owner=owner,
+        owner_id=owner_id,
+        on_from=on_from,
+        on_to=on_to,
+        page=page,
+    )
+    return DocumentViewsPage(
+        views=[
+            DocumentViewOut(
+                id=item.row.id,
+                at=item.row.accessed_at,
+                admin_name=item.admin_name,
+                admin_id=item.row.admin_id,
+                document_id=item.document.id,
+                document_type=item.document.type.value,
+                deleted=item.document.deleted_at is not None,
+                owner=LogPerson(id=item.owner.id, full_name=item.owner.name, role=item.owner.role.value),
+                child_name=item.child_name,
+            )
+            for item in found
+        ],
+        more=more,
+    )

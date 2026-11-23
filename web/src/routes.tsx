@@ -6,6 +6,8 @@ import { PayoutsPage } from "./pages/admin/PayoutsPage";
 import { PeoplePage } from "./pages/admin/PeoplePage";
 import { AdminBookingPage } from "./pages/admin/AdminBookingPage";
 import { BookingsPage } from "./pages/admin/BookingsPage";
+import { AuditLogPage } from "./pages/admin/AuditLogPage";
+import { DocumentAccessLogPage } from "./pages/admin/DocumentAccessLogPage";
 import { RatingsPage } from "./pages/admin/RatingsPage";
 import { PaymentsPage } from "./pages/admin/PaymentsPage";
 import { IncidentsPage } from "./pages/admin/IncidentsPage";
@@ -170,6 +172,8 @@ export const routes: RouteObject[] = [
           ["admin/people", <PeoplePage />],
           ["admin/bookings", <BookingsPage />],
           ["admin/bookings/:bookingId", <AdminBookingPage />],
+          ["admin/audit-log", <AuditLogPage />],
+          ["admin/document-access-log", <DocumentAccessLogPage />],
           ["admin/sitters/:sitterId", <SitterReviewPage />],
           ["admin/parents/:parentId", <FamilyReviewPage />],
         ] as const
