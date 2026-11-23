@@ -394,10 +394,7 @@ function Dashboard() {
       {tilesFor(dashboard.data).map((tile) => (
         <li key={tile.label}>
           <Link to={tile.to} className="block h-full text-ink no-underline">
-            <Card
-              as="article"
-              className={`flex h-full flex-col gap-1 ${tile.urgent ? "border-l-4 border-coral" : ""}`}
-            >
+            <Card className={`flex h-full flex-col gap-1 ${tile.urgent ? "border-l-4 border-coral" : ""}`}>
               <span className="text-small text-muted">{tile.label}</span>
               <span className={`text-h3 ${tile.urgent ? "text-danger" : "text-ink"}`}>{tile.value}</span>
               <span className={`text-small ${tile.urgent ? "text-danger" : "text-muted"}`}>{tile.note}</span>
