@@ -271,14 +271,22 @@ def test_the_staging_storage_check_reports_each_problem(monkeypatch, setup, fail
     assert fake.deleted and fake.deleted[0]["prefixes"][0].startswith("security-check/")  # cleaned up
 
 
-def test_the_staging_table_check_passes_only_when_the_public_key_reads_nothing(monkeypatch):
-    replies = {"profiles": (200, [{"id": "x"}]), "children": (401, None)}  # one leaks, one refuses
+def test_the_staging_table_check_passes_only_on_a_real_refusal(monkeypatch):
+    replies = {
+        "profiles": (200, [{"id": "x"}]),  # rows came back: a leak
+        "children": (401, {"code": "42501"}),  # refused
+        "documents": (404, {"code": "PGRST205"}),  # not exposed at all
+        "payments": (503, {"code": "PGRST002"}),  # the REST API didn't answer: not tested
+        "bookings": (500, None),
+    }
 
     class Response:
         def __init__(self, status, body):
             self.status_code, self._body = status, body
 
         def json(self):
+            if self._body is None:
+                raise ValueError("no body")
             return self._body
 
     def get(url, headers=None, timeout=None):
@@ -286,7 +294,16 @@ def test_the_staging_table_check_passes_only_when_the_public_key_reads_nothing(m
         return Response(*replies.get(table, (200, [])))  # the rest: allowed, but no rows (RLS, no policies)
 
     monkeypatch.setattr(security_check.httpx, "get", get)
-    found = {item.name: item.passed for item in security_check.check_tables("https://x.supabase.co", "public")}
-    assert found["The public key can't read profiles"] is False
-    assert found["The public key can't read children"] is True
-    assert all(passed for name, passed in found.items() if "profiles" not in name)
+    found = {item.name.rsplit(" ", 1)[1]: item for item in security_check.check_tables("https://x.supabase.co", "k")}
+    assert {name: item.passed for name, item in found.items()} == {
+        "profiles": False,
+        "children": True,
+        "documents": True,
+        "payments": False,
+        "bookings": False,
+        "sitters": True,
+        "messages": True,
+        "audit_log": True,
+    }
+    assert found["payments"].detail == "503 PGRST002: not tested, the REST API didn't answer properly"
+    assert "x" not in found["profiles"].detail  # never the data itself

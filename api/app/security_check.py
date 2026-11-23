@@ -82,14 +82,33 @@ def check_storage(url: str, key: str, sleep: Callable[[float], None] = time.slee
 PRIVATE_TABLES = ("profiles", "children", "documents", "payments", "bookings", "sitters", "messages", "audit_log")
 
 
+def _error_code(response) -> str:
+    """Supabase's REST error code (such as 42501 or PGRST002), never any data."""
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    return str(body.get("code", "")) if isinstance(body, dict) else ""
+
+
 def check_tables(url: str, anon_key: str) -> list[Check]:
-    """Asks Supabase's REST API for rows with the public key, as a browser could. Every table must refuse
-    or come back empty."""
+    """Asks Supabase's REST API for rows with the public key, as a browser could. Passes only on a real
+    answer: refused (401/403, or permission denied), not exposed at all (404), or allowed but no rows (RLS
+    with no policies). Anything else, a 5xx above all, means the table wasn't actually tested, so it fails."""
     found = []
     headers = {"apikey": anon_key, "Authorization": f"Bearer {anon_key}"}
     for table in PRIVATE_TABLES:
         response = httpx.get(f"{url.rstrip('/')}/rest/v1/{table}?select=*&limit=1", headers=headers, timeout=10)
-        rows = response.json() if response.status_code == 200 else []
-        refused = response.status_code != 200 or rows == []
-        found.append(Check(f"The public key can't read {table}", refused, str(response.status_code)))
+        code = _error_code(response)
+        if response.status_code == 200:
+            rows = response.json()
+            passed, detail = rows == [], "200, no rows" if rows == [] else "200, rows came back"
+        elif response.status_code in (401, 403, 404):
+            passed, detail = True, f"{response.status_code} {code}".strip()
+        else:
+            passed = False
+            detail = f"{response.status_code} {code}: not tested, the REST API didn't answer properly".replace(
+                " :", ":"
+            )
+        found.append(Check(f"The public key can't read {table}", passed, detail))
     return found
