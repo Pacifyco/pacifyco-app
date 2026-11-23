@@ -161,6 +161,11 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   `AppError(status, code, message, details)` for expected failures; `code` is a stable snake_case string
   the web app branches on, `message` is safe to show users. Unhandled errors return a generic 500 and go
   to Sentry; responses never echo submitted values or internal details.
+- **Rate limits and headers (phase 12, 2026-11-23):** sign-up, booking, paying, complaints and uploads are
+  limited per signed-in user (`app/rate_limits.py`, slowapi; 429 `rate_limited`). Every API response carries
+  security headers (`SecureHeaders` in `app/main.py`; HSTS outside local), and the API docs are local only. The
+  web app's headers are in `web/public/_headers`. `pip-audit` and `npm audit` run in CI. New endpoints that
+  create things in bulk should get a limit too.
 - **Chat** uses polling (every 10 s while a chat is open) in v1. No websockets.
 - **Scheduled jobs** are idempotent API endpoints under `/internal/jobs/*`, protected by `JOBS_SECRET`
   and called by a GitHub Actions schedule: overdue check-out alerts (every 30 minutes, 6 am–midnight IST — keep each run short to stay

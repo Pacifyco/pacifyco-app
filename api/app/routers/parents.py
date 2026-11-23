@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from sqlalchemy import select
 
+from app import rate_limits
 from app.auth import require_role
 from app.deps import DbSession
 from app.errors import AppError
@@ -738,7 +739,7 @@ def _booking_out(db: DbSession, booking, settings: Settings) -> BookingOut:
     )
 
 
-@router.post("/bookings", status_code=201)
+@router.post("/bookings", status_code=201, dependencies=[rate_limits.rate_limited(rate_limits.BOOKING, "booking")])
 def post_booking(body: BookingIn, parent: Parent, db: DbSession, settings: AppSettings, mailer: Mailer) -> BookingOut:
     """A request to the sitter (6.4). She's told now if every child on it is verified; otherwise once
     they are."""
@@ -988,7 +989,11 @@ def get_charge(payment_id: uuid.UUID, parent: Parent, db: DbSession, settings: A
     return _charge_out(db, payments_service.parents_charge(db, parent.id, payment_id), settings)
 
 
-@router.post("/payments/{payment_id}/payment", status_code=201)
+@router.post(
+    "/payments/{payment_id}/payment",
+    status_code=201,
+    dependencies=[rate_limits.rate_limited(rate_limits.PAYMENT, "payment")],
+)
 def pay_charge(
     payment_id: uuid.UUID, body: UpiReferenceIn, parent: Parent, db: DbSession, settings: AppSettings
 ) -> ChargeOut:
@@ -1001,7 +1006,11 @@ class UpiReferenceIn(BaseModel):
     upi_reference: str = Field(max_length=40)
 
 
-@router.post("/bookings/{booking_id}/payment", status_code=201)
+@router.post(
+    "/bookings/{booking_id}/payment",
+    status_code=201,
+    dependencies=[rate_limits.rate_limited(rate_limits.PAYMENT, "payment")],
+)
 def post_booking_payment(
     booking_id: uuid.UUID, body: UpiReferenceIn, parent: Parent, db: DbSession, settings: AppSettings
 ) -> BookingOut:

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
+from app import rate_limits
 from app.auth import CurrentUser, Identity, current_identity, current_profile, current_user
 from app.deps import DbSession
 from app.errors import AppError
@@ -151,7 +152,7 @@ class Details(BaseModel):
         return address
 
 
-@router.post("/me/profile", status_code=201)
+@router.post("/me/profile", status_code=201, dependencies=[rate_limits.rate_limited(rate_limits.SIGN_UP, "sign_up")])
 def sign_up(body: SignUp, identity: Annotated[Identity, Depends(current_identity)], db: DbSession) -> Me:
     """Finish sign-up: choose parent or sitter. Once only; the role can't be changed by the user."""
     if not identity.email:
