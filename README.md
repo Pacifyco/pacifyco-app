@@ -419,6 +419,9 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... SUPABASE_ANON_KEY=... python -m a
 It confirms the browser's public key can't read the tables, the documents bucket is private, and a signed
 URL stops working once it expires. Every line should say PASS.
 
+Keep Supabase's **Data API** off in both projects; the app never uses it. Turn it on only while running
+this check (the table lines need it), then off again. `docs/production-security-checklist.md` has the steps.
+
 The web app's content security policy (`web/public/_headers`) starts in report-only mode. After checking
 staging's browser console while using the app, rename it to `Content-Security-Policy` (see the review).
 

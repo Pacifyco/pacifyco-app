@@ -45,7 +45,8 @@ The full step by step for releasing this to production is `docs/production-secur
    SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... SUPABASE_ANON_KEY=... python -m app.cli check-supabase
    ```
 
-   Every line should say PASS. It uploads one tiny test file and deletes it.
+   Every line should say PASS. It uploads one tiny test file and deletes it. The table lines need
+   Supabase's Data API on: turn it on for the check and off afterwards (the app never uses it).
 2. **Turn the web app's content policy on.** After this is on staging, open the browser's developer console
    there and use the app: sign in (email and Google), book, pay, upload a file, check in. If the console
    reports nothing about "Content-Security-Policy", rename `Content-Security-Policy-Report-Only` to
