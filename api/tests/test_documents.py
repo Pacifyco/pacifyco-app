@@ -160,6 +160,18 @@ def cleanup_documents(db_engine, profile_id) -> None:
             conn.execute(
                 text("DELETE FROM audit_log WHERE entity = :e AND entity_id = ANY(:ids)"), {"e": entity, "ids": found}
             )
+            if table == "complaints":  # their messages and attachments first (RESTRICT)
+                conn.execute(
+                    text("DELETE FROM complaint_messages WHERE complaint_id::text = ANY(:ids)"), {"ids": found}
+                )
+                conn.execute(
+                    text(
+                        "DELETE FROM document_access_log WHERE document_id IN"
+                        " (SELECT id FROM documents WHERE complaint_id::text = ANY(:ids))"
+                    ),
+                    {"ids": found},
+                )
+                conn.execute(text("DELETE FROM documents WHERE complaint_id::text = ANY(:ids)"), {"ids": found})
             conn.execute(text(f"DELETE FROM {table} WHERE id::text = ANY(:ids)"), {"ids": found})
         for table, entity, where in (
             ("reviews", "review", "booking_id::text = ANY(:ids) OR author_id = :id OR subject_id = :id"),

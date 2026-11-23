@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity, Text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Identity, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -19,6 +19,7 @@ class DocumentType(StrEnum):
     first_aid_certificate = "first_aid_certificate"
     doctor_note = "doctor_note"
     photo = "photo"
+    complaint_attachment = "complaint_attachment"  # up to 3 on a complaint the person raised
 
 
 class DocumentStatus(StrEnum):
@@ -33,10 +34,18 @@ class Document(Base):
     is the object's path within the private `documents` bucket."""
 
     __tablename__ = "documents"
+    __table_args__ = (
+        CheckConstraint(
+            "(type = 'complaint_attachment') = (complaint_id IS NOT NULL)", name="attachment_has_complaint"
+        ),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     owner_profile_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("profiles.id", ondelete="RESTRICT"), index=True)
     child_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("children.id", ondelete="RESTRICT"), index=True)
+    complaint_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("complaints.id", ondelete="RESTRICT"), index=True
+    )  # a complaint's attachment
     type: Mapped[DocumentType] = mapped_column(enum_column(DocumentType, "document_type"))
     storage_path: Mapped[str] = mapped_column(Text, unique=True)
     status: Mapped[DocumentStatus] = mapped_column(

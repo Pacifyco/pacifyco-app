@@ -66,6 +66,7 @@ def test_frequent_run_cancels_unpaid_bookings(db_engine):
             "alert_unchecked_payments",
             "alert_overdue_checkouts",
             "alert_payouts",
+            "escalate_complaints",
         ],
     }
 

@@ -299,7 +299,8 @@ export type AdminDashboard = {
   paid_today_paise: number;
   reports_open: number;
   overdue_checkouts: number;
-  issues_open: number;
+  complaints_open: number; // complaints and appeals not yet resolved, escalated ones too
+  complaints_overdue: number;
   low_ratings: number;
 };
 
@@ -363,7 +364,13 @@ function tilesFor(data: AdminDashboard): Tile[] {
       note: "Bookings needing a call",
       urgent: data.overdue_checkouts > 0,
     },
-    { to: "/admin/issues", label: "Issues", value: String(data.issues_open), note: "Not yet resolved", urgent: false },
+    {
+      to: "/admin/complaints",
+      label: "Complaints",
+      value: String(data.complaints_open),
+      note: data.complaints_overdue > 0 ? `${data.complaints_overdue} past a target` : "Not yet resolved",
+      urgent: data.complaints_overdue > 0,
+    },
     {
       to: "/admin/ratings",
       label: "Low ratings",

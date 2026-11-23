@@ -20,6 +20,7 @@ from app.models import (
     BookingReport,
     Child,
     Complaint,
+    ComplaintMessage,
     Consent,
     Document,
     DocumentAccessLog,
@@ -138,14 +139,16 @@ def delete_all(db: Session, found: Found) -> None:
     db.execute(delete(OvertimeRequest).where(OvertimeRequest.id.in_(overtime_request_ids)))
     db.execute(delete(OvertimeCharge).where(OvertimeCharge.id.in_(overtime_charge_ids)))
     db.execute(delete(Incident).where(Incident.id.in_(incident_ids)))
+    # Documents before complaints (a complaint's attachments hold it), its messages too.
+    db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
+    db.execute(delete(Document).where(Document.id.in_(document_ids)))
+    db.execute(delete(ComplaintMessage).where(ComplaintMessage.complaint_id.in_(complaint_ids)))
     db.execute(delete(Complaint).where(Complaint.id.in_(complaint_ids)))
     db.execute(delete(Review).where(Review.id.in_(review_ids)))
     db.execute(delete(RatingFlag).where(RatingFlag.id.in_(flag_ids)))
     db.execute(delete(AccountActionRow).where(AccountActionRow.profile_id.in_(ids)))
     db.execute(delete(Message).where(or_(Message.parent_id.in_(ids), Message.sitter_id.in_(ids))))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
-    db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
-    db.execute(delete(Document).where(Document.id.in_(document_ids)))
     db.execute(delete(Consent).where(Consent.parent_id.in_(ids)))
     db.execute(delete(LegalAcceptance).where(LegalAcceptance.profile_id.in_(ids)))
     db.execute(delete(AuditLog).where(or_(AuditLog.actor_id.in_(ids), AuditLog.entity_id.in_(about))))

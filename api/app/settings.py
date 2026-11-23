@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_from: str = ""
     admin_alert_emails: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # The admin account that is the Grievance Officer (6.12): escalated complaints are theirs alone, and
+    # escalations are emailed here. Empty: every admin acts as the officer (while there's one admin).
+    grievance_officer_email: str = ""
     sentry_dsn: str = ""
     jobs_secret: str = ""
     public_web_url: str = ""

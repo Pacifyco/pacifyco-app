@@ -37,7 +37,13 @@ def test_each_count_matches_its_queue(client, db_engine, reviewer, confirmed):
     assert found["refunds_to_pay"] == len(money["refunds"])
     assert found["reports_open"] == len(client.get("/admin/reports", headers=headers).json())
     assert found["overdue_checkouts"] == len(client.get("/admin/overdue-checkouts", headers=headers).json())
-    assert found["issues_open"] == len(client.get("/admin/issues", headers=headers).json())
+    waiting = [
+        item
+        for view in ("open", "appeals", "escalated")
+        for item in client.get("/admin/complaints", params={"view": view}, headers=headers).json()
+    ]
+    assert found["complaints_open"] == len(waiting)
+    assert found["complaints_overdue"] == len([item for item in waiting if item["overdue"]])
     assert found["low_ratings"] == len(client.get("/admin/rating-flags", headers=headers).json())
     incidents = client.get("/admin/incidents", headers=headers).json()
     assert found["incidents_unresolved"] == len(incidents)

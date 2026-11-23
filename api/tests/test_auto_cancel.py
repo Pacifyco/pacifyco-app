@@ -62,6 +62,7 @@ def test_the_frequent_run_cancels_unpaid_bookings_past_the_deadline(client, db_e
             "alert_unchecked_payments",
             "alert_overdue_checkouts",
             "alert_payouts",
+            "escalate_complaints",
         ],
     }
     assert status(db_engine, booking["id"]) == "cancelled_unpaid"

@@ -23,7 +23,8 @@ const NOTHING: AdminDashboard = {
   paid_today_paise: 0,
   reports_open: 0,
   overdue_checkouts: 0,
-  issues_open: 0,
+  complaints_open: 0,
+  complaints_overdue: 0,
   low_ratings: 0,
 };
 
@@ -95,7 +96,8 @@ describe("Admin home", () => {
       paid_today: 3,
       paid_today_paise: 150_000,
       reports_open: 5,
-      issues_open: 6,
+      complaints_open: 6,
+      complaints_overdue: 2,
       low_ratings: 1,
     });
     const tiles = within(await screen.findByRole("list", { name: "What's waiting" }));
@@ -108,7 +110,8 @@ describe("Admin home", () => {
     expect(tile("Paid today").textContent).toBe("Paid today₹1,5003 transfers");
     expect(tile("Reports").getAttribute("href")).toBe("/admin/reports");
     expect(tile("Overdue check-outs").getAttribute("href")).toBe("/admin/overdue-checkouts");
-    expect(tile("Issues").textContent).toBe("Issues6Not yet resolved");
+    expect(tile("Complaints").textContent).toBe("Complaints62 past a target");
+    expect(tile("Complaints").getAttribute("href")).toBe("/admin/complaints");
     expect(tile("Low ratings").getAttribute("href")).toBe("/admin/ratings");
   });
 

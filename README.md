@@ -360,6 +360,20 @@ Type the URL into your own terminal (never into chat or a file in the repo). The
 person up in Supabase's sign-in accounts and gives them an active admin profile. It refuses anyone who
 already chose parent or sitter. Locally there's no Supabase, so pass `--user-id <uuid>` instead.
 
+### Making an admin the Grievance Officer
+
+Escalated complaints (CLAUDE.md 6.12) are handled by the Grievance Officer, an admin account. While
+`GRIEVANCE_OFFICER_EMAIL` is empty on Render, every admin acts as the officer, which is fine while there's
+one admin. To name one admin as the officer:
+
+1. Create their admin account as above (`create-admin --email officer@example.com --name "Full Name"`).
+2. On Render, set `GRIEVANCE_OFFICER_EMAIL` to that same email for the API service. Render redeploys.
+3. On Cloudflare Pages, set `VITE_GRIEVANCE_OFFICER_NAME`, `VITE_GRIEVANCE_OFFICER_EMAIL` and
+   `VITE_GRIEVANCE_OFFICER_PHONE` to match, and redeploy, so the app and the terms show the same person.
+
+From then on only that admin can acknowledge and decide escalated complaints, and escalation emails go
+to that address (otherwise they go to `ADMIN_ALERT_EMAILS`). To change the officer, change the variables.
+
 ### Removing a test account
 
 Deleting a user under Supabase **Authentication → Users** removes only their sign-in account. Their

@@ -11,7 +11,7 @@ import { DocumentAccessLogPage } from "./pages/admin/DocumentAccessLogPage";
 import { RatingsPage } from "./pages/admin/RatingsPage";
 import { PaymentsPage } from "./pages/admin/PaymentsPage";
 import { IncidentsPage } from "./pages/admin/IncidentsPage";
-import { IssuesPage } from "./pages/admin/IssuesPage";
+import { AdminComplaintPage, ComplaintsPage, HolidaysPage } from "./pages/admin/ComplaintsPages";
 import { ReportsPage } from "./pages/admin/ReportsPage";
 import { SitterReviewPage } from "./pages/admin/SitterReviewPage";
 import { VerificationQueuePage } from "./pages/admin/VerificationQueuePage";
@@ -40,6 +40,7 @@ import { SitterReviewsPage } from "./pages/SitterReviewsPage";
 import { SitterStrikesPage } from "./pages/SitterStrikesPage";
 import { ParentPaymentsPage } from "./pages/ParentPaymentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { ComplaintPage, HelpPage, NewComplaintPage } from "./pages/HelpPages";
 import { PsychTestPage } from "./pages/PsychTestPage";
 import { AuthCallbackPage, SIGN_IN_PATH } from "./pages/SignInPage";
 import { SitterApplicationPage } from "./pages/SitterApplicationPage";
@@ -97,6 +98,12 @@ export const routes: RouteObject[] = [
           ["sitter/availability", "sitter", <AvailabilityPage />],
           ["sitter/requests", "sitter", <SitterRequestsPage />],
           ["sitter/strikes", "sitter", <SitterStrikesPage />],
+          ["parent/help", "parent", <HelpPage role="parent" />],
+          ["parent/help/new", "parent", <NewComplaintPage role="parent" />],
+          ["parent/help/:complaintId", "parent", <ComplaintPage role="parent" />],
+          ["sitter/help", "sitter", <HelpPage role="sitter" />],
+          ["sitter/help/new", "sitter", <NewComplaintPage role="sitter" />],
+          ["sitter/help/:complaintId", "sitter", <ComplaintPage role="sitter" />],
           ["sitter/earnings", "sitter", <SitterEarningsPage />],
           ["sitter/reviews", "sitter", <SitterReviewsPage />],
           ["sitter/bookings", "sitter", <SitterBookingsPage />],
@@ -165,7 +172,10 @@ export const routes: RouteObject[] = [
           ["admin/payments", <PaymentsPage />],
           ["admin/reports", <ReportsPage />],
           ["admin/incidents", <IncidentsPage />],
-          ["admin/issues", <IssuesPage />],
+          ["admin/issues", <Navigate to="/admin/complaints" replace />],
+          ["admin/complaints", <ComplaintsPage />],
+          ["admin/complaints/:complaintId", <AdminComplaintPage />],
+          ["admin/holidays", <HolidaysPage />],
           ["admin/overdue-checkouts", <OverdueCheckoutsPage />],
           ["admin/payouts", <PayoutsPage />],
           ["admin/ratings", <RatingsPage />],

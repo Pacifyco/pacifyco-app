@@ -8,13 +8,16 @@ from app.models.consents import Consent, ConsentKind
 from app.models.documents import Document, DocumentAccessLog, DocumentStatus, DocumentType
 from app.models.earnings import EarningKind, EarningStatus, Payout, SitterEarning
 from app.models.incidents import (
+    AppealOutcome,
     Complaint,
+    ComplaintMessage,
     ComplaintStatus,
     ComplaintType,
     Incident,
     IncidentKind,
     IncidentStatus,
     IssueTopic,
+    PublicHoliday,
 )
 from app.models.legal import AcceptanceMethod, LegalAcceptance, LegalDocument, LegalKind
 from app.models.marketplace import DayOff, GeocodeCache, WeeklyHours
@@ -50,6 +53,9 @@ __all__ = [
     "AccountActionRow",
     "Message",
     "Complaint",
+    "PublicHoliday",
+    "ComplaintMessage",
+    "AppealOutcome",
     "ComplaintStatus",
     "ComplaintType",
     "Incident",

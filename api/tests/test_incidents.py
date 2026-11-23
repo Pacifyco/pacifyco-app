@@ -184,15 +184,21 @@ def test_an_issue_is_a_complaint_for_admins(
         db_engine, "SELECT type, topic, description, status FROM complaints WHERE booking_id = :b", b=under_way["id"]
     )
     assert dict(saved) == {"type": "booking", "topic": "running_late", "description": "Running late", "status": "open"}
-    assert to(mailbox, ADMINS[0])[-1].button_url.endswith("/admin/issues")
-
     cid = response.json()["id"]
-    (listed,) = [item for item in client.get("/admin/issues", headers=as_user(reviewer)).json() if item["id"] == cid]
-    assert listed["raised_by"] == "parent" and listed["sitter_phone"]
-    assert client.post(f"/admin/issues/{cid}/replied", headers=as_user(reviewer)).json()["status"] == "replied"
+    assert to(mailbox, ADMINS[0])[-1].button_url.endswith(f"/admin/complaints/{cid}")
+
+    # It's a complaint like any other (6.12): with targets, in the admins' queue, answered in writing.
+    queue = client.get("/admin/complaints", headers=as_user(reviewer)).json()
+    (listed,) = [item for item in queue if item["id"] == cid]
+    assert listed["person_role"] == "parent" and listed["topic"] == "running_late" and not listed["late"]
+    reply = client.post(
+        f"/admin/complaints/{cid}/messages", json={"body": "On our way to help."}, headers=as_user(reviewer)
+    )
+    assert reply.json()["status"] == "replied"
     assert scalar(db_engine, "SELECT first_reply_at FROM complaints WHERE id = :c", c=cid) is not None
-    assert client.post(f"/admin/issues/{cid}/resolved", headers=as_user(reviewer)).json()["status"] == "resolved"
-    assert cid not in [item["id"] for item in client.get("/admin/issues", headers=as_user(reviewer)).json()]
+    done = client.post(f"/admin/complaints/{cid}/resolve", json={"body": "Sorted."}, headers=as_user(reviewer))
+    assert done.json()["status"] == "resolved"
+    assert cid not in [item["id"] for item in client.get("/admin/complaints", headers=as_user(reviewer)).json()]
 
 
 def test_something_else_needs_a_note(client, db_engine, under_way):
@@ -206,4 +212,4 @@ def test_only_the_right_people(client, db_engine, under_way, finished_parent, fr
     stranger = free_sitter("unwind")
     assert emergency(client, stranger, under_way["id"], "emergency", role="sitter").status_code == 404
     assert client.get("/admin/incidents", headers=auth_for(finished_parent)).status_code == 403
-    assert client.get("/admin/issues", headers=auth_for(finished_parent)).status_code == 403
+    assert client.get("/admin/complaints", headers=auth_for(finished_parent)).status_code == 403

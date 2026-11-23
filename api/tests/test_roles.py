@@ -2,7 +2,7 @@
 are blocked; every endpoint is either public on purpose or behind a role."""
 
 import uuid
-from typing import Annotated
+from typing import Annotated, NamedTuple
 
 import pytest
 from fastapi import Depends
@@ -27,6 +27,14 @@ PUBLIC = {
     "/me",  # signed in, no profile needed
     "/me/profile",  # signed in, no profile needed (sign-up)
     "/me/details",  # any signed-up parent or sitter; checked by current_profile and accounts.update_details
+    "/me/terms",  # any signed-up person, not blocked; checked by current_profile
+    # Complaints (6.12): a parent or sitter, checked in app/routers/complaints.py; raising one needs an
+    # unblocked account, and a suspended or removed one reaches only its appeal (IDOR: their own only).
+    "/me/complaints",
+    "/me/complaints/{complaint_id}",
+    "/me/complaints/{complaint_id}/messages",
+    "/me/complaints/{complaint_id}/escalate",
+    "/me/appeal",
     "/internal/jobs/{run}",  # JOBS_SECRET
     "/documents/mine",  # any signed-up parent or sitter; checked by current_profile
     "/documents/upload-url",  # any signed-up parent or sitter; checked by current_profile
@@ -118,9 +126,23 @@ def test_areas_need_a_profile_and_a_sign_in(gated_client):
     assert no_profile.json()["error"]["code"] == "profile_required"
 
 
-def real_routes() -> list[APIRoute]:
+class Endpoint(NamedTuple):
+    path: str
+    methods: set[str]
+
+
+def real_routes() -> list[Endpoint]:
+    """Every API endpoint. Since FastAPI 0.162 `app.routes` holds each included router as one wrapper, so
+    its routes are read from the wrapper (a plain list of APIRoutes here would find none at all)."""
     app = create_app(Settings(_env_file=None))
-    return [route for route in app.routes if isinstance(route, APIRoute)]
+    found = []
+    for route in app.routes:
+        if isinstance(route, APIRoute):
+            found.append(Endpoint(route.path, set(route.methods)))
+        elif hasattr(route, "effective_route_contexts"):
+            found.extend(Endpoint(item.path, set(item.methods)) for item in route.effective_route_contexts())
+    assert len(found) > 100, "the sweep must see the real endpoints"
+    return found
 
 
 def test_every_endpoint_is_public_on_purpose_or_role_gated():

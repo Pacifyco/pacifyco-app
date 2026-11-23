@@ -12,7 +12,8 @@ export type DocumentType =
   | "police_certificate"
   | "first_aid_certificate"
   | "doctor_note"
-  | "photo";
+  | "photo"
+  | "complaint_attachment";
 
 export type DocumentStatus = "pending_upload" | "uploaded" | "invalid";
 

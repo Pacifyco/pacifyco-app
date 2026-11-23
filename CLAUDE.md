@@ -118,7 +118,7 @@ Until DNS is set up, use the default Cloudflare Pages and Render URLs.
 
 API: `ENVIRONMENT`, `DATABASE_URL`, `MIGRATION_DATABASE_URL` (CI only), `SUPABASE_URL`, `SUPABASE_JWKS_URL` (optional; defaults
 from `SUPABASE_URL`), `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`,
-`ADMIN_ALERT_EMAILS`, `SENTRY_DSN`,
+`ADMIN_ALERT_EMAILS`, `GRIEVANCE_OFFICER_EMAIL` (optional; the officer's admin account, 6.12), `SENTRY_DSN`,
 `JOBS_SECRET`, `PUBLIC_WEB_URL`, `CORS_ORIGINS`, `PACIFY_UPI_ID`.
 
 Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SENTRY_DSN`,
@@ -474,8 +474,8 @@ Emergency button instead.
   the sitter's account to `suspended` (she's emailed); resolving it, the admin decides whether she's made
   active again. `incidents.has_open_incident` is for payouts (phase 9) to hold her pay. **Issues:** running
   late or something else (with a note), kept as a `complaints` row (type `booking`) and emailed to admins;
-  admins mark it replied and resolved on `/admin/issues`. For "only a man at home" the sitter uses that
-  report (6.5). The full complaints process (6.12: timers, escalation, appeals) comes later.
+  it goes through the complaints process (6.12) like any other complaint. For "only a man at home" the
+  sitter uses that report (6.5).
 
 ### 6.10 Payouts (beta: manual)
 
@@ -567,6 +567,21 @@ Emergency button instead.
   working days by an admin not involved in the original decision. The system must stop the original
   decider from handling the appeal.
 - Grievance Officer name and contact are config values shown in the app and the terms.
+- **How it works (Reuben, 2026-11-23; built 2026-11-23, `api/app/services/complaints.py`):** a parent or
+  sitter raises a complaint from Help (a footer link, `/parent/help` or `/sitter/help`) or a booking page,
+  about a booking, a payment, the other side, a review or something else, with up to 3 files. A booking
+  complaint raised more than 24 hours after the booking's end is late; any other, if the date given is before
+  yesterday. Admins and the person write to each other on it in the app (the person is emailed each reply);
+  the first message from Pacifyco is the first reply. An admin can mark it a **serious safety matter**
+  (15 days). Still unresolved at its target, the frequent job **escalates** it; the person can also escalate
+  one that's been resolved if they disagree. The **Grievance Officer is an admin account**: the one whose
+  email is `GRIEVANCE_OFFICER_EMAIL`, or, while that's empty, every admin. Only the officer acts on an
+  escalated complaint: acknowledges it and sends a written decision with reasons, which closes it.
+  **Appeals** are made from the "account on hold" page against the latest suspension or removal, once,
+  within 15 days; the 7 **working days** are Monday to Friday, not public holidays (admins add them on
+  `/admin/holidays`). The admin who made the decision can't act on the appeal at all; any admin can when the
+  rules made it. Upheld, the admin reinstates the account then or leaves it to reinstate by hand. Every step
+  is audit logged; messages are append-only (`complaint_messages`).
 
 ### 6.13 Accounts
 
@@ -765,7 +780,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `authorised_adults` **(created)** (id, parent_id, name, relationship, phone) — no longer asked for (2026-11-13)
 - `sitters` **(created)** (profile_id, date_of_birth, health_disclosure_encrypted, payout_method: `bank|upi`, bank_details_encrypted, bio, years_experience, university, semester (1-10), age_groups[], languages[], first_aid, upi_id, onboarding_status: `in_progress|approved|rejected`, level `pause|unwind|recharge` (null until an admin sets it), blocked_until (strikes, 6.6), reference_shared_consent, avg_rating, review_count) — no rate column (dropped 2026-11-03). Age groups (Toddler, Preschool, School age) and languages (English, Kannada, Hindi, Tamil, Malayalam, Telugu) come from fixed lists (`AGE_GROUPS`, `LANGUAGES` in `app/services/sitters.py`, UX review 2026-11-13); older free text is never shown to parents
 - `onboarding_steps` **(created)** (sitter_id, step: `profile|identity_documents|police_certificate`, status, notes, reviewed_by, reviewed_at) — admin reviews of steps 1-3; references and the psych test keep their own outcomes; `app/services/verification.py` combines them. Health disclosure views are logged in `audit_log` (`health_disclosure_viewed`)
-- `documents` **(created)** (id, owner_profile_id, child_id null, type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)
+- `documents` **(created)** (id, owner_profile_id, child_id null, complaint_id null (a complaint's attachment), type: `birth_certificate|government_id|college_or_work_id|police_certificate|first_aid_certificate|doctor_note|photo|complaint_attachment`, storage_path, status, deleted_at) — no `aadhaar_masked` (dropped 2026-11-03)
 - `document_access_log` **(created)** (id, document_id, admin_id, accessed_at)
 - `consents` **(created)** one row per consent kind (`own_data|child_data|share_care_details|emergency_authorisation|marketing`)
   and version, with marketing withdrawable — append-only, one row per parent per version; current version is `CONSENT_VERSION` in `api/app/services/consent.py`, matching the `version:` line of `web/src/content/consent.md`. No `single_parent_declaration` kind (dropped 2026-11-03 with Aadhaar)
@@ -780,7 +795,9 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `bookings` **(created)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `requested|request_declined|request_lapsed|pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show|cancelled_unpaid|cancelled_slot_taken|awaiting_verification|cancelled_unverified|declined_man_at_home|child_under_age|sitter_left_unsafe|closed_by_admin|cancelled_by_admin`, request_visible_at (when the sitter could first see the request: every child verified), check_in_code_encrypted, check_out_code_encrypted (bytea, `FIELD_ENCRYPTION_KEY` — encrypted, not hashed, so the same code can be shown to the parent again; built 2026-11-20, migration c9e2a4f6b8d1), code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason (an admin's manual close, 6.7; built 2026-11-20, migration d3f5b7a9c1e4) — the parent's app gets a code from an endpoint that only the booking's parent can call
 - `booking_children` **(created)** (booking_id, child_id)
 - `booking_home_info` **(created)** (booking_id, cameras_on, camera_locations)
-- `complaints` **(created)** (id, raised_by, booking_id null, topic (Issues button: `running_late|other`), type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed`, late, first_reply_at, resolved_at, assigned_to, decided_by)
+- `complaints` **(created)** (id, raised_by, booking_id null, topic (Issues button: `running_late|other`), type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed` (`appealed` unused: an appeal is type `suspension`), late, first_reply_at, resolved_at, assigned_to, decided_by; since 2026-11-23, migration d5c427c83be2: happened_on, serious, reply_by, resolve_by, resolution, account_action_id (an appeal's decision, unique), appeal_outcome `upheld|rejected`, escalated_at, escalated_by (the person; null when overdue), escalation_note, officer_acknowledged_at, officer_id, officer_decision, officer_decided_at)
+- `complaint_messages` **(created)** (id, complaint_id, author_id, body, created_at) — the written thread between the person and Pacifyco; append-only
+- `public_holidays` **(created)** (day, name) — added by admins; not working days for appeals (6.12)
 - `overtime_requests` **(created)** (id, booking_id, requested_hours, status: `pending|accepted|declined`, requested_at, decided_at) — built 2026-11-20, migration e6c8b2d4f7a1; one open (`pending`) request per booking at a time; nothing charged here, see `overtime_charges` below
 - `overtime_charges` **(created)** (id, booking_id, minutes_over, hours_charged (rounded up), amount_paise, sitter_pay_paise, created_at) — built 2026-11-20, migration f1a3c5e7b9d2; computed at check-out (6.8), once per booking (a unique index on `booking_id`); its payment is a `payments` row (kind `overtime`)
 - `strikes` **(created)** (id, sitter_id, booking_id null (one strike per booking), reason: `late_cancellation|no_show|admin`, note, given_at, expires_at (6 months later), removed_by null, removed_at, removal_reason, doctor_note_document_id null) — kept, never deleted: the API's role can add rows and record a removal only

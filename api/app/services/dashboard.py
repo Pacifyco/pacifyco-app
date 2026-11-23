@@ -2,7 +2,8 @@
 
 Counts and amounts only, never names or bank details, so the home page can refresh it on a timer.
 "Today's payouts" (Reuben, 2026-11-22): what's due now (count, total, how many overdue) and what's been
-paid today, India time. Also open reports, overdue check-outs, open issues and low ratings (same day).
+paid today, India time. Also open reports, overdue check-outs, complaints (how many past a target) and low
+ratings (same day).
 """
 
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import EarningStatus, IncidentStatus, Payout, SitterEarning
-from app.services import checkin, incidents, payments, reports, reviews, verification
+from app.services import checkin, complaints, incidents, payments, reports, reviews, verification
 from app.services.availability import INDIA, today_in_india
 
 
@@ -31,7 +32,8 @@ class Counts:
     paid_today_paise: int
     reports_open: int
     overdue_checkouts: int  # bookings needing a call: overdue check-out or codes locked
-    issues_open: int
+    complaints_open: int  # complaints and appeals not yet resolved, escalated ones too
+    complaints_overdue: int  # past a target
     low_ratings: int  # rating flags not yet closed
 
 
@@ -48,6 +50,7 @@ def counts(db: Session, now: datetime) -> Counts:
     ).one()
     overdue = db.scalar(select(func.count(SitterEarning.id)).where(released, SitterEarning.due_by < now)) or 0
     today = _start_of_today(now)
+    complaints_open, complaints_overdue = complaints.waiting(db, now)
     paid_count, paid_paise = db.execute(
         select(func.count(Payout.id), func.coalesce(func.sum(Payout.amount_paise), 0)).where(
             Payout.paid_at >= today, Payout.paid_at < today + timedelta(days=1)
@@ -67,6 +70,7 @@ def counts(db: Session, now: datetime) -> Counts:
         paid_today_paise=int(paid_paise),
         reports_open=len(reports.open_reports(db)),
         overdue_checkouts=len(checkin.needing_attention(db, now)),
-        issues_open=len(incidents.open_issues(db)),
+        complaints_open=complaints_open,
+        complaints_overdue=complaints_overdue,
         low_ratings=len(reviews.open_flags(db)),
     )

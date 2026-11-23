@@ -9,7 +9,7 @@ confirmed, in-progress or just-completed booking (Reuben, 2026-11-21).
   until an admin resolves it and decides whether she comes back. An open incident holds her payout for that
   booking (`has_open_incident`, used by payouts in phase 9).
 - Issues: a non-emergency issue (running late, something else), a complaint linked to the booking, emailed
-  to admins; admins mark it replied and resolved (the full complaints process, 6.12, comes later).
+  to admins. It goes through the complaints process (6.12, `app/services/complaints.py`) like any other.
 """
 
 import uuid
@@ -26,7 +26,6 @@ from app.models import (
     Booking,
     BookingStatus,
     Complaint,
-    ComplaintStatus,
     ComplaintType,
     Incident,
     IncidentKind,
@@ -233,13 +232,10 @@ def raise_issue(
     note = _clean(note)
     if topic == IssueTopic.other and note is None:
         raise AppError(422, "note_needed", "Please tell us what's wrong.")
-    complaint = Complaint(
-        raised_by=person.id,
-        booking_id=booking.id,
-        type=ComplaintType.booking,
-        topic=topic,
-        description=note or TOPIC_WORDS[topic],
-        created_at=now,
+    from app.services.complaints import new_complaint  # complaints -> account_status -> strikes -> here
+
+    complaint = new_complaint(
+        person.id, ComplaintType.booking, note or TOPIC_WORDS[topic], now, booking_id=booking.id, topic=topic
     )
     db.add(complaint)
     db.flush()
@@ -250,45 +246,6 @@ def raise_issue(
         "complaint",
         str(complaint.id),
         after={"booking_id": str(booking.id), "topic": topic.value},
-    )
-    db.commit()
-    return complaint
-
-
-def open_issues(db: Session) -> list[Complaint]:
-    return list(
-        db.scalars(
-            select(Complaint)
-            .where(Complaint.status.in_((ComplaintStatus.open, ComplaintStatus.replied)))
-            .order_by(Complaint.created_at)
-        )
-    )
-
-
-def update_issue(
-    db: Session, admin_id: uuid.UUID, complaint_id: uuid.UUID, to: ComplaintStatus, now: datetime
-) -> Complaint:
-    """Replied (an admin has been in touch) or resolved."""
-    complaint = db.scalar(select(Complaint).where(Complaint.id == complaint_id).with_for_update())
-    if complaint is None:
-        raise AppError(404, "not_found", "We couldn't find that issue.")
-    if complaint.status == ComplaintStatus.resolved:
-        raise AppError(409, "already_resolved", "This issue has already been resolved.")
-    before = complaint.status.value
-    if complaint.first_reply_at is None:
-        complaint.first_reply_at = now
-    if to == ComplaintStatus.resolved:
-        complaint.resolved_at = now
-        complaint.decided_by = admin_id
-    complaint.status = to
-    audit.record(
-        db,
-        admin_id,
-        "complaint_updated",
-        "complaint",
-        str(complaint.id),
-        before={"status": before},
-        after={"status": to.value},
     )
     db.commit()
     return complaint
