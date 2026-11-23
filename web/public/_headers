@@ -1,0 +1,11 @@
+# Security headers for every page, served by Cloudflare Pages (CLAUDE.md 9 "Security testing").
+# The Content-Security-Policy is report-only until it's been checked on staging: open the browser console on
+# staging, use the app (sign in, book, upload, check in), and if nothing is reported, rename the header to
+# Content-Security-Policy. src/securityHeaders.test.ts keeps the inline theme script's hash in step.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'sha256-9vdfmLDHCRVy7OpymImT2REpR6okWJYVSJieD9iaCt8='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.pacifyco.in https://*.onrender.com https://*.supabase.co wss://*.supabase.co https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'

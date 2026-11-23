@@ -1,10 +1,11 @@
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.errors import CatchUnhandledErrors, register_error_handlers
 from app.routers import account, admin, auth, complaints, documents, health, jobs, parents, sitters
-from app.settings import Settings, get_settings
+from app.settings import Environment, Settings, get_settings
 
 # Collect nothing about parents, children or sitters beyond the error itself: no user details, cookies,
 # headers, request bodies, query strings, SQL parameters or local variable values. (The Sentry org also
@@ -37,13 +38,57 @@ def init_sentry(settings: Settings) -> bool:
     return True
 
 
+# Every API response (CLAUDE.md 9 "Security testing"). The API only returns JSON, so nothing may run, frame
+# or be embedded from it, and nothing personal is cached on the way.
+SECURE_HEADERS = {
+    b"x-content-type-options": b"nosniff",
+    b"x-frame-options": b"DENY",
+    b"referrer-policy": b"no-referrer",
+    b"content-security-policy": b"default-src 'none'; frame-ancestors 'none'",
+    b"cross-origin-resource-policy": b"same-site",
+    b"cache-control": b"no-store",
+}
+HSTS = (b"strict-transport-security", b"max-age=31536000; includeSubDomains")
+
+
+class SecureHeaders:
+    """Adds the security headers to every response, errors included. HSTS outside local (HTTPS only)."""
+
+    def __init__(self, app: ASGIApp, hsts: bool) -> None:
+        self.app = app
+        self.extra = [*SECURE_HEADERS.items(), *([HSTS] if hsts else [])]
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        async def with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                names = {name.lower() for name, _ in message.get("headers", [])}
+                message["headers"] = [
+                    *message.get("headers", []),
+                    *((name, value) for name, value in self.extra if name not in names),
+                ]
+            await send(message)
+
+        await self.app(scope, receive, with_headers)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     init_sentry(settings)
 
-    app = FastAPI(title="Pacifyco API")
+    # The interactive docs (and the schema they read) only locally: nobody else needs a map of the API.
+    local = settings.environment == Environment.local
+    app = FastAPI(
+        title="Pacifyco API",
+        docs_url="/docs" if local else None,
+        redoc_url="/redoc" if local else None,
+        openapi_url="/openapi.json" if local else None,
+    )
     app.dependency_overrides[get_settings] = lambda: settings
 
+    app.add_middleware(SecureHeaders, hsts=not local)
     # Added first so it sits inside CORS: even crashes get CORS headers (app/errors.py).
     app.add_middleware(CatchUnhandledErrors)
     app.add_middleware(

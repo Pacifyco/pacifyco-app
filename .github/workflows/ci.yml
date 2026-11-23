@@ -59,6 +59,9 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Lint
         run: ruff check . && ruff format --check .
+      # A known vulnerability in any installed package fails the build (CLAUDE.md 9).
+      - name: Dependency audit
+        run: pip-audit --skip-editable
       - name: Test
         run: pytest
 
@@ -80,6 +83,9 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      # A known vulnerability in any package, dev tools included, fails the build (CLAUDE.md 9).
+      - name: Dependency audit
+        run: npm audit
       - name: Typecheck
         run: npm run typecheck
       - name: Test

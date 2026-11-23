@@ -3,6 +3,7 @@
     python -m app.cli create-admin --email someone@example.com --name "Full Name"
     python -m app.cli delete-empty-profile --email someone@example.com [--yes]
     python -m app.cli reset-staging-accounts [--yes]
+    python -m app.cli check-supabase  (security: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY)
 
 The person signs in to the web app once first (that creates their Supabase sign-in account), then this
 gives them an admin profile. Connects with MIGRATION_DATABASE_URL (the database owner), falling back to
@@ -179,7 +180,10 @@ def main(argv: list[str] | None = None) -> int:
     delete.add_argument("--yes", action="store_true", help="actually delete (otherwise only checks)")
     reset = commands.add_parser("reset-staging-accounts", help="staging only: remove every parent and sitter")
     reset.add_argument("--yes", action="store_true", help="actually remove them (otherwise only counts)")
+    commands.add_parser("check-supabase", help="security: tables refuse the public key; storage is private")
     args = parser.parse_args(argv)
+    if args.command == "check-supabase":
+        return check_supabase_command()
     try:
         if args.command == "reset-staging-accounts":
             return reset_staging_accounts(args.yes, _database_url())
@@ -189,6 +193,27 @@ def main(argv: list[str] | None = None) -> int:
     except OperationalError as exc:
         print(connection_problem(exc), file=sys.stderr)
         return 1
+
+
+def check_supabase_command() -> int:
+    """Prints each check (app/security_check.py) and exits 1 if any fails."""
+    from app.security_check import check_storage, check_tables
+
+    url, key = _supabase()
+    if not url or not key:
+        print("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY first (in your own terminal).", file=sys.stderr)
+        return 1
+    try:
+        anon = os.environ.get("SUPABASE_ANON_KEY", "")
+        found = (check_tables(url, anon) if anon else []) + check_storage(url, key)
+    except httpx.HTTPError as exc:
+        print(f"Couldn't talk to Supabase Storage: {type(exc).__name__}. Check the URL and key.", file=sys.stderr)
+        return 1
+    if not os.environ.get("SUPABASE_ANON_KEY"):
+        print("SKIP  The tables (set SUPABASE_ANON_KEY, the public key, to check them)")
+    for item in found:
+        print(f"{'PASS' if item.passed else 'FAIL'}  {item.name} ({item.detail})")
+    return 0 if all(item.passed for item in found) else 1
 
 
 def connection_problem(exc: OperationalError) -> str:

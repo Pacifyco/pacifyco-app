@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app import rate_limits
 from app.auth import BLOCKED_STATUSES, CurrentUser, current_profile, current_user
 from app.deps import DbSession
 from app.errors import AppError
@@ -150,7 +151,9 @@ def my_complaints(person: Person, db: DbSession) -> list[ComplaintRow]:
     return [_row(item) for item in found]
 
 
-@router.post("/complaints", status_code=201)
+@router.post(
+    "/complaints", status_code=201, dependencies=[rate_limits.rate_limited(rate_limits.COMPLAINT, "complaint")]
+)
 def raise_complaint(
     body: ComplaintIn, person: ActivePerson, db: DbSession, settings: AppSettings, mailer: Mailer
 ) -> ComplaintOut:
@@ -173,7 +176,10 @@ def my_complaint(complaint_id: uuid.UUID, person: Person, db: DbSession) -> Comp
     return complaint_out(db, person, complaints.persons(db, person, complaint_id))
 
 
-@router.post("/complaints/{complaint_id}/messages")
+@router.post(
+    "/complaints/{complaint_id}/messages",
+    dependencies=[rate_limits.rate_limited(rate_limits.MESSAGE, "complaint_message")],
+)
 def write(
     complaint_id: uuid.UUID, body: TextIn, person: Person, db: DbSession, settings: AppSettings, mailer: Mailer
 ) -> ComplaintOut:

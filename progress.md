@@ -8,8 +8,10 @@ tests.
 
 ## Current status
 
-- Phase: 11 done (2026-11-23): every email checked against design.md and CLAUDE.md, the missing ones
-  added, and a test over all of them. Phase 10 done the same day. Next: phase 12, security hardening.
+- Phase: 12 done (2026-11-23): the security review (`docs/security-review.md`), with rate limits, secure
+  headers, an IDOR sweep, a secrets scan, dependency audits in CI and a live Supabase check. Three
+  follow-ups for Reuben are in the review. Phases 10 and 11 done the same day. Next: phase 13, the
+  marketing site (optional before beta), or phase 14, beta.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -724,8 +726,20 @@ at home (CLAUDE.md 6.3).
 
 ## Phase 12 — Security hardening (Claude Code owns this)
 
-- [ ] Every item in CLAUDE.md section 9 "Security testing", with tests
-- [ ] Report written to `docs/security-review.md` with findings and fixes
+- [x] Every item in CLAUDE.md section 9 "Security testing", with tests. Done 2026-11-23:
+  - **IDOR:** a sweep over every parent, sitter and personal endpoint with an id (`tests/test_idor.py`);
+    no holes found.
+  - **Rate limits (new):** with `slowapi` (Reuben approved), per signed-in user, on sign-up, booking, paying,
+    complaints, complaint messages and uploads.
+  - **Secure headers (new):** on every API response, and on the web app (`web/public/_headers`, its CSP
+    report-only until checked on staging). API docs are now local only.
+  - **Secrets:** a scan of every tracked file, and fixed-text logs.
+  - **Storage, signed URL expiry and RLS against a real project:** `python -m app.cli check-supabase`, run by
+    Reuben.
+  - **Dependency audits:** `pip-audit` (dev only, Reuben approved) and `npm audit` in CI, after fixing an
+    `opentelemetry-api` CVE and 9 moderate dev-tool issues.
+- [x] Report written to `docs/security-review.md` with findings and fixes. Reuben to run `check-supabase`
+  on staging, switch the web CSP on after a staging check, and look at Supabase Auth's rate limits
 
 ## Phase 13 — Marketing site (optional before beta)
 
@@ -762,6 +776,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-23 — Security hardening and review (phase 12).
 - 2026-11-23 — Email notifications checked, gaps filled, a test over every email (phase 11).
 - 2026-11-23 — Phase 10 test check against CLAUDE.md 9; gaps filled (phase 10 done).
 - 2026-11-23 — Account closure and data requests (phase 10).

@@ -19,12 +19,18 @@ dependencies = [
     "pyjwt[crypto]>=2.15,<3",
     "httpx2>=2.16",
     "cryptography>=43,<49",
+    # Rate limits on sign-up, booking and paying (CLAUDE.md 9 "Security testing"; Reuben, 2026-11-23).
+    "slowapi>=0.1.10,<0.2",
+    # Comes with FastAPI; 1.45.2 fixes CVE-2026-126360 (pip-audit, 2026-11-23).
+    "opentelemetry-api>=1.45.2",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=9.1",
     "ruff>=0.17,<0.18",
+    # Known vulnerabilities in our Python packages, checked in CI (Reuben, 2026-11-23).
+    "pip-audit>=2.10,<3",
 ]
 
 [tool.setuptools.packages.find]

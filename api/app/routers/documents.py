@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app import rate_limits
 from app.auth import current_profile
 from app.deps import DbSession
 from app.models import DocumentStatus, DocumentType, Profile
@@ -51,7 +52,7 @@ def list_my_documents(
     return [DocumentOut(id=row.id, type=row.type, child_id=row.child_id, status=row.status) for row in rows]
 
 
-@router.post("/upload-url", status_code=201)
+@router.post("/upload-url", status_code=201, dependencies=[rate_limits.rate_limited(rate_limits.UPLOAD, "upload")])
 def create_upload_url(body: RequestUpload, profile: CurrentProfile, db: DbSession, storage: Storage) -> UploadTicket:
     ticket = documents.request_upload(db, storage, profile.id, body.type, body.child_id, body.complaint_id)
     return UploadTicket(document_id=ticket.document_id, upload_url=ticket.upload_url)

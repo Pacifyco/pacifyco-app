@@ -404,6 +404,24 @@ python -m app.cli reset-staging-accounts --yes  # removes them
 
 Check the database host it prints before adding `--yes`. It can't be undone.
 
+## Security checks
+
+The automated security tests run in CI (`api/tests/test_security.py`, `test_idor.py`, `test_roles.py`), and so
+do both dependency audits (`pip-audit` and `npm audit`). The full review is in `docs/security-review.md`.
+
+Two checks need a real Supabase project, so they're run by hand on staging, and on production before
+launch. From `api/`, with that project's keys typed into your own terminal:
+
+```
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... SUPABASE_ANON_KEY=... python -m app.cli check-supabase
+```
+
+It confirms the browser's public key can't read the tables, the documents bucket is private, and a signed
+URL stops working once it expires. Every line should say PASS.
+
+The web app's content security policy (`web/public/_headers`) starts in report-only mode. After checking
+staging's browser console while using the app, rename it to `Content-Security-Policy` (see the review).
+
 ## Legal pages
 
 `/terms/sitter`, `/terms/parent` and `/privacy` are public. The texts live in `web/src/content/`. The
