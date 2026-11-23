@@ -11,7 +11,7 @@ import { firstNameOf } from "./FindSittersPage";
 // to its booking. Unpaid charges are money owed, and block new bookings (6.4). Never a plan's name.
 
 type Kind = "booking" | "overtime" | "refund" | "cancellation_charge";
-type Status = "pending" | "confirmed" | "rejected";
+type Status = "pending" | "confirmed" | "rejected" | "waived";
 
 export type PaymentHistoryItem = {
   id: string;
@@ -21,6 +21,7 @@ export type PaymentHistoryItem = {
   upi_reference: string | null;
   transfer_reference: string | null;
   rejection_reason: string | null;
+  waive_reason: string | null;
   created_at: string;
   decided_at: string | null;
   booking_id: string;
@@ -49,8 +50,9 @@ export function statusText(item: PaymentHistoryItem): string {
     if (item.status === "rejected") return `Not confirmed: ${item.rejection_reason ?? "please check the reference"}`;
     return "Paid";
   }
-  // A charge (a late cancellation; overtime later): owed until Pacifyco confirms the payment.
+  // A charge (a late cancellation; overtime later): owed until Pacifyco confirms the payment, or waives it.
   if (item.status === "confirmed") return "Paid";
+  if (item.status === "waived") return `Waived by Pacifyco${item.waive_reason ? `: ${item.waive_reason}` : ""}`;
   if (item.upi_reference) return "Pacifyco is checking it";
   if (item.rejection_reason) return `Not confirmed: ${item.rejection_reason} Please pay again`;
   return "To pay";

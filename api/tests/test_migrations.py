@@ -189,7 +189,15 @@ APPEND_ONLY = {
 # Append-only too, except an admin's decision on a row (CLAUDE.md 5): these columns, and only these.
 DECIDED_ONLY = {
     # The UPI reference too: a charge's reference is kept on it and cleared if rejected (CLAUDE.md 6.5).
-    "payments": {"status", "confirmed_by", "confirmed_at", "rejection_reason", "transfer_reference", "upi_reference"},
+    "payments": {
+        "status",
+        "confirmed_by",
+        "confirmed_at",
+        "rejection_reason",
+        "transfer_reference",
+        "upi_reference",
+        "waive_reason",
+    },
     # A strike is kept; only its removal is recorded later (CLAUDE.md 6.6).
     "strikes": {"removed_by", "removed_at", "removal_reason", "doctor_note_document_id"},
     # What she's earned: only its progress (held, released, paid) and when it's due (CLAUDE.md 6.10).

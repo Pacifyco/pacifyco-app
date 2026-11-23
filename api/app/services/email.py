@@ -1028,3 +1028,93 @@ def sitter_bookings_cancelled_alert(to: str, count: int, web_url: str) -> Email:
         button_label="Open the admin panel",
         button_url=f"{web_url.rstrip('/')}/admin",
     )
+
+
+# ---------- an admin's adjustments to a booking (phase 10, Reuben 2026-11-23) ----------
+
+
+def booking_cancelled_by_admin_for_parent(
+    to: str,
+    full_name: str | None,
+    sitter_name: str | None,
+    starts_at: datetime,
+    refunded: bool,
+    reason: str,
+    web_url: str,
+) -> Email:
+    """To the parent: an admin cancelled a booking, with the reason."""
+    sitter = _first_name(sitter_name) if sitter_name else "your sitter"
+    money = "Pacifyco will refund you in full." if refunded else "You haven't been charged."
+    return Email(
+        to=to,
+        subject="Pacifyco has cancelled your booking",
+        heading="Your booking has been cancelled.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco has cancelled your booking with {sitter} for {_when(starts_at)}.\n"
+            f"The reason: {reason}\n{money}"
+        ),
+        button_label="See your bookings",
+        button_url=f"{web_url.rstrip('/')}/parent/bookings",
+    )
+
+
+def booking_cancelled_by_admin_for_sitter(
+    to: str, full_name: str | None, starts_at: datetime, reason: str, web_url: str
+) -> Email:
+    """To the sitter: an admin cancelled a booking she had accepted or could see, with the reason."""
+    return Email(
+        to=to,
+        subject="A booking was cancelled",
+        heading="Pacifyco has cancelled a booking.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco has cancelled the booking for {_when(starts_at)}. "
+            f"That time is free again for other families. There's no strike for you.\nThe reason: {reason}"
+        ),
+        button_label="See your bookings",
+        button_url=f"{web_url.rstrip('/')}/sitter/bookings",
+    )
+
+
+def partial_refund(to: str, full_name: str | None, amount_paise: int, reason: str, web_url: str) -> Email:
+    """To the parent: an admin is refunding part of what they paid for a booking."""
+    return Email(
+        to=to,
+        subject="Pacifyco is refunding you",
+        heading=f"We're refunding you {_rupees(amount_paise)}.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco is refunding you {_rupees(amount_paise)} for a booking.\n"
+            f"The reason: {reason}\nWe'll pay it back by UPI or bank transfer, and it will show in your payments."
+        ),
+        button_label="See your payments",
+        button_url=f"{web_url.rstrip('/')}/parent/payments",
+    )
+
+
+def charge_waived(to: str, full_name: str | None, amount_paise: int, reason: str, web_url: str) -> Email:
+    """To the parent: an admin waived a charge they owed."""
+    return Email(
+        to=to,
+        subject="Pacifyco has waived a charge",
+        heading="You don't need to pay this charge.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco has waived a charge of {_rupees(amount_paise)}, so you don't owe "
+            f"it any more.\nThe reason: {reason}"
+        ),
+        button_label="See your payments",
+        button_url=f"{web_url.rstrip('/')}/parent/payments",
+    )
+
+
+def extra_pay(to: str, full_name: str | None, amount_paise: int, note: str, web_url: str) -> Email:
+    """To the sitter: an admin added pay for a booking."""
+    return Email(
+        to=to,
+        subject="Pacifyco has added to your pay",
+        heading=f"We've added {_rupees(amount_paise)} to your pay.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco has added {_rupees(amount_paise)} to your pay for a booking.\n"
+            f"{note}\nIt's paid with your other earnings."
+        ),
+        button_label="See your earnings",
+        button_url=f"{web_url.rstrip('/')}/sitter/earnings",
+    )

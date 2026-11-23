@@ -15,6 +15,7 @@ const OWED: Charge = {
   status: "pending",
   upi_reference: null,
   rejection_reason: null,
+  waive_reason: null,
   booking_id: "b1",
   booking_starts_at: kolkataTime("2030-01-07", 9),
   sitter_name: "Lakshmi Nair",
@@ -73,6 +74,13 @@ describe("Paying a charge", () => {
     renderWith({ ...OWED, rejection_reason: "No such payment arrived." });
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByText(/We couldn't confirm your payment: No such payment arrived\./)).toBeTruthy();
+  });
+
+  test("waived by Pacifyco", async () => {
+    renderWith({ ...OWED, status: "waived", waive_reason: "A family emergency.", pay_by_upi: null });
+    expect(await screen.findByText("Pacifyco has waived this charge, so you don't need to pay it.")).toBeTruthy();
+    expect(screen.getByText("A family emergency.")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /Pay / })).toBeNull();
   });
 
   test("paid", async () => {

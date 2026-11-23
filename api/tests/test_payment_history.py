@@ -72,6 +72,7 @@ def test_the_history_lists_payments_and_refunds_newest_first(
         "upi_reference": "123456789012",
         "transfer_reference": None,
         "rejection_reason": None,
+        "waive_reason": None,
         "created_at": payment["created_at"],
         "decided_at": payment["decided_at"],
         "booking_id": booking["id"],

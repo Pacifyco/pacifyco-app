@@ -28,6 +28,7 @@ const PAID: PaymentHistoryItem = {
   upi_reference: "123456789012",
   transfer_reference: null,
   rejection_reason: null,
+  waive_reason: null,
   created_at: kolkataTime("2030-01-06", 20),
   decided_at: kolkataTime("2030-01-06", 21),
   booking_id: "b1",
@@ -72,6 +73,9 @@ describe("Your payments", () => {
       "Not confirmed: No such payment. Please pay again",
     );
     expect(statusText({ ...charge, status: "confirmed" })).toBe("Paid");
+    expect(statusText({ ...charge, status: "waived", waive_reason: "A family emergency." })).toBe(
+      "Waived by Pacifyco: A family emergency.",
+    );
   });
 
   test("nothing yet", async () => {

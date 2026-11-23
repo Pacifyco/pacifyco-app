@@ -8,14 +8,22 @@ tests.
 
 ## Current status
 
-- Phase: 10 under way (2026-11-23): the admin dashboard and user management built. Next: bookings overview
-  and manual adjustments (audit logged).
+- Phase: 10 under way (2026-11-23): the admin dashboard, user management and the bookings overview built.
+  Next: audit log and document access log views.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
 
 ## Open questions (ask Reuben; don't guess)
+
+- [x] **Bookings overview and manual adjustments** (Reuben, 2026-11-23): every booking with filters (upcoming,
+  under way, past, cancelled; dates; the parent's or sitter's name), 50 at a time, each with an admin booking
+  page. Adjustments, each with a reason, audit logged and emailed: cancel a booking that hasn't started
+  (refunded in full, no strike), refund part of a booking, add pay for the sitter, waive an unpaid charge.
+  Not asked, my defaults: extra pay is capped at ₹10,000 at a time (a typo guard) and only once the booking
+  has ended or been cancelled; the cancel reason is shown to both the family and the sitter; a charge with a
+  payment waiting to be checked can't be waived until that payment is confirmed or rejected.
 
 - [x] **User management** (Reuben, 2026-11-22): suspending or removing a parent or sitter cancels and
   refunds their upcoming bookings (no strike), and the other side is told; the person is emailed the reason
@@ -633,7 +641,14 @@ at home (CLAUDE.md 6.3).
   theft or abuse report's suspension, so appeals can keep the original decider off (6.12). Reinstating sets
   `active` if the family is verified or the sitter approved, else `pending`; refused while 5 strikes count.
   Strikes were already built (phase 7) and sit beside it
-- [ ] Bookings overview and manual adjustments (audit logged)
+- [x] Bookings overview and manual adjustments (audit logged). Built 2026-11-23: `/admin/bookings` (by
+  group, dates and name, latest start first, "Show more") and `/admin/bookings/:id` (the people, children,
+  check-in and out, every money row, her earnings and the audit trail of the booking, its payments and
+  earnings), `api/app/services/admin_bookings.py`. Adjustments: cancel (`cancelled_by_admin`, refunded in
+  full, both emailed with the reason; account suspensions use the same code), refund part (a new refund row,
+  up to what's paid and not yet refunded), extra pay (earning kind `adjustment` with a note she sees, due in
+  12 hours, held while an incident is open) and waive a charge (payment status `waived` with
+  `waive_reason`, no longer owed). Migration 0e9b936da034. Linked as "All bookings" from the admin home
 - [ ] Audit log and document access log views
 - [ ] Complaints and grievances: Help → Raise a complaint, SLA timers, Grievance Officer escalation, appeals by a different admin
 - [ ] Sitter account closure; data access, correction and deletion requests
@@ -685,6 +700,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-23 — Bookings overview and manual adjustments (phase 10).
 - 2026-11-23 — User management: suspend, remove, reinstate (phase 10).
 - 2026-11-22 — Admin dashboard (phase 10).
 - 2026-11-22 — Reviews both ways and the low-rating flag (12 hours to respond); phase 9 test check.

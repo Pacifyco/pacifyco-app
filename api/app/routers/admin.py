@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, date, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, or_, select
 
@@ -13,8 +13,11 @@ from app.deps import DbSession
 from app.errors import AppError
 from app.models import (
     AccountActionKind,
+    AuditLog,
     Booking,
+    BookingChild,
     BookingStatus,
+    Child,
     ComplaintStatus,
     DocumentType,
     OnboardingStatus,
@@ -29,12 +32,14 @@ from app.models import (
     PsychAttemptStatus,
     PsychQuestionKind,
     Role,
+    SitterEarning,
     SitterLevel,
     StrikeReason,
     VerificationStatus,
 )
 from app.routers.sitters import StrikeOut, strikes_out
 from app.services import account_status as account_service
+from app.services import admin_bookings as admin_bookings_service
 from app.services import booking_mail, documents, verification
 from app.services import bookings as bookings_service
 from app.services import chat as chat_service
@@ -1648,3 +1653,302 @@ def reinstate_account(
     area = f"{_web_url(settings).rstrip('/')}/{profile.role.value}"
     mailer.send(email_service.account_reinstated(profile.email, profile.full_name, changed.row.reason, area))
     return _account_out(db, profile_id)
+
+
+# ---------- the bookings overview and manual adjustments (phase 10; Reuben, 2026-11-23) ----------
+
+
+class AdminBookingRow(BaseModel):
+    id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+    status: str
+    plan: str
+    price_paise: int
+    parent_name: str | None
+    sitter_name: str | None
+
+
+class AdminBookingList(BaseModel):
+    bookings: list[AdminBookingRow]
+    more: bool  # another page follows
+
+
+@router.get("/bookings")
+def list_bookings(
+    admin: Admin,
+    db: DbSession,
+    group: str | None = None,  # upcoming | under_way | past | cancelled
+    q: str | None = None,  # the parent's or sitter's name
+    starts_from: date | None = None,  # India dates, inclusive
+    starts_to: date | None = None,
+    page: Annotated[int, Query(ge=0, le=1000)] = 0,
+) -> AdminBookingList:
+    if group is not None and group not in admin_bookings_service.GROUPS:
+        raise AppError(422, "invalid_group", "Choose upcoming, under way, past or cancelled.")
+    found, more = admin_bookings_service.overview(
+        db, datetime.now(UTC), group=group, q=q, starts_from=starts_from, starts_to=starts_to, page=page
+    )
+    return AdminBookingList(
+        bookings=[
+            AdminBookingRow(
+                id=item.booking.id,
+                starts_at=item.booking.starts_at,
+                ends_at=item.booking.ends_at,
+                status=item.booking.status.value,
+                plan=item.booking.plan.value,
+                price_paise=item.booking.price_paise,
+                parent_name=item.parent_name,
+                sitter_name=item.sitter_name,
+            )
+            for item in found
+        ],
+        more=more,
+    )
+
+
+class BookingPerson(BaseModel):
+    id: uuid.UUID
+    full_name: str | None
+    email: str
+    phone: str | None
+
+
+class BookingMoney(BaseModel):
+    id: uuid.UUID
+    kind: str  # booking | overtime | refund | cancellation_charge
+    amount_paise: int  # + paid or owed by the parent, − refunded
+    status: str  # pending | confirmed | rejected | waived
+    upi_reference: str | None
+    transfer_reference: str | None
+    rejection_reason: str | None
+    waive_reason: str | None
+    created_at: datetime
+    decided_at: datetime | None
+    can_waive: bool  # an unpaid charge with no payment waiting to be checked
+
+
+class BookingEarning(BaseModel):
+    id: uuid.UUID
+    kind: str  # booking | overtime | show_up_fee | adjustment
+    amount_paise: int
+    minutes: int | None
+    note: str | None
+    status: str  # held | released | paid
+    due_by: datetime | None
+
+
+class BookingEvent(BaseModel):
+    action: str
+    by: str | None  # the person's name; None when the rules did it
+    at: datetime
+    after: dict | None
+
+
+class AdminBookingDetail(BaseModel):
+    id: uuid.UUID
+    status: str
+    plan: str
+    units: int
+    children: list[str]
+    starts_at: datetime
+    ends_at: datetime
+    price_paise: int
+    created_at: datetime
+    parent: BookingPerson
+    sitter: BookingPerson
+    checked_in_at: datetime | None
+    checked_out_at: datetime | None
+    codes_locked: bool
+    close_reason: str | None
+    payments: list[BookingMoney]
+    earnings: list[BookingEarning]
+    refundable_paise: int
+    can_cancel: bool
+    can_add_pay: bool
+    history: list[BookingEvent]
+
+
+def _person(profile: Profile) -> BookingPerson:
+    return BookingPerson(id=profile.id, full_name=profile.full_name, email=profile.email, phone=profile.phone)
+
+
+def _admin_booking(db: DbSession, booking_id: uuid.UUID) -> AdminBookingDetail:
+    booking = db.get(Booking, booking_id)
+    if booking is None:
+        raise AppError(404, "not_found", "We couldn't find that booking.")
+    db.refresh(booking)
+    parent, sitter = _people(db, booking)
+    assert sitter is not None
+    now = datetime.now(UTC)
+    money = db.scalars(select(Payment).where(Payment.booking_id == booking.id).order_by(Payment.created_at)).all()
+    earned = db.scalars(
+        select(SitterEarning).where(SitterEarning.booking_id == booking.id).order_by(SitterEarning.created_at)
+    ).all()
+    children = db.scalars(
+        select(Child.name)
+        .join(BookingChild, BookingChild.child_id == Child.id)
+        .where(BookingChild.booking_id == booking.id)
+        .order_by(Child.name)
+    ).all()
+    about = [str(booking.id), *(str(item.id) for item in money), *(str(item.id) for item in earned)]
+    events = db.execute(
+        select(AuditLog, Profile.full_name)
+        .outerjoin(Profile, Profile.id == AuditLog.actor_id)
+        .where(AuditLog.entity_id.in_(about))
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(200)
+    ).all()
+    return AdminBookingDetail(
+        id=booking.id,
+        status=booking.status.value,
+        plan=booking.plan.value,
+        units=booking.units,
+        children=list(children),
+        starts_at=booking.starts_at,
+        ends_at=booking.ends_at,
+        price_paise=booking.price_paise,
+        created_at=booking.created_at,
+        parent=_person(parent),
+        sitter=_person(sitter),
+        checked_in_at=booking.checked_in_at,
+        checked_out_at=booking.checked_out_at,
+        codes_locked=booking.codes_locked,
+        close_reason=booking.close_reason,
+        payments=[
+            BookingMoney(
+                id=item.id,
+                kind=item.kind.value,
+                amount_paise=item.amount_paise,
+                status=item.status.value,
+                upi_reference=item.upi_reference,
+                transfer_reference=item.transfer_reference,
+                rejection_reason=item.rejection_reason,
+                waive_reason=item.waive_reason,
+                created_at=item.created_at,
+                decided_at=item.confirmed_at,
+                can_waive=item.kind in admin_bookings_service.CHARGE_KINDS
+                and item.status == PaymentStatus.pending
+                and item.upi_reference is None,
+            )
+            for item in money
+        ],
+        earnings=[
+            BookingEarning(
+                id=item.id,
+                kind=item.kind.value,
+                amount_paise=item.amount_paise,
+                minutes=item.minutes,
+                note=item.note,
+                status=item.status.value,
+                due_by=item.due_by,
+            )
+            for item in earned
+        ],
+        refundable_paise=admin_bookings_service.refundable_paise(db, booking.id),
+        can_cancel=booking.status in admin_bookings_service.UPCOMING and booking.starts_at > now,
+        can_add_pay=booking.status not in (*admin_bookings_service.UPCOMING, BookingStatus.in_progress),
+        history=[
+            BookingEvent(
+                action=event.action,
+                by=(name or "Someone") if event.actor_id else None,
+                at=event.created_at,
+                after=event.after,
+            )
+            for event, name in events
+        ],
+    )
+
+
+@router.get("/bookings/{booking_id}")
+def get_admin_booking(booking_id: uuid.UUID, admin: Admin, db: DbSession) -> AdminBookingDetail:
+    return _admin_booking(db, booking_id)
+
+
+class AdjustReasonIn(BaseModel):
+    reason: str = Field(max_length=admin_bookings_service.REASON_MAX)
+
+
+class AdjustAmountIn(BaseModel):
+    amount_paise: int = Field(gt=0, le=10_000_000)
+    reason: str = Field(max_length=admin_bookings_service.REASON_MAX)
+
+
+@router.post("/bookings/{booking_id}/cancel")
+def cancel_booking(
+    booking_id: uuid.UUID, body: AdjustReasonIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AdminBookingDetail:
+    """Cancels a booking that hasn't started: refunded in full, no strike, both told with the reason."""
+    done = admin_bookings_service.cancel(db, admin.id, booking_id, body.reason, datetime.now(UTC))
+    booking = done.booking
+    parent, sitter = _people(db, booking)
+    assert sitter is not None
+    sent = payments_service.latest_booking_payment(db, booking.id)
+    refunded = sent is not None and sent.status != PaymentStatus.rejected
+    mailer.send(
+        email_service.booking_cancelled_by_admin_for_parent(
+            parent.email,
+            parent.full_name,
+            sitter.full_name,
+            booking.starts_at,
+            refunded,
+            done.reason,
+            _web_url(settings),
+        )
+    )
+    if done.was_accepted:
+        mailer.send(
+            email_service.booking_cancelled_by_admin_for_sitter(
+                sitter.email, sitter.full_name, booking.starts_at, done.reason, _web_url(settings)
+            )
+        )
+    return _admin_booking(db, booking_id)
+
+
+@router.post("/bookings/{booking_id}/refund")
+def refund_part(
+    booking_id: uuid.UUID, body: AdjustAmountIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AdminBookingDetail:
+    """A refund of part of what was paid, owed to the parent until an admin pays it back and marks it paid."""
+    booking, row = admin_bookings_service.refund(db, admin.id, booking_id, body.amount_paise, body.reason)
+    parent, _ = _people(db, booking)
+    mailer.send(
+        email_service.partial_refund(
+            parent.email, parent.full_name, -row.amount_paise, body.reason.strip(), _web_url(settings)
+        )
+    )
+    return _admin_booking(db, booking_id)
+
+
+@router.post("/bookings/{booking_id}/sitter-pay")
+def add_sitter_pay(
+    booking_id: uuid.UUID, body: AdjustAmountIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AdminBookingDetail:
+    """Extra pay for the sitter, with a note she sees: paid within 12 hours like her other earnings."""
+    earning = admin_bookings_service.add_pay(
+        db, admin.id, booking_id, body.amount_paise, body.reason, datetime.now(UTC)
+    )
+    sitter = db.get(Profile, earning.sitter_id)
+    assert sitter is not None
+    mailer.send(
+        email_service.extra_pay(
+            sitter.email, sitter.full_name, earning.amount_paise, earning.note or "", _web_url(settings)
+        )
+    )
+    return _admin_booking(db, booking_id)
+
+
+@router.post("/charges/{payment_id}/waive")
+def waive_charge(
+    payment_id: uuid.UUID, body: AdjustReasonIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AdminBookingDetail:
+    """Lets an unpaid overtime or cancellation charge go: no longer owed, so it stops blocking bookings."""
+    charge = admin_bookings_service.waive(db, admin.id, payment_id, body.reason, datetime.now(UTC))
+    parent = db.get(Profile, charge.parent_id)
+    assert parent is not None
+    mailer.send(
+        email_service.charge_waived(
+            parent.email, parent.full_name, charge.amount_paise, charge.waive_reason or "", _web_url(settings)
+        )
+    )
+    return _admin_booking(db, charge.booking_id)

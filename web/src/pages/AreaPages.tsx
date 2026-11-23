@@ -413,8 +413,9 @@ export function AdminHomePage() {
       <OverdueBanner />
       <PayoutsOverdueBanner />
       <Dashboard />
-      <p className="mt-6">
+      <p className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
         <Link to="/admin/people">Find a parent or sitter</Link>
+        <Link to="/admin/bookings">All bookings</Link>
       </p>
     </section>
   );
