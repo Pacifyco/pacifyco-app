@@ -90,6 +90,9 @@ describe("Your bookings", () => {
       "Cancelled by you, less than 3 hours before: charged",
     );
     expect(bookingStatusText({ ...UPCOMING, status: "cancelled_sitter_late" })).toBe("Cancelled by Lakshmi");
+    expect(bookingStatusText({ ...UPCOMING, status: "cancelled_by_admin" })).toBe(
+      "Cancelled by Pacifyco: anything paid is refunded",
+    );
     expect(bookingStatusText({ ...UPCOMING, status: "cancelled_unverified" })).toBe(
       "Cancelled: a child wasn't verified by the start",
     );

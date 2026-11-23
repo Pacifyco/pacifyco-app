@@ -16,6 +16,7 @@ import {
 } from "./shared";
 import { AdminReviews, type ReviewForAdmin } from "./RatingsPage";
 import { StrikesSection } from "./StrikesSection";
+import { AccountSection } from "./AccountSection";
 import { QUEUE_KEY } from "./VerificationQueuePage";
 
 // Reviewing one sitter (CLAUDE.md 7): each onboarding step, her references and psychology test, her
@@ -376,6 +377,7 @@ export function SitterReviewPage() {
           rejectLabel="Reject application"
         />
       </Section>
+      <AccountSection profileId={sitter.id} />
       <StrikesSection sitterId={sitter.id} />
       <AdminReviews
         title="Families' reviews"

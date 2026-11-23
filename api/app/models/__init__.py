@@ -1,5 +1,6 @@
 """SQLAlchemy models. Import every model here so Alembic sees it (alembic/env.py uses Base.metadata)."""
 
+from app.models.account_actions import AccountAction, AccountActionKind, AccountActionRow
 from app.models.audit import AuditLog
 from app.models.bookings import Booking, BookingChild, BookingHomeInfo, BookingStatus
 from app.models.common import VerificationStatus
@@ -44,6 +45,9 @@ from app.models.sitters import (
 from app.models.strikes import Strike, StrikeReason
 
 __all__ = [
+    "AccountAction",
+    "AccountActionKind",
+    "AccountActionRow",
     "Message",
     "Complaint",
     "ComplaintStatus",

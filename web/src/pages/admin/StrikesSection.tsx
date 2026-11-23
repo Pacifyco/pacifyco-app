@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Button, Card, Textarea } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { formatDate, formatDay, formatTime } from "../../lib/format";
+import { accountKey } from "./AccountSection";
 import { ViewDocumentButton, errorMessage } from "./shared";
 
 // A sitter's strikes, for admins (CLAUDE.md 6.6): the ladder blocks her from new bookings (24 hours, 3
@@ -77,7 +78,10 @@ function StrikeRow({ strike, sitterId }: { strike: AdminStrike; sitterId: string
   const remove = useMutation({
     mutationFn: (reason: string) =>
       apiFetch<AdminStrikes>(`/admin/strikes/${strike.id}/remove`, { method: "POST", body: JSON.stringify({ reason }) }),
-    onSuccess: (updated) => queryClient.setQueryData(["admin", "strikes", sitterId], updated),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["admin", "strikes", sitterId], updated);
+      void queryClient.invalidateQueries({ queryKey: accountKey(sitterId) });
+    },
   });
   const expired = new Date(strike.expires_at) <= new Date();
   return (
@@ -137,6 +141,7 @@ export function StrikesSection({ sitterId }: { sitterId: string }) {
       apiFetch<AdminStrikes>(`/admin/sitters/${sitterId}/strikes`, { method: "POST", body: JSON.stringify({ reason }) }),
     onSuccess: (updated) => {
       queryClient.setQueryData(key, updated);
+      void queryClient.invalidateQueries({ queryKey: accountKey(sitterId) });
       setAdding(false);
     },
   });

@@ -21,6 +21,9 @@ from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import (
+    AccountAction,
+    AccountActionKind,
+    AccountActionRow,
     Document,
     DocumentStatus,
     DocumentType,
@@ -91,6 +94,15 @@ def _recalculate(
                 after={"status": ProfileStatus.removed.value, "reason": "fifth_strike"},
             )
             profile.status = ProfileStatus.removed
+            db.add(
+                AccountActionRow(
+                    profile_id=sitter_id,
+                    action=AccountAction.removed,
+                    kind=AccountActionKind.strikes,
+                    reason="Five strikes in 6 months.",
+                    admin_id=actor_id,
+                )
+            )
             removed = True
     return sitter.blocked_until, removed
 

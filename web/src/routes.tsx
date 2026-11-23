@@ -3,6 +3,7 @@ import { RequireRole } from "./auth/RequireRole";
 import { FamilyReviewPage } from "./pages/admin/FamilyReviewPage";
 import { OverdueCheckoutsPage } from "./pages/admin/OverdueCheckoutsPage";
 import { PayoutsPage } from "./pages/admin/PayoutsPage";
+import { PeoplePage } from "./pages/admin/PeoplePage";
 import { RatingsPage } from "./pages/admin/RatingsPage";
 import { PaymentsPage } from "./pages/admin/PaymentsPage";
 import { IncidentsPage } from "./pages/admin/IncidentsPage";
@@ -164,6 +165,7 @@ export const routes: RouteObject[] = [
           ["admin/overdue-checkouts", <OverdueCheckoutsPage />],
           ["admin/payouts", <PayoutsPage />],
           ["admin/ratings", <RatingsPage />],
+          ["admin/people", <PeoplePage />],
           ["admin/sitters/:sitterId", <SitterReviewPage />],
           ["admin/parents/:parentId", <FamilyReviewPage />],
         ] as const

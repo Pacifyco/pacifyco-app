@@ -66,6 +66,9 @@ class BookingStatus(StrEnum):
     # An admin closed it by hand (6.7): an overdue check-out, or codes locked after 5 wrong attempts,
     # with no other way to move the booking on.
     closed_by_admin = "closed_by_admin"
+    # Cancelled by Pacifyco before the start because an admin suspended or removed the parent's or the
+    # sitter's account (Reuben, 2026-11-22). Refunded in full; no strike.
+    cancelled_by_admin = "cancelled_by_admin"
 
 
 class Booking(Base):
