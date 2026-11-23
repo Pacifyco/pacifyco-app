@@ -1293,3 +1293,86 @@ def account_closed(to: str, full_name: str | None, pay_due_paise: int) -> Email:
         button_label="Contact Pacifyco",
         button_url="mailto:founders@pacifyco.in",
     )
+
+
+# ---------- gaps found in phase 11 (2026-11-23) ----------
+
+
+def booking_confirmed_for_sitter(
+    to: str, full_name: str | None, family_name: str, starts_at: datetime, booking_id: object, web_url: str
+) -> Email:
+    """To the sitter: the family has paid, so the booking she accepted is confirmed (6.4)."""
+    return Email(
+        to=to,
+        subject="Your Pacifyco booking is confirmed",
+        heading="Your booking is confirmed.",
+        body=(
+            f"Hi {_first_name(full_name)}, {family_name}'s family has paid, so your booking for {_when(starts_at)} "
+            "is confirmed.\nYou can now see the home address and the family's emergency contact on the booking."
+        ),
+        button_label="See the booking",
+        button_url=f"{web_url.rstrip('/')}/sitter/bookings/{booking_id}",
+    )
+
+
+def unpaid_cancelled_for_parent(
+    to: str, full_name: str | None, sitter_name: str | None, starts_at: datetime, web_url: str
+) -> Email:
+    """To the parent: the booking wasn't paid 3 hours before the start, so it was cancelled (6.1)."""
+    sitter = _first_name(sitter_name) if sitter_name else "your sitter"
+    return Email(
+        to=to,
+        subject="Your Pacifyco booking was cancelled",
+        heading="Your booking was cancelled.",
+        body=(
+            f"Hi {_first_name(full_name)}, your booking with {sitter} for {_when(starts_at)} wasn't paid 3 hours "
+            "before the start, so it has been cancelled. You haven't been charged.\n"
+            "You're welcome to book again."
+        ),
+        button_label="Find a sitter",
+        button_url=f"{web_url.rstrip('/')}/parent/sitters",
+    )
+
+
+def unpaid_cancelled_for_sitter(
+    to: str, full_name: str | None, family_name: str, starts_at: datetime, web_url: str
+) -> Email:
+    """To the sitter: the family didn't pay in time, so the booking she accepted is cancelled (6.1)."""
+    return Email(
+        to=to,
+        subject="A booking was cancelled",
+        heading="A booking you accepted was cancelled.",
+        body=(
+            f"Hi {_first_name(full_name)}, {family_name}'s family didn't pay in time, so their booking for "
+            f"{_when(starts_at)} is cancelled. That time is free again for other families."
+        ),
+        button_label="See your bookings",
+        button_url=f"{web_url.rstrip('/')}/sitter/bookings",
+    )
+
+
+def unverified_cancelled_for_parent(to: str, full_name: str | None, starts_at: datetime, web_url: str) -> Email:
+    """To the parent: a paid booking couldn't go ahead because a child on it wasn't verified by the start."""
+    return Email(
+        to=to,
+        subject="Your Pacifyco booking was cancelled",
+        heading="Your booking was cancelled.",
+        body=(
+            f"Hi {_first_name(full_name)}, a child on your booking for {_when(starts_at)} wasn't verified by the "
+            "start, so the booking couldn't go ahead. Pacifyco will refund you in full."
+        ),
+        button_label="See your payments",
+        button_url=f"{web_url.rstrip('/')}/parent/payments",
+    )
+
+
+def psych_retake_allowed(to: str, full_name: str | None, web_url: str) -> Email:
+    """To the sitter: an admin has let her take the psychology screening again (7)."""
+    return Email(
+        to=to,
+        subject="You can take the screening again",
+        heading="You can take the psychology screening again.",
+        body=f"Hi {_first_name(full_name)}, Pacifyco has opened the psychology screening for you to take again.",
+        button_label="Take the screening",
+        button_url=f"{web_url.rstrip('/')}/sitter/psych-test",
+    )

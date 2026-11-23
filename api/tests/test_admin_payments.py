@@ -129,9 +129,9 @@ def test_confirmed_and_verified_the_booking_is_confirmed(
         for item in rows(db_engine, "SELECT action FROM audit_log WHERE entity_id IN (:b, :p)", b=booking["id"], p=paid)
     }
     assert {"payment_confirmed", "booking_paid"} <= actions
-    email = mailbox.sent[-1]
-    assert email.to == finished_parent["email"]
+    (email,) = [item for item in mailbox.sent if item.to == finished_parent["email"]]
     assert email.heading == "Your booking is confirmed."
+    assert mailbox.sent[-1].subject == "Your Pacifyco booking is confirmed"  # and the sitter (phase 11)
     assert email.button_url.endswith(f"/parent/bookings/{booking['id']}")
 
 
