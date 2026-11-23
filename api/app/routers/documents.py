@@ -22,6 +22,7 @@ Storage = Annotated[StorageClient, Depends(get_storage)]
 class RequestUpload(BaseModel):
     type: DocumentType
     child_id: uuid.UUID | None = None  # required for birth_certificate; must be the caller's own child
+    complaint_id: uuid.UUID | None = None  # required for complaint_attachment; the caller's own complaint
 
 
 class UploadTicket(BaseModel):
@@ -52,7 +53,7 @@ def list_my_documents(
 
 @router.post("/upload-url", status_code=201)
 def create_upload_url(body: RequestUpload, profile: CurrentProfile, db: DbSession, storage: Storage) -> UploadTicket:
-    ticket = documents.request_upload(db, storage, profile.id, body.type, body.child_id)
+    ticket = documents.request_upload(db, storage, profile.id, body.type, body.child_id, body.complaint_id)
     return UploadTicket(document_id=ticket.document_id, upload_url=ticket.upload_url)
 
 

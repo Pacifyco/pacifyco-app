@@ -20,6 +20,7 @@ export const DOCUMENT_LABELS: Record<string, string> = {
   birth_certificate: "Birth certificate",
   photo: "Photo",
   doctor_note: "Doctor's note",
+  complaint_attachment: "Complaint file",
 };
 
 const STATUS_WORDS: Record<ReviewStatus, string> = { pending: "Waiting", approved: "Approved", rejected: "Rejected" };

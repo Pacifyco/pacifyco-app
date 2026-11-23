@@ -7,7 +7,7 @@ import { formatBookingTime, formatMobile } from "../lib/format";
 import { rupees } from "../lib/prices";
 import { todayInKolkata } from "../lib/times";
 import { outingText, sitterBookingLine, sitterStatusText, type SitterBookingItem } from "./SitterBookingsPage";
-import { BookingHelp, type BookingIncident } from "../components/BookingHelp";
+import { BookingHelp, ComplaintLink, type BookingIncident } from "../components/BookingHelp";
 import { ReviewCard, type ReviewState } from "../components/ReviewCard";
 import { answerByText } from "./SitterRequestsPage";
 import { MAN_HOME_FEE_PAISE, SHOW_UP_FEE_PER_HOUR_PAISE, minutesLeft, underWay, type BookingReport } from "../lib/reports";
@@ -689,6 +689,7 @@ export function SitterBookingPage() {
         incident={data.incident}
         queryKey={["sitter", "booking", data.id]}
       />
+      <ComplaintLink role="sitter" bookingId={data.id} />
       {data.report && <ReportStatus booking={data} now={new Date()} />}
       {!data.report &&
         ["confirmed", "in_progress"].includes(data.status) &&

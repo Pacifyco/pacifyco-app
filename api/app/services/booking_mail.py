@@ -280,7 +280,8 @@ def tell_issue(db: Session, mailer: EmailClient, settings: Settings, complaint, 
     booking, parent, sitter = _people(db, complaint.booking_id)
     by = "parent" if complaint.raised_by == parent.id else "sitter"
     for to in settings.admin_alert_emails:
-        mailer.send(email_service.issue_alert(to, topic_words, by, web_url(settings)))
+        complaint_url = f"{web_url(settings).rstrip('/')}/admin/complaints/{complaint.id}"
+        mailer.send(email_service.issue_alert(to, topic_words, by, complaint_url))
 
 
 def tell_outing_changed(db: Session, mailer: EmailClient, settings: Settings, booking_id: uuid.UUID, where) -> None:

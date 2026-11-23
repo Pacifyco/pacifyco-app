@@ -9,13 +9,26 @@ tests.
 ## Current status
 
 - Phase: 10 under way (2026-11-23): the admin dashboard, user management, the bookings overview and the
-  audit and document access log views built. Next: complaints and grievances.
+  audit and document access log views, and complaints and grievances built. Next: sitter account closure
+  and data requests.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
 
 ## Open questions (ask Reuben; don't guess)
+
+- [x] **Complaints and grievances** (Reuben, 2026-11-23): the Grievance Officer is an admin account
+  (`GRIEVANCE_OFFICER_EMAIL`; while it's empty every admin acts as the officer, README "Making an admin the
+  Grievance Officer"); an admin marks a serious safety matter (15 days); working days are Monday to Friday
+  without public holidays, which admins add; an upheld appeal reinstates the account now or leaves it for an
+  admin to reinstate by hand (the admin chooses); any admin can review an appeal against a decision the rules
+  made; complaints still unresolved at their target escalate automatically; admins reply in writing in the
+  app. Not asked, my defaults: up to 3 files per complaint (appeals are text only); a booking complaint is
+  late if raised more than 24 hours after the booking's end (or check-out), any other if the date given is
+  before yesterday (none given: not late); the person can escalate only once it's been resolved (before
+  that it escalates by itself at its target); an overdue appeal isn't escalated, it's shown overdue; a
+  holiday added later doesn't move an appeal already made; the old Issues queue is now part of Complaints.
 
 - [x] **Bookings overview and manual adjustments** (Reuben, 2026-11-23): every booking with filters (upcoming,
   under way, past, cancelled; dates; the parent's or sitter's name), 50 at a time, each with an admin booking
@@ -656,7 +669,17 @@ at home (CLAUDE.md 6.3).
   `/admin/document-access-log` (which admin opened whose document and when; filter by admin, document type,
   the owner's name and dates; a deleted file is marked). Read only. Migration 57155d807f75 indexes
   `audit_log.entity_id`
-- [ ] Complaints and grievances: Help → Raise a complaint, SLA timers, Grievance Officer escalation, appeals by a different admin
+- [x] Complaints and grievances: Help → Raise a complaint, SLA timers, Grievance Officer escalation, appeals by a different admin.
+  Built 2026-11-23 (`api/app/services/complaints.py`, migration d5c427c83be2): Help (a footer link) at
+  `/parent/help` and `/sitter/help`, raise a complaint (up to 3 files) or from a booking page, the
+  conversation, and "I disagree: send it to the Grievance Officer" once resolved. Admins: `/admin/complaints`
+  (open, appeals, with the officer, done; time left on each target, overdue in red; a dashboard tile) and one
+  page per complaint (reply, mark a serious safety matter, resolve, decide an appeal, acknowledge and decide
+  as the officer). The frequent job escalates overdue complaints. Appeals from the "account on hold" page,
+  within 15 days, reviewed within 7 working days (`/admin/holidays`), never by the admin who decided. The
+  Issues button's complaints are part of this; `/admin/issues` redirects. Also fixed: the roles tests had
+  found no routes since FastAPI 0.162 wrapped included routers, so they checked nothing; they now sweep all
+  endpoints (and `/me/terms` was added to the public list)
 - [ ] Sitter account closure; data access, correction and deletion requests
 - [ ] Tests for this phase
 
@@ -706,6 +729,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-23 — Complaints and grievances, appeals and the Grievance Officer (phase 10).
 - 2026-11-23 — Audit log and document access log views (phase 10).
 - 2026-11-23 — Bookings overview and manual adjustments (phase 10).
 - 2026-11-23 — User management: suspend, remove, reinstate (phase 10).

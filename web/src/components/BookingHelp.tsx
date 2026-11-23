@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { Button, Card, EmergencyButton, Textarea, showToast } from "./ui";
 import { ApiError, apiFetch } from "../lib/api";
 
@@ -160,6 +161,15 @@ function Issue({ role, bookingId }: { role: Role; bookingId: string }) {
         </div>
       </form>
     </Card>
+  );
+}
+
+/** A complaint about this booking (CLAUDE.md 6.12), any time: Help with the booking filled in. */
+export function ComplaintLink({ role, bookingId }: { role: Role; bookingId: string }) {
+  return (
+    <p className="text-small text-muted">
+      Something wrong with this booking? <Link to={`/${role}/help/new?booking=${bookingId}`}>Raise a complaint</Link>
+    </p>
   );
 }
 

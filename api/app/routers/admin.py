@@ -13,12 +13,13 @@ from app.deps import DbSession
 from app.errors import AppError
 from app.models import (
     AccountActionKind,
+    AppealOutcome,
     AuditLog,
     Booking,
     BookingChild,
     BookingStatus,
     Child,
-    ComplaintStatus,
+    Complaint,
     DocumentType,
     OnboardingStatus,
     OnboardingStepName,
@@ -41,11 +42,12 @@ from app.routers.sitters import StrikeOut, strikes_out
 from app.services import account_status as account_service
 from app.services import admin_bookings as admin_bookings_service
 from app.services import admin_logs as admin_logs_service
-from app.services import booking_mail, documents, verification
+from app.services import booking_mail, complaint_mail, documents, verification
 from app.services import bookings as bookings_service
 from app.services import chat as chat_service
 from app.services import checkin as checkin_service
 from app.services import children as children_service
+from app.services import complaints as complaints_service
 from app.services import dashboard as dashboard_service
 from app.services import email as email_service
 from app.services import incidents as incidents_service
@@ -55,6 +57,7 @@ from app.services import psych_tests as psych_tests_service
 from app.services import reports as reports_service
 from app.services import reviews as reviews_service
 from app.services import strikes as strikes_service
+from app.services.availability import today_in_india
 from app.services.storage import StorageClient, get_storage
 from app.settings import LOCAL_WEB_ORIGIN, Settings, get_settings
 
@@ -1115,7 +1118,7 @@ def close_booking(
     )
 
 
-# ---------- emergencies and issues (CLAUDE.md 6.9) ----------
+# ---------- emergencies (CLAUDE.md 6.9) ----------
 
 
 class AdminIncident(BaseModel):
@@ -1189,58 +1192,6 @@ def resolve_incident(
     if incident.suspended_sitter and sitter and sitter.status == ProfileStatus.active:
         mailer.send(email_service.sitter_reinstated(sitter.email, sitter.full_name, _web_url(settings)))
     return _admin_incident(db, incident)
-
-
-class AdminIssue(BaseModel):
-    id: uuid.UUID
-    topic: str | None
-    description: str
-    status: str  # open | replied
-    raised_by: str  # parent | sitter
-    created_at: datetime
-    booking_id: uuid.UUID | None
-    starts_at: datetime | None
-    parent_name: str | None
-    parent_phone: str | None
-    sitter_name: str | None
-    sitter_phone: str | None
-
-
-def _admin_issue(db: DbSession, complaint) -> AdminIssue:
-    booking = db.get(Booking, complaint.booking_id) if complaint.booking_id else None
-    parent, sitter = _people(db, booking) if booking else (None, None)
-    return AdminIssue(
-        id=complaint.id,
-        topic=complaint.topic.value if complaint.topic else None,
-        description=complaint.description,
-        status=complaint.status.value,
-        raised_by="parent" if parent and complaint.raised_by == parent.id else "sitter",
-        created_at=complaint.created_at,
-        booking_id=booking.id if booking else None,
-        starts_at=booking.starts_at if booking else None,
-        parent_name=parent.full_name if parent else None,
-        parent_phone=parent.phone if parent else None,
-        sitter_name=sitter.full_name if sitter else None,
-        sitter_phone=sitter.phone if sitter else None,
-    )
-
-
-@router.get("/issues")
-def get_issues(admin: Admin, db: DbSession) -> list[AdminIssue]:
-    """Issues not yet resolved, oldest first."""
-    return [_admin_issue(db, complaint) for complaint in incidents_service.open_issues(db)]
-
-
-@router.post("/issues/{complaint_id}/replied")
-def issue_replied(complaint_id: uuid.UUID, admin: Admin, db: DbSession) -> AdminIssue:
-    done = incidents_service.update_issue(db, admin.id, complaint_id, ComplaintStatus.replied, datetime.now(UTC))
-    return _admin_issue(db, done)
-
-
-@router.post("/issues/{complaint_id}/resolved")
-def issue_resolved(complaint_id: uuid.UUID, admin: Admin, db: DbSession) -> AdminIssue:
-    done = incidents_service.update_issue(db, admin.id, complaint_id, ComplaintStatus.resolved, datetime.now(UTC))
-    return _admin_issue(db, done)
 
 
 class AdminMessage(BaseModel):
@@ -1465,7 +1416,8 @@ class DashboardOut(BaseModel):
     paid_today_paise: int
     reports_open: int
     overdue_checkouts: int
-    issues_open: int
+    complaints_open: int
+    complaints_overdue: int
     low_ratings: int
 
 
@@ -2101,3 +2053,268 @@ def get_document_access_log(
         ],
         more=more,
     )
+
+
+# ---------- complaints, appeals and the Grievance Officer (CLAUDE.md 6.12; phase 10) ----------
+
+
+class ComplaintPerson(BaseModel):
+    id: uuid.UUID
+    full_name: str | None
+    role: str
+    email: str
+    phone: str | None
+    status: str
+
+
+class AdminComplaintRow(BaseModel):
+    id: uuid.UUID
+    type: str
+    topic: str | None
+    status: str
+    person_name: str | None
+    person_role: str
+    created_at: datetime
+    reply_by: datetime
+    resolve_by: datetime
+    first_reply_at: datetime | None
+    escalated_at: datetime | None
+    officer_acknowledged_at: datetime | None
+    late: bool
+    serious: bool
+    overdue: bool
+
+
+class AdminComplaintMessage(BaseModel):
+    id: uuid.UUID
+    from_pacifyco: bool
+    by: str | None
+    body: str
+    at: datetime
+
+
+class AppealDecision(BaseModel):
+    action: str  # suspended | removed
+    kind: str | None
+    reason: str
+    at: datetime
+    by: str | None  # the admin's name; None when the rules did it
+    by_id: uuid.UUID | None
+
+
+class AdminComplaint(AdminComplaintRow):
+    description: str
+    happened_on: date | None
+    person: ComplaintPerson
+    booking_id: uuid.UUID | None
+    booking_starts_at: datetime | None
+    resolution: str | None
+    resolved_at: datetime | None
+    appeal_outcome: str | None
+    decision: AppealDecision | None  # an appeal: what it's against
+    escalation_note: str | None
+    escalated_by_person: bool
+    acknowledge_by: datetime | None
+    decide_by: datetime | None
+    officer_decision: str | None
+    officer_decided_at: datetime | None
+    messages: list[AdminComplaintMessage]
+    attachments: list[DocumentSummary]
+    cannot_handle: str | None  # why this admin may not act on it
+    is_officer: bool
+
+
+def _complaint_row(db: DbSession, complaint: Complaint, now: datetime) -> AdminComplaintRow:
+    person = db.get(Profile, complaint.raised_by)
+    return AdminComplaintRow(
+        id=complaint.id,
+        type=complaint.type.value,
+        topic=complaint.topic.value if complaint.topic else None,
+        status=complaint.status.value,
+        person_name=person.full_name,
+        person_role=person.role.value,
+        created_at=complaint.created_at,
+        reply_by=complaint.reply_by,
+        resolve_by=complaint.resolve_by,
+        first_reply_at=complaint.first_reply_at,
+        escalated_at=complaint.escalated_at,
+        officer_acknowledged_at=complaint.officer_acknowledged_at,
+        late=complaint.late,
+        serious=complaint.serious,
+        overdue=complaints_service.overdue(complaint, now),
+    )
+
+
+def _admin_complaint(db: DbSession, settings: Settings, admin: Profile, complaint_id: uuid.UUID) -> AdminComplaint:
+    complaint = db.get(Complaint, complaint_id)
+    if complaint is None:
+        raise AppError(404, "not_found", "We couldn't find that complaint.")
+    db.refresh(complaint)
+    now = datetime.now(UTC)
+    person = db.get(Profile, complaint.raised_by)
+    booking = db.get(Booking, complaint.booking_id) if complaint.booking_id else None
+    decision = complaints_service.decision_of(db, complaint)
+    decider = db.get(Profile, decision.admin_id) if decision and decision.admin_id else None
+    thread = complaints_service.messages(db, complaint.id)
+    authors = {item.author_id for item in thread}
+    names = {row.id: row.full_name for row in db.scalars(select(Profile).where(Profile.id.in_(authors)))}
+    escalated = complaint.escalated_at
+    return AdminComplaint(
+        **_complaint_row(db, complaint, now).model_dump(),
+        description=complaint.description,
+        happened_on=complaint.happened_on,
+        person=ComplaintPerson(
+            id=person.id,
+            full_name=person.full_name,
+            role=person.role.value,
+            email=person.email,
+            phone=person.phone,
+            status=person.status.value,
+        ),
+        booking_id=booking.id if booking else None,
+        booking_starts_at=booking.starts_at if booking else None,
+        resolution=complaint.resolution,
+        resolved_at=complaint.resolved_at,
+        appeal_outcome=complaint.appeal_outcome.value if complaint.appeal_outcome else None,
+        decision=AppealDecision(
+            action=decision.action.value,
+            kind=decision.kind.value if decision.kind else None,
+            reason=decision.reason,
+            at=decision.created_at,
+            by=decider.full_name if decider else None,
+            by_id=decision.admin_id,
+        )
+        if decision
+        else None,
+        escalation_note=complaint.escalation_note,
+        escalated_by_person=complaint.escalated_by is not None,
+        acknowledge_by=escalated + complaints_service.OFFICER_ACKNOWLEDGE_WITHIN if escalated else None,
+        decide_by=escalated + complaints_service.OFFICER_DECIDE_WITHIN if escalated else None,
+        officer_decision=complaint.officer_decision,
+        officer_decided_at=complaint.officer_decided_at,
+        messages=[
+            AdminComplaintMessage(
+                id=item.id,
+                from_pacifyco=item.author_id != complaint.raised_by,
+                by=names.get(item.author_id),
+                body=item.body,
+                at=item.created_at,
+            )
+            for item in thread
+        ],
+        attachments=[
+            DocumentSummary(id=item.id, type=item.type.value, uploaded_at=item.created_at)
+            for item in complaints_service.attachments(db, complaint.id)
+        ],
+        cannot_handle=complaints_service.can_handle(db, settings, admin, complaint),
+        is_officer=complaints_service.is_officer(settings, admin),
+    )
+
+
+@router.get("/complaints")
+def list_complaints(admin: Admin, db: DbSession, view: str = "open") -> list[AdminComplaintRow]:
+    """open (soonest target first) | appeals | escalated | done (the latest 100)."""
+    if view not in complaints_service.VIEWS:
+        raise AppError(422, "invalid_view", "Choose open, appeals, escalated or done.")
+    now = datetime.now(UTC)
+    return [_complaint_row(db, item, now) for item in complaints_service.queue(db, view)]
+
+
+@router.get("/complaints/{complaint_id}")
+def get_complaint(complaint_id: uuid.UUID, admin: Admin, db: DbSession, settings: AppSettings) -> AdminComplaint:
+    return _admin_complaint(db, settings, admin, complaint_id)
+
+
+class ComplaintTextIn(BaseModel):
+    body: str = Field(max_length=complaints_service.TEXT_MAX)
+
+
+@router.post("/complaints/{complaint_id}/messages")
+def reply_to_complaint(
+    complaint_id: uuid.UUID, body: ComplaintTextIn, admin: Admin, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> AdminComplaint:
+    complaint = complaints_service.admin_writes(db, settings, admin, complaint_id, body.body, datetime.now(UTC))
+    complaint_mail.tell_admin_wrote(db, mailer, settings, complaint, body.body.strip())
+    return _admin_complaint(db, settings, admin, complaint_id)
+
+
+class SeriousIn(BaseModel):
+    serious: bool
+
+
+@router.post("/complaints/{complaint_id}/serious")
+def mark_complaint_serious(
+    complaint_id: uuid.UUID, body: SeriousIn, admin: Admin, db: DbSession, settings: AppSettings
+) -> AdminComplaint:
+    complaints_service.mark_serious(db, settings, admin, complaint_id, body.serious, datetime.now(UTC))
+    return _admin_complaint(db, settings, admin, complaint_id)
+
+
+@router.post("/complaints/{complaint_id}/resolve")
+def resolve_complaint(
+    complaint_id: uuid.UUID, body: ComplaintTextIn, admin: Admin, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> AdminComplaint:
+    complaint = complaints_service.resolve(db, settings, admin, complaint_id, body.body, datetime.now(UTC))
+    complaint_mail.tell_resolved(db, mailer, settings, complaint)
+    return _admin_complaint(db, settings, admin, complaint_id)
+
+
+class AppealIn(BaseModel):
+    outcome: AppealOutcome
+    note: str = Field(max_length=complaints_service.TEXT_MAX)
+    reinstate: bool = False  # upheld only: reinstate the account now (otherwise by hand, later)
+
+
+@router.post("/complaints/{complaint_id}/appeal")
+def decide_appeal(
+    complaint_id: uuid.UUID, body: AppealIn, admin: Admin, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> AdminComplaint:
+    complaint = complaints_service.decide_appeal(
+        db, settings, admin, complaint_id, body.outcome, body.note, body.reinstate, datetime.now(UTC)
+    )
+    complaint_mail.tell_appeal_decided(db, mailer, settings, complaint, body.reinstate)
+    return _admin_complaint(db, settings, admin, complaint_id)
+
+
+@router.post("/complaints/{complaint_id}/acknowledge")
+def officer_acknowledge(complaint_id: uuid.UUID, admin: Admin, db: DbSession, settings: AppSettings) -> AdminComplaint:
+    complaints_service.officer_acknowledges(db, settings, admin, complaint_id, datetime.now(UTC))
+    return _admin_complaint(db, settings, admin, complaint_id)
+
+
+@router.post("/complaints/{complaint_id}/officer-decision")
+def officer_decide(
+    complaint_id: uuid.UUID, body: ComplaintTextIn, admin: Admin, db: DbSession, settings: AppSettings, mailer: Mailer
+) -> AdminComplaint:
+    complaint = complaints_service.officer_decides(db, settings, admin, complaint_id, body.body, datetime.now(UTC))
+    complaint_mail.tell_officer_decided(db, mailer, settings, complaint)
+    return _admin_complaint(db, settings, admin, complaint_id)
+
+
+class HolidayIn(BaseModel):
+    day: date
+    name: str = Field(max_length=100)
+
+
+class HolidayOut(BaseModel):
+    day: date
+    name: str
+
+
+@router.get("/holidays")
+def list_holidays(admin: Admin, db: DbSession) -> list[HolidayOut]:
+    """From the start of last year on: not working days for appeals (6.12)."""
+    since = date(today_in_india(datetime.now(UTC)).year - 1, 1, 1)
+    return [HolidayOut(day=item.day, name=item.name) for item in complaints_service.holidays(db, since)]
+
+
+@router.post("/holidays", status_code=201)
+def add_holiday(body: HolidayIn, admin: Admin, db: DbSession) -> list[HolidayOut]:
+    complaints_service.add_holiday(db, admin.id, body.day, body.name)
+    return list_holidays(admin, db)
+
+
+@router.delete("/holidays/{day}")
+def remove_holiday(day: date, admin: Admin, db: DbSession) -> list[HolidayOut]:
+    complaints_service.remove_holiday(db, admin.id, day)
+    return list_holidays(admin, db)

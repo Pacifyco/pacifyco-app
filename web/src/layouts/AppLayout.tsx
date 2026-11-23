@@ -98,12 +98,23 @@ export function AppLayout() {
           {/* Only the privacy policy (Reuben, 2026-11-13). The terms are linked where people agree to them:
               the consent pages. */}
           <Link to="/privacy">Privacy policy</Link>
+          <HelpLink />
         </nav>
       </footer>
       <Toaster />
     </div>
     </HeaderBackContext.Provider>
   );
+}
+
+// Help and complaints (CLAUDE.md 6.12), for parents and sitters whose account isn't on hold (a suspended or
+// removed account appeals from the on-hold page instead).
+function HelpLink() {
+  const me = useMe();
+  const profile = me.data?.profile;
+  if (!profile || (profile.role !== "parent" && profile.role !== "sitter")) return null;
+  if (profile.status === "suspended" || profile.status === "removed") return null;
+  return <Link to={`/${profile.role}/help`}>Help</Link>;
 }
 
 // On phones, parents and sitters find Sign out and the theme switch on "Your profile" instead, so the

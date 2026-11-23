@@ -185,6 +185,7 @@ APPEND_ONLY = {
     "payouts",
     "reviews",
     "account_actions",
+    "complaint_messages",
 }
 # Append-only too, except an admin's decision on a row (CLAUDE.md 5): these columns, and only these.
 DECIDED_ONLY = {

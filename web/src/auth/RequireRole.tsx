@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Navigate } from "react-router";
 import { LoadingScreen } from "../components/ui";
 import { useAuth } from "./AuthProvider";
+import { AppealSection } from "../pages/HelpPages";
 import { AREA_PATH, useMe, type Role } from "./useMe";
 
 const BLOCKED = new Set(["suspended", "removed"]);
@@ -34,6 +35,7 @@ export function AccountOnHold({ removed }: { removed: boolean }) {
           : "The Pacifyco team has paused this account, so it can't be used for now."}{" "}
         If you think this is a mistake, you can appeal within 15 days of the decision.
       </p>
+      <AppealSection />
       <p className="mt-4 text-muted">
         Contact us at <a href="mailto:founders@pacifyco.in">founders@pacifyco.in</a> or{" "}
         <a href="tel:+918848873841">+91 8848873841</a>.

@@ -22,7 +22,7 @@ import { monthsOld } from "../lib/sitterLists";
 import { dayLabel, hourLabel, kolkataTime, todayInKolkata } from "../lib/times";
 import { noShowReportable, type BookingReport } from "../lib/reports";
 import { type OvertimeRequest } from "../lib/overtime";
-import { BookingHelp, type BookingIncident } from "../components/BookingHelp";
+import { BookingHelp, ComplaintLink, type BookingIncident } from "../components/BookingHelp";
 import { ReviewCard, type ReviewState } from "../components/ReviewCard";
 import { firstNameOf } from "./FindSittersPage";
 
@@ -651,6 +651,7 @@ export function BookingPage() {
         incident={data.incident}
         queryKey={["booking", data.id]}
       />
+      <ComplaintLink role="parent" bookingId={data.id} />
       {data.report && <ParentReport booking={data} firstName={firstName} />}
       {data.status === "parent_absent" && (
         <Card as="section" padding="roomy">

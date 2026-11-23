@@ -6,7 +6,8 @@ Later phases add their tasks here:
 - frequent (every 30 minutes, 6 am to midnight IST): cancelling unpaid bookings and paid ones that
   started with a child unverified, lapsing requests the sitter didn't answer in time, and alerting
   admins to payments unchecked near the start (phase 6), overdue check-out alerts (phase 8), and payouts
-  due within 3 hours or overdue (phase 9). Keep these quick.
+  due within 3 hours or overdue (phase 9), and escalating complaints past their target to the Grievance
+  Officer (phase 10). Keep these quick.
 """
 
 from collections.abc import Callable
@@ -16,7 +17,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Connection, text
 from sqlalchemy.orm import Session
 
-from app.services import booking_mail, bookings, checkin, payments, payouts
+from app.services import booking_mail, bookings, checkin, complaint_mail, complaints, payments, payouts
 from app.services import email as email_service
 from app.services.email import EmailClient
 from app.settings import Settings
@@ -125,6 +126,17 @@ def alert_payouts(conn: Connection, ctx: JobContext) -> None:
             ctx.mailer.send(email_service.payouts_overdue_alert(to, counts[1], web_url))
 
 
+def escalate_complaints(conn: Connection, ctx: JobContext) -> None:
+    """Complaints still unresolved at their target (48 hours, or 15 days for a serious safety matter) go to
+    the Grievance Officer (6.12); the people and the officer are emailed. Escalated ones aren't picked again."""
+    with Session(bind=conn) as db:
+        escalated = complaints.escalate_overdue(db, datetime.now(UTC))
+        if not escalated:
+            return
+        db.commit()
+        complaint_mail.tell_escalated(db, ctx.mailer, ctx.settings, escalated, overdue=True)
+
+
 RUNS: dict[str, list[tuple[str, Task]]] = {
     "daily": [("keep_database_active", keep_database_active)],
     "frequent": [
@@ -134,5 +146,6 @@ RUNS: dict[str, list[tuple[str, Task]]] = {
         ("alert_unchecked_payments", alert_unchecked_payments),
         ("alert_overdue_checkouts", alert_overdue_checkouts),
         ("alert_payouts", alert_payouts),
+        ("escalate_complaints", escalate_complaints),
     ],
 }

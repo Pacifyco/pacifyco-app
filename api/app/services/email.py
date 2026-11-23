@@ -637,15 +637,15 @@ def incident_alert(to: str, kind: str, by: str, suspended: bool, web_url: str) -
     )
 
 
-def issue_alert(to: str, topic_words: str, by: str, web_url: str) -> Email:
-    """To admins: a non-emergency issue on a booking (6.9)."""
+def issue_alert(to: str, topic_words: str, by: str, complaint_url: str) -> Email:
+    """To admins: a non-emergency issue on a booking (6.9), a complaint with the usual targets (6.12)."""
     return Email(
         to=to,
         subject=f"An issue on a Pacifyco booking: {topic_words.lower()}",
         heading=f"A {by} has raised an issue.",
-        body=f"{topic_words}. Please get in touch with them, then mark it replied or resolved.",
-        button_label="Open the issues",
-        button_url=f"{web_url.rstrip('/')}/admin/issues",
+        body=f"{topic_words}. Please reply within 24 hours and aim to resolve it within 48.",
+        button_label="Open the complaint",
+        button_url=complaint_url,
     )
 
 
@@ -926,8 +926,8 @@ def rating_flag_response_alert(to: str, sitter_name: str | None, web_url: str) -
 # ---------- suspending, removing and reinstating accounts (phase 10, Reuben 2026-11-22) ----------
 
 APPEAL = (
-    "If you think this is wrong, you can appeal within 15 days of this email by writing to founders@pacifyco.in. "
-    "An admin who wasn't part of this decision will look at it."
+    "If you think this is wrong, you can appeal within 15 days of this email: sign in to Pacifyco and send your "
+    "appeal there, or write to founders@pacifyco.in. An admin who wasn't part of this decision will look at it."
 )
 
 
@@ -1117,4 +1117,156 @@ def extra_pay(to: str, full_name: str | None, amount_paise: int, note: str, web_
         ),
         button_label="See your earnings",
         button_url=f"{web_url.rstrip('/')}/sitter/earnings",
+    )
+
+
+# ---------- complaints and grievances (CLAUDE.md 6.12; phase 10, Reuben 2026-11-23) ----------
+
+COMPLAINT_WORDS = {
+    "booking": "a booking",
+    "payment": "a payment",
+    "family": "a family",
+    "sitter": "a sitter",
+    "review": "a review",
+    "suspension": "a decision on their account",
+    "data_request": "their data",
+    "other": "something else",
+}
+
+
+def complaint_alert(to: str, kind: str, role: str, late: bool, complaint_url: str) -> Email:
+    """To admins: a new complaint. No names or details, only where to read it."""
+    return Email(
+        to=to,
+        subject="A new complaint on Pacifyco",
+        heading=f"A {role} has raised a complaint.",
+        body=(
+            f"It's about {COMPLAINT_WORDS.get(kind, 'something else')}"
+            + (" and was raised more than 24 hours after it happened." if late else ".")
+            + " Please reply within 24 hours and aim to resolve it within 48."
+        ),
+        button_label="Open the complaint",
+        button_url=complaint_url,
+    )
+
+
+def appeal_alert(to: str, role: str, complaint_url: str) -> Email:
+    """To admins: an appeal against a suspension or removal."""
+    return Email(
+        to=to,
+        subject="A new appeal on Pacifyco",
+        heading=f"A {role} has appealed a decision on their account.",
+        body=(
+            "An admin who didn't make the decision must review it within 7 working days. "
+            "The admin who made it can't handle the appeal."
+        ),
+        button_label="Open the appeal",
+        button_url=complaint_url,
+    )
+
+
+def complaint_message_alert(to: str, complaint_url: str) -> Email:
+    """To admins: the person wrote on their complaint."""
+    return Email(
+        to=to,
+        subject="A new message on a complaint",
+        heading="Someone has written on their complaint.",
+        body="Please read it and reply.",
+        button_label="Open the complaint",
+        button_url=complaint_url,
+    )
+
+
+def complaint_reply(to: str, full_name: str | None, message: str, complaint_url: str) -> Email:
+    """To the person: Pacifyco wrote on their complaint."""
+    return Email(
+        to=to,
+        subject="Pacifyco has replied to your complaint",
+        heading="We've replied to your complaint.",
+        body=f"Hi {_first_name(full_name)}, here's our reply:\n{message}\nYou can answer in the app.",
+        button_label="Read and reply",
+        button_url=complaint_url,
+    )
+
+
+def complaint_resolved(to: str, full_name: str | None, resolution: str, complaint_url: str) -> Email:
+    """To the person: their complaint is resolved, with what was done."""
+    return Email(
+        to=to,
+        subject="Your Pacifyco complaint is resolved",
+        heading="We've resolved your complaint.",
+        body=(
+            f"Hi {_first_name(full_name)}, here's what we've done:\n{resolution}\n"
+            "If you disagree, you can send it to our Grievance Officer from the complaint in the app."
+        ),
+        button_label="Open the complaint",
+        button_url=complaint_url,
+    )
+
+
+def complaint_escalated(to: str, full_name: str | None, overdue: bool, complaint_url: str) -> Email:
+    """To the person: their complaint is with the Grievance Officer."""
+    why = (
+        "We haven't resolved your complaint in time, so it's gone to our Grievance Officer."
+        if overdue
+        else "Your complaint has gone to our Grievance Officer, as you asked."
+    )
+    return Email(
+        to=to,
+        subject="Your complaint is with Pacifyco's Grievance Officer",
+        heading="Your complaint is with our Grievance Officer.",
+        body=(
+            f"Hi {_first_name(full_name)}, {why[0].lower()}{why[1:]} They'll acknowledge it within 24 hours and "
+            "send you a written decision, with reasons, within 15 days."
+        ),
+        button_label="Open the complaint",
+        button_url=complaint_url,
+    )
+
+
+def escalation_alert(to: str, count: int, web_url: str) -> Email:
+    """To the Grievance Officer: complaints escalated to them."""
+    many = count != 1
+    return Email(
+        to=to,
+        subject=f"{count} complaint{'s' if many else ''} escalated to the Grievance Officer",
+        heading=f"{count} complaint{'s have' if many else ' has'} been escalated to you.",
+        body="Please acknowledge within 24 hours and send a written decision, with reasons, within 15 days.",
+        button_label="Open escalated complaints",
+        button_url=f"{web_url.rstrip('/')}/admin/complaints?view=escalated",
+    )
+
+
+def officer_decision(to: str, full_name: str | None, decision: str, complaint_url: str) -> Email:
+    """To the person: the Grievance Officer's written decision."""
+    return Email(
+        to=to,
+        subject="The Grievance Officer's decision on your complaint",
+        heading="Our Grievance Officer has decided your complaint.",
+        body=f"Hi {_first_name(full_name)}, here is the decision and the reasons for it:\n{decision}",
+        button_label="Open the complaint",
+        button_url=complaint_url,
+    )
+
+
+def appeal_decided(
+    to: str, full_name: str | None, upheld: bool, reinstated: bool, note: str, complaint_url: str
+) -> Email:
+    """To the person: their appeal was decided."""
+    if upheld and reinstated:
+        outcome = "We've upheld your appeal and your account is active again."
+    elif upheld:
+        outcome = "We've upheld your appeal. We'll let you know as soon as your account is active again."
+    else:
+        outcome = "We've looked at your appeal carefully, and the decision stands."
+    return Email(
+        to=to,
+        subject="The decision on your Pacifyco appeal",
+        heading="We've decided your appeal.",
+        body=(
+            f"Hi {_first_name(full_name)}, {outcome[0].lower()}{outcome[1:]}\nThe reasons: {note}\n"
+            "If you disagree, you can send it to our Grievance Officer from your appeal in the app."
+        ),
+        button_label="Open Pacifyco",
+        button_url=complaint_url,
     )

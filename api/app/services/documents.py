@@ -46,7 +46,14 @@ def request_upload(
     owner_profile_id: uuid.UUID,
     doc_type: DocumentType,
     child_id: uuid.UUID | None,
+    complaint_id: uuid.UUID | None = None,
 ) -> UploadTicket:
+    if (doc_type == DocumentType.complaint_attachment) != (complaint_id is not None):
+        raise AppError(422, "complaint_needed", "A complaint's file needs its complaint, and only those do.")
+    if complaint_id is not None:
+        from app.services.complaints import check_attachment  # complaints imports this module's neighbours
+
+        check_attachment(db, owner_profile_id, complaint_id)
     if child_id is not None:
         child = db.get(Child, child_id)
         if child is None or child.parent_id != owner_profile_id:
@@ -56,7 +63,12 @@ def request_upload(
     document_id = uuid.uuid4()
     path = f"{owner_profile_id}/{document_id}"
     document = Document(
-        id=document_id, owner_profile_id=owner_profile_id, child_id=child_id, type=doc_type, storage_path=path
+        id=document_id,
+        owner_profile_id=owner_profile_id,
+        child_id=child_id,
+        complaint_id=complaint_id,
+        type=doc_type,
+        storage_path=path,
     )
     db.add(document)
     upload_url = storage.create_signed_upload_url(path)  # if this fails, nothing is committed

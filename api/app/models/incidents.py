@@ -4,16 +4,17 @@
   panel until acknowledged; an admin then phones both people. A parent's theft or abuse report suspends the
   sitter immediately until an admin resolves it. An open incident holds the sitter's payout for that booking
   (payouts, phase 9).
-- Complaint (the Issues button): a non-emergency issue, such as running late, linked to the booking. The
-  full complaints process (reply and resolve targets, escalation, appeals, 6.12) comes later; for now admins
-  mark it replied and resolved.
+- Complaint: raised from Help ("Raise a complaint") or the Issues button on a booking, or an appeal against a
+  suspension or removal (type `suspension`, linked to the `account_actions` row). The complaints process
+  (6.12, phase 10) is in `app/services/complaints.py`: reply and resolve targets, escalation to the
+  Grievance Officer, appeals decided by an admin who didn't make the decision.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Text
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -61,7 +62,7 @@ class Incident(Base):
 
 
 class ComplaintType(StrEnum):
-    # CLAUDE.md 8; only `booking` is raised so far (the Issues button).
+    # CLAUDE.md 8. `suspension` is an appeal; `data_request` comes with data requests (phase 10).
     booking = "booking"
     payment = "payment"
     family = "family"
@@ -73,12 +74,17 @@ class ComplaintType(StrEnum):
 
 
 class ComplaintStatus(StrEnum):
-    open = "open"
+    open = "open"  # waiting for Pacifyco's first reply
     replied = "replied"
-    resolved = "resolved"
-    escalated = "escalated"
-    appealed = "appealed"
-    closed = "closed"
+    resolved = "resolved"  # an admin resolved it (or decided the appeal); the person can still escalate
+    escalated = "escalated"  # with the Grievance Officer
+    appealed = "appealed"  # not used: appeals are complaints of type `suspension`
+    closed = "closed"  # the Grievance Officer's written decision: final
+
+
+class AppealOutcome(StrEnum):
+    upheld = "upheld"  # the decision is overturned (the account reinstated now, or by hand later)
+    rejected = "rejected"  # the decision stands
 
 
 class IssueTopic(StrEnum):
@@ -90,7 +96,12 @@ class Complaint(Base):
     __tablename__ = "complaints"
     __table_args__ = (
         CheckConstraint("description <> ''", name="description_not_empty"),
+        CheckConstraint("(type = 'suspension') = (account_action_id IS NOT NULL)", name="appeal_has_decision"),
+        CheckConstraint("appeal_outcome IS NULL OR type = 'suspension'", name="outcome_only_on_appeals"),
+        CheckConstraint("(escalated_at IS NULL) OR status IN ('escalated', 'closed')", name="escalated_status"),
+        CheckConstraint("(officer_decided_at IS NULL) = (officer_decision IS NULL)", name="officer_decision_has_text"),
         Index("ix_complaints_status", "status"),
+        Index("ix_complaints_raised_by", "raised_by"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -108,3 +119,46 @@ class Complaint(Base):
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="RESTRICT"))
     decided_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="RESTRICT"))
     created_at: Mapped[datetime] = created_at()
+    # The complaints process (6.12, phase 10).
+    happened_on: Mapped[date | None] = mapped_column(Date)  # India date, when the person gives one
+    serious: Mapped[bool] = mapped_column(Boolean, server_default="false")  # a serious safety matter: 15 days
+    reply_by: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # 24 hours
+    # 48 hours; 15 days for a serious safety matter; an appeal's 7 working days
+    resolve_by: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolution: Mapped[str | None] = mapped_column(Text)  # what the admin did, sent to the person
+    account_action_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("account_actions.id", ondelete="RESTRICT"), unique=True
+    )  # an appeal: the suspension or removal it's against, one appeal per decision
+    appeal_outcome: Mapped[AppealOutcome | None] = mapped_column(enum_column(AppealOutcome, "appeal_outcome"))
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    escalated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("profiles.id", ondelete="RESTRICT")
+    )  # the person, when they disagreed; None when it was overdue
+    escalation_note: Mapped[str | None] = mapped_column(Text)  # why the person disagrees
+    officer_acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    officer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="RESTRICT"))
+    officer_decision: Mapped[str | None] = mapped_column(Text)  # written, with reasons; sent to the person
+    officer_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ComplaintMessage(Base):
+    """A written message on a complaint, from the person or from Pacifyco (an admin). Append-only."""
+
+    __tablename__ = "complaint_messages"
+    __table_args__ = (CheckConstraint("body <> ''", name="body_not_empty"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    complaint_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("complaints.id", ondelete="RESTRICT"), index=True)
+    author_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("profiles.id", ondelete="RESTRICT"))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = created_at()
+
+
+class PublicHoliday(Base):
+    """A public holiday, added by admins: not a working day when counting an appeal's 7 working days."""
+
+    __tablename__ = "public_holidays"
+    __table_args__ = (CheckConstraint("name <> ''", name="name_not_empty"),)
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
