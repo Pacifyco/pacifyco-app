@@ -24,6 +24,7 @@ const ROW: AdminComplaintRow = {
   id: "c1",
   type: "booking",
   topic: "running_late",
+  request_kind: null,
   status: "open",
   person_name: "Priya Rao",
   person_role: "parent",

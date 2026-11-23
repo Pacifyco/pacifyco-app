@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from app.auth import BLOCKED_STATUSES, CurrentUser, current_profile, current_user
 from app.deps import DbSession
 from app.errors import AppError
-from app.models import Complaint, ComplaintStatus, ComplaintType, Profile, Role
+from app.models import Complaint, ComplaintStatus, ComplaintType, DataRequestKind, Profile, Role
 from app.services import complaint_mail, complaints
 from app.services import email as email_service
 from app.settings import Settings, get_settings
@@ -67,6 +67,7 @@ class ComplaintRow(BaseModel):
 
 
 class ComplaintOut(ComplaintRow):
+    request_kind: str | None  # a data request: access, correction or deletion
     booking_id: uuid.UUID | None
     happened_on: date | None
     late: bool
@@ -101,6 +102,7 @@ def complaint_out(db: DbSession, person: Profile, complaint: Complaint) -> Compl
     files = complaints.attachments(db, complaint.id)
     return ComplaintOut(
         **_row(complaint).model_dump(),
+        request_kind=complaint.request_kind.value if complaint.request_kind else None,
         booking_id=complaint.booking_id,
         happened_on=complaint.happened_on,
         late=complaint.late,
@@ -132,6 +134,7 @@ class ComplaintIn(BaseModel):
     description: str = Field(max_length=complaints.TEXT_MAX)
     booking_id: uuid.UUID | None = None
     happened_on: date | None = None  # India date; not asked for a booking (its end is used)
+    request_kind: DataRequestKind | None = None  # a data request (6.13): access, correction or deletion
 
 
 class TextIn(BaseModel):
@@ -152,7 +155,14 @@ def raise_complaint(
     body: ComplaintIn, person: ActivePerson, db: DbSession, settings: AppSettings, mailer: Mailer
 ) -> ComplaintOut:
     complaint = complaints.raise_complaint(
-        db, person, body.type, body.description, body.booking_id, body.happened_on, datetime.now(UTC)
+        db,
+        person,
+        body.type,
+        body.description,
+        body.booking_id,
+        body.happened_on,
+        datetime.now(UTC),
+        body.request_kind,
     )
     complaint_mail.tell_raised(db, mailer, settings, complaint)
     return complaint_out(db, person, complaint)

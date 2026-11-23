@@ -39,9 +39,11 @@ from app.models import (
     ComplaintMessage,
     ComplaintStatus,
     ComplaintType,
+    DataRequestKind,
     Document,
     DocumentStatus,
     Profile,
+    ProfileStatus,
     PublicHoliday,
 )
 from app.services import account_status, audit
@@ -65,6 +67,7 @@ RAISABLE = (
     ComplaintType.family,
     ComplaintType.sitter,
     ComplaintType.review,
+    ComplaintType.data_request,  # access, correction or deletion (6.13), handled by an admin by hand
     ComplaintType.other,
 )
 ACTIVE = (ComplaintStatus.open, ComplaintStatus.replied)
@@ -190,9 +193,14 @@ def raise_complaint(
     booking_id: uuid.UUID | None,
     happened_on: date | None,
     now: datetime,
+    request_kind: DataRequestKind | None = None,
 ) -> Complaint:
     if kind not in RAISABLE:
         raise AppError(422, "invalid_type", "Choose what the complaint is about.")
+    if (kind == ComplaintType.data_request) != (request_kind is not None):
+        raise AppError(422, "request_kind", "For a data request, choose access, correction or deletion.")
+    if kind == ComplaintType.data_request:
+        booking_id, happened_on = None, None  # about their data, not an event
     booking = None
     if booking_id is not None:
         booking = db.get(Booking, booking_id)
@@ -211,6 +219,7 @@ def raise_complaint(
         booking_id=booking_id,
         happened_on=happened_on,
         late=_late(booking, happened_on, now),
+        request_kind=request_kind,
     )
     db.add(complaint)
     db.flush()
@@ -220,7 +229,12 @@ def raise_complaint(
         "complaint_raised",
         "complaint",
         str(complaint.id),
-        after={"type": kind.value, "booking_id": str(booking_id) if booking_id else None, "late": complaint.late},
+        after={
+            "type": kind.value,
+            "booking_id": str(booking_id) if booking_id else None,
+            "late": complaint.late,
+            "request_kind": request_kind.value if request_kind else None,
+        },
     )
     db.commit()
     return complaint
@@ -291,7 +305,7 @@ class AppealState:
 
 
 def appeal_state(db: Session, person: Profile) -> AppealState:
-    if person.status not in BLOCKED_STATUSES:
+    if person.status not in (ProfileStatus.suspended, ProfileStatus.removed):  # not closed: they chose that
         return AppealState(None, None, None)
     decision = db.scalar(
         select(AccountActionRow)

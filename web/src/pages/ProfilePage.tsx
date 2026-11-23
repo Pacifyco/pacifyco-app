@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { AREA_PATH } from "../auth/useMe";
 import { BackLink, ButtonLink, Card } from "../components/ui";
 import { SignOutButton } from "../layouts/AppLayout";
@@ -95,6 +96,9 @@ export function ProfilePage({ role }: { role: "parent" | "sitter" }) {
       <BackLink to={AREA_PATH[role]} label="Home" />
       {role === "parent" ? <ParentProfile /> : <SitterProfile />}
       <Settings />
+      <p className="text-small">
+        <Link to={`/${role}/close-account`}>Close your account</Link>
+      </p>
     </section>
   );
 }

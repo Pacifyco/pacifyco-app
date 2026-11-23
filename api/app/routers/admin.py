@@ -2071,6 +2071,7 @@ class AdminComplaintRow(BaseModel):
     id: uuid.UUID
     type: str
     topic: str | None
+    request_kind: str | None  # a data request: access, correction or deletion
     status: str
     person_name: str | None
     person_role: str
@@ -2130,6 +2131,7 @@ def _complaint_row(db: DbSession, complaint: Complaint, now: datetime) -> AdminC
         id=complaint.id,
         type=complaint.type.value,
         topic=complaint.topic.value if complaint.topic else None,
+        request_kind=complaint.request_kind.value if complaint.request_kind else None,
         status=complaint.status.value,
         person_name=person.full_name,
         person_role=person.role.value,

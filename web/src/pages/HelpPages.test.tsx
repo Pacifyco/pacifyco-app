@@ -15,6 +15,7 @@ const COMPLAINT: Complaint = {
   status: "replied",
   description: "I was charged twice.",
   created_at: kolkataTime("2030-01-07", 9),
+  request_kind: null,
   booking_id: null,
   happened_on: null,
   late: false,
@@ -100,7 +101,13 @@ describe("Help", () => {
     expect(calls[0]).toEqual({
       url: expect.stringMatching(/\/me\/complaints$/),
       method: "POST",
-      body: { type: "payment", description: "Paid late.", booking_id: null, happened_on: "2030-01-06" },
+      body: {
+        type: "payment",
+        description: "Paid late.",
+        booking_id: null,
+        happened_on: "2030-01-06",
+        request_kind: null,
+      },
     });
   });
 

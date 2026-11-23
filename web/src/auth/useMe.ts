@@ -14,7 +14,7 @@ export type TermsVersion = { kind: TermsKind; version: string };
 
 export type MeProfile = {
   role: Role;
-  status: "pending" | "active" | "suspended" | "removed";
+  status: "pending" | "active" | "suspended" | "removed" | "closed";
   /** Name, mobile, pin code and address are asked for in the area after sign-up (CLAUDE.md 6.13). */
   full_name: string | null;
   phone?: string | null;

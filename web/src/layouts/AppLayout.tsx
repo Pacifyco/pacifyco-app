@@ -113,7 +113,7 @@ function HelpLink() {
   const me = useMe();
   const profile = me.data?.profile;
   if (!profile || (profile.role !== "parent" && profile.role !== "sitter")) return null;
-  if (profile.status === "suspended" || profile.status === "removed") return null;
+  if (profile.status === "suspended" || profile.status === "removed" || profile.status === "closed") return null;
   return <Link to={`/${profile.role}/help`}>Help</Link>;
 }
 

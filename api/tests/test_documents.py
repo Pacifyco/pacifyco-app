@@ -201,6 +201,8 @@ def cleanup_documents(db_engine, profile_id) -> None:
         conn.execute(text("DELETE FROM children WHERE parent_id = :id"), {"id": profile_id})
         for table, column in (("legal_acceptances", "profile_id"), ("consents", "parent_id")):
             conn.execute(text(f"DELETE FROM {table} WHERE {column} = :id"), {"id": profile_id})
+        # What they did themselves (closing their account, say), whatever it was about.
+        conn.execute(text("DELETE FROM audit_log WHERE actor_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": profile_id})
 
 
