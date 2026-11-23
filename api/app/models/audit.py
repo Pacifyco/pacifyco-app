@@ -20,7 +20,7 @@ class AuditLog(Base):
     actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="RESTRICT"), index=True)
     action: Mapped[str] = mapped_column(Text)
     entity: Mapped[str] = mapped_column(Text)
-    entity_id: Mapped[str] = mapped_column(Text)
+    entity_id: Mapped[str] = mapped_column(Text, index=True)  # the booking page and the log filter by it
     before: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     after: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = created_at()

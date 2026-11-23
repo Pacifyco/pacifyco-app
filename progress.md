@@ -8,8 +8,8 @@ tests.
 
 ## Current status
 
-- Phase: 10 under way (2026-11-23): the admin dashboard, user management and the bookings overview built.
-  Next: audit log and document access log views.
+- Phase: 10 under way (2026-11-23): the admin dashboard, user management, the bookings overview and the
+  audit and document access log views built. Next: complaints and grievances.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -649,7 +649,13 @@ at home (CLAUDE.md 6.3).
   up to what's paid and not yet refunded), extra pay (earning kind `adjustment` with a note she sees, due in
   12 hours, held while an incident is open) and waive a charge (payment status `waived` with
   `waive_reason`, no longer owed). Migration 0e9b936da034. Linked as "All bookings" from the admin home
-- [ ] Audit log and document access log views
+- [x] Audit log and document access log views. Built 2026-11-23 (`api/app/services/admin_logs.py`), linked
+  from the admin home: `/admin/audit-log` (every state change, newest first, 50 at a time; filter by who did
+  it, an admin or the rules, the kind of record, one record's id, words in the action and India dates; each
+  row shows what changed, and links to the person's or booking's admin page) and
+  `/admin/document-access-log` (which admin opened whose document and when; filter by admin, document type,
+  the owner's name and dates; a deleted file is marked). Read only. Migration 57155d807f75 indexes
+  `audit_log.entity_id`
 - [ ] Complaints and grievances: Help → Raise a complaint, SLA timers, Grievance Officer escalation, appeals by a different admin
 - [ ] Sitter account closure; data access, correction and deletion requests
 - [ ] Tests for this phase
@@ -700,6 +706,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-23 — Audit log and document access log views (phase 10).
 - 2026-11-23 — Bookings overview and manual adjustments (phase 10).
 - 2026-11-23 — User management: suspend, remove, reinstate (phase 10).
 - 2026-11-22 — Admin dashboard (phase 10).

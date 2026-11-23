@@ -791,7 +791,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `sitter_earnings` **(created)** (id, sitter_id, booking_id, kind: `booking|overtime|show_up_fee|adjustment` (the flat ₹100 is a `show_up_fee` too; `adjustment` is an admin's extra pay with a `note` she sees, any number per booking, 2026-11-23), amount_paise, minutes (the time it pays for), status: `held|released|paid`, released_at, due_by, payout_id (set when paid; a paid earning must have one), created_at) — built 2026-11-22, migrations e1087ff8b02c and ed9b32937157; one of each kind per booking; the API's role can update only status, released_at, due_by and payout_id
 - `payouts` **(created)** (id, sitter_id, amount_paise, method: `bank|upi`, transfer_reference (unique), paid_by, paid_at) — built 2026-11-22, migration ed9b32937157; one transfer for everything due to her; append-only
 - `account_actions` **(created)** (id, profile_id, action: `suspended|removed|reinstated`, kind: `low_ratings|safety|strikes|other` (none for a reinstatement), reason (emailed to the person), admin_id (null when the rules did it), created_at) — built 2026-11-23, migration b684c2511e27; append-only; also added the booking status `cancelled_by_admin`
-- `audit_log` **(created)** (id, actor_id, action, entity, entity_id, before, after, created_at)
+- `audit_log` **(created)** (id, actor_id, action, entity, entity_id (indexed, 2026-11-23), before, after, created_at) — admins read it on `/admin/audit-log`, and the document access log on `/admin/document-access-log` (phase 10, `api/app/services/admin_logs.py`; read only)
 - `service_area_pincodes` **(created)** (pin_code, active) — seeded with the launch pin codes
 
 ---

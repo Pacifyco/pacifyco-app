@@ -416,6 +416,8 @@ export function AdminHomePage() {
       <p className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
         <Link to="/admin/people">Find a parent or sitter</Link>
         <Link to="/admin/bookings">All bookings</Link>
+        <Link to="/admin/audit-log">Audit log</Link>
+        <Link to="/admin/document-access-log">Document access log</Link>
       </p>
     </section>
   );

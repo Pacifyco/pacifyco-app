@@ -178,6 +178,13 @@ def cleanup_documents(db_engine, profile_id) -> None:
         conn.execute(text("DELETE FROM account_actions WHERE profile_id = :id OR admin_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM messages WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM bookings WHERE parent_id = :id OR sitter_id = :id"), {"id": profile_id})
+        conn.execute(
+            text(
+                "DELETE FROM document_access_log WHERE document_id IN"
+                " (SELECT id FROM documents WHERE owner_profile_id = :id)"
+            ),
+            {"id": profile_id},
+        )
         conn.execute(text("DELETE FROM documents WHERE owner_profile_id = :id"), {"id": profile_id})
         conn.execute(text("DELETE FROM children WHERE parent_id = :id"), {"id": profile_id})
         for table, column in (("legal_acceptances", "profile_id"), ("consents", "parent_id")):
