@@ -8,14 +8,22 @@ tests.
 
 ## Current status
 
-- Phase: 10 under way (2026-11-22): the admin dashboard built. Next: user management (suspend, remove,
-  reinstate, strikes; removal for ratings waits for her response or her 12 hours).
+- Phase: 10 under way (2026-11-23): the admin dashboard and user management built. Next: bookings overview
+  and manual adjustments (audit logged).
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
 
 ## Open questions (ask Reuben; don't guess)
+
+- [x] **User management** (Reuben, 2026-11-22): suspending or removing a parent or sitter cancels and
+  refunds their upcoming bookings (no strike), and the other side is told; the person is emailed the reason
+  and how to appeal; a removed account can be reinstated as well as a suspended one; each suspension or
+  removal has a kind of reason (low ratings, safety or conduct, strikes, other), and only a low-ratings one
+  waits for her response or her 12 hours (6.11). CLAUDE.md 6.13 updated. Not asked, kept as before: the
+  automatic suspension from a parent's theft or abuse report and the 5th-strike removal still leave her
+  bookings for an admin (6.6, 6.9); and a low-ratings **suspension** waits like a removal does.
 
 - [x] **Admin dashboard** (Reuben, 2026-11-22): "today's payouts" means what's due now (count, total, how
   many overdue) and what's been paid today (India time); the dashboard also counts open reports, overdue
@@ -615,7 +623,16 @@ at home (CLAUDE.md 6.3).
   verifications (sitters and families), payments to check (and refunds to pay), payouts due (total, how many
   overdue), paid today, reports, overdue check-outs, issues and low ratings. Urgent ones are marked in red.
   Replaces the home page's links and placeholder icons; the two banners stay
-- [ ] User management: suspend, remove, reinstate, strikes
+- [x] User management: suspend, remove, reinstate, strikes. Built 2026-11-23: `/admin/people` (find a
+  parent or sitter by name, email or phone, filter by role and account status) and an "Account" card on
+  each sitter's and family's admin page (`api/app/services/account_status.py`, `/admin/accounts/{id}`):
+  suspend or remove with a kind of reason and the reason, reinstate with a reason. Upcoming bookings are
+  cancelled (`cancelled_by_admin`) and refunded; the parent, or the sitter if she could see it, is emailed
+  without the reason; for a sitter, the admins too. Bookings under way are left for a call. Every change is
+  a row in `account_actions` (append-only, migration b684c2511e27), including the 5th-strike removal and a
+  theft or abuse report's suspension, so appeals can keep the original decider off (6.12). Reinstating sets
+  `active` if the family is verified or the sitter approved, else `pending`; refused while 5 strikes count.
+  Strikes were already built (phase 7) and sit beside it
 - [ ] Bookings overview and manual adjustments (audit logged)
 - [ ] Audit log and document access log views
 - [ ] Complaints and grievances: Help → Raise a complaint, SLA timers, Grievance Officer escalation, appeals by a different admin
@@ -668,6 +685,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-23 — User management: suspend, remove, reinstate (phase 10).
 - 2026-11-22 — Admin dashboard (phase 10).
 - 2026-11-22 — Reviews both ways and the low-rating flag (12 hours to respond); phase 9 test check.
 - 2026-11-22 — Sitter earnings dashboard.

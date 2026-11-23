@@ -64,6 +64,8 @@ export function bookingStatusText(item: BookingListItem): string {
     case "cancelled_sitter":
     case "cancelled_sitter_late":
       return `Cancelled by ${sitter}`;
+    case "cancelled_by_admin":
+      return "Cancelled by Pacifyco: anything paid is refunded";
     case "parent_absent":
       return "Closed: no one was home, charged";
     case "declined_man_at_home":

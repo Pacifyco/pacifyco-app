@@ -62,6 +62,8 @@ export function sitterStatusText(status: string): string {
       return "Cancelled by you";
     case "cancelled_sitter_late":
       return "Cancelled by you, less than 8 hours before: a strike";
+    case "cancelled_by_admin":
+      return "Cancelled by Pacifyco";
     case "parent_absent":
       return "No one was home: show-up fee";
     case "declined_man_at_home":

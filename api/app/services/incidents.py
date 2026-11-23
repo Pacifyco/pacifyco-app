@@ -20,6 +20,9 @@ from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import (
+    AccountAction,
+    AccountActionKind,
+    AccountActionRow,
     Booking,
     BookingStatus,
     Complaint,
@@ -106,6 +109,15 @@ def raise_emergency(
             )
             sitter.status = ProfileStatus.suspended
             incident.suspended_sitter = True
+            db.add(
+                AccountActionRow(
+                    profile_id=sitter.id,
+                    action=AccountAction.suspended,
+                    kind=AccountActionKind.safety,
+                    reason=f"A family reported {kind.value} on a booking. Suspended until an admin resolves it.",
+                    admin_id=None,
+                )
+            )
     earnings.hold(db, booking.id)  # an open incident holds her pay for this booking (6.9)
     db.commit()
     return incident
@@ -163,6 +175,15 @@ def resolve(
                 after={"status": ProfileStatus.active.value, "incident_id": str(incident.id)},
             )
             sitter.status = ProfileStatus.active
+            db.add(
+                AccountActionRow(
+                    profile_id=sitter.id,
+                    action=AccountAction.reinstated,
+                    kind=None,
+                    reason="Pacifyco has looked into the report.",
+                    admin_id=admin_id,
+                )
+            )
             reinstated = True
     audit.record(
         db,

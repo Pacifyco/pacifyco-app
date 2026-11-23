@@ -413,6 +413,9 @@ export function AdminHomePage() {
       <OverdueBanner />
       <PayoutsOverdueBanner />
       <Dashboard />
+      <p className="mt-6">
+        <Link to="/admin/people">Find a parent or sitter</Link>
+      </p>
     </section>
   );
 }

@@ -921,3 +921,110 @@ def rating_flag_response_alert(to: str, sitter_name: str | None, web_url: str) -
         button_label="Open low ratings",
         button_url=f"{web_url.rstrip('/')}/admin/ratings",
     )
+
+
+# ---------- suspending, removing and reinstating accounts (phase 10, Reuben 2026-11-22) ----------
+
+APPEAL = (
+    "If you think this is wrong, you can appeal within 15 days of this email by writing to founders@pacifyco.in. "
+    "An admin who wasn't part of this decision will look at it."
+)
+
+
+def account_suspended(to: str, full_name: str | None, reason: str) -> Email:
+    """To the person: an admin suspended their account, with the reason."""
+    return Email(
+        to=to,
+        subject="Your Pacifyco account is suspended",
+        heading="Your account is suspended.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco has suspended your account, so you can't use Pacifyco for now. "
+            "Any bookings you had coming up have been cancelled, and any money paid for them will be refunded.\n"
+            f"The reason: {reason}\n{APPEAL}"
+        ),
+        button_label="Contact Pacifyco",
+        button_url="mailto:founders@pacifyco.in",
+    )
+
+
+def account_removed(to: str, full_name: str | None, reason: str) -> Email:
+    """To the person: an admin removed their account, with the reason."""
+    return Email(
+        to=to,
+        subject="Your Pacifyco account has been removed",
+        heading="Your account has been removed.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco has removed your account, so you can't use Pacifyco any more. "
+            "Any bookings you had coming up have been cancelled, and any money paid for them will be refunded.\n"
+            f"The reason: {reason}\n{APPEAL}"
+        ),
+        button_label="Contact Pacifyco",
+        button_url="mailto:founders@pacifyco.in",
+    )
+
+
+def account_reinstated(to: str, full_name: str | None, reason: str, area_url: str) -> Email:
+    """To the person: an admin made their account usable again."""
+    return Email(
+        to=to,
+        subject="Your Pacifyco account is active again",
+        heading="Your account is active again.",
+        body=f"Hi {_first_name(full_name)}, Pacifyco has reinstated your account, so you can use Pacifyco again.\n"
+        f"{reason}",
+        button_label="Open Pacifyco",
+        button_url=area_url,
+    )
+
+
+def booking_cancelled_by_pacifyco_for_parent(
+    to: str, full_name: str | None, sitter_name: str | None, starts_at: datetime, refunded: bool, web_url: str
+) -> Email:
+    """To the parent: Pacifyco cancelled a booking because of the sitter's account. No reason is given."""
+    sitter = _first_name(sitter_name) if sitter_name else "your sitter"
+    money = "Pacifyco will refund you in full." if refunded else "You haven't been charged."
+    return Email(
+        to=to,
+        subject="Pacifyco has cancelled your booking",
+        heading="Your booking has been cancelled.",
+        body=(
+            f"Hi {_first_name(full_name)}, we're sorry: Pacifyco has had to cancel your booking with {sitter} "
+            f"for {_when(starts_at)}, as she can't take bookings for now.\n"
+            f"{money} Pacifyco will try to find you another sitter, or you can book one yourself."
+        ),
+        button_label="Find a sitter",
+        button_url=f"{web_url.rstrip('/')}/parent/sitters",
+    )
+
+
+def booking_cancelled_by_pacifyco_for_sitter(
+    to: str, full_name: str | None, starts_at: datetime, web_url: str
+) -> Email:
+    """To the sitter: Pacifyco cancelled a booking because of the family's account. No reason is given."""
+    return Email(
+        to=to,
+        subject="A booking was cancelled",
+        heading="Pacifyco has cancelled a booking.",
+        body=(
+            f"Hi {_first_name(full_name)}, Pacifyco has cancelled the booking for {_when(starts_at)}. "
+            "That time is free again for other families. There's no strike for you."
+        ),
+        button_label="See your bookings",
+        button_url=f"{web_url.rstrip('/')}/sitter/bookings",
+    )
+
+
+def sitter_bookings_cancelled_alert(to: str, count: int, web_url: str) -> Email:
+    """To an admin: a sitter's upcoming bookings were cancelled with her account; families may need
+    another sitter. Counts only."""
+    bookings = "1 booking" if count == 1 else f"{count} bookings"
+    return Email(
+        to=to,
+        subject="Families need another sitter",
+        heading="Families may need another sitter.",
+        body=(
+            f"A sitter's account was suspended or removed, so {bookings} with her were cancelled and the families "
+            "told. Please try to find them another sitter, and pay any refunds back."
+        ),
+        button_label="Open the admin panel",
+        button_url=f"{web_url.rstrip('/')}/admin",
+    )

@@ -6,12 +6,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 
 from app.auth import require_role
 from app.deps import DbSession
 from app.errors import AppError
 from app.models import (
+    AccountActionKind,
     Booking,
     BookingStatus,
     ComplaintStatus,
@@ -33,6 +34,7 @@ from app.models import (
     VerificationStatus,
 )
 from app.routers.sitters import StrikeOut, strikes_out
+from app.services import account_status as account_service
 from app.services import booking_mail, documents, verification
 from app.services import bookings as bookings_service
 from app.services import chat as chat_service
@@ -1464,3 +1466,185 @@ class DashboardOut(BaseModel):
 @router.get("/dashboard")
 def get_dashboard(admin: Admin, db: DbSession) -> DashboardOut:
     return DashboardOut(**vars(dashboard_service.counts(db, datetime.now(UTC))))
+
+
+# ---------- user management (phase 10; Reuben, 2026-11-22) ----------
+
+PEOPLE_LIMIT = 50
+
+
+def _like(text: str) -> str:
+    """A LIKE pattern matching `text` anywhere, with its wildcards taken literally."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+class PersonRow(BaseModel):
+    id: uuid.UUID
+    role: str  # parent | sitter
+    full_name: str | None
+    email: str
+    phone: str | None
+    status: str  # pending | active | suspended | removed
+    created_at: datetime
+
+
+@router.get("/people")
+def list_people(
+    admin: Admin, db: DbSession, q: str | None = None, role: Role | None = None, status: ProfileStatus | None = None
+) -> list[PersonRow]:
+    """Parents and sitters, newest first, found by name, email or phone (at most 50)."""
+    query = select(Profile).where(Profile.role.in_((Role.parent, Role.sitter)))
+    if role is not None:
+        query = query.where(Profile.role == role)
+    if status is not None:
+        query = query.where(Profile.status == status)
+    text = (q or "").strip()[:100]
+    if text:
+        query = query.where(
+            or_(
+                Profile.full_name.ilike(_like(text), escape="\\"),
+                Profile.email.ilike(_like(text), escape="\\"),
+                func.replace(Profile.phone, " ", "").ilike(_like(text.replace(" ", "")), escape="\\"),
+            )
+        )
+    found = db.scalars(query.order_by(Profile.created_at.desc(), Profile.id).limit(PEOPLE_LIMIT))
+    return [
+        PersonRow(
+            id=person.id,
+            role=person.role.value,
+            full_name=person.full_name,
+            email=person.email,
+            phone=person.phone,
+            status=person.status.value,
+            created_at=person.created_at,
+        )
+        for person in found
+    ]
+
+
+class AccountActionOut(BaseModel):
+    action: str  # suspended | removed | reinstated
+    kind: str | None  # low_ratings | safety | strikes | other
+    reason: str
+    by: str | None  # the admin's name; None when the rules did it
+    at: datetime
+
+
+class AccountOut(BaseModel):
+    id: uuid.UUID
+    role: str
+    status: str
+    upcoming_bookings: int  # what a suspension or removal would cancel and refund
+    under_way_bookings: int  # left for an admin to handle
+    ratings_wait: str | None  # sitters: why a low-ratings decision must wait, if it must
+    five_strikes: bool  # a sitter can't be reinstated while 5 strikes count
+    history: list[AccountActionOut]
+
+
+def _account_out(db: DbSession, profile_id: uuid.UUID) -> AccountOut:
+    profile = db.get(Profile, profile_id)
+    if profile is None or profile.role not in (Role.parent, Role.sitter):
+        raise AppError(404, "not_found", "We couldn't find that person.")
+    now = datetime.now(UTC)
+    rows = account_service.history(db, profile.id)
+    admin_ids = {row.admin_id for row in rows if row.admin_id is not None}
+    names: dict[uuid.UUID, str | None] = {}
+    if admin_ids:
+        names = dict(db.execute(select(Profile.id, Profile.full_name).where(Profile.id.in_(admin_ids))).all())
+    return AccountOut(
+        id=profile.id,
+        role=profile.role.value,
+        status=profile.status.value,
+        upcoming_bookings=account_service.upcoming_count(db, profile.id, now),
+        under_way_bookings=account_service.under_way_count(db, profile.id, now),
+        ratings_wait=account_service.ratings_wait(db, profile, now) if profile.role == Role.sitter else None,
+        five_strikes=account_service.five_strikes(db, profile, now),
+        history=[
+            AccountActionOut(
+                action=row.action.value,
+                kind=row.kind.value if row.kind else None,
+                reason=row.reason,
+                by=(names.get(row.admin_id) or "An admin") if row.admin_id else None,
+                at=row.created_at,
+            )
+            for row in rows
+        ],
+    )
+
+
+@router.get("/accounts/{profile_id}")
+def get_account(profile_id: uuid.UUID, admin: Admin, db: DbSession) -> AccountOut:
+    return _account_out(db, profile_id)
+
+
+class BlockIn(BaseModel):
+    kind: AccountActionKind
+    reason: str = Field(max_length=account_service.REASON_MAX)  # shown to the person
+
+
+class ReinstateIn(BaseModel):
+    reason: str = Field(max_length=account_service.REASON_MAX)  # shown to the person
+
+
+def _tell_blocked(
+    db: DbSession, mailer: Mailer, settings: Settings, changed: account_service.Changed, removed: bool
+) -> None:
+    profile = changed.profile
+    build = email_service.account_removed if removed else email_service.account_suspended
+    mailer.send(build(profile.email, profile.full_name, changed.row.reason))
+    for booking in changed.cancelled:
+        if profile.role == Role.sitter:
+            parent = db.get(Profile, booking.parent_id)
+            assert parent is not None
+            sent = payments_service.latest_booking_payment(db, booking.id)
+            refunded = sent is not None and sent.status != PaymentStatus.rejected
+            mailer.send(
+                email_service.booking_cancelled_by_pacifyco_for_parent(
+                    parent.email, parent.full_name, profile.full_name, booking.starts_at, refunded, _web_url(settings)
+                )
+            )
+        elif booking.request_visible_at is not None:  # a request she never saw needs no email
+            sitter = db.get(Profile, booking.sitter_id)
+            assert sitter is not None
+            mailer.send(
+                email_service.booking_cancelled_by_pacifyco_for_sitter(
+                    sitter.email, sitter.full_name, booking.starts_at, _web_url(settings)
+                )
+            )
+    if profile.role == Role.sitter and changed.cancelled:
+        for to in settings.admin_alert_emails:
+            mailer.send(email_service.sitter_bookings_cancelled_alert(to, len(changed.cancelled), _web_url(settings)))
+
+
+@router.post("/accounts/{profile_id}/suspend")
+def suspend_account(
+    profile_id: uuid.UUID, body: BlockIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AccountOut:
+    """Suspends a parent or sitter: their upcoming bookings are cancelled and refunded, and they're emailed
+    the reason. A low-ratings suspension waits for her response or the end of her 12 hours (6.11)."""
+    changed = account_service.suspend(db, admin.id, profile_id, body.kind, body.reason, datetime.now(UTC))
+    _tell_blocked(db, mailer, settings, changed, removed=False)
+    return _account_out(db, profile_id)
+
+
+@router.post("/accounts/{profile_id}/remove")
+def remove_account(
+    profile_id: uuid.UUID, body: BlockIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AccountOut:
+    """Removes a parent or sitter, as a suspension does, for good unless reinstated."""
+    changed = account_service.remove(db, admin.id, profile_id, body.kind, body.reason, datetime.now(UTC))
+    _tell_blocked(db, mailer, settings, changed, removed=True)
+    return _account_out(db, profile_id)
+
+
+@router.post("/accounts/{profile_id}/reinstate")
+def reinstate_account(
+    profile_id: uuid.UUID, body: ReinstateIn, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> AccountOut:
+    """Makes a suspended or removed account usable again (active, or pending if never verified)."""
+    changed = account_service.reinstate(db, admin.id, profile_id, body.reason, datetime.now(UTC))
+    profile = changed.profile
+    area = f"{_web_url(settings).rstrip('/')}/{profile.role.value}"
+    mailer.send(email_service.account_reinstated(profile.email, profile.full_name, changed.row.reason, area))
+    return _account_out(db, profile_id)

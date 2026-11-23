@@ -12,6 +12,7 @@ import {
   StatusPill,
   ViewDocumentButton,
 } from "./shared";
+import { AccountSection } from "./AccountSection";
 import { AdminReviews, type ReviewForAdmin } from "./RatingsPage";
 import { QUEUE_KEY } from "./VerificationQueuePage";
 
@@ -119,6 +120,7 @@ export function FamilyReviewPage() {
           ))}
         </ul>
       )}
+      <AccountSection profileId={family.id} />
       <AdminReviews title="Sitters' reviews of this family" reviews={family.reviews} summary="Only admins see these." />
     </section>
   );

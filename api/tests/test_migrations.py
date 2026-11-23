@@ -176,7 +176,16 @@ def test_api_role_cannot_touch_alembic_version(conn):
 
 
 # Records that must never be changed or removed by the API.
-APPEND_ONLY = {"audit_log", "consents", "legal_acceptances", "document_access_log", "messages", "payouts", "reviews"}
+APPEND_ONLY = {
+    "audit_log",
+    "consents",
+    "legal_acceptances",
+    "document_access_log",
+    "messages",
+    "payouts",
+    "reviews",
+    "account_actions",
+}
 # Append-only too, except an admin's decision on a row (CLAUDE.md 5): these columns, and only these.
 DECIDED_ONLY = {
     # The UPI reference too: a charge's reference is kept on it and cleared if rejected (CLAUDE.md 6.5).

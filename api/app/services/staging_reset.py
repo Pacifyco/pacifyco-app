@@ -14,6 +14,7 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AccountActionRow,
     AuditLog,
     Booking,
     BookingReport,
@@ -140,6 +141,7 @@ def delete_all(db: Session, found: Found) -> None:
     db.execute(delete(Complaint).where(Complaint.id.in_(complaint_ids)))
     db.execute(delete(Review).where(Review.id.in_(review_ids)))
     db.execute(delete(RatingFlag).where(RatingFlag.id.in_(flag_ids)))
+    db.execute(delete(AccountActionRow).where(AccountActionRow.profile_id.in_(ids)))
     db.execute(delete(Message).where(or_(Message.parent_id.in_(ids), Message.sitter_id.in_(ids))))
     db.execute(delete(Booking).where(Booking.id.in_(booking_ids)))
     db.execute(delete(DocumentAccessLog).where(DocumentAccessLog.document_id.in_(document_ids)))
