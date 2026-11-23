@@ -14,9 +14,10 @@ export type Charge = {
   id: string;
   kind: "cancellation_charge" | "overtime";
   amount_paise: number;
-  status: "pending" | "confirmed";
+  status: "pending" | "confirmed" | "waived";
   upi_reference: string | null;
   rejection_reason: string | null;
+  waive_reason: string | null;
   booking_id: string;
   booking_starts_at: string;
   sitter_name: string | null;
@@ -66,6 +67,11 @@ export function ChargePage() {
       {data.status === "confirmed" ? (
         <Card as="section" padding="roomy">
           <p className="text-ink">Paid. Thank you.</p>
+        </Card>
+      ) : data.status === "waived" ? (
+        <Card as="section" padding="roomy" className="flex flex-col gap-2">
+          <p className="text-ink">Pacifyco has waived this charge, so you don't need to pay it.</p>
+          {data.waive_reason && <p className="text-small text-muted">{data.waive_reason}</p>}
         </Card>
       ) : data.upi_reference ? (
         <Card as="section" padding="roomy" className="flex flex-col gap-2">

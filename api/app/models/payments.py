@@ -29,6 +29,9 @@ class PaymentStatus(StrEnum):
     pending = "pending"
     confirmed = "confirmed"
     rejected = "rejected"
+    # An unpaid overtime or cancellation charge an admin let go, with a reason (Reuben, 2026-11-23). It's no
+    # longer owed, so it stops blocking new bookings; the row is kept.
+    waived = "waived"
 
 
 # Columns that can change after a row is added (see the migrations' grants): an admin's decision, and a
@@ -40,6 +43,7 @@ DECISION_COLUMNS = (
     "rejection_reason",
     "transfer_reference",
     "upi_reference",
+    "waive_reason",
 )
 
 
@@ -49,6 +53,10 @@ class Payment(Base):
         CheckConstraint("amount_paise <> 0", name="amount_not_zero"),
         CheckConstraint("upi_reference IS NULL OR upi_reference ~ '^[0-9]{12}$'", name="upi_reference_12_digits"),
         CheckConstraint("status <> 'rejected' OR rejection_reason IS NOT NULL", name="rejection_has_reason"),
+        CheckConstraint("(status = 'waived') = (waive_reason IS NOT NULL)", name="waived_has_reason"),
+        CheckConstraint(
+            "status <> 'waived' OR kind IN ('overtime', 'cancellation_charge')", name="only_charges_waived"
+        ),
         # A refund is paid back by UPI or bank transfer; marking it paid records that transfer's reference.
         CheckConstraint(
             "kind <> 'refund' OR status <> 'confirmed' OR transfer_reference IS NOT NULL",
@@ -81,4 +89,5 @@ class Payment(Base):
     rejection_reason: Mapped[str | None] = mapped_column(Text)
     # Refunds: the UPI or bank transfer reference Pacifyco paid the money back with.
     transfer_reference: Mapped[str | None] = mapped_column(Text)
+    waive_reason: Mapped[str | None] = mapped_column(Text)  # why an admin waived a charge; shown to the parent
     created_at: Mapped[datetime] = created_at()

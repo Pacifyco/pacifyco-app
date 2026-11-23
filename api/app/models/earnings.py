@@ -21,6 +21,9 @@ class EarningKind(StrEnum):
     booking = "booking"  # level pay for hours worked (or the hours an admin or a report decides)
     overtime = "overtime"  # level pay for the rounded-up overtime hours (6.8)
     show_up_fee = "show_up_fee"  # ₹100 per booked hour (no one home), or a flat ₹100 (only a man home)
+    # Extra pay an admin adds for a booking, with a note she sees (Reuben, 2026-11-23): a bonus or a
+    # correction. Any number per booking.
+    adjustment = "adjustment"
 
 
 class EarningStatus(StrEnum):
@@ -40,8 +43,15 @@ class SitterEarning(Base):
         CheckConstraint("minutes IS NULL OR minutes > 0", name="minutes_positive"),
         CheckConstraint("(status = 'held') = (due_by IS NULL)", name="due_once_released"),
         CheckConstraint("(status = 'paid') = (payout_id IS NOT NULL)", name="paid_has_payout"),
-        # One of each kind per booking.
-        Index("uq_sitter_earnings_booking_id_kind", "booking_id", "kind", unique=True),
+        CheckConstraint("(kind = 'adjustment') = (note IS NOT NULL)", name="adjustment_has_note"),
+        # One of each kind per booking, except an admin's adjustments.
+        Index(
+            "uq_sitter_earnings_booking_id_kind",
+            "booking_id",
+            "kind",
+            unique=True,
+            postgresql_where=text("kind <> 'adjustment'"),
+        ),
         Index("ix_sitter_earnings_sitter_id_status", "sitter_id", "status"),
     )
 
@@ -51,6 +61,7 @@ class SitterEarning(Base):
     kind: Mapped[EarningKind] = mapped_column(enum_column(EarningKind, "earning_kind"))
     amount_paise: Mapped[int] = mapped_column(Integer)
     minutes: Mapped[int | None] = mapped_column(Integer)  # the time it pays for, where it's time
+    note: Mapped[str | None] = mapped_column(Text)  # an adjustment's reason, shown to her
     status: Mapped[EarningStatus] = mapped_column(
         enum_column(EarningStatus, "earning_status"), server_default=EarningStatus.held.value
     )

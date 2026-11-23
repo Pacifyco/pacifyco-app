@@ -38,7 +38,7 @@ from app.models import (
     Sitter,
     VerificationStatus,
 )
-from app.services import audit, bookings, reviews, strikes
+from app.services import admin_bookings, audit, reviews, strikes
 
 # Bookings cancelled with the account: everything that hasn't started yet.
 UPCOMING = (
@@ -142,18 +142,8 @@ def _cancel_upcoming(
     )
     refunds: list[Payment] = []
     for booking in found:
-        audit.record(
-            db,
-            admin_id,
-            "booking_cancelled",
-            "booking",
-            str(booking.id),
-            before={"status": booking.status.value},
-            after={"status": BookingStatus.cancelled_by_admin.value, "account": str(profile.id), "why": action.value},
-        )
-        booking.status = BookingStatus.cancelled_by_admin
-        db.flush()
-        refunds.extend(bookings.refund_booking(db, admin_id, booking.id))
+        why = {"account": str(profile.id), "why": action.value}
+        refunds.extend(admin_bookings.cancel_by_admin(db, admin_id, booking, why))
     return found, refunds
 
 

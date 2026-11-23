@@ -17,6 +17,7 @@ export type SitterEarning = {
   kind: EarningKind;
   amount_paise: number;
   minutes: number | null;
+  note: string | null; // extra pay's reason, from Pacifyco
   status: "held" | "released" | "paid";
   due_by: string | null;
   paid_at: string | null;

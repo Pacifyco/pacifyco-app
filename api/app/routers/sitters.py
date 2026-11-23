@@ -981,9 +981,10 @@ class EarningItem(BaseModel):
     booking_id: uuid.UUID
     booking_starts_at: datetime
     family_name: str
-    kind: str  # booking | overtime | show_up_fee
+    kind: str  # booking | overtime | show_up_fee | adjustment
     amount_paise: int
     minutes: int | None
+    note: str | None  # an adjustment's reason, from Pacifyco
     status: str  # held | released | paid
     due_by: datetime | None
     paid_at: datetime | None
@@ -1022,6 +1023,7 @@ def get_earnings(sitter: SitterProfile, db: DbSession) -> SitterEarnings:
                 kind=item.earning.kind.value,
                 amount_paise=item.earning.amount_paise,
                 minutes=item.earning.minutes,
+                note=item.earning.note,
                 status=item.earning.status.value,
                 due_by=item.earning.due_by,
                 paid_at=item.paid_at,

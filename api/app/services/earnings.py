@@ -147,10 +147,10 @@ def _waiting_on_overtime(db: Session, booking_id: uuid.UUID) -> bool:
 
 
 def can_release(db: Session, booking: Booking) -> bool:
-    return booking.status in ENDED and not _waiting_on_overtime(db, booking.id) and not _open_incident(db, booking.id)
+    return booking.status in ENDED and not _waiting_on_overtime(db, booking.id) and not open_incident(db, booking.id)
 
 
-def _open_incident(db: Session, booking_id: uuid.UUID) -> bool:
+def open_incident(db: Session, booking_id: uuid.UUID) -> bool:
     # Same as incidents.has_open_incident; not imported, since incidents calls back into this module.
     return (
         db.scalar(

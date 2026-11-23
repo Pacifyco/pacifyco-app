@@ -16,6 +16,7 @@ const PAY: SitterEarning = {
   kind: "booking",
   amount_paise: 60_000,
   minutes: 120,
+  note: null,
   status: "released",
   due_by: "2030-01-06T20:00:00Z",
   paid_at: null,
@@ -83,5 +84,13 @@ describe("words", () => {
     expect(earningLabel({ kind: "overtime", minutes: 60 })).toBe("Overtime, 1 hour");
     expect(earningStatusText({ ...PAY, status: "held", due_by: null })).toBe("On hold");
     expect(earningStatusText(PAY)).toMatch(/^We'll pay this by /);
+  });
+
+  test("extra pay from Pacifyco shows its note", async () => {
+    renderWith({
+      ...DATA,
+      earnings: [{ ...PAY, id: "e9", kind: "adjustment", amount_paise: 20_000, minutes: null, note: "Stayed for a storm." }],
+    });
+    expect(await screen.findByText("Extra pay: Stayed for a storm.")).toBeTruthy();
   });
 });

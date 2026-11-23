@@ -952,9 +952,10 @@ class ChargeOut(BaseModel):
     id: uuid.UUID
     kind: str  # cancellation_charge | overtime
     amount_paise: int
-    status: str  # pending (owed) | confirmed (paid)
+    status: str  # pending (owed) | confirmed (paid) | waived (let go by Pacifyco)
     upi_reference: str | None  # sent and waiting for Pacifyco to check it
     rejection_reason: str | None  # the last reference couldn't be confirmed
+    waive_reason: str | None  # why Pacifyco waived it
     booking_id: uuid.UUID
     booking_starts_at: datetime
     sitter_name: str | None
@@ -974,6 +975,7 @@ def _charge_out(db: DbSession, charge, settings: Settings) -> ChargeOut:
         status=charge.status.value,
         upi_reference=charge.upi_reference,
         rejection_reason=charge.rejection_reason if charge.status == PaymentStatus.pending else None,
+        waive_reason=charge.waive_reason,
         booking_id=booking.id,
         booking_starts_at=booking.starts_at,
         sitter_name=sitter.full_name if sitter else None,
@@ -1017,10 +1019,11 @@ class PaymentHistoryItem(BaseModel):
     id: uuid.UUID
     kind: str  # booking | overtime | refund | cancellation_charge
     amount_paise: int
-    status: str  # pending | confirmed | rejected
+    status: str  # pending | confirmed | rejected | waived (a charge Pacifyco let go)
     upi_reference: str | None
     transfer_reference: str | None  # a refund's
     rejection_reason: str | None
+    waive_reason: str | None
     created_at: datetime
     decided_at: datetime | None
     booking_id: uuid.UUID
@@ -1046,6 +1049,7 @@ def get_payments(parent: Parent, db: DbSession) -> PaymentHistory:
                 upi_reference=item.payment.upi_reference,
                 transfer_reference=item.payment.transfer_reference,
                 rejection_reason=item.payment.rejection_reason,
+                waive_reason=item.payment.waive_reason,
                 created_at=item.payment.created_at,
                 decided_at=item.payment.confirmed_at,
                 booking_id=item.booking.id,
