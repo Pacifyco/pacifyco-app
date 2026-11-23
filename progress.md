@@ -8,8 +8,8 @@ tests.
 
 ## Current status
 
-- Phase: 9 done (2026-11-22): sitter pay, admin payouts, her earnings dashboard, reviews and the test
-  check. Next: phase 10 (admin panel completion).
+- Phase: 10 under way (2026-11-22): the admin dashboard built. Next: user management (suspend, remove,
+  reinstate, strikes; removal for ratings waits for her response or her 12 hours).
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -17,6 +17,9 @@ tests.
 
 ## Open questions (ask Reuben; don't guess)
 
+- [x] **Admin dashboard** (Reuben, 2026-11-22): "today's payouts" means what's due now (count, total, how
+  many overdue) and what's been paid today (India time); the dashboard also counts open reports, overdue
+  check-outs, open issues and low ratings.
 - [x] **How long does a flagged sitter have to respond before she can be removed for ratings?** (Reuben,
   2026-11-22): 12 hours from being told. The flag can't be closed before her response or the end of those
   12 hours; phase 10's removal must wait the same way. CLAUDE.md 6.11 updated.
@@ -606,7 +609,12 @@ at home (CLAUDE.md 6.3).
 
 ## Phase 10 — Admin panel completion
 
-- [ ] Dashboard: open incidents, pending verifications, pending payments, today's payouts
+- [x] Dashboard: open incidents, pending verifications, pending payments, today's payouts. Built
+  2026-11-22: `GET /admin/dashboard` (`api/app/services/dashboard.py`, counts and amounts only, so it
+  refreshes every minute) and a tile per queue on `/admin`: emergencies (how many not acknowledged),
+  verifications (sitters and families), payments to check (and refunds to pay), payouts due (total, how many
+  overdue), paid today, reports, overdue check-outs, issues and low ratings. Urgent ones are marked in red.
+  Replaces the home page's links and placeholder icons; the two banners stay
 - [ ] User management: suspend, remove, reinstate, strikes
 - [ ] Bookings overview and manual adjustments (audit logged)
 - [ ] Audit log and document access log views
@@ -660,6 +668,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-22 — Admin dashboard (phase 10).
 - 2026-11-22 — Reviews both ways and the low-rating flag (12 hours to respond); phase 9 test check.
 - 2026-11-22 — Sitter earnings dashboard.
 - 2026-11-22 — Admin payouts: the due list (by sitter, countdowns, overdue banner, bank-detail views logged),

@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, CalendarClock, CircleCheck, CreditCard, Siren, Wallet, X } from "lucide-react";
+import { CalendarClock, CircleCheck, X } from "lucide-react";
 import { useState } from "react";
 import { useMe } from "../auth/useMe";
 import { Link } from "react-router";
-import { ButtonLink, Card, EmptyState, IconTile } from "../components/ui";
+import { ButtonLink, Card, EmptyState } from "../components/ui";
+import { rupees } from "../lib/prices";
 import { formatBookingTime, formatDay, formatTime } from "../lib/format";
 import { PAYOUTS_SUMMARY_KEY, type PayoutsSummary } from "./admin/PayoutsPage";
 import { apiFetch } from "../lib/api";
@@ -282,45 +283,136 @@ function PayoutsOverdueBanner() {
   );
 }
 
+/** What's waiting (phase 10), as counts only. Today's payouts are what's due now and what's been paid today,
+ * India time (Reuben, 2026-11-22). */
+export type AdminDashboard = {
+  incidents_open: number;
+  incidents_unresolved: number;
+  sitters_to_review: number;
+  families_to_review: number;
+  payments_to_check: number;
+  refunds_to_pay: number;
+  payouts_due: number;
+  payouts_due_paise: number;
+  payouts_overdue: number;
+  paid_today: number;
+  paid_today_paise: number;
+  reports_open: number;
+  overdue_checkouts: number;
+  issues_open: number;
+  low_ratings: number;
+};
+
+export const DASHBOARD_KEY = ["admin", "dashboard"];
+
+type Tile = { to: string; label: string; value: string; note: string; urgent: boolean };
+
+function tilesFor(data: AdminDashboard): Tile[] {
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return [
+    {
+      to: "/admin/incidents",
+      label: "Emergencies",
+      value: String(data.incidents_unresolved),
+      note: data.incidents_open ? `${data.incidents_open} not acknowledged` : "None waiting",
+      urgent: data.incidents_open > 0,
+    },
+    {
+      to: "/admin/verifications",
+      label: "Verifications",
+      value: String(data.sitters_to_review + data.families_to_review),
+      note: `${count(data.sitters_to_review, "sitter", "sitters")} · ${count(data.families_to_review, "family", "families")}`,
+      urgent: false,
+    },
+    {
+      to: "/admin/payments",
+      label: "Payments to check",
+      value: String(data.payments_to_check),
+      note: data.refunds_to_pay ? `${count(data.refunds_to_pay, "refund", "refunds")} to pay back` : "No refunds to pay",
+      urgent: false,
+    },
+    {
+      to: "/admin/payouts",
+      label: "Payouts due",
+      value: rupees(data.payouts_due_paise),
+      note: data.payouts_overdue
+        ? `${data.payouts_overdue} overdue of ${data.payouts_due}`
+        : data.payouts_due
+          ? `${count(data.payouts_due, "earning", "earnings")}, within 12 hours`
+          : "Nothing due",
+      urgent: data.payouts_overdue > 0,
+    },
+    {
+      to: "/admin/payouts",
+      label: "Paid today",
+      value: rupees(data.paid_today_paise),
+      note: count(data.paid_today, "transfer", "transfers"),
+      urgent: false,
+    },
+    {
+      to: "/admin/reports",
+      label: "Reports",
+      value: String(data.reports_open),
+      note: "To confirm or dismiss",
+      urgent: false,
+    },
+    {
+      to: "/admin/overdue-checkouts",
+      label: "Overdue check-outs",
+      value: String(data.overdue_checkouts),
+      note: "Bookings needing a call",
+      urgent: data.overdue_checkouts > 0,
+    },
+    { to: "/admin/issues", label: "Issues", value: String(data.issues_open), note: "Not yet resolved", urgent: false },
+    {
+      to: "/admin/ratings",
+      label: "Low ratings",
+      value: String(data.low_ratings),
+      note: "Sitters flagged",
+      urgent: false,
+    },
+  ];
+}
+
+/** Each queue as a tile: its count and a line about it, linking to the queue. Refreshed every minute. */
+function Dashboard() {
+  const dashboard = useQuery({
+    queryKey: DASHBOARD_KEY,
+    queryFn: () => apiFetch<AdminDashboard>("/admin/dashboard"),
+    refetchInterval: 60_000,
+  });
+  if (dashboard.isPending) return <p className="mt-5 text-muted">Loading…</p>;
+  if (dashboard.isError) {
+    return (
+      <p role="alert" className="mt-5 text-danger">
+        We couldn't load the dashboard. Please try again.
+      </p>
+    );
+  }
+  return (
+    <ul aria-label="What's waiting" className="mt-6 grid grid-cols-1 gap-3 text-left sm:grid-cols-2 lg:grid-cols-3">
+      {tilesFor(dashboard.data).map((tile) => (
+        <li key={tile.label}>
+          <Link to={tile.to} className="block h-full text-ink no-underline">
+            <Card className={`flex h-full flex-col gap-1 ${tile.urgent ? "border-l-4 border-coral" : ""}`}>
+              <span className="text-small text-muted">{tile.label}</span>
+              <span className={`text-h3 ${tile.urgent ? "text-danger" : "text-ink"}`}>{tile.value}</span>
+              <span className={`text-small ${tile.urgent ? "text-danger" : "text-muted"}`}>{tile.note}</span>
+            </Card>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function AdminHomePage() {
   return (
-    <section className="mx-auto max-w-[62ch] text-center">
+    <section className="mx-auto max-w-content">
       <h1>Admin</h1>
-      <p className="mt-3 text-muted">Verifications, payments, payouts and incidents will be here.</p>
       <OverdueBanner />
       <PayoutsOverdueBanner />
-      <div className="mt-5 flex flex-wrap justify-center gap-3">
-        <ButtonLink to="/admin/verifications" arrow>
-          Open the verification queue
-        </ButtonLink>
-        <ButtonLink to="/admin/payments" variant="secondary">
-          Check payments
-        </ButtonLink>
-        <ButtonLink to="/admin/reports" variant="secondary">
-          Reports
-        </ButtonLink>
-        <ButtonLink to="/admin/incidents" variant="secondary">
-          Emergencies
-        </ButtonLink>
-        <ButtonLink to="/admin/issues" variant="secondary">
-          Issues
-        </ButtonLink>
-        <ButtonLink to="/admin/overdue-checkouts" variant="secondary">
-          Overdue check-outs
-        </ButtonLink>
-        <ButtonLink to="/admin/payouts" variant="secondary">
-          Payouts
-        </ButtonLink>
-        <ButtonLink to="/admin/ratings" variant="secondary">
-          Low ratings
-        </ButtonLink>
-      </div>
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
-        <IconTile icon={BadgeCheck} label="Verifications" />
-        <IconTile icon={CreditCard} label="Payments" />
-        <IconTile icon={Wallet} label="Payouts" />
-        <IconTile icon={Siren} label="Incidents" />
-      </div>
+      <Dashboard />
     </section>
   );
 }

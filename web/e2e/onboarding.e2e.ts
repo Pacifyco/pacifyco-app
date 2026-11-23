@@ -234,7 +234,7 @@ test("an admin rejects a step with a reason; the sitter sees it and uploads agai
   });
   const page = admin.page;
   await page.goto("/admin");
-  await page.getByRole("link", { name: /Open the verification queue/ }).click();
+  await page.getByRole("link", { name: /^Verifications/ }).click();
   await page.getByRole("link", { name: /Lakshmi Nair/ }).click();
 
   const police = sectionOf(page, "Notes on the police certificate");
@@ -375,7 +375,7 @@ test("the parent pays by UPI and sends the reference", async () => {
 test("the admin confirms the payment and the parent's booking is confirmed", async () => {
   const page = admin.page;
   await page.goto("/admin");
-  await page.getByRole("link", { name: "Check payments" }).click();
+  await page.getByRole("link", { name: /^Payments to check/ }).click();
   const toCheck = page.getByRole("region", { name: "Payments to check" });
   await expect(toCheck.getByText("432109876543")).toBeVisible();
   await expect(toCheck.getByText("₹499")).toBeVisible();

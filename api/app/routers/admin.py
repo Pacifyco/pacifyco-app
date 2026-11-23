@@ -38,6 +38,7 @@ from app.services import bookings as bookings_service
 from app.services import chat as chat_service
 from app.services import checkin as checkin_service
 from app.services import children as children_service
+from app.services import dashboard as dashboard_service
 from app.services import email as email_service
 from app.services import incidents as incidents_service
 from app.services import payments as payments_service
@@ -1435,3 +1436,31 @@ class CloseFlagIn(BaseModel):
 def close_rating_flag(flag_id: uuid.UUID, body: CloseFlagIn, admin: Admin, db: DbSession) -> RatingFlagOut:
     """The admin's decision, as an internal note. Removing her account is a separate step (phase 10)."""
     return _flag_out(db, reviews_service.close(db, admin.id, flag_id, body.note, datetime.now(UTC)))
+
+
+# ---------- the dashboard (phase 10) ----------
+
+
+class DashboardOut(BaseModel):
+    """What's waiting, as counts (and amounts) only: no names or bank details, so it can refresh on a timer."""
+
+    incidents_open: int  # not yet acknowledged
+    incidents_unresolved: int
+    sitters_to_review: int
+    families_to_review: int
+    payments_to_check: int
+    refunds_to_pay: int
+    payouts_due: int
+    payouts_due_paise: int
+    payouts_overdue: int
+    paid_today: int  # India time
+    paid_today_paise: int
+    reports_open: int
+    overdue_checkouts: int
+    issues_open: int
+    low_ratings: int
+
+
+@router.get("/dashboard")
+def get_dashboard(admin: Admin, db: DbSession) -> DashboardOut:
+    return DashboardOut(**vars(dashboard_service.counts(db, datetime.now(UTC))))
