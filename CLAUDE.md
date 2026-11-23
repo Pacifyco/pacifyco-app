@@ -829,7 +829,7 @@ in the beta phase.
 
 | Feature | Required tests |
 | --- | --- |
-| Auth and roles | JWT verified; wrong role gets 403 on every role-gated endpoint; suspended/removed users blocked |
+| Auth and roles | JWT verified; wrong role gets 403 on every role-gated endpoint (the sweep reads every route, including ones in included routers); suspended, removed and closed users blocked |
 | Service area | Sign-up and booking rejected outside listed pin codes |
 | Consent | Child document upload refused without an accepted consent of the current version |
 | Terms click-wrap | Consent pages can't complete without acceptance (sitter: also the sitter consent tick); a sitter can't be approved until she's accepted; acceptance stores version, time, IP and user agent; parent can't book or buy and sitter can't take bookings until the latest version is accepted; parents see parent terms and sitters see the Sitter Terms of Use |
@@ -850,11 +850,11 @@ in the beta phase.
 | Reviews | Only after a completed booking, once per author per booking, within 14 days; average updates; flag when last-10 average < 3.5 (from 5 reviews); a sitter's review of a parent seen only by admins; 12 hours to respond before the flag is decided |
 | Child age and home info | Child under 18 months can't be booked; camera declaration required; outings only on Recharge, set by the parent, changeable until the start |
 | New cancellation rows | sitter no-show reportable from 30 minutes after the start; 20-minute parent-not-home wait; under-18-months: parent charged 1 hour, rest refunded, sitter paid for that hour, no strike; unsafe early exit paid for time worked with no strike after admin confirms; doctor's note strike removal |
-| Complaints | SLA timers; escalation; original decider can't handle the appeal; late complaints flagged |
+| Complaints | SLA timers; escalation (overdue, or the person disagrees); only the Grievance Officer handles escalated ones; original decider can't handle the appeal, even as officer; late complaints flagged; data requests carry what's asked for |
 | Sitter terms | Wording matches `sitter-terms-v1.1.md`; placeholders filled from config; production refuses to serve it with an empty placeholder |
 | Sitter onboarding extras | Under-18 rejected; health disclosure admin-only and access logged |
 | Chat | Only between a parent and sitter who have a booking; admin read is audit logged |
-| Audit | State changes on bookings, payouts, strikes and verifications write audit rows |
+| Audit | State changes on bookings, payouts, strikes and verifications write audit rows; so do account changes, an admin's booking adjustments and each complaint and appeal step |
 
 ### Security testing (owned by Claude Code, phase 12)
 
