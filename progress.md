@@ -8,9 +8,9 @@ tests.
 
 ## Current status
 
-- Phase: 10 under way (2026-11-23): the admin dashboard, user management, the bookings overview and the
-  audit and document access log views, complaints and grievances, and account closure and data requests
-  built. Next: tests for this phase.
+- Phase: 10 done (2026-11-23): the admin dashboard, user management, the bookings overview and manual
+  adjustments, the audit and document access log views, complaints and grievances, and account closure and
+  data requests, with their tests. Next: phase 11, email notifications.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -694,7 +694,14 @@ at home (CLAUDE.md 6.3).
   sitter's pay still comes; closing sets `closed`, writes an `account_actions` row and emails them; the area
   then shows how to reopen it. Admins reopen it from the account card. Help has "Your data" (access,
   correction, deletion), a complaint with `request_kind` that admins resolve with a note
-- [ ] Tests for this phase
+- [x] Tests for this phase. Phase 10 test check 2026-11-23 against CLAUDE.md 9: auth and roles (the sweep
+  over every endpoint, fixed this phase; suspended, removed and now closed accounts blocked), complaints
+  (targets, escalation, the original decider kept off the appeal, late flagged), audit, documents (every
+  admin view logged, and the access log view) and each phase 10 feature's own tests. **Gaps found and
+  filled (tests only, no product bugs):** a closed account in the blocked-account check; audit rows for the
+  admin's cancel, extra pay and waive (with the reason and the admin); audit rows for every step of a
+  complaint, an appeal and a public holiday; and the Grievance Officer kept off an escalated appeal
+  against their own decision (every admin is the officer while `GRIEVANCE_OFFICER_EMAIL` is empty)
 
 ## Phase 11 — Notifications (email)
 
@@ -742,6 +749,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-23 — Phase 10 test check against CLAUDE.md 9; gaps filled (phase 10 done).
 - 2026-11-23 — Account closure and data requests (phase 10).
 - 2026-11-23 — Complaints and grievances, appeals and the Grievance Officer (phase 10).
 - 2026-11-23 — Audit log and document access log views (phase 10).

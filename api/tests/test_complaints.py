@@ -415,3 +415,71 @@ def test_unknown_view_refused(client, reviewer):
     response = client.get("/admin/complaints?view=everything", headers=as_user(reviewer))
     assert response.status_code == 422
     assert uuid.UUID(str(reviewer))
+
+
+# ---------- the audit trail (CLAUDE.md 9 "Audit") and the officer's own decisions ----------
+
+
+def audit_actions(db_engine, entity_id):
+    with db_engine.connect() as conn:
+        return [
+            (row.action, row.actor_id)
+            for row in conn.execute(
+                text("SELECT action, actor_id FROM audit_log WHERE entity_id = :e ORDER BY id"), {"e": str(entity_id)}
+            )
+        ]
+
+
+def test_every_step_of_a_complaint_is_audit_logged(client, db_engine, reviewer, finished_parent):
+    made = raise_one(client, finished_parent).json()
+    admin_post(client, reviewer, made["id"], "messages", body="Looking into it.")
+    admin_post(client, reviewer, made["id"], "messages", body="Still looking.")  # only the first reply is logged
+    admin_post(client, reviewer, made["id"], "serious", serious=True)
+    admin_post(client, reviewer, made["id"], "serious", serious=False)
+    admin_post(client, reviewer, made["id"], "resolve", body="Done.")
+    client.post(f"/me/complaints/{made['id']}/escalate", json={"body": "No."}, headers=auth_for(finished_parent))
+    admin_post(client, reviewer, made["id"], "acknowledge")
+    admin_post(client, reviewer, made["id"], "officer-decision", body="Upheld, because…")
+    person, admin = uuid.UUID(str(finished_parent["id"])), reviewer
+    assert audit_actions(db_engine, made["id"]) == [
+        ("complaint_raised", person),
+        ("complaint_replied", admin),
+        ("complaint_marked_serious", admin),
+        ("complaint_unmarked_serious", admin),
+        ("complaint_resolved", admin),
+        ("complaint_escalated", person),
+        ("complaint_acknowledged_by_officer", admin),
+        ("complaint_decided_by_officer", admin),
+    ]
+
+
+def test_an_appeal_and_holidays_are_audit_logged(client, db_engine, reviewer, other_admin, finished_parent):
+    act(client, reviewer, finished_parent["id"], "suspend")
+    made = appeal(client, finished_parent).json()["appeal"]
+    admin_post(client, other_admin, made["id"], "appeal", outcome="rejected", note="It stands.")
+    person = uuid.UUID(str(finished_parent["id"]))
+    assert audit_actions(db_engine, made["id"]) == [("appeal_raised", person), ("appeal_decided", other_admin)]
+
+    try:
+        client.post("/admin/holidays", json={"day": "2031-10-02", "name": "Gandhi Jayanti"}, headers=as_user(reviewer))
+        client.delete("/admin/holidays/2031-10-02", headers=as_user(reviewer))
+        assert audit_actions(db_engine, "2031-10-02") == [("holiday_added", reviewer), ("holiday_removed", reviewer)]
+    finally:
+        with db_engine.begin() as conn:
+            conn.execute(text("DELETE FROM public_holidays WHERE day = '2031-10-02'"))
+
+
+def test_the_officer_cant_handle_an_escalated_appeal_against_their_own_decision(
+    client, db_engine, reviewer, other_admin, finished_parent
+):
+    """Every admin is the officer while GRIEVANCE_OFFICER_EMAIL is empty, but not on their own decision (6.12)."""
+    act(client, reviewer, finished_parent["id"], "suspend")
+    made = appeal(client, finished_parent).json()["appeal"]
+    admin_post(client, other_admin, made["id"], "appeal", outcome="rejected", note="It stands.")
+    sent = client.post(
+        f"/me/complaints/{made['id']}/escalate", json={"body": "Unfair."}, headers=auth_for(finished_parent)
+    )
+    assert sent.json()["status"] == "escalated"
+    refused = admin_post(client, reviewer, made["id"], "acknowledge")
+    assert refused.status_code == 403 and refused.json()["error"]["code"] == "cannot_handle"
+    assert admin_post(client, other_admin, made["id"], "acknowledge").status_code == 200

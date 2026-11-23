@@ -106,7 +106,7 @@ def test_pending_accounts_can_use_their_area(gated_client, make_profile):
     assert gated_client.get("/parent/_test", headers=as_user(make_profile("parent", "active"))).status_code == 200
 
 
-@pytest.mark.parametrize("status", ["suspended", "removed"])
+@pytest.mark.parametrize("status", ["suspended", "removed", "closed"])
 @pytest.mark.parametrize("role", ["parent", "sitter", "admin"])
 def test_suspended_and_removed_accounts_are_blocked(gated_client, make_profile, status, role):
     area = next(prefix for prefix, area_role in AREAS.items() if area_role == role)

@@ -257,3 +257,28 @@ def test_the_booking_page_for_admins(client, db_engine, reviewer, confirmed, fin
     assert "payment_confirmed" in [event["action"] for event in found["history"]]
     missing = client.get("/admin/bookings/00000000-0000-0000-0000-000000000000", headers=as_user(reviewer))
     assert missing.status_code == 404
+
+
+# ---------- the audit trail (CLAUDE.md 9 "Audit") ----------
+
+
+def test_every_adjustment_is_audit_logged_with_its_reason(client, db_engine, reviewer, confirmed):
+    charge = a_charge(db_engine, confirmed)
+    assert post(client, reviewer, f"charges/{charge}/waive", reason="Goodwill").status_code == 200
+    assert post(client, reviewer, f"bookings/{confirmed['id']}/cancel", reason="Rain").status_code == 200
+    paid_extra = post(client, reviewer, f"bookings/{confirmed['id']}/sitter-pay", amount_paise=10_000, reason="Travel")
+    assert paid_extra.status_code == 200
+    earning = next(item["id"] for item in paid_extra.json()["earnings"] if item["kind"] == "adjustment")
+    found = {
+        item["action"]: item
+        for item in rows(
+            db_engine,
+            "SELECT action, actor_id, after FROM audit_log WHERE entity_id = ANY(:ids) ORDER BY id",
+            ids=[str(charge), confirmed["id"], earning],
+        )
+    }
+    assert found["charge_waived"]["after"]["reason"] == "Goodwill"
+    assert found["booking_cancelled"]["after"] == {"status": "cancelled_by_admin", "reason": "Rain"}
+    assert found["earning_recorded"]["after"]["note"] == "Travel"
+    assert found["earning_recorded"]["after"]["amount_paise"] == 10_000
+    assert {found[key]["actor_id"] for key in ("charge_waived", "booking_cancelled", "earning_recorded")} == {reviewer}
