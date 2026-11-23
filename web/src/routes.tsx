@@ -40,6 +40,7 @@ import { SitterReviewsPage } from "./pages/SitterReviewsPage";
 import { SitterStrikesPage } from "./pages/SitterStrikesPage";
 import { ParentPaymentsPage } from "./pages/ParentPaymentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { CloseAccountPage } from "./pages/CloseAccountPage";
 import { ComplaintPage, HelpPage, NewComplaintPage } from "./pages/HelpPages";
 import { PsychTestPage } from "./pages/PsychTestPage";
 import { AuthCallbackPage, SIGN_IN_PATH } from "./pages/SignInPage";
@@ -104,6 +105,8 @@ export const routes: RouteObject[] = [
           ["sitter/help", "sitter", <HelpPage role="sitter" />],
           ["sitter/help/new", "sitter", <NewComplaintPage role="sitter" />],
           ["sitter/help/:complaintId", "sitter", <ComplaintPage role="sitter" />],
+          ["parent/close-account", "parent", <CloseAccountPage role="parent" />],
+          ["sitter/close-account", "sitter", <CloseAccountPage role="sitter" />],
           ["sitter/earnings", "sitter", <SitterEarningsPage />],
           ["sitter/reviews", "sitter", <SitterReviewsPage />],
           ["sitter/bookings", "sitter", <SitterBookingsPage />],

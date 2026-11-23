@@ -35,6 +35,9 @@ PUBLIC = {
     "/me/complaints/{complaint_id}/messages",
     "/me/complaints/{complaint_id}/escalate",
     "/me/appeal",
+    # Closing their own account (6.13): a parent or sitter, their own only (app/routers/account.py).
+    "/me/closing",
+    "/me/close",
     "/internal/jobs/{run}",  # JOBS_SECRET
     "/documents/mine",  # any signed-up parent or sitter; checked by current_profile
     "/documents/upload-url",  # any signed-up parent or sitter; checked by current_profile

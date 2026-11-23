@@ -29,6 +29,7 @@ export type ComplaintMessage = { id: string; from_pacifyco: boolean; body: strin
 export type ComplaintRow = { id: string; type: string; status: string; description: string; created_at: string };
 
 export type Complaint = ComplaintRow & {
+  request_kind: string | null;
   booking_id: string | null;
   happened_on: string | null;
   late: boolean;
@@ -54,12 +55,14 @@ const TYPES: Record<Role, [string, string][]> = {
     ["payment", "A payment"],
     ["sitter", "A sitter"],
     ["review", "A review"],
+    ["data_request", "Your data"],
     ["other", "Something else"],
   ],
   sitter: [
     ["payment", "A payment or my pay"],
     ["family", "A family"],
     ["review", "A review"],
+    ["data_request", "Your data"],
     ["other", "Something else"],
   ],
 };
@@ -84,6 +87,13 @@ export const STATUS_WORDS: Record<string, string> = {
 };
 
 const MAX_FILES = 3;
+
+// A data request (CLAUDE.md 6.13): what they'd like. An admin handles it by hand.
+export const REQUEST_WORDS: Record<string, string> = {
+  access: "A copy of the data we hold about you",
+  correction: "To correct something we hold about you",
+  deletion: "To delete your data",
+};
 export const FROM_PACIFYCO = "rounded-md bg-surface-sunken p-4";
 export const FROM_THEM = "rounded-md border border-line p-4";
 
@@ -199,7 +209,9 @@ export function NewComplaintPage({ role }: { role: Role }) {
   const bookingId = params.get("booking");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [type, setType] = useState(bookingId ? "booking" : "");
+  const asked = params.get("data");
+  const [type, setType] = useState(bookingId ? "booking" : asked ? "data_request" : "");
+  const [requestKind, setRequestKind] = useState(asked && asked in REQUEST_WORDS ? asked : "");
   const [happenedOn, setHappenedOn] = useState("");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -213,7 +225,8 @@ export function NewComplaintPage({ role }: { role: Role }) {
           type,
           description: description.trim(),
           booking_id: bookingId,
-          happened_on: bookingId || !happenedOn ? null : happenedOn,
+          happened_on: bookingId || !happenedOn || type === "data_request" ? null : happenedOn,
+          request_kind: type === "data_request" ? requestKind : null,
         }),
       });
       let failed = false;
@@ -238,6 +251,7 @@ export function NewComplaintPage({ role }: { role: Role }) {
     event.preventDefault();
     const found: Record<string, string> = {};
     if (!type) found.type = "Please choose what it's about.";
+    if (type === "data_request" && !requestKind) found.requestKind = "Please choose what you'd like.";
     if (!description.trim()) found.description = "Please tell us what happened.";
     const fileError = checkFiles(files);
     if (fileError) found.files = fileError;
@@ -268,17 +282,33 @@ export function NewComplaintPage({ role }: { role: Role }) {
                   </option>
                 ))}
               </Select>
-              <TextInput
-                label="When did it happen?"
-                type="date"
-                optional
-                value={happenedOn}
-                onChange={(event) => setHappenedOn(event.target.value)}
-              />
+              {type === "data_request" ? (
+                <Select
+                  label="What would you like?"
+                  value={requestKind}
+                  error={errors.requestKind}
+                  onChange={(event) => setRequestKind(event.target.value)}
+                >
+                  <option value="">Choose one</option>
+                  {Object.entries(REQUEST_WORDS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <TextInput
+                  label="When did it happen?"
+                  type="date"
+                  optional
+                  value={happenedOn}
+                  onChange={(event) => setHappenedOn(event.target.value)}
+                />
+              )}
             </>
           )}
           <Textarea
-            label="What happened?"
+            label={type === "data_request" ? "Tell us more" : "What happened?"}
             rows={6}
             maxLength={2000}
             value={description}
@@ -567,6 +597,7 @@ export function ComplaintPage({ role }: { role: Role }) {
               {complaint.data.attachments.length > 0 &&
                 ` · ${complaint.data.attachments.length} file${complaint.data.attachments.length === 1 ? "" : "s"}`}
             </p>
+            {complaint.data.request_kind && <p className="text-ink">{REQUEST_WORDS[complaint.data.request_kind]}</p>}
             <p className="whitespace-pre-line text-ink">{complaint.data.description}</p>
             <ComplaintState complaint={complaint.data} />
           </Card>

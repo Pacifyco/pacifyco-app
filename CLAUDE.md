@@ -619,6 +619,14 @@ Emergency button instead.
 - Sitters can close their account once they have no upcoming bookings; all earned amounts are paid out.
 - Data access, correction and deletion requests go through the complaint flow (type: data request);
   records the law requires are kept.
+- **How it works (Reuben, 2026-11-23; built 2026-11-23, `api/app/services/account_status.py`):** parents and
+  sitters both close their own account from Your profile, once nothing is booked ahead (requests and
+  bookings waiting for payment included) or under way, and a parent owes nothing. A sitter's pay still due
+  is paid as usual. The account becomes `closed` (an `account_actions` row with no admin): it can't use the
+  app and isn't shown to anyone, and they're emailed. An admin can reopen it (reinstate), or remove it; it
+  can't be suspended or appealed. A data request is raised from Help ("Your data": access, correction or
+  deletion, `complaints.request_kind`) with the usual targets; an admin handles it by hand and resolves it
+  with a note. Nothing is exported or deleted automatically.
 
 ---
 
@@ -773,7 +781,7 @@ of truth for their columns. Other tables are added by the phase that needs them,
 Status values use text columns with CHECK constraints (not Postgres enums), so adding a value is a small
 migration. Verification statuses are `pending|approved|rejected`.
 
-- `profiles` **(created)** (id = Supabase user id, role, full_name (empty until filled in after sign-up, 6.13), phone, email, status: `pending|active|suspended|removed`, pin_code, address, relationship_to_child (parents: Mother, Father or Legal guardian), lat, lng, created_at)
+- `profiles` **(created)** (id = Supabase user id, role, full_name (empty until filled in after sign-up, 6.13), phone, email, status: `pending|active|suspended|removed|closed` (closed by the person, 6.13), pin_code, address, relationship_to_child (parents: Mother, Father or Legal guardian), lat, lng, created_at)
 - `parents` **(created)** (profile_id, second_parent_name, verification_status)
 - `children` **(created)** (id, parent_id, name, date_of_birth (18 months+ to be booked), allergies, medical_notes, routines, verification_status, verified_by, verified_at, verification_notes) — name and date of birth locked once verified
 - `emergency_contacts` **(created)** (id, parent_id, name, relationship, phone) — exactly one per family (was two)
@@ -795,7 +803,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `bookings` **(created)** (id, parent_id, sitter_id, starts_at, ends_at, plan: `pause|unwind|recharge`, units, children_count, price_paise, bath_time, status: `requested|request_declined|request_lapsed|pending_payment|confirmed|in_progress|completed|cancelled_parent|cancelled_parent_late|cancelled_sitter|cancelled_sitter_late|parent_absent|sitter_no_show|cancelled_unpaid|cancelled_slot_taken|awaiting_verification|cancelled_unverified|declined_man_at_home|child_under_age|sitter_left_unsafe|closed_by_admin|cancelled_by_admin`, request_visible_at (when the sitter could first see the request: every child verified), check_in_code_encrypted, check_out_code_encrypted (bytea, `FIELD_ENCRYPTION_KEY` — encrypted, not hashed, so the same code can be shown to the parent again; built 2026-11-20, migration c9e2a4f6b8d1), code_attempts, codes_locked, checked_in_at, check_in_lat, check_in_lng, checked_out_at, check_out_lat, check_out_lng, closed_by_admin_id, close_reason (an admin's manual close, 6.7; built 2026-11-20, migration d3f5b7a9c1e4) — the parent's app gets a code from an endpoint that only the booking's parent can call
 - `booking_children` **(created)** (booking_id, child_id)
 - `booking_home_info` **(created)** (booking_id, cameras_on, camera_locations)
-- `complaints` **(created)** (id, raised_by, booking_id null, topic (Issues button: `running_late|other`), type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed` (`appealed` unused: an appeal is type `suspension`), late, first_reply_at, resolved_at, assigned_to, decided_by; since 2026-11-23, migration d5c427c83be2: happened_on, serious, reply_by, resolve_by, resolution, account_action_id (an appeal's decision, unique), appeal_outcome `upheld|rejected`, escalated_at, escalated_by (the person; null when overdue), escalation_note, officer_acknowledged_at, officer_id, officer_decision, officer_decided_at)
+- `complaints` **(created)** (id, raised_by, booking_id null, topic (Issues button: `running_late|other`), type: `booking|payment|family|sitter|review|suspension|data_request|other`, description, status: `open|replied|resolved|escalated|appealed|closed` (`appealed` unused: an appeal is type `suspension`), late, first_reply_at, resolved_at, assigned_to, decided_by; since 2026-11-23, migration d5c427c83be2: happened_on, serious, reply_by, resolve_by, resolution, account_action_id (an appeal's decision, unique), appeal_outcome `upheld|rejected`, escalated_at, escalated_by (the person; null when overdue), escalation_note, officer_acknowledged_at, officer_id, officer_decision, officer_decided_at; request_kind `access|correction|deletion` for a data request, migration a3d81f5c27e9)
 - `complaint_messages` **(created)** (id, complaint_id, author_id, body, created_at) — the written thread between the person and Pacifyco; append-only
 - `public_holidays` **(created)** (day, name) — added by admins; not working days for appeals (6.12)
 - `overtime_requests` **(created)** (id, booking_id, requested_hours, status: `pending|accepted|declined`, requested_at, decided_at) — built 2026-11-20, migration e6c8b2d4f7a1; one open (`pending`) request per booking at a time; nothing charged here, see `overtime_charges` below
@@ -807,7 +815,7 @@ migration. Verification statuses are `pending|approved|rejected`.
 - `rating_flags` **(created)** (id, sitter_id, average, reviews_counted, status: `open|told|responded|closed`, created_at, told_by, told_at, reason, response, responded_at, closed_by, closed_at, close_note) — a low-rating flag (6.11), one in progress per sitter; the API's role can update only its progress columns, never delete
 - `sitter_earnings` **(created)** (id, sitter_id, booking_id, kind: `booking|overtime|show_up_fee|adjustment` (the flat ₹100 is a `show_up_fee` too; `adjustment` is an admin's extra pay with a `note` she sees, any number per booking, 2026-11-23), amount_paise, minutes (the time it pays for), status: `held|released|paid`, released_at, due_by, payout_id (set when paid; a paid earning must have one), created_at) — built 2026-11-22, migrations e1087ff8b02c and ed9b32937157; one of each kind per booking; the API's role can update only status, released_at, due_by and payout_id
 - `payouts` **(created)** (id, sitter_id, amount_paise, method: `bank|upi`, transfer_reference (unique), paid_by, paid_at) — built 2026-11-22, migration ed9b32937157; one transfer for everything due to her; append-only
-- `account_actions` **(created)** (id, profile_id, action: `suspended|removed|reinstated`, kind: `low_ratings|safety|strikes|other` (none for a reinstatement), reason (emailed to the person), admin_id (null when the rules did it), created_at) — built 2026-11-23, migration b684c2511e27; append-only; also added the booking status `cancelled_by_admin`
+- `account_actions` **(created)** (id, profile_id, action: `suspended|removed|reinstated|closed` (`closed` by the person, no admin; 2026-11-23, migration a3d81f5c27e9), kind: `low_ratings|safety|strikes|other` (only for a suspension or removal), reason (emailed to the person), admin_id (null when the rules did it), created_at) — built 2026-11-23, migration b684c2511e27; append-only; also added the booking status `cancelled_by_admin`
 - `audit_log` **(created)** (id, actor_id, action, entity, entity_id (indexed, 2026-11-23), before, after, created_at) — admins read it on `/admin/audit-log`, and the document access log on `/admin/document-access-log` (phase 10, `api/app/services/admin_logs.py`; read only)
 - `service_area_pincodes` **(created)** (pin_code, active) — seeded with the launch pin codes
 

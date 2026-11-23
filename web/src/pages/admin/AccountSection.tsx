@@ -12,7 +12,7 @@ import { errorMessage } from "./shared";
 export type AccountKind = "low_ratings" | "safety" | "strikes" | "other";
 
 export type AccountAction = {
-  action: "suspended" | "removed" | "reinstated";
+  action: "suspended" | "removed" | "reinstated" | "closed";
   kind: AccountKind | null;
   reason: string;
   by: string | null;
@@ -22,7 +22,7 @@ export type AccountAction = {
 export type AdminAccount = {
   id: string;
   role: "parent" | "sitter";
-  status: "pending" | "active" | "suspended" | "removed";
+  status: "pending" | "active" | "suspended" | "removed" | "closed";
   upcoming_bookings: number;
   under_way_bookings: number;
   ratings_wait: string | null;
@@ -35,6 +35,7 @@ export const ACCOUNT_STATUS_WORDS: Record<AdminAccount["status"], string> = {
   active: "Active",
   suspended: "Suspended",
   removed: "Removed",
+  closed: "Closed by them",
 };
 
 const KIND_WORDS: Record<AccountKind, string> = {
@@ -48,6 +49,7 @@ const ACTION_WORDS: Record<AccountAction["action"], string> = {
   suspended: "Suspended",
   removed: "Removed",
   reinstated: "Reinstated",
+  closed: "Closed",
 };
 
 type Choice = "suspend" | "remove" | "reinstate";
@@ -186,7 +188,9 @@ export function AccountSection({ profileId }: { profileId: string }) {
                     {item.kind ? ` · ${KIND_WORDS[item.kind]}` : ""} · {when(item.at)}
                   </p>
                   <p className="text-small text-ink">{item.reason}</p>
-                  <p className="text-small text-muted">{item.by ? `By ${item.by}` : "By the rules"}</p>
+                  <p className="text-small text-muted">
+                    {item.by ? `By ${item.by}` : item.action === "closed" ? "By them" : "By the rules"}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -205,14 +209,16 @@ export function AccountSection({ profileId }: { profileId: string }) {
                   Remove
                 </Button>
               )}
-              {(account.data.status === "suspended" || account.data.status === "removed") &&
+              {(account.data.status === "suspended" ||
+                account.data.status === "removed" ||
+                account.data.status === "closed") &&
                 (account.data.five_strikes ? (
                   <p className="text-small text-muted">
                     She has 5 strikes counting. Remove a strike before reinstating her.
                   </p>
                 ) : (
                   <Button variant="tertiary" fullWidthOnPhone={false} onClick={() => setChoice("reinstate")}>
-                    Reinstate
+                    {account.data.status === "closed" ? "Reopen" : "Reinstate"}
                   </Button>
                 ))}
             </div>

@@ -82,6 +82,14 @@ class ComplaintStatus(StrEnum):
     closed = "closed"  # the Grievance Officer's written decision: final
 
 
+class DataRequestKind(StrEnum):
+    """A data request (6.13), handled by an admin by hand (Reuben, 2026-11-23)."""
+
+    access = "access"  # a copy of what Pacifyco holds about them
+    correction = "correction"
+    deletion = "deletion"  # what the law requires is kept
+
+
 class AppealOutcome(StrEnum):
     upheld = "upheld"  # the decision is overturned (the account reinstated now, or by hand later)
     rejected = "rejected"  # the decision stands
@@ -98,6 +106,7 @@ class Complaint(Base):
         CheckConstraint("description <> ''", name="description_not_empty"),
         CheckConstraint("(type = 'suspension') = (account_action_id IS NOT NULL)", name="appeal_has_decision"),
         CheckConstraint("appeal_outcome IS NULL OR type = 'suspension'", name="outcome_only_on_appeals"),
+        CheckConstraint("(type = 'data_request') = (request_kind IS NOT NULL)", name="data_request_has_kind"),
         CheckConstraint("(escalated_at IS NULL) OR status IN ('escalated', 'closed')", name="escalated_status"),
         CheckConstraint("(officer_decided_at IS NULL) = (officer_decision IS NULL)", name="officer_decision_has_text"),
         Index("ix_complaints_status", "status"),
@@ -139,6 +148,8 @@ class Complaint(Base):
     officer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("profiles.id", ondelete="RESTRICT"))
     officer_decision: Mapped[str | None] = mapped_column(Text)  # written, with reasons; sent to the person
     officer_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # A data request (6.13): what they're asking for.
+    request_kind: Mapped[DataRequestKind | None] = mapped_column(enum_column(DataRequestKind, "data_request_kind"))
 
 
 class ComplaintMessage(Base):

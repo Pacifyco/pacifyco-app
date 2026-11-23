@@ -3,7 +3,7 @@
 Every change to an account's status is a row here, kept as written: who did it (an admin, or no one when
 the rules did, as with a 5th strike or a parent's theft or abuse report), what kind of reason and the
 reason itself. The person is emailed the reason (Reuben, 2026-11-22). Appeals (6.12) use `admin_id` to
-keep the original decider off the appeal.
+keep the original decider off the appeal. Closing their own account (6.13) is a row too, with no admin.
 """
 
 import uuid
@@ -20,7 +20,8 @@ from app.models.common import created_at, enum_column, uuid_pk
 class AccountAction(StrEnum):
     suspended = "suspended"
     removed = "removed"
-    reinstated = "reinstated"
+    reinstated = "reinstated"  # also reopening a closed account
+    closed = "closed"  # by the person themselves (6.13): no admin, no kind
 
 
 class AccountActionKind(StrEnum):
@@ -36,7 +37,8 @@ class AccountActionKind(StrEnum):
 class AccountActionRow(Base):
     __tablename__ = "account_actions"
     __table_args__ = (
-        CheckConstraint("(action = 'reinstated') = (kind IS NULL)", name="kind_unless_reinstated"),
+        CheckConstraint("(action IN ('suspended', 'removed')) = (kind IS NOT NULL)", name="kind_when_blocked"),
+        CheckConstraint("action <> 'closed' OR admin_id IS NULL", name="closed_by_the_person"),
         Index("ix_account_actions_profile_id_created_at", "profile_id", "created_at"),
     )
 

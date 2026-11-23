@@ -6,7 +6,7 @@ import { BackLink, Button, Card, Checkbox, Select, TextInput, Textarea } from ".
 import { cx } from "../../components/ui/cx";
 import { apiFetch } from "../../lib/api";
 import { formatDay } from "../../lib/format";
-import { FROM_PACIFYCO, FROM_THEM, TYPE_WORDS, when } from "../HelpPages";
+import { FROM_PACIFYCO, FROM_THEM, REQUEST_WORDS, TYPE_WORDS, when } from "../HelpPages";
 import { ViewDocumentButton, errorMessage, type DocumentSummary } from "./shared";
 
 // Complaints, appeals and the Grievance Officer, for admins (CLAUDE.md 6.12; phase 10). The queue shows the
@@ -19,6 +19,7 @@ export type AdminComplaintRow = {
   id: string;
   type: string;
   topic: string | null;
+  request_kind: string | null;
   status: string;
   person_name: string | null;
   person_role: "parent" | "sitter";
@@ -110,7 +111,10 @@ export function nextTarget(row: AdminComplaintRow, now: Date): string | null {
   return `${row.type === "suspension" ? "Decide" : "Resolve"}: ${timeLeft(row.resolve_by, now)}`;
 }
 
-function complaintTitle(row: { type: string; topic: string | null }): string {
+const REQUEST_TITLES: Record<string, string> = { access: "access", correction: "correction", deletion: "deletion" };
+
+function complaintTitle(row: { type: string; topic: string | null; request_kind: string | null }): string {
+  if (row.type === "data_request") return `Data request: ${REQUEST_TITLES[row.request_kind ?? ""] ?? "other"}`;
   const what = TYPE_WORDS[row.type] ?? "A complaint";
   return row.topic ? `${what}: ${(TOPICS[row.topic] ?? row.topic).toLowerCase()}` : what;
 }
@@ -395,6 +399,9 @@ export function AdminComplaintPage() {
               The booking{data.booking_starts_at && ` on ${when(data.booking_starts_at)}`}
             </Link>
           </p>
+        )}
+        {data.request_kind && (
+          <p className="text-ink">They'd like: {REQUEST_WORDS[data.request_kind].toLowerCase()}.</p>
         )}
         <p className="whitespace-pre-line text-ink">{data.description}</p>
         {data.attachments.length > 0 && (

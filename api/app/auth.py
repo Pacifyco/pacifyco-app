@@ -116,7 +116,7 @@ def current_user(identity: Annotated[Identity, Depends(current_identity)], db: D
     return CurrentUser(identity=identity, profile=db.get(Profile, identity.user_id))
 
 
-BLOCKED_STATUSES = (ProfileStatus.suspended, ProfileStatus.removed)
+BLOCKED_STATUSES = (ProfileStatus.suspended, ProfileStatus.removed, ProfileStatus.closed)
 
 
 def current_profile(user: Annotated[CurrentUser, Depends(current_user)]) -> Profile:

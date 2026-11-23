@@ -115,7 +115,7 @@ export function PeoplePage() {
                     </span>
                     <span
                       className={
-                        person.status === "suspended" || person.status === "removed"
+                        person.status === "suspended" || person.status === "removed" || person.status === "closed"
                           ? "text-small text-danger"
                           : "text-small text-muted"
                       }

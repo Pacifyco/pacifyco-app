@@ -9,14 +9,22 @@ tests.
 ## Current status
 
 - Phase: 10 under way (2026-11-23): the admin dashboard, user management, the bookings overview and the
-  audit and document access log views, and complaints and grievances built. Next: sitter account closure
-  and data requests.
+  audit and document access log views, complaints and grievances, and account closure and data requests
+  built. Next: tests for this phase.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
   disclosure or bank details.
 
 ## Open questions (ask Reuben; don't guess)
+
+- [x] **Account closure and data requests** (Reuben, 2026-11-23): parents can close their accounts as well
+  as sitters; a sitter can close while pay is still due to her (it's paid as usual); a closed account is a
+  new status, `closed`, which an admin can reopen; data requests (access, correction, deletion) are handled
+  by an admin by hand, with no automatic export or deletion. Not asked, my defaults: closing also needs
+  nothing under way, and a parent must owe nothing; a pending request or a booking waiting for payment
+  counts as booked ahead; a closed account can't be suspended (it can be removed or reopened), can't
+  appeal, and its person can't use Help (the closed page gives our email for reopening or deletion).
 
 - [x] **Complaints and grievances** (Reuben, 2026-11-23): the Grievance Officer is an admin account
   (`GRIEVANCE_OFFICER_EMAIL`; while it's empty every admin acts as the officer, README "Making an admin the
@@ -680,7 +688,12 @@ at home (CLAUDE.md 6.3).
   Issues button's complaints are part of this; `/admin/issues` redirects. Also fixed: the roles tests had
   found no routes since FastAPI 0.162 wrapped included routers, so they checked nothing; they now sweep all
   endpoints (and `/me/terms` was added to the public list)
-- [ ] Sitter account closure; data access, correction and deletion requests
+- [x] Sitter account closure; data access, correction and deletion requests. Built 2026-11-23
+  (`api/app/services/account_status.py`, migration a3d81f5c27e9): "Close your account" on Your profile
+  (`/parent/close-account`, `/sitter/close-account`) says what's in the way, if anything, and that a
+  sitter's pay still comes; closing sets `closed`, writes an `account_actions` row and emails them; the area
+  then shows how to reopen it. Admins reopen it from the account card. Help has "Your data" (access,
+  correction, deletion), a complaint with `request_kind` that admins resolve with a note
 - [ ] Tests for this phase
 
 ## Phase 11 — Notifications (email)
@@ -729,6 +742,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-23 — Account closure and data requests (phase 10).
 - 2026-11-23 — Complaints and grievances, appeals and the Grievance Officer (phase 10).
 - 2026-11-23 — Audit log and document access log views (phase 10).
 - 2026-11-23 — Bookings overview and manual adjustments (phase 10).

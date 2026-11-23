@@ -21,6 +21,7 @@ class ProfileStatus(StrEnum):
     active = "active"
     suspended = "suspended"
     removed = "removed"
+    closed = "closed"  # they closed it themselves (6.13); an admin can reopen it
 
 
 class Profile(Base):

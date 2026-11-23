@@ -6,7 +6,7 @@ import { useAuth } from "./AuthProvider";
 import { AppealSection } from "../pages/HelpPages";
 import { AREA_PATH, useMe, type Role } from "./useMe";
 
-const BLOCKED = new Set(["suspended", "removed"]);
+const BLOCKED = new Set(["suspended", "removed", "closed"]);
 
 // Wraps each role's area. The API enforces the same rules (app/auth.py); this only decides what to show.
 export function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
@@ -19,6 +19,7 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
 
   const profile = me.data.profile;
   if (!profile) return <Navigate to="/join" replace />;
+  if (profile.status === "closed") return <AccountClosed />;
   if (BLOCKED.has(profile.status)) return <AccountOnHold removed={profile.status === "removed"} />;
   if (profile.role !== role) return <Navigate to={AREA_PATH[profile.role]} replace />;
   return <>{children}</>;
@@ -38,6 +39,20 @@ export function AccountOnHold({ removed }: { removed: boolean }) {
       <AppealSection />
       <p className="mt-4 text-muted">
         Contact us at <a href="mailto:founders@pacifyco.in">founders@pacifyco.in</a> or{" "}
+        <a href="tel:+918848873841">+91 8848873841</a>.
+      </p>
+    </section>
+  );
+}
+
+// They closed it themselves (CLAUDE.md 6.13). Pacifyco can reopen it, or delete their data.
+export function AccountClosed() {
+  return (
+    <section className="mx-auto max-w-[62ch] text-center">
+      <h1>You've closed this account.</h1>
+      <p className="mt-4 text-muted">
+        It can't be used any more. If you'd like it reopened, or your data deleted, write to us at{" "}
+        <a href="mailto:founders@pacifyco.in">founders@pacifyco.in</a> or call{" "}
         <a href="tel:+918848873841">+91 8848873841</a>.
       </p>
     </section>

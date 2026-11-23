@@ -1270,3 +1270,26 @@ def appeal_decided(
         button_label="Open Pacifyco",
         button_url=complaint_url,
     )
+
+
+# ---------- closing their own account (6.13; phase 10, Reuben 2026-11-23) ----------
+
+
+def account_closed(to: str, full_name: str | None, pay_due_paise: int) -> Email:
+    """To the person: they closed their account. A sitter's pay still due is paid as usual."""
+    pay = (
+        f" The {_rupees(pay_due_paise)} you've earned and haven't been paid yet will still be paid to you as usual."
+        if pay_due_paise
+        else ""
+    )
+    return Email(
+        to=to,
+        subject="Your Pacifyco account is closed",
+        heading="Your account is closed.",
+        body=(
+            f"Hi {_first_name(full_name)}, you've closed your Pacifyco account, so it can't be used any more.{pay}\n"
+            "If you'd like it reopened, or your data deleted, write to founders@pacifyco.in."
+        ),
+        button_label="Contact Pacifyco",
+        button_url="mailto:founders@pacifyco.in",
+    )

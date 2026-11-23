@@ -10,6 +10,10 @@
 - **Reinstating** makes a suspended or removed account usable again: `active` if the family is verified or
   the sitter approved, otherwise back to `pending`. Refused for a sitter with 5 strikes still counting
   (remove a strike first, or the rules would remove her again).
+- **Closing their own account** (6.13; Reuben, 2026-11-23): a parent or sitter closes it once nothing is
+  booked ahead or under way, and a parent owes nothing. A sitter's pay still due is paid as usual. The
+  account is `closed`: hidden, and the app can't be used; an admin can reopen it (reinstating). Deleting
+  their data is a separate data request.
 - Each change is a row in `account_actions` and an audit row. The automatic ones (a 5th strike, a parent's
   theft or abuse report, and reinstating from an incident) are recorded there too, by no one or the admin.
 """
@@ -18,7 +22,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
@@ -28,6 +32,7 @@ from app.models import (
     AccountActionRow,
     Booking,
     BookingStatus,
+    EarningStatus,
     OnboardingStatus,
     Parent,
     Payment,
@@ -36,9 +41,10 @@ from app.models import (
     RatingFlag,
     Role,
     Sitter,
+    SitterEarning,
     VerificationStatus,
 )
-from app.services import admin_bookings, audit, reviews, strikes
+from app.services import admin_bookings, audit, bookings, reviews, strikes
 
 # Bookings cancelled with the account: everything that hasn't started yet.
 UPCOMING = (
@@ -160,6 +166,8 @@ def _block(
     reason = _reason(reason)
     if action == AccountAction.suspended and profile.status in (ProfileStatus.suspended, ProfileStatus.removed):
         raise AppError(409, "already_blocked", "This account is already suspended or removed.")
+    if action == AccountAction.suspended and profile.status == ProfileStatus.closed:
+        raise AppError(409, "account_closed", "They've closed this account. It can be removed, or reopened.")
     if action == AccountAction.removed and profile.status == ProfileStatus.removed:
         raise AppError(409, "already_removed", "This account has already been removed.")
     if kind == AccountActionKind.low_ratings:
@@ -211,8 +219,8 @@ def five_strikes(db: Session, profile: Profile, now: datetime) -> bool:
 def reinstate(db: Session, admin_id: uuid.UUID, profile_id: uuid.UUID, reason: str, now: datetime) -> Changed:
     profile = _person(db, profile_id)
     reason = _reason(reason)
-    if profile.status not in (ProfileStatus.suspended, ProfileStatus.removed):
-        raise AppError(409, "not_blocked", "This account isn't suspended or removed.")
+    if profile.status not in (ProfileStatus.suspended, ProfileStatus.removed, ProfileStatus.closed):
+        raise AppError(409, "not_blocked", "This account isn't suspended, removed or closed.")
     if five_strikes(db, profile, now):
         raise AppError(
             409, "five_strikes", "She still has 5 strikes counting. Remove a strike first, or she'd be removed again."
@@ -259,3 +267,62 @@ def under_way_count(db: Session, profile_id: uuid.UUID, now: datetime) -> int:
             )
         ).all()
     )
+
+
+# ---------- closing their own account (6.13; Reuben, 2026-11-23) ----------
+
+
+@dataclass(frozen=True)
+class Closing:
+    """Whether they can close their account now, and why not."""
+
+    blockers: list[str]
+    owed_paise: int  # parents: unpaid charges, which must be paid first
+    pay_due_paise: int  # sitters: earned and not yet paid; still paid after closing
+
+
+def pay_due(db: Session, sitter_id: uuid.UUID) -> int:
+    return int(
+        db.scalar(
+            select(func.coalesce(func.sum(SitterEarning.amount_paise), 0)).where(
+                SitterEarning.sitter_id == sitter_id,
+                SitterEarning.status.in_((EarningStatus.held, EarningStatus.released)),
+            )
+        )
+    )
+
+
+def closing(db: Session, profile: Profile, now: datetime) -> Closing:
+    owed = bookings.amount_owed(db, profile.id) if profile.role == Role.parent else 0
+    blockers = []
+    if upcoming_count(db, profile.id, now):
+        blockers.append("You have bookings or requests coming up. Cancel them, or wait until they're over.")
+    if under_way_count(db, profile.id, now):
+        blockers.append("A booking is under way. You can close your account once it's over.")
+    if owed:
+        blockers.append("You owe a payment to Pacifyco. Please pay it first.")
+    return Closing(blockers, owed, pay_due(db, profile.id) if profile.role == Role.sitter else 0)
+
+
+def close(db: Session, person: Profile, reason: str | None, now: datetime) -> Changed:
+    """They close their own account. Refused while anything is booked ahead or under way, or they owe money."""
+    profile = _person(db, person.id)
+    if profile.status not in (ProfileStatus.pending, ProfileStatus.active):
+        raise AppError(409, "cannot_close", "This account can't be closed.")
+    found = closing(db, profile, now)
+    if found.blockers:
+        raise AppError(409, "cannot_close_yet", found.blockers[0], {"reasons": found.blockers})
+    why = (reason or "").strip()[:REASON_MAX] or "Closed by them."
+    audit.record(
+        db,
+        profile.id,
+        "account_closed",
+        "profiles",
+        str(profile.id),
+        before={"status": profile.status.value},
+        after={"status": ProfileStatus.closed.value},
+    )
+    profile.status = ProfileStatus.closed
+    row = record(db, None, profile, AccountAction.closed, None, why)
+    db.commit()
+    return Changed(profile, row)
