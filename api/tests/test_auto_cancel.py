@@ -59,6 +59,7 @@ def test_the_frequent_run_cancels_unpaid_bookings_past_the_deadline(client, db_e
             "lapse_requests",
             "cancel_unpaid_bookings",
             "cancel_unverified_bookings",
+            "tell_automatic_cancellations",
             "alert_unchecked_payments",
             "alert_overdue_checkouts",
             "alert_payouts",

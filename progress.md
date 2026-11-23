@@ -8,9 +8,8 @@ tests.
 
 ## Current status
 
-- Phase: 10 done (2026-11-23): the admin dashboard, user management, the bookings overview and manual
-  adjustments, the audit and document access log views, complaints and grievances, and account closure and
-  data requests, with their tests. Next: phase 11, email notifications.
+- Phase: 11 done (2026-11-23): every email checked against design.md and CLAUDE.md, the missing ones
+  added, and a test over all of them. Phase 10 done the same day. Next: phase 12, security hardening.
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -705,9 +704,23 @@ at home (CLAUDE.md 6.3).
 
 ## Phase 11 — Notifications (email)
 
-- [ ] Templates following design.md (600px, one button, "Warmly, the Pacify team")
-- [ ] Verification outcomes, interview invites, booking confirmed/cancelled, overtime requests, pack credited, payout sent, incident alerts
-- [ ] Tests for this phase
+- [x] Templates following design.md (600px, one button, "Warmly, the Pacify team"). Checked 2026-11-23: the
+  one template (`render_html` and `render_text` in `api/app/services/email.py`) is 600px on Blush with a white
+  card, one button, signed "Warmly, the Pacifyco team" (the brand since 2026-11-13). Every email uses it
+- [x] Verification outcomes, interview invites, booking confirmed/cancelled, overtime requests, pack credited, payout sent, incident alerts.
+  Checked 2026-11-23: 68 emails already went out with their features (verification outcomes, every booking
+  change, overtime, payouts, refunds, strikes, emergencies, complaints, accounts). Interview invites and
+  pack credited no longer apply (interviews dropped 2026-11-08, packs replaced by plans 2026-11-03). **Gaps
+  found and filled:** the sitter is now told her booking is confirmed once the family's payment is; bookings
+  the rules cancel are now emailed (unpaid by the deadline: the parent and the sitter; a child unverified by
+  the start: the parent), once, by the frequent job however the cancellation happened (only ones from the
+  last day, so older ones aren't emailed); a sitter is told when an admin lets her retake the psychology
+  screening
+- [x] Tests for this phase. `tests/test_every_email.py` builds every email (with and without a name, every
+  flag both ways) and checks the template, the brand name, no claims we can't make (interviews, background
+  or address checks, Pacify Plus, packs, "Book now"), India times, rupees, no leftover placeholders, and
+  no contact details in admin alerts; a new email is covered automatically. `tests/test_notifications.py`
+  covers the new emails being sent
 
 ## Phase 12 — Security hardening (Claude Code owns this)
 
@@ -749,6 +762,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-23 — Email notifications checked, gaps filled, a test over every email (phase 11).
 - 2026-11-23 — Phase 10 test check against CLAUDE.md 9; gaps filled (phase 10 done).
 - 2026-11-23 — Account closure and data requests (phase 10).
 - 2026-11-23 — Complaints and grievances, appeals and the Grievance Officer (phase 10).

@@ -170,6 +170,9 @@ documents; the LLPIN, registered office and emergency line were taken out of the
   come (6.4; same frequent run), lapsing requests the sitter hasn't answered in time (6.4; same frequent
   run), and emailing `ADMIN_ALERT_EMAILS` about booking payments still unchecked
   within 90 minutes of the start (6.1; same frequent run, once per payment).
+  The same run emails the people on bookings the rules cancelled (unpaid by the deadline: the parent and
+  the sitter; a child unverified by the start: the parent), once each, and escalates complaints past
+  their target (6.12).
   Two runs, `daily` and `frequent`, each a list of tasks in `api/app/services/jobs.py`. Before launch the
   frequent run targets production only, to save Render's shared free hours (README "Scheduled jobs").
 
@@ -854,6 +857,7 @@ in the beta phase.
 | Sitter terms | Wording matches `sitter-terms-v1.1.md`; placeholders filled from config; production refuses to serve it with an empty placeholder |
 | Sitter onboarding extras | Under-18 rejected; health disclosure admin-only and access logged |
 | Chat | Only between a parent and sitter who have a booking; admin read is audit logged |
+| Emails | Every email uses the one template (600px, one button, signed "Warmly, the Pacifyco team"); never "Pacify", "Book now" or a check we don't do; India times and rupees; admin alerts carry no contact details (`tests/test_every_email.py` builds them all) |
 | Audit | State changes on bookings, payouts, strikes and verifications write audit rows; so do account changes, an admin's booking adjustments and each complaint and appeal step |
 
 ### Security testing (owned by Claude Code, phase 12)

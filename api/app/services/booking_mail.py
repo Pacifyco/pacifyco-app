@@ -6,7 +6,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.models import Booking, PaymentStatus, Profile
+from app.models import Booking, BookingStatus, PaymentStatus, Profile
 from app.services import bookings, payments
 from app.services import email as email_service
 from app.services.email import EmailClient
@@ -73,6 +73,38 @@ def tell_sitter_cancelled_by_family(
     mailer.send(
         email_service.cancelled_by_family(
             sitter.email, sitter.full_name, _first(parent.full_name), booking.starts_at, web_url(settings)
+        )
+    )
+
+
+def tell_cancelled_automatically(db: Session, mailer: EmailClient, settings: Settings, booking: Booking) -> None:
+    """Unpaid by the deadline: the parent and the sitter (who had accepted). A child unverified by the
+    start: the parent (refunded); that booking never held her time."""
+    booking, parent, sitter = _people(db, booking.id)
+    if booking.status == BookingStatus.cancelled_unpaid:
+        mailer.send(
+            email_service.unpaid_cancelled_for_parent(
+                parent.email, parent.full_name, sitter.full_name, booking.starts_at, web_url(settings)
+            )
+        )
+        mailer.send(
+            email_service.unpaid_cancelled_for_sitter(
+                sitter.email, sitter.full_name, _first(parent.full_name), booking.starts_at, web_url(settings)
+            )
+        )
+    else:
+        mailer.send(
+            email_service.unverified_cancelled_for_parent(
+                parent.email, parent.full_name, booking.starts_at, web_url(settings)
+            )
+        )
+
+
+def tell_sitter_confirmed(db: Session, mailer: EmailClient, settings: Settings, booking_id: uuid.UUID) -> None:
+    booking, parent, sitter = _people(db, booking_id)
+    mailer.send(
+        email_service.booking_confirmed_for_sitter(
+            sitter.email, sitter.full_name, _first(parent.full_name), booking.starts_at, booking.id, web_url(settings)
         )
     )
 

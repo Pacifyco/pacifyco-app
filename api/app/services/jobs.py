@@ -6,7 +6,8 @@ Later phases add their tasks here:
 - frequent (every 30 minutes, 6 am to midnight IST): cancelling unpaid bookings and paid ones that
   started with a child unverified, lapsing requests the sitter didn't answer in time, and alerting
   admins to payments unchecked near the start (phase 6), overdue check-out alerts (phase 8), and payouts
-  due within 3 hours or overdue (phase 9), and escalating complaints past their target to the Grievance
+  due within 3 hours or overdue (phase 9), emailing the people on bookings the rules cancelled (phase 11),
+  and escalating complaints past their target to the Grievance
   Officer (phase 10). Keep these quick.
 """
 
@@ -126,6 +127,19 @@ def alert_payouts(conn: Connection, ctx: JobContext) -> None:
             ctx.mailer.send(email_service.payouts_overdue_alert(to, counts[1], web_url))
 
 
+def tell_automatic_cancellations(conn: Connection, ctx: JobContext) -> None:
+    """Bookings the rules cancelled (unpaid by the deadline, a child unverified by the start), however it
+    happened: the parent, and for an unpaid one the sitter, are emailed once (phase 11)."""
+    with Session(bind=conn) as db:
+        found = bookings.cancelled_not_told(db, datetime.now(UTC))
+        if not found:
+            return
+        bookings.mark_cancel_told(db, found)
+        db.commit()
+        for booking in found:
+            booking_mail.tell_cancelled_automatically(db, ctx.mailer, ctx.settings, booking)
+
+
 def escalate_complaints(conn: Connection, ctx: JobContext) -> None:
     """Complaints still unresolved at their target (48 hours, or 15 days for a serious safety matter) go to
     the Grievance Officer (6.12); the people and the officer are emailed. Escalated ones aren't picked again."""
@@ -143,6 +157,7 @@ RUNS: dict[str, list[tuple[str, Task]]] = {
         ("lapse_requests", lapse_requests),
         ("cancel_unpaid_bookings", cancel_unpaid_bookings),
         ("cancel_unverified_bookings", cancel_unverified_bookings),
+        ("tell_automatic_cancellations", tell_automatic_cancellations),
         ("alert_unchecked_payments", alert_unchecked_payments),
         ("alert_overdue_checkouts", alert_overdue_checkouts),
         ("alert_payouts", alert_payouts),

@@ -187,7 +187,7 @@ def test_admin_records_pass_and_it_is_audit_logged(client, db_engine, sitter, ad
     assert str(logged["actor_id"]) == str(admin["id"])
 
 
-def test_after_a_fail_a_retake_needs_an_admin(client, db_engine, sitter, admin):  # noqa: F811
+def test_after_a_fail_a_retake_needs_an_admin(client, db_engine, mailbox, sitter, admin):  # noqa: F811
     questions = client.get("/sitter/psych-test", headers=auth_for(sitter)).json()["questions"]
     answer_every_question(client, sitter, questions)
     client.post("/sitter/psych-test/submit", headers=auth_for(sitter))
@@ -206,8 +206,14 @@ def test_after_a_fail_a_retake_needs_an_admin(client, db_engine, sitter, admin):
     assert refused.status_code == 409
     assert refused.json()["error"]["code"] == "retake_not_allowed"
 
+    from app.services.email import get_email
+
+    client.app.dependency_overrides[get_email] = lambda: mailbox  # this client sends no email by itself
+    mailbox.sent.clear()
     allowed = client.post(f"/admin/psych-attempts/{attempt_id}/allow-retake", headers=auth_for(admin))
     assert allowed.status_code == 200
+    (told,) = [email for email in mailbox.sent if email.to == sitter["email"]]  # phase 11: she's told
+    assert told.subject == "You can take the screening again" and told.button_url.endswith("/sitter/psych-test")
     assert client.get(f"/admin/psych-attempts/{attempt_id}", headers=auth_for(admin)).json()["retake_allowed"] is True
     assert client.get("/sitter/psych-test", headers=auth_for(sitter)).json()["attempt"]["retake_allowed"] is True
     with db_engine.connect() as conn:

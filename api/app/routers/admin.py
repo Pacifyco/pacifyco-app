@@ -215,9 +215,14 @@ def decide_psych_attempt(
 
 
 @router.post("/psych-attempts/{attempt_id}/allow-retake")
-def allow_psych_retake(attempt_id: uuid.UUID, admin: Admin, db: DbSession) -> PsychAttemptDecisionOut:
-    """After a fail, let her take the screening again (decided 2026-11-08)."""
+def allow_psych_retake(
+    attempt_id: uuid.UUID, admin: Admin, db: DbSession, mailer: Mailer, settings: AppSettings
+) -> PsychAttemptDecisionOut:
+    """After a fail, let her take the screening again (decided 2026-11-08); she's emailed (phase 11)."""
     attempt = psych_tests_service.allow_retake(db, admin.id, attempt_id)
+    sitter = db.get(Profile, attempt.sitter_id)
+    if sitter is not None:
+        mailer.send(email_service.psych_retake_allowed(sitter.email, sitter.full_name, _web_url(settings)))
     return PsychAttemptDecisionOut(id=attempt.id, status=attempt.status)
 
 
@@ -785,6 +790,8 @@ def confirm_payment(
                 _web_url(settings),
             )
         )
+        if booking.status == BookingStatus.confirmed and sitter is not None:
+            booking_mail.tell_sitter_confirmed(db, mailer, settings, booking.id)
     for cancelled_id in done.cancelled:
         _tell_cancelled_for(db, mailer, settings, cancelled_id)
     return PaymentDecisionOut(

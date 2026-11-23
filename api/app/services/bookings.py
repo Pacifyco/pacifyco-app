@@ -14,11 +14,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import and_, exists, func, or_, select, update
+from sqlalchemy import String, and_, cast, exists, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models import (
+    AuditLog,
     Booking,
     BookingChild,
     BookingHomeInfo,
@@ -617,6 +618,40 @@ def _cancel(db: Session, found: list, status: BookingStatus, reason: dict) -> li
         if was == BookingStatus.awaiting_verification:
             refund_booking(db, None, booking_id)
     return ids
+
+
+CANCEL_TOLD = "automatic_cancellation_emailed"
+TELL_WITHIN = timedelta(days=1)  # older automatic cancellations (before these emails existed) aren't emailed
+
+
+def cancelled_not_told(db: Session, now: datetime) -> list[Booking]:
+    """Bookings the rules cancelled (unpaid by the deadline, or a child unverified by the start) in the last
+    day whose people haven't been emailed yet. However the cancellation happened (the job, or a booking
+    opened first), the frequent job tells them once."""
+    key = cast(Booking.id, String)
+    told = exists().where(AuditLog.action == CANCEL_TOLD, AuditLog.entity == "booking", AuditLog.entity_id == key)
+    cancelled = exists().where(
+        AuditLog.action == "booking_cancelled",
+        AuditLog.actor_id.is_(None),
+        AuditLog.entity == "booking",
+        AuditLog.entity_id == key,
+        AuditLog.created_at >= now - TELL_WITHIN,
+    )
+    return list(
+        db.scalars(
+            select(Booking).where(
+                Booking.status.in_((BookingStatus.cancelled_unpaid, BookingStatus.cancelled_unverified)),
+                cancelled,
+                ~told,
+            )
+        )
+    )
+
+
+def mark_cancel_told(db: Session, found: list[Booking]) -> None:
+    """Remembers each, so nobody is emailed twice. The caller commits."""
+    for booking in found:
+        audit.record(db, None, CANCEL_TOLD, "booking", str(booking.id), after={"status": booking.status.value})
 
 
 def cancel_unpaid(
