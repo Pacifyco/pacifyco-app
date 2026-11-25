@@ -30,8 +30,10 @@ describe("Security headers", () => {
     expect(header("Permissions-Policy")).toContain("camera=()");
   });
 
-  test("the content policy allows only our own scripts and the theme script", () => {
-    const policy = header("Content-Security-Policy-Report-Only") || header("Content-Security-Policy");
+  test("the content policy is enforced and allows only our own scripts and the theme script", () => {
+    // Enforced since it was checked on staging (2026-11-25); report-only would block nothing.
+    expect(header("Content-Security-Policy-Report-Only")).toBe("");
+    const policy = header("Content-Security-Policy");
     expect(policy).toContain("default-src 'self'");
     expect(policy).toContain("frame-ancestors 'none'");
     expect(policy).toContain("object-src 'none'");

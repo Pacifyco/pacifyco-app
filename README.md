@@ -422,8 +422,9 @@ URL stops working once it expires. Every line should say PASS.
 Keep Supabase's **Data API** off in both projects; the app never uses it. Turn it on only while running
 this check (the table lines need it), then off again. `docs/production-security-checklist.md` has the steps.
 
-The web app's content security policy (`web/public/_headers`) starts in report-only mode. After checking
-staging's browser console while using the app, rename it to `Content-Security-Policy` (see the review).
+The web app's content security policy (`web/public/_headers`) is enforced (checked on staging in report-only
+mode first, 2026-11-25). If the app starts loading something from a new address (a font, map tiles, a
+script), add that address to the policy, or the browser will block it.
 
 ## Legal pages
 

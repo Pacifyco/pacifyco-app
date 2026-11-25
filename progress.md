@@ -732,7 +732,7 @@ at home (CLAUDE.md 6.3).
   - **Rate limits (new):** with `slowapi` (Reuben approved), per signed-in user, on sign-up, booking, paying,
     complaints, complaint messages and uploads.
   - **Secure headers (new):** on every API response, and on the web app (`web/public/_headers`, its CSP
-    report-only until checked on staging). API docs are now local only.
+    checked on staging in report-only mode, then enforced 2026-11-25). API docs are now local only.
   - **Secrets:** a scan of every tracked file, and fixed-text logs.
   - **Storage, signed URL expiry and RLS against a real project:** `python -m app.cli check-supabase`, run by
     Reuben.
@@ -776,6 +776,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-25 — Web content security policy enforced after a clean staging check.
 - 2026-11-23 — Security hardening and review (phase 12).
 - 2026-11-23 — Email notifications checked, gaps filled, a test over every email (phase 11).
 - 2026-11-23 — Phase 10 test check against CLAUDE.md 9; gaps filled (phase 10 done).
