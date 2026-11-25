@@ -42,14 +42,14 @@ from the browser, which CLAUDE.md rules out ("all writes and business logic go t
   3. **Read the result.** Every line must say **PASS** (8 table lines, 5 storage lines). "not tested, the
      REST API didn't answer properly" means the Data API isn't on yet: wait a minute and run it again.
   4. **Turn the Data API off again:** Project Settings → Data API → disable it. Close the window.
-- [ ] **2. Check the web app's content policy on staging.**
+- [x] **2. Check the web app's content policy on staging.** Done 2026-11-25: nothing reported.
   1. Open the staging site in Chrome and press F12 to open the Console.
   2. Use the app as a parent and as a sitter:
      - Sign in with an email code and with Google.
      - Open a sitter, book, and pay with a UPI reference.
      - Upload a file, open a booking, and check in.
   3. Look for any console message mentioning **Content-Security-Policy**.
-- [ ] **3. Turn the content policy on.**
+- [x] **3. Turn the content policy on.** Done 2026-11-25 (enforced in `web/public/_headers`).
   - **If step 2 showed no messages:** in `web/public/_headers`, rename `Content-Security-Policy-Report-Only`
     to `Content-Security-Policy`. Merge that to `develop` and repeat step 2 on staging; the app should work
     the same.
