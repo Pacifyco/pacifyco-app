@@ -776,6 +776,7 @@ at home (CLAUDE.md 6.3).
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-26 — Staging redeployed: GitHub's outage dropped the #119 merge event, so nothing had built it.
 - 2026-11-25 — Web content security policy enforced after a clean staging check.
 - 2026-11-23 — Security hardening and review (phase 12).
 - 2026-11-23 — Email notifications checked, gaps filled, a test over every email (phase 11).
