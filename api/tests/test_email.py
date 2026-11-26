@@ -1,6 +1,8 @@
 """Approval emails (brought forward from phase 11, Reuben 2026-11-13): design.md 2's layout, escaped
 content, and never failing the request when Resend is down or not set up."""
 
+from dataclasses import replace
+
 import httpx2 as httpx
 
 from app.services import email as email_service
@@ -32,4 +34,15 @@ def test_a_resend_failure_doesnt_raise(monkeypatch):
     monkeypatch.setattr(httpx, "post", fail)
     email_service.ResendEmail(
         Settings(_env_file=None, resend_api_key="re_test", email_from="Pacifyco <hello@pacifyco.in>")
-    ).send(EMAIL)
+    ).send(replace(EMAIL, to="asha@pacifyco.in"))
+
+
+def test_reserved_example_addresses_are_never_sent_to(monkeypatch):
+    """Staging's seeded people have @example.com addresses (staging_seed.py): no inbox, so no send."""
+    calls = []
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: calls.append(args))
+    sender = email_service.ResendEmail(
+        Settings(_env_file=None, resend_api_key="re_test", email_from="Pacifyco <hello@pacifyco.in>")
+    )
+    sender.send(replace(EMAIL, to="seed-ananya.rao@Example.com"))
+    assert calls == []

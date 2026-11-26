@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 INDIA = ZoneInfo("Asia/Kolkata")
 RESEND_URL = "https://api.resend.com/emails"
 REQUEST_TIMEOUT = 10
+UNDELIVERABLE = "@example.com"  # RFC 2606: reserved, never delivered
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,11 @@ class ResendEmail:
     def send(self, email: Email) -> None:
         if not self._key or not self._sender:
             logger.info("Email not sent: RESEND_API_KEY or EMAIL_FROM isn't set")
+            return
+        if email.to.lower().endswith(UNDELIVERABLE):
+            # Reserved, never a real inbox: staging's seeded people (staging_seed.py). Sending would only
+            # bounce and log an error.
+            logger.info("Email not sent: the address is a reserved example one")
             return
         try:
             response = httpx.post(
