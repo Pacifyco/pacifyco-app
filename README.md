@@ -404,6 +404,26 @@ python -m app.cli reset-staging-accounts --yes  # removes them
 
 Check the database host it prints before adding `--yes`. It can't be undone.
 
+### Filling staging with fake people (the seed)
+
+For the manual pass and the beta (`docs/manual-test-script.md`): 12 live sitters (4 at each level), 8 verified
+families and about 27 bookings between them, in every common state, with payments, pay, reviews, chats and a
+complaint. Give your own test parent and test sitter emails and they get 7 bookings too, including one
+**today** between them, so you can check in and out with real codes. Seeded people can't sign in and are never
+emailed (their addresses are `seed-…@example.com`). Staging only: it refuses when `ENVIRONMENT` is
+`production`. From `api/`, in your own terminal (PowerShell):
+
+```
+$env:ENVIRONMENT = "staging"
+$env:MIGRATION_DATABASE_URL = "<staging owner URI>"
+.venv\Scripts\python -m app.cli seed-staging --parent-email <test parent> --sitter-email <test sitter>         # says what it would do
+.venv\Scripts\python -m app.cli seed-staging --parent-email <test parent> --sitter-email <test sitter> --yes   # does it
+```
+
+`--replace --yes` removes the earlier seed and seeds again (fresh dates, a new booking for today);
+`--remove --yes` only removes it. Your own accounts are never removed. The test parent needs a verified child,
+and the test sitter must be live (approved, with a level).
+
 ## Security checks
 
 The automated security tests run in CI (`api/tests/test_security.py`, `test_idor.py`, `test_roles.py`), and so

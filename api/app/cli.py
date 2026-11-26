@@ -3,6 +3,7 @@
     python -m app.cli create-admin --email someone@example.com --name "Full Name"
     python -m app.cli delete-empty-profile --email someone@example.com [--yes]
     python -m app.cli reset-staging-accounts [--yes]
+    python -m app.cli seed-staging [--parent-email ...] [--sitter-email ...] [--yes] [--replace | --remove]
     python -m app.cli check-supabase  (security: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY)
 
 The person signs in to the web app once first (that creates their Supabase sign-in account), then this
@@ -15,6 +16,7 @@ import os
 import sys
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 import httpx2 as httpx
@@ -25,7 +27,7 @@ from sqlalchemy.orm import Session
 from app.db import sqlalchemy_url
 from app.errors import AppError
 from app.models import Profile
-from app.services import accounts, staging_reset
+from app.services import accounts, staging_reset, staging_seed
 from app.settings import get_settings
 
 
@@ -168,6 +170,57 @@ def reset_staging_accounts(
     return 0
 
 
+def seed_staging(
+    parent_email: str | None, sitter_email: str | None, mode: str, confirmed: bool, database_url: str
+) -> int:
+    """Staging only. Without --yes, only says what it would do. `mode` is "add", "replace" or "remove"."""
+    if os.environ.get("ENVIRONMENT", "").strip().lower() == "production":
+        print("Refused: ENVIRONMENT is production. This is for staging only.", file=sys.stderr)
+        return 1
+    host = urlsplit(database_url).hostname or "?"
+    engine = create_engine(database_url, connect_args={"connect_timeout": 10})
+    try:
+        with Session(engine) as db:
+            already = len(staging_seed.seeded_ids(db))
+            if not confirmed:
+                if mode == "remove":
+                    print(f"Would remove the {already} seeded people and their bookings, on the database at {host}.")
+                else:
+                    print(
+                        f"Would {'replace' if mode == 'replace' else 'add'} 12 sitters, 8 families and their "
+                        f"bookings on the database at {host}"
+                        + (
+                            f", with bookings for {parent_email or ''} {sitter_email or ''}".rstrip()
+                            if parent_email or sitter_email
+                            else ""
+                        )
+                        + ". Run again with --yes to do it."
+                    )
+                return 0
+            if mode in ("remove", "replace"):
+                found = staging_seed.remove(db)
+                print(f"Removed {found.parents} seeded families and {found.sitters} seeded sitters.")
+                if mode == "remove":
+                    return 0
+            try:
+                summary = staging_seed.seed(db, datetime.now(UTC), parent_email, sitter_email)
+            except staging_seed.SeedError as exc:
+                db.rollback()
+                print(str(exc), file=sys.stderr)
+                return 1
+    finally:
+        engine.dispose()
+    print(
+        f"Added {summary.sitters} sitters, {summary.families} families ({summary.children} children) and "
+        f"{summary.bookings} bookings between them"
+        + (f", plus {summary.test_bookings} with your test accounts" if summary.test_bookings else "")
+        + ". Seeded people can't sign in and are never emailed."
+    )
+    for note in summary.notes:
+        print(note)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -180,6 +233,13 @@ def main(argv: list[str] | None = None) -> int:
     delete.add_argument("--yes", action="store_true", help="actually delete (otherwise only checks)")
     reset = commands.add_parser("reset-staging-accounts", help="staging only: remove every parent and sitter")
     reset.add_argument("--yes", action="store_true", help="actually remove them (otherwise only counts)")
+    seed = commands.add_parser("seed-staging", help="staging only: fake sitters, families and bookings")
+    seed.add_argument("--parent-email", help="your own test parent account, to get bookings too")
+    seed.add_argument("--sitter-email", help="your own test sitter account, to get bookings too")
+    seed.add_argument("--yes", action="store_true", help="actually do it (otherwise only says what it would do)")
+    again = seed.add_mutually_exclusive_group()
+    again.add_argument("--replace", action="store_true", help="remove the earlier seed first")
+    again.add_argument("--remove", action="store_true", help="only remove what the seed added")
     commands.add_parser("check-supabase", help="security: tables refuse the public key; storage is private")
     args = parser.parse_args(argv)
     if args.command == "check-supabase":
@@ -187,6 +247,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "reset-staging-accounts":
             return reset_staging_accounts(args.yes, _database_url())
+        if args.command == "seed-staging":
+            mode = "remove" if args.remove else "replace" if args.replace else "add"
+            parent_email = args.parent_email.strip() if args.parent_email else None
+            sitter_email = args.sitter_email.strip() if args.sitter_email else None
+            return seed_staging(parent_email, sitter_email, mode, args.yes, _database_url())
         if args.command == "delete-empty-profile":
             return delete_empty_profile(args.email.strip(), args.yes, _database_url())
         return create_admin(args.email.strip(), " ".join(args.name.split()), args.user_id, _database_url())

@@ -1,15 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
-import { FAKE, apiEnv, python } from "./env";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { apiEnv, python } from "./env";
+import { signIn, type Person } from "./people";
 
 // The onboarding journeys end to end (CLAUDE.md 6.13, 7, 9): a parent and a sitter sign up and finish their
 // profiles, an admin rejects a step with a reason, the sitter fixes it, the admin approves the sitter and the
 // family, and the parent finds the sitter. The steps share one database, so they run in order.
 
-type Person = { id: string; email: string; page: Page };
-
-const run = randomUUID().slice(0, 8);
 const PDF = { name: "document.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n% e2e test file\n") };
 // A real 1x1 PNG, so the browser can show it as the sitter's photo.
 const PNG = {
@@ -20,29 +17,6 @@ const PNG = {
     "base64",
   ),
 };
-
-/** A signed-in browser for a new person. Supabase keeps its session in localStorage; we put a token there. */
-async function signIn(browser: Browser, label: string): Promise<Person> {
-  const id = randomUUID();
-  const email = `${label}-${run}@example.com`;
-  const response = await fetch(`${FAKE}/e2e/token?sub=${id}&email=${encodeURIComponent(email)}`);
-  const { token } = (await response.json()) as { token: string };
-  const expiresAt = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
-  const session = {
-    access_token: token,
-    token_type: "bearer",
-    expires_in: 24 * 60 * 60,
-    expires_at: expiresAt,
-    refresh_token: "e2e-refresh",
-    user: { id, aud: "authenticated", role: "authenticated", email, app_metadata: {}, user_metadata: {} },
-  };
-  const context = await browser.newContext();
-  await context.addInitScript(
-    ([key, value]) => window.localStorage.setItem(key, value),
-    ["sb-localhost-auth-token", JSON.stringify(session)],
-  );
-  return { id, email, page: await context.newPage() };
-}
 
 const POLICE = "Police clearance certificate (optional for now)";
 

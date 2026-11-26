@@ -10,8 +10,10 @@ tests.
 
 - Phase: 12 done (2026-11-23): the security review (`docs/security-review.md`), with rate limits, secure
   headers, an IDOR sweep, a secrets scan, dependency audits in CI and a live Supabase check. Three
-  follow-ups for Reuben are in the review. Phases 10 and 11 done the same day. Next: phase 13, the
-  marketing site (optional before beta), or phase 14, beta.
+  follow-ups for Reuben are in the review. Phases 10 and 11 done the same day. The content security policy
+  was checked on staging and enforced (2026-11-25). Phase 14 under way: the seed, the booking-day e2e test,
+  the manual test script and the feedback log are done (2026-11-26); next is Reuben's manual pass. Phase 13, the marketing site, is
+  done last (Reuben, 2026-11-26: mostly built already).
 - Beta uses a test UPI ID in `PACIFY_UPI_ID`; Reuben swaps in the company account before launch.
 - Production sign-in: Resend key in prod SMTP and Cloudflare/Render Supabase variables; check after the next release to `main`
 - `FIELD_ENCRYPTION_KEY` set on Render by Reuben (2026-11-03) — unblocks saving a sitter's health
@@ -741,14 +743,15 @@ at home (CLAUDE.md 6.3).
 - [x] Report written to `docs/security-review.md` with findings and fixes. Reuben to run `check-supabase`
   on staging, switch the web CSP on after a staging check, and look at Supabase Auth's rate limits
 
-## Phase 13 — Marketing site (optional before beta)
-
-- [ ] Scrollytelling landing page per brand guide chapters 01–06, waitlist form, "Become a sitter"
-- [ ] Reduced-motion version, skip link, 360px and 200% zoom checks
-
 ## Phase 14 — Beta on staging
 
-- [ ] Seed realistic data; extend the Playwright tests (onboarding journeys done 2026-11-09) to booking, check-in and payout journeys
+- [x] Seed realistic data; extend the Playwright tests (onboarding journeys done 2026-11-09) to booking, check-in and payout journeys
+  (2026-11-26, Reuben: 12 sitters and 8 families, display only, plus bookings for his own test accounts, initials
+  not photos). `python -m app.cli seed-staging` (`app/services/staging_seed.py`, README "Filling staging with fake
+  people"); `--replace` and `--remove` clear it. The sender now skips reserved `@example.com` addresses, so
+  seeded people are never emailed. `web/e2e/visit-day.e2e.ts` drives the day of a booking with the seed: check-in
+  code (a wrong one refused), overtime asked and accepted, check-out, her pay due, an admin paying it, a review.
+- [x] Manual test script for Reuben: `docs/manual-test-script.md`; feedback log: `docs/beta-feedback.md`
 - [ ] [Reuben] Manual functional test pass on staging
 - [ ] [Reuben] User testing with ~5 parents and ~5 sitters; feedback logged in `docs/beta-feedback.md`
 - [ ] Fix beta feedback items marked must-fix
@@ -773,9 +776,15 @@ at home (CLAUDE.md 6.3).
 - [ ] Weekly: dependency updates, error review in Sentry
 - [ ] v2 backlog: Aadhaar e-sign for the sitter agreement, Razorpay collection and payouts, WhatsApp/SMS, recurring bookings, Pacify Plus, more care types
 
+## Phase 13 — Marketing site (done last: mostly built already, Reuben 2026-11-26)
+
+- [ ] Scrollytelling landing page per brand guide chapters 01–06, waitlist form, "Become a sitter"
+- [ ] Reduced-motion version, skip link, 360px and 200% zoom checks
+
 ---
 
 ## Session log (one line per session, newest first)
+- 2026-11-26 — Phase 14: staging seed, booking-day e2e test, manual test script, beta feedback log.
 - 2026-11-26 — Staging redeployed: GitHub's outage dropped the #119 merge event, so nothing had built it.
 - 2026-11-25 — Web content security policy enforced after a clean staging check.
 - 2026-11-23 — Security hardening and review (phase 12).

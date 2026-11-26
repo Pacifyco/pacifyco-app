@@ -100,7 +100,7 @@ Staging and production are identical code with separate services, databases and 
 | Supabase project | `pacifyco-staging` | `pacifyco-prod` |
 | Resend | test sender | verified domain sender |
 | Sentry environment | `staging` | `production` |
-| Seed data | yes (fake parents, sitters, bookings) | never |
+| Seed data | yes (fake parents, sitters, bookings: `python -m app.cli seed-staging`, display only) | never |
 
 The domain is `pacifyco.in`. Keep URLs in config (`PUBLIC_WEB_URL`, `VITE_API_URL`), never hard-coded.
 Until DNS is set up, use the default Cloudflare Pages and Render URLs.

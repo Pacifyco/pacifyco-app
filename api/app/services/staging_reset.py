@@ -54,8 +54,12 @@ class Found:
     storage_paths: list[str] = field(default_factory=list)
 
 
-def find(db: Session) -> Found:
-    profiles = list(db.execute(select(Profile.id, Profile.role).where(Profile.role.in_([Role.parent, Role.sitter]))))
+def find(db: Session, only: list[uuid.UUID] | None = None) -> Found:
+    """Every parent and sitter, or only these ones (the staging seed's people, `staging_seed.py`)."""
+    query = select(Profile.id, Profile.role).where(Profile.role.in_([Role.parent, Role.sitter]))
+    if only is not None:
+        query = query.where(Profile.id.in_(only))
+    profiles = list(db.execute(query))
     ids = [row.id for row in profiles]
     children = db.scalars(select(Child.id).where(Child.parent_id.in_(ids))).all()
     documents = db.execute(
@@ -71,19 +75,21 @@ def find(db: Session) -> Found:
     )
 
 
-def delete_all(db: Session, found: Found) -> None:
+def delete_all(db: Session, found: Found, also_bookings: list[uuid.UUID] | None = None) -> None:
     """Deletes every row belonging to these parents and sitters, then their profiles (which cascade to
-    parents, children, contacts, sitters, references, steps, availability and psych attempts)."""
+    parents, children, contacts, sitters, references, steps, availability and psych attempts). Also these
+    bookings and their rows, whoever they're between (the seed's bookings for Reuben's own test accounts)."""
     ids = found.profile_ids
-    if not ids:
+    if not ids and not also_bookings:
         return
     child_ids = db.scalars(select(Child.id).where(Child.parent_id.in_(ids))).all()
     document_ids = db.scalars(select(Document.id).where(Document.owner_profile_id.in_(ids))).all()
     reference_ids = db.scalars(select(Reference.id).where(Reference.sitter_id.in_(ids))).all()
     attempt_ids = db.scalars(select(PsychAttempt.id).where(PsychAttempt.sitter_id.in_(ids))).all()
-    booking_ids = db.scalars(
-        select(Booking.id).where(or_(Booking.parent_id.in_(ids), Booking.sitter_id.in_(ids)))
-    ).all()
+    booking_ids = [
+        *db.scalars(select(Booking.id).where(or_(Booking.parent_id.in_(ids), Booking.sitter_id.in_(ids)))).all(),
+        *(also_bookings or []),
+    ]
     payment_ids = db.scalars(select(Payment.id).where(Payment.booking_id.in_(booking_ids))).all()
     strike_ids = db.scalars(
         select(Strike.id).where(or_(Strike.booking_id.in_(booking_ids), Strike.sitter_id.in_(ids)))
